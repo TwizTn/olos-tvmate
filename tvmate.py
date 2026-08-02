@@ -54,6 +54,11 @@ def app_dir():
 CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
+# --- versioning & auto-update ---
+VERSION = "0.777.b2"
+UPDATE_VERSION_URL = "https://raw.githubusercontent.com/TwizTn/olos-tvmate/main/version.txt"
+UPDATE_SCRIPT_URL = "https://raw.githubusercontent.com/TwizTn/olos-tvmate/main/tvmate.py"
+
 DEFAULT_CONFIG = {
     "xtream_host": "",
     "xtream_port": "",
@@ -266,6 +271,54 @@ _XT_CACHE = {"ts": 0, "channels": [], "cats": {}}
 _XT_TTL = 600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
 _EPG_TTL = 3600
+
+def _fetch_text(url, timeout=8):
+    """Fetch a URL as text, or None on any failure (offline, 404, etc.)."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "OlosTVMate-Updater"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", "replace")
+    except Exception:
+        return None
+
+def _parse_ver(v):
+    """Turn '0.777.b1' into a comparable tuple. Higher = newer."""
+    v = (v or "").strip().lstrip("v").strip()
+    # split into numeric-ish and build parts: 0.777.b1 -> (0,777, 'b', 1)
+    import re as _re
+    nums = _re.findall(r"\d+", v)
+    # base numbers plus trailing build number; letters ignored for ordering except build
+    try:
+        return tuple(int(n) for n in nums)
+    except Exception:
+        return ()
+
+def check_for_update():
+    """Return (update_available, remote_version) comparing GitHub version.txt to VERSION."""
+    remote = _fetch_text(UPDATE_VERSION_URL)
+    if not remote:
+        return (False, None)
+    remote = remote.strip().splitlines()[0].strip() if remote.strip() else ""
+    if not remote:
+        return (False, None)
+    try:
+        newer = _parse_ver(remote) > _parse_ver(VERSION)
+    except Exception:
+        newer = (remote != VERSION)
+    return (newer, remote)
+
+def download_update():
+    """Download the new tvmate.py to a temp file next to the current script. Return path or None."""
+    text = _fetch_text(UPDATE_SCRIPT_URL, timeout=30)
+    if not text or "def main(" not in text and "PORT" not in text:
+        return None
+    try:
+        dest = os.path.join(app_dir(), "tvmate_new.py")
+        with open(dest, "w", encoding="utf-8") as f:
+            f.write(text)
+        return dest
+    except Exception:
+        return None
 
 def _find_vlc():
     """Locate the VLC executable across common OS install paths."""
@@ -639,7 +692,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .langflag{background:none;border:1px solid transparent;border-radius:6px;padding:2px 6px;font-size:17px;line-height:1;cursor:pointer;opacity:.45;filter:grayscale(.5);transition:all .12s}
  .langflag:hover{opacity:.85;filter:none}
  .langflag.on{opacity:1;filter:none;border-color:var(--line2);background:var(--card2)}
- .pmodal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:100}
+ .updatebanner{position:fixed;top:0;left:0;right:0;background:#16233d;border-bottom:1px solid var(--acc);padding:10px 18px;display:flex;align-items:center;gap:12px;justify-content:center;z-index:300;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+ .updatebanner button{font-size:13px;padding:5px 14px}
  .pbox{background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:min(880px,92vw);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
  .pclose{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
@@ -909,7 +963,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <svg width="120" height="120" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="139" rx="44" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="127" rx="42" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><ellipse cx="101" cy="115" rx="40" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>
       <div class="bname">Olo's TVMate</div>
       <div class="btag">Find your match. Build your playlist.</div>
-      <div class="btag" style="opacity:.6;font-size:11px;margin-top:4px">v2026.08.02</div>
+      <div class="btag" style="opacity:.6;font-size:11px;margin-top:4px">v__VERSION__</div>
     </div>
     <div class="card">
       <div class="muted">Your Xtream login is stored locally in config.json next to the app. It's only ever sent to your own provider.</div>
@@ -935,6 +989,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     </div>
   </section>
 </main>
+<div id="updateBanner" class="updatebanner hide">
+  <span id="updateMsg"></span>
+  <button onclick="doUpdateNow()" id="updateNowBtn">Update now</button>
+  <button class="ghost" onclick="dismissUpdate()">Later</button>
+</div>
 <div id="playerModal" class="pmodal hide" onclick="if(event.target===this)closePlayer()">
   <div class="pbox">
     <div class="pbar"><span id="pTitle">Player</span><button class="pclose" onclick="closePlayer()">&times;</button></div>
@@ -992,6 +1051,12 @@ const _I18N={
   "No channels here.":"Ingen kanaler her.","No program info":"Ingen programinfo",
   "Loading EPG...":"Laster EPG...","EPG loaded":"EPG lastet","EPG failed":"EPG feilet","Loading...":"Laster...",
   "No favorites to load EPG for.":"Ingen favoritter å laste EPG for.",
+  "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...",
+  "Update downloaded. Restart now to finish updating?":"Oppdatering lastet ned. Start på nytt for å fullføre?",
+  "Restart now":"Start på nytt","Update now":"Oppdater nå","Restarting...":"Starter på nytt...",
+  "Updating... this window will reload shortly.":"Oppdaterer... vinduet lastes inn på nytt snart.",
+  "Update failed. Try again later.":"Oppdatering feilet. Prøv igjen senere.",
+  "Restart failed. Please close and reopen the app.":"Omstart feilet. Lukk og åpne appen igjen.",
   "Host (e.g. http://example.com:8080)":"Vert (f.eks. http://example.com:777)",
   "Username":"Brukernavn","Password":"Passord","Stream extension":"Strøm-format",
   "Default start section":"Standard oppstartseksjon","Search a team, e.g. Leeds":"Søk etter lag, f.eks. Leeds",
@@ -1607,6 +1672,48 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
 })();
 initPancakes();
 refreshStatus();
+// --- auto-update ---
+let _updateLatest=null;
+async function checkForUpdate(){
+  try{
+    const r=await fetch('/api/update_check');
+    const j=await r.json();
+    if(j.available&&j.latest){
+      _updateLatest=j.latest;
+      document.getElementById('updateMsg').textContent=tr('Update available')+': v'+j.latest+' ('+tr('you have')+' v'+j.current+')';
+      document.getElementById('updateBanner').classList.remove('hide');
+    }
+  }catch(e){/* offline or unreachable - silent */}
+}
+async function doUpdateNow(){
+  const btn=document.getElementById('updateNowBtn');
+  btn.textContent=tr('Downloading...');btn.disabled=true;
+  try{
+    const r=await fetch('/api/update_download',{method:'POST'});
+    const j=await r.json();
+    if(!j.ok){throw new Error('dl');}
+    document.getElementById('updateMsg').textContent=tr('Update downloaded. Restart now to finish updating?');
+    btn.textContent=tr('Restart now');btn.disabled=false;
+    btn.onclick=doUpdateRestart;
+  }catch(e){
+    document.getElementById('updateMsg').textContent=tr('Update failed. Try again later.');
+    btn.textContent=tr('Update now');btn.disabled=false;
+  }
+}
+async function doUpdateRestart(){
+  const btn=document.getElementById('updateNowBtn');
+  btn.textContent=tr('Restarting...');btn.disabled=true;
+  try{
+    await fetch('/api/update_restart',{method:'POST'});
+    document.getElementById('updateMsg').textContent=tr('Updating... this window will reload shortly.');
+    // give the helper time to swap + relaunch, then reload
+    setTimeout(function(){location.reload();},5000);
+  }catch(e){
+    document.getElementById('updateMsg').textContent=tr('Restart failed. Please close and reopen the app.');
+  }
+}
+function dismissUpdate(){document.getElementById('updateBanner').classList.add('hide');}
+checkForUpdate();
 </script>
 </body></html>
 """
@@ -1634,7 +1741,7 @@ class Handler(BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(u.query)
         try:
             if u.path in ("/", "/index.html"):
-                return self._send(200, PAGE, "text/html")
+                return self._send(200, PAGE.replace("__VERSION__", VERSION), "text/html")
 
             if u.path == "/api/status":
                 cfg = load_config()
@@ -1702,6 +1809,11 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     return self._send(200, {"error": str(e), "url": dbg_url})
                 return self._send(200, {"raw": raw, "parsed": x.short_epg(sid, limit=3)})
+
+            if u.path == "/api/update_check":
+                available, remote = check_for_update()
+                return self._send(200, {"available": available,
+                                        "current": VERSION, "latest": remote})
 
             if u.path == "/api/hls":
                 # Build the HLS url for a stream_id and return it (for direct-try).
@@ -1928,6 +2040,59 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True,
                                     "categories": fav["categories"],
                                     "channel_ids": [c.get("stream_id") for c in fav["channels"]]})
+
+        if u.path == "/api/update_download":
+            path = download_update()
+            if path:
+                return self._send(200, {"ok": True})
+            return self._send(500, {"ok": False, "error": "download failed"})
+
+        if u.path == "/api/update_restart":
+            # Swap tvmate_new.py -> tvmate.py and relaunch, via a small helper.
+            import sys, subprocess
+            new = os.path.join(app_dir(), "tvmate_new.py")
+            cur = os.path.join(app_dir(), "tvmate.py")
+            if not os.path.exists(new):
+                return self._send(400, {"ok": False, "error": "no update downloaded"})
+            try:
+                # Launcher/interpreter to relaunch with
+                py = sys.executable
+                # If running as a frozen exe, sys.argv[0] is the app; prefer re-running that
+                target_is_frozen = getattr(sys, "frozen", False)
+                if sys.platform.startswith("win"):
+                    # Windows: use a .bat helper that waits, swaps, relaunches
+                    helper = os.path.join(app_dir(), "_update.bat")
+                    if target_is_frozen:
+                        relaunch = '"' + sys.argv[0] + '"'
+                    else:
+                        relaunch = '"' + py + '" "' + cur + '"'
+                    with open(helper, "w", encoding="utf-8") as f:
+                        f.write("@echo off\r\n"
+                                "timeout /t 2 /nobreak >nul\r\n"
+                                'move /y "' + new + '" "' + cur + '" >nul\r\n'
+                                'start "" ' + relaunch + "\r\n"
+                                'del "%~f0"\r\n')
+                    subprocess.Popen(["cmd", "/c", helper],
+                                     creationflags=0x00000008)  # DETACHED_PROCESS
+                else:
+                    helper = os.path.join(app_dir(), "_update.sh")
+                    if target_is_frozen:
+                        relaunch = '"' + sys.argv[0] + '"'
+                    else:
+                        relaunch = '"' + py + '" "' + cur + '"'
+                    with open(helper, "w", encoding="utf-8") as f:
+                        f.write("#!/bin/sh\nsleep 2\nmv -f '" + new + "' '" + cur + "'\n"
+                                + relaunch + " &\nrm -- \"$0\"\n")
+                    os.chmod(helper, 0o755)
+                    subprocess.Popen(["/bin/sh", helper],
+                                     start_new_session=True)
+                # schedule our own exit shortly after responding
+                def _bye():
+                    import time as _t; _t.sleep(1); os._exit(0)
+                import threading as _th; _th.Thread(target=_bye, daemon=True).start()
+                return self._send(200, {"ok": True})
+            except Exception as e:
+                return self._send(500, {"ok": False, "error": str(e)})
 
         if u.path == "/api/play":
             # Launch VLC with a stream url (stream_id -> ts url).
