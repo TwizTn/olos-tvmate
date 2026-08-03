@@ -84,7 +84,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b29"
+VERSION = "0.777.b30"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2326,14 +2326,6 @@ def main():
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://localhost:{port}"
     use_color = _enable_ansi()
-    if sys.platform.startswith("win"):
-        try:
-            # Trim excess width. Only set columns (NOT lines) - setting lines
-            # changes the buffer height and causes scroll/stretch. Our widest
-            # line is ~58 chars, so 100 cols is safe with margin.
-            os.system("mode con: cols=80")
-        except Exception:
-            pass
     try:
         print(_colored_banner(use_color))
     except Exception:
