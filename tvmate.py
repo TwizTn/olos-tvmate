@@ -83,16 +83,23 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b10"
+VERSION = "0.777.b12"
 
 BANNER = r'''
+  ___  _        _     _______     ____  __      __ 
+ / _ \| | ___  ( )__ |_   _\ \   / /  \/  | __ _| |_ ___
+| | | | |/ _ \ // __|  | |  \ \ / /| |\/| |/ _` | __/ _ \
+| |_| | | (_) |\__ \   | |   \ V / | |  | | (_| | ||  __/
+ \___/|_|\___/ |___/   |_|    \_/  |_|  |_|\__,_|\__\___|
+
+          \ | /
        .----------------.
        |   ___________   | o
-       |  /           \  | o     ~ Olo's TVMate ~
-       |  |   [___]    |  | |
-       |  |  (=====)   |  |       pancakes, on TV
-       |  |  (=====)   |  |
-       |  |   \___/    |  |
+       |  /           \  | o     ~ Technically a TV app ~
+       |  |   [___]    | | |
+       |  |  (=====)   | |        Spiritually a pancake.
+       |  |  (=====)   | |
+       |  |   \___/    | |
        |  \___________/  |
        '----------------'
           ||        ||
@@ -2231,12 +2238,9 @@ def main():
         pass
     print("  " + "=" * 56)
     print(f"   Olo's TVMate is RUNNING   (v{VERSION})")
-    print("")
     print(f"     Watch here ->   {url}")
-    print("")
     print("     To QUIT    ->   close this window   (or press Ctrl+C)")
     print("  " + "=" * 56)
-    print("")
     print("  Settings file:", CONFIG_PATH)
     threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:
