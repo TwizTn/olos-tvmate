@@ -47,15 +47,43 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # --------------------------------------------------------------------------
 
 def app_dir():
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
+    """The app's data home - a hidden per-user folder where config, favorites,
+    the downloaded script, and any future data files live. Kept out of sight so
+    only the .exe is visible to the user."""
+    # 1. If the launcher told us the home folder, use it (single source of truth).
+    env_home = os.environ.get("TVMATE_HOME")
+    if env_home:
+        try:
+            os.makedirs(env_home, exist_ok=True)
+        except Exception:
+            pass
+        if os.path.isdir(env_home):
+            return env_home
+    # 2. Otherwise compute the standard per-OS user-data folder.
+    home = _default_data_dir()
+    try:
+        os.makedirs(home, exist_ok=True)
+    except Exception:
+        pass
+    return home
+
+def _default_data_dir():
+    """Standard per-user data folder for each OS."""
+    name = "OlosTVMate"
+    if sys.platform.startswith("win"):
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+        return os.path.join(base, name)
+    elif sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~/Library/Application Support"), name)
+    else:
+        base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+        return os.path.join(base, name)
 
 CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b2"
+VERSION = "0.777.b4"
 UPDATE_VERSION_URL = "https://raw.githubusercontent.com/TwizTn/olos-tvmate/main/version.txt"
 UPDATE_SCRIPT_URL = "https://raw.githubusercontent.com/TwizTn/olos-tvmate/main/tvmate.py"
 
@@ -2055,37 +2083,35 @@ class Handler(BaseHTTPRequestHandler):
             if not os.path.exists(new):
                 return self._send(400, {"ok": False, "error": "no update downloaded"})
             try:
-                # Launcher/interpreter to relaunch with
+                # Prefer relaunching the launcher .exe (set by launcher via env).
+                launcher_exe = os.environ.get("TVMATE_EXE")
                 py = sys.executable
-                # If running as a frozen exe, sys.argv[0] is the app; prefer re-running that
-                target_is_frozen = getattr(sys, "frozen", False)
+                if launcher_exe and os.path.exists(launcher_exe):
+                    relaunch_win = '"' + launcher_exe + '"'
+                    relaunch_nix = '"' + launcher_exe + '"'
+                elif getattr(sys, "frozen", False):
+                    relaunch_win = '"' + sys.argv[0] + '"'
+                    relaunch_nix = '"' + sys.argv[0] + '"'
+                else:
+                    relaunch_win = '"' + py + '" "' + cur + '"'
+                    relaunch_nix = '"' + py + '" "' + cur + '"'
                 if sys.platform.startswith("win"):
-                    # Windows: use a .bat helper that waits, swaps, relaunches
                     helper = os.path.join(app_dir(), "_update.bat")
-                    if target_is_frozen:
-                        relaunch = '"' + sys.argv[0] + '"'
-                    else:
-                        relaunch = '"' + py + '" "' + cur + '"'
                     with open(helper, "w", encoding="utf-8") as f:
                         f.write("@echo off\r\n"
                                 "timeout /t 2 /nobreak >nul\r\n"
                                 'move /y "' + new + '" "' + cur + '" >nul\r\n'
-                                'start "" ' + relaunch + "\r\n"
+                                'start "" ' + relaunch_win + "\r\n"
                                 'del "%~f0"\r\n')
                     subprocess.Popen(["cmd", "/c", helper],
                                      creationflags=0x00000008)  # DETACHED_PROCESS
                 else:
                     helper = os.path.join(app_dir(), "_update.sh")
-                    if target_is_frozen:
-                        relaunch = '"' + sys.argv[0] + '"'
-                    else:
-                        relaunch = '"' + py + '" "' + cur + '"'
                     with open(helper, "w", encoding="utf-8") as f:
                         f.write("#!/bin/sh\nsleep 2\nmv -f '" + new + "' '" + cur + "'\n"
-                                + relaunch + " &\nrm -- \"$0\"\n")
+                                + relaunch_nix + " &\nrm -- \"$0\"\n")
                     os.chmod(helper, 0o755)
-                    subprocess.Popen(["/bin/sh", helper],
-                                     start_new_session=True)
+                    subprocess.Popen(["/bin/sh", helper], start_new_session=True)
                 # schedule our own exit shortly after responding
                 def _bye():
                     import time as _t; _t.sleep(1); os._exit(0)
