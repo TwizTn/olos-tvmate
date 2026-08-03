@@ -83,7 +83,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b12"
+VERSION = "0.777.b15"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __ 
