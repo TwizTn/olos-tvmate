@@ -32,6 +32,7 @@ Standard library only, so it can be frozen with:
 import os
 import re
 import sys
+import subprocess
 import json
 import time
 import html
@@ -83,7 +84,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b23"
+VERSION = "0.777.b25"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -736,7 +737,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  :root{--bg:#0f1115;--card:#181b22;--card2:#1e222b;--fg:#e6e8ee;--mut:#8a90a0;--acc:#4f8cff;--line:#262a34;--line2:#313747}
  *{box-sizing:border-box}
  body{margin:0;font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
- header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:center}
+ header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:center;position:relative}
+ .slogan{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:13px;font-style:italic;color:#f0b95e;white-space:nowrap;opacity:.9;letter-spacing:.2px;pointer-events:none}
+ #status{margin-left:auto}
  header h1{font-size:16px;margin:0;font-weight:600}
  header a{color:var(--mut);text-decoration:none;font-size:14px;cursor:pointer;padding:2px 0;border-bottom:2px solid transparent}
  header a:hover{color:var(--fg)}
@@ -903,7 +906,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a id="navMytv" onclick="showMytv()" data-i18n="My TV">My TV</a>
   <a id="navMylist" onclick="showMylist()" data-i18n="My List">My List</a>
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
-  <span id="status" class="muted" style="margin-left:auto"></span>
+  <span id="slogan" class="slogan"></span>
+  <span id="status" class="muted"></span>
   <div class="langsel">
     <button class="langflag on" id="langEN" onclick="setLang('en')" title="English">&#127468;&#127463;</button>
     <button class="langflag" id="langNO" onclick="setLang('no')" title="Norsk">&#127475;&#127476;</button>
@@ -1037,6 +1041,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button>
         <button class="ghost" onclick="reloadCh()" data-i18n="Reload channels">Reload channels</button>
         <button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button>
+        <button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button>
       </div>
       <div id="s_msg" class="muted" style="margin-top:10px"></div>
     </div>
@@ -1086,6 +1091,20 @@ function initPlPancakes(){
   if(pl){makePancakes(pl,10);pl.style.opacity='0.13';}
 }
 function setNav(id){['navSearch','navChannels','navMylist','navMytv','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
+const _SLOGANS={
+  search:["Find the match. Pick a channel. Pour the syrup.","Technically a TV app. Spiritually a pancake."],
+  mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
+  channels:["Putting the \u201Cpan\u201D in channel planning.","Plan your viewing. Prepare your pancakes."],
+  settings:["Powered by pancakes and questionable decisions.","Built with code, football, and pancake batter."],
+  mylist:["Curate your channels. Butter generously.","Pancakes on standby."]
+};
+function setSlogan(section){
+  const el=document.getElementById('slogan');
+  if(!el)return;
+  const list=_SLOGANS[section]||[];
+  if(!list.length){el.textContent='';return;}
+  el.textContent=list[Math.floor(Math.random()*list.length)];
+}
 let _lang='en';
 const _I18N={
   "Search":"Søk","Playlist Builder":"Lag spilleliste","My List":"Min liste","My TV":"Live TV","Settings":"Innstillinger",
@@ -1115,6 +1134,7 @@ const _I18N={
   "Check for updates":"Se etter oppdateringer","Checking...":"Sjekker...",
   "You are on the latest version":"Du har den nyeste versjonen",
   "Could not check for updates. Check your internet connection.":"Kunne ikke sjekke for oppdateringer. Sjekk internettforbindelsen.",
+  "Open config folder":"Åpne konfigurasjonsmappe","Could not open folder.":"Kunne ikke åpne mappen.",
   "Host (e.g. http://example.com:8080)":"Vert (f.eks. http://example.com:777)",
   "Username":"Brukernavn","Password":"Passord","Stream extension":"Strøm-format",
   "Default start section":"Standard oppstartseksjon","Search a team, e.g. Leeds":"Søk etter lag, f.eks. Leeds",
@@ -1141,11 +1161,11 @@ function setLang(l){
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
 function hideAll(){searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytvView.classList.add('hide');}
-function showMytv(){hideAll();mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');initMytv();}
-function showMylist(){hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');loadFavorites();}
-function showSearch(){hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');initPancakes();}
-function showChannels(){hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');loadCategories();initPlPancakes();}
-function showSettings(){loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSettings');}
+function showMytv(){hideAll();mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
+function showMylist(){hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
+function showSearch(){hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
+function showChannels(){hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
+function showSettings(){loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSettings');setSlogan('settings');}
 
 let _catsLoaded=false;
 let _allCats=[];
@@ -1732,6 +1752,13 @@ initPancakes();
 refreshStatus();
 // --- auto-update ---
 let _updateLatest=null;
+async function openConfigFolder(){
+  try{
+    const r=await fetch('/api/open_folder',{method:'POST'});
+    const j=await r.json();
+    if(!j.ok)toast(tr('Could not open folder.')+(j.path?(' '+j.path):''));
+  }catch(e){toast(tr('Could not open folder.'));}
+}
 async function checkForUpdate(manual){
   const btn=document.getElementById('checkUpdateBtn');
   if(manual&&btn){btn.textContent=tr('Checking...');btn.disabled=true;}
@@ -2118,7 +2145,6 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/api/update_restart":
             # Swap tvmate_new.py -> tvmate.py and relaunch, via a small helper.
-            import sys, subprocess
             new = os.path.join(app_dir(), "tvmate_new.py")
             cur = os.path.join(app_dir(), "tvmate.py")
             if not os.path.exists(new):
@@ -2165,6 +2191,19 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(500, {"ok": False, "error": str(e)})
 
+        if u.path == "/api/open_folder":
+            folder = app_dir()
+            try:
+                if sys.platform.startswith("win"):
+                    os.startfile(folder)  # type: ignore[attr-defined]
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", folder])
+                else:
+                    subprocess.Popen(["xdg-open", folder])
+                return self._send(200, {"ok": True, "path": folder})
+            except Exception as e:
+                return self._send(500, {"ok": False, "error": str(e), "path": folder})
+
         if u.path == "/api/play":
             # Launch VLC with a stream url (stream_id -> ts url).
             sid = str(payload.get("stream_id", "")).strip()
@@ -2177,7 +2216,6 @@ class Handler(BaseHTTPRequestHandler):
             if not vlc:
                 return self._send(404, {"error": "VLC not found. Install VLC or use Copy."})
             try:
-                import subprocess
                 subprocess.Popen([vlc, url],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return self._send(200, {"ok": True})
