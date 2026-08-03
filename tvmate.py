@@ -361,8 +361,13 @@ def download_update():
     if not text or "def main(" not in text and "PORT" not in text:
         return None
     try:
+        # Normalize line endings: strip any CR so we don't end up with \r\r\n
+        # (doubled carriage returns) which makes the Windows console double-space
+        # / stretch the ASCII banner. Write with newline="" so Python doesn't
+        # translate again.
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
         dest = os.path.join(app_dir(), "tvmate_new.py")
-        with open(dest, "w", encoding="utf-8") as f:
+        with open(dest, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         return dest
     except Exception:
@@ -2233,7 +2238,7 @@ def main():
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://localhost:{port}"
     try:
-        print(BANNER, end="")
+        print(BANNER)
     except Exception:
         pass
     print("  " + "=" * 56)
