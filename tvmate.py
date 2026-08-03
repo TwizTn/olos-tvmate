@@ -2233,7 +2233,7 @@ def main():
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://localhost:{port}"
     try:
-        print(BANNER)
+        print(BANNER, end="")
     except Exception:
         pass
     print("  " + "=" * 56)
