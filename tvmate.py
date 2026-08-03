@@ -83,7 +83,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b5"
+VERSION = "0.777.b7"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      _
@@ -1105,6 +1105,7 @@ const _I18N={
   "Updating... this window will reload shortly.":"Oppdaterer... vinduet lastes inn på nytt snart.",
   "Update failed. Try again later.":"Oppdatering feilet. Prøv igjen senere.",
   "Restart failed. Please close and reopen the app.":"Omstart feilet. Lukk og åpne appen igjen.",
+  "Update installed. Please close this window and open Olo’s TVMate again.":"Oppdatering installert. Lukk dette vinduet og åpne Olo’s TVMate igjen.",
   "Host (e.g. http://example.com:8080)":"Vert (f.eks. http://example.com:777)",
   "Username":"Brukernavn","Password":"Passord","Stream extension":"Strøm-format",
   "Default start section":"Standard oppstartseksjon","Search a team, e.g. Leeds":"Søk etter lag, f.eks. Leeds",
@@ -1752,10 +1753,14 @@ async function doUpdateRestart(){
   const btn=document.getElementById('updateNowBtn');
   btn.textContent=tr('Restarting...');btn.disabled=true;
   try{
-    await fetch('/api/update_restart',{method:'POST'});
-    document.getElementById('updateMsg').textContent=tr('Updating... this window will reload shortly.');
-    // give the helper time to swap + relaunch, then reload
-    setTimeout(function(){location.reload();},5000);
+    const r=await fetch('/api/update_restart',{method:'POST'});
+    const j=await r.json();
+    if(j.relaunch===false){
+      document.getElementById('updateMsg').textContent=tr('Update installed. Please close this window and open Olo\u2019s TVMate again.');
+    }else{
+      document.getElementById('updateMsg').textContent=tr('Updating... this window will reload shortly.');
+      setTimeout(function(){location.reload();},6000);
+    }
   }catch(e){
     document.getElementById('updateMsg').textContent=tr('Restart failed. Please close and reopen the app.');
   }
@@ -2103,40 +2108,44 @@ class Handler(BaseHTTPRequestHandler):
             if not os.path.exists(new):
                 return self._send(400, {"ok": False, "error": "no update downloaded"})
             try:
-                # Prefer relaunching the launcher .exe (set by launcher via env).
+                # Determine how to relaunch. ONLY relaunch the permanent launcher
+                # .exe - never a temp-extracted python.exe (which vanishes).
                 launcher_exe = os.environ.get("TVMATE_EXE")
-                py = sys.executable
-                if launcher_exe and os.path.exists(launcher_exe):
-                    relaunch_win = '"' + launcher_exe + '"'
-                    relaunch_nix = '"' + launcher_exe + '"'
-                elif getattr(sys, "frozen", False):
-                    relaunch_win = '"' + sys.argv[0] + '"'
-                    relaunch_nix = '"' + sys.argv[0] + '"'
-                else:
-                    relaunch_win = '"' + py + '" "' + cur + '"'
-                    relaunch_nix = '"' + py + '" "' + cur + '"'
+                relaunch = None
+                if launcher_exe and os.path.exists(launcher_exe) and launcher_exe.lower().endswith(".exe"):
+                    relaunch = '"' + launcher_exe + '"'
+                elif getattr(sys, "frozen", False) and os.path.exists(sys.argv[0]):
+                    relaunch = '"' + sys.argv[0] + '"'
+                # If not running from a launcher/exe (e.g. plain python dev run),
+                # relaunch with the interpreter only if it's a real, stable path.
+                elif not getattr(sys, "frozen", False) and "temp" not in (sys.executable or "").lower():
+                    relaunch = '"' + sys.executable + '" "' + cur + '"'
+
                 if sys.platform.startswith("win"):
                     helper = os.path.join(app_dir(), "_update.bat")
+                    lines = ["@echo off\r\n",
+                             "timeout /t 2 /nobreak >nul\r\n",
+                             'move /y "' + new + '" "' + cur + '" >nul\r\n']
+                    if relaunch:
+                        lines.append('start "" ' + relaunch + "\r\n")
+                    lines.append('del "%~f0"\r\n')
                     with open(helper, "w", encoding="utf-8") as f:
-                        f.write("@echo off\r\n"
-                                "timeout /t 2 /nobreak >nul\r\n"
-                                'move /y "' + new + '" "' + cur + '" >nul\r\n'
-                                'start "" ' + relaunch_win + "\r\n"
-                                'del "%~f0"\r\n')
-                    subprocess.Popen(["cmd", "/c", helper],
-                                     creationflags=0x00000008)  # DETACHED_PROCESS
+                        f.writelines(lines)
+                    subprocess.Popen(["cmd", "/c", helper], creationflags=0x00000008)
                 else:
                     helper = os.path.join(app_dir(), "_update.sh")
+                    body = "#!/bin/sh\nsleep 2\nmv -f '" + new + "' '" + cur + "'\n"
+                    if relaunch:
+                        body += relaunch + " &\n"
+                    body += 'rm -- "$0"\n'
                     with open(helper, "w", encoding="utf-8") as f:
-                        f.write("#!/bin/sh\nsleep 2\nmv -f '" + new + "' '" + cur + "'\n"
-                                + relaunch_nix + " &\nrm -- \"$0\"\n")
+                        f.write(body)
                     os.chmod(helper, 0o755)
                     subprocess.Popen(["/bin/sh", helper], start_new_session=True)
-                # schedule our own exit shortly after responding
                 def _bye():
                     import time as _t; _t.sleep(1); os._exit(0)
                 import threading as _th; _th.Thread(target=_bye, daemon=True).start()
-                return self._send(200, {"ok": True})
+                return self._send(200, {"ok": True, "relaunch": bool(relaunch)})
             except Exception as e:
                 return self._send(500, {"ok": False, "error": str(e)})
 
@@ -2212,6 +2221,14 @@ def main():
             pass
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://localhost:{port}"
+    if sys.platform.startswith("win"):
+        try:
+            # Fresh console windows Windows opens (e.g. from the .exe) default
+            # to a small size, so the banner auto-scrolls and its top gets cut
+            # off. Force a bigger buffer/window so everything stays visible.
+            os.system("mode con: cols=100 lines=46")
+        except Exception:
+            pass
     try:
         print(BANNER)
     except Exception:
