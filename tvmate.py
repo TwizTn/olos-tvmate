@@ -84,7 +84,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b25"
+VERSION = "0.777.b28"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -738,7 +738,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  *{box-sizing:border-box}
  body{margin:0;font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
  header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:center;position:relative}
- .slogan{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:13px;font-style:italic;color:#f0b95e;white-space:nowrap;opacity:.9;letter-spacing:.2px;pointer-events:none}
+ .slogan{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:13px;font-style:italic;color:var(--mut);white-space:nowrap;letter-spacing:.2px;pointer-events:none}
  #status{margin-left:auto}
  header h1{font-size:16px;margin:0;font-weight:600}
  header a{color:var(--mut);text-decoration:none;font-size:14px;cursor:pointer;padding:2px 0;border-bottom:2px solid transparent}
@@ -750,6 +750,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .langflag.on{opacity:1;filter:none;border-color:var(--line2);background:var(--card2)}
  .updatebanner{position:fixed;top:0;left:0;right:0;background:#16233d;border-bottom:1px solid var(--acc);padding:10px 18px;display:flex;align-items:center;gap:12px;justify-content:center;z-index:300;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
  .updatebanner button{font-size:13px;padding:5px 14px}
+ .pmodal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:400}
+ .pmodal.hide{display:none}
  .pbox{background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:min(880px,92vw);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
  .pclose{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
@@ -891,10 +893,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @keyframes floaty{0%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-22px) rotate(4deg)}100%{transform:translateY(0) rotate(0deg)}}
  #searchView{position:relative;z-index:1}
  /* settings branding block */
- .brandblock{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center}
+ .brandblock{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;width:220px;flex-shrink:0}
  .brandblock .bname{font-size:22px;font-weight:600;color:var(--fg)}
  .brandblock .btag{font-size:13px;color:var(--mut)}
- .settingswrap{display:flex;gap:40px;align-items:center;justify-content:center;flex-wrap:wrap}
+ .settingswrap{display:flex;gap:40px;align-items:flex-start;justify-content:center}
+ .settingswrap .card{flex:1;min-width:320px;max-width:640px}
  /* playlist builder logo */
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
  .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
@@ -1092,7 +1095,7 @@ function initPlPancakes(){
 }
 function setNav(id){['navSearch','navChannels','navMylist','navMytv','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
 const _SLOGANS={
-  search:["Find the match. Pick a channel. Pour the syrup.","Technically a TV app. Spiritually a pancake."],
+  search:["Find the match. Pick a channel. Pour the syrup."],
   mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
   channels:["Putting the \u201Cpan\u201D in channel planning.","Plan your viewing. Prepare your pancakes."],
   settings:["Powered by pancakes and questionable decisions.","Built with code, football, and pancake batter."],
@@ -2266,6 +2269,53 @@ class Handler(BaseHTTPRequestHandler):
 # Main
 # --------------------------------------------------------------------------
 
+def _enable_ansi():
+    """Turn on ANSI color in the Windows console. Since some environments
+    (e.g. compiled onefile exes) support color even when the handle dance
+    fails, we default to True and just TRY to enable VT processing."""
+    if not sys.platform.startswith("win"):
+        return True
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        for handle_id in (-11, -12):  # stdout, stderr
+            h = k.GetStdHandle(handle_id)
+            mode = ctypes.c_uint32()
+            if k.GetConsoleMode(h, ctypes.byref(mode)):
+                k.SetConsoleMode(h, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    except Exception:
+        pass
+    # Assume color works (the console has shown ANSI color before).
+    return True
+
+_GOLD = "\033[93m"   # bright yellow (syrup gold)
+_RESET = "\033[0m"
+
+def _colored_banner(use_color):
+    """Return the banner with the pancake tagline in gold."""
+    if not use_color:
+        return BANNER
+    out = []
+    for line in BANNER.split("\n"):
+        if "Technically a TV app" in line or "Spiritually a pancake" in line:
+            # color just the tagline text, keep the TV art before it uncolored
+            idx = line.find("~") if "~" in line else line.find("Spiritually")
+            if idx > 0:
+                out.append(line[:idx] + _GOLD + line[idx:] + _RESET)
+            else:
+                out.append(_GOLD + line + _RESET)
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+ENTER_PROMPTS = [
+    "Press Enter (the pancakes are getting cold)",
+    "Your table's ready - press Enter",
+    "Griddle's hot. Press Enter to get flippin'",
+    "Ready to cook when you are... press Enter",
+    "Powered by pancakes and questionable decisions....press Enter",
+]
+
 def main():
     port = PORT
     if "--port" in sys.argv:
@@ -2275,22 +2325,53 @@ def main():
             pass
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://localhost:{port}"
+    use_color = _enable_ansi()
+    if sys.platform.startswith("win"):
+        try:
+            # Trim excess width. Only set columns (NOT lines) - setting lines
+            # changes the buffer height and causes scroll/stretch. Our widest
+            # line is ~58 chars, so 100 cols is safe with margin.
+            os.system("mode con: cols=100")
+        except Exception:
+            pass
     try:
-        print(BANNER)
+        print(_colored_banner(use_color))
     except Exception:
-        pass
+        try:
+            print(BANNER)
+        except Exception:
+            pass
     print("  " + "=" * 56)
     print(f"   Olo's TVMate is RUNNING   (v{VERSION})")
     print(f"     Watch here ->   {url}")
     print("     To QUIT    ->   close this window   (or press Ctrl+C)")
     print("  " + "=" * 56)
-    print("  Settings file:", CONFIG_PATH)
-    threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    # Serve the app in the background so the server is ready before we open.
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    # Rotating pancake-themed prompt; open the browser when the user presses Enter.
+    import random as _rnd
+    prompt = _rnd.choice(ENTER_PROMPTS)
+    line = "  " + (_GOLD + prompt + _RESET if use_color else prompt)
     try:
-        server.serve_forever()
+        input("\n" + line + "\n")
+        webbrowser.open(url)
+    except Exception:
+        # No console input available (edge case) - just open the browser.
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    # Keep running until the window is closed / Ctrl+C.
+    try:
+        while True:
+            _t_sleep(3600)
     except KeyboardInterrupt:
         print("\n  Stopping Olo's TVMate. Bye!")
         server.shutdown()
+
+def _t_sleep(sec):
+    import time as _t
+    _t.sleep(sec)
 
 if __name__ == "__main__":
     main()
