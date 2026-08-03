@@ -83,7 +83,27 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b4"
+VERSION = "0.777.b5"
+
+BANNER = r'''
+  ___  _        _     _______     ____  __      _
+ / _ \| |___   ( )___|_   _\ \   / /  \/  | __ _| |_ ___
+| | | | / _ \  |// __| | |  \ \ / /| |\/| |/ _` | __/ _ \
+| |_| | | (_) |  \__ \ | |   \ V / | |  | | (_| | ||  __/
+ \___/|_|\___/   |___/ |_|    \_/  |_|  |_|\__,_|\__\___|
+
+          \ | /
+       .----------------.
+       |   ___________   | o
+       |  /           \  | o     ~ Olo's TVMate ~
+       |  |   [___]    |  | |
+       |  |  (=====)   |  |       pancakes, on TV
+       |  |  (=====)   |  |
+       |  |   \___/    |  |
+       |  \___________/  |
+       '----------------'
+          ||        ||
+'''
 UPDATE_VERSION_URL = "https://raw.githubusercontent.com/TwizTn/olos-tvmate/main/version.txt"
 UPDATE_SCRIPT_URL = "https://raw.githubusercontent.com/TwizTn/olos-tvmate/main/tvmate.py"
 
@@ -2192,13 +2212,24 @@ def main():
             pass
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://localhost:{port}"
-    print(f"Olo's TVMate running at {url}")
-    print("Config file:", CONFIG_PATH)
+    try:
+        print(BANNER)
+    except Exception:
+        pass
+    print("  " + "=" * 56)
+    print(f"   Olo's TVMate is RUNNING   (v{VERSION})")
+    print("")
+    print(f"     Watch here ->   {url}")
+    print("")
+    print("     To QUIT    ->   close this window   (or press Ctrl+C)")
+    print("  " + "=" * 56)
+    print("")
+    print("  Settings file:", CONFIG_PATH)
     threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping.")
+        print("\n  Stopping Olo's TVMate. Bye!")
         server.shutdown()
 
 if __name__ == "__main__":
