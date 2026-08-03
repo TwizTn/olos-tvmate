@@ -83,7 +83,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b8"
+VERSION = "0.777.b10"
 
 BANNER = r'''
        .----------------.
@@ -1024,6 +1024,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <button onclick="saveSettings()" data-i18n="Save">Save</button>
         <button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button>
         <button class="ghost" onclick="reloadCh()" data-i18n="Reload channels">Reload channels</button>
+        <button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button>
       </div>
       <div id="s_msg" class="muted" style="margin-top:10px"></div>
     </div>
@@ -1099,6 +1100,9 @@ const _I18N={
   "Update failed. Try again later.":"Oppdatering feilet. Prøv igjen senere.",
   "Restart failed. Please close and reopen the app.":"Omstart feilet. Lukk og åpne appen igjen.",
   "Update installed. Please close this window and open Olo’s TVMate again.":"Oppdatering installert. Lukk dette vinduet og åpne Olo’s TVMate igjen.",
+  "Check for updates":"Se etter oppdateringer","Checking...":"Sjekker...",
+  "You are on the latest version":"Du har den nyeste versjonen",
+  "Could not check for updates. Check your internet connection.":"Kunne ikke sjekke for oppdateringer. Sjekk internettforbindelsen.",
   "Host (e.g. http://example.com:8080)":"Vert (f.eks. http://example.com:777)",
   "Username":"Brukernavn","Password":"Passord","Stream extension":"Strøm-format",
   "Default start section":"Standard oppstartseksjon","Search a team, e.g. Leeds":"Søk etter lag, f.eks. Leeds",
@@ -1716,7 +1720,9 @@ initPancakes();
 refreshStatus();
 // --- auto-update ---
 let _updateLatest=null;
-async function checkForUpdate(){
+async function checkForUpdate(manual){
+  const btn=document.getElementById('checkUpdateBtn');
+  if(manual&&btn){btn.textContent=tr('Checking...');btn.disabled=true;}
   try{
     const r=await fetch('/api/update_check');
     const j=await r.json();
@@ -1724,8 +1730,13 @@ async function checkForUpdate(){
       _updateLatest=j.latest;
       document.getElementById('updateMsg').textContent=tr('Update available')+': v'+j.latest+' ('+tr('you have')+' v'+j.current+')';
       document.getElementById('updateBanner').classList.remove('hide');
+    }else if(manual){
+      toast(tr('You are on the latest version')+' (v'+(j.current||'')+')');
     }
-  }catch(e){/* offline or unreachable - silent */}
+  }catch(e){
+    if(manual)toast(tr('Could not check for updates. Check your internet connection.'));
+  }
+  if(manual&&btn){btn.textContent=tr('Check for updates');btn.disabled=false;}
 }
 async function doUpdateNow(){
   const btn=document.getElementById('updateNowBtn');
@@ -2214,14 +2225,6 @@ def main():
             pass
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://localhost:{port}"
-    if sys.platform.startswith("win"):
-        try:
-            # Fresh console windows Windows opens (e.g. from the .exe) default
-            # to a small size, so the banner auto-scrolls and its top gets cut
-            # off. Force a bigger buffer/window so everything stays visible.
-            os.system("mode con: cols=100 lines=46")
-        except Exception:
-            pass
     try:
         print(BANNER)
     except Exception:
