@@ -84,7 +84,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b28"
+VERSION = "0.777.b29"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -896,7 +896,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .brandblock{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;width:220px;flex-shrink:0}
  .brandblock .bname{font-size:22px;font-weight:600;color:var(--fg)}
  .brandblock .btag{font-size:13px;color:var(--mut)}
- .settingswrap{display:flex;gap:40px;align-items:flex-start;justify-content:center}
+ .settingswrap{display:flex;gap:40px;align-items:center;justify-content:center}
  .settingswrap .card{flex:1;min-width:320px;max-width:640px}
  /* playlist builder logo */
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
@@ -2331,7 +2331,7 @@ def main():
             # Trim excess width. Only set columns (NOT lines) - setting lines
             # changes the buffer height and causes scroll/stretch. Our widest
             # line is ~58 chars, so 100 cols is safe with margin.
-            os.system("mode con: cols=100")
+            os.system("mode con: cols=80")
         except Exception:
             pass
     try:
