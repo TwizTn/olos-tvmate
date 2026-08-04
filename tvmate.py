@@ -41,6 +41,7 @@ import threading
 import webbrowser
 import hashlib
 import shutil
+import datetime
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -86,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b55"
+VERSION = "0.777.b77"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -285,11 +286,19 @@ class Xtream:
         return data if isinstance(data, list) else []
 
     def series_info(self, series_id, refresh=False):
+        cache_key = (self.base, self.user, str(series_id))
+        now = time.time()
+        cached = _SHOW_INFO_CACHE.get(cache_key)
+        if (not refresh and cached and
+                now - cached.get("ts", 0) < _SHOW_INFO_TTL):
+            return cached.get("data") or {}
         q = {"username": self.user, "password": self.password,
              "action": "get_series_info", "series_id": str(series_id)}
         if refresh:
             q["_"] = str(int(time.time()))
-        return http_get_json(f"{self.base}/player_api.php?" + urllib.parse.urlencode(q), timeout=45)
+        data = http_get_json(f"{self.base}/player_api.php?" + urllib.parse.urlencode(q), timeout=45)
+        _SHOW_INFO_CACHE[cache_key] = {"ts": now, "data": data}
+        return data
 
     def episode_url(self, episode_id, extension="mp4"):
         ext = re.sub(r"[^a-zA-Z0-9]", "", str(extension or "mp4")) or "mp4"
@@ -363,8 +372,10 @@ class Xtream:
 _XT_CACHE = {"ts": 0, "channels": [], "cats": {}}
 _VOD_CACHE = {"ts": 0, "movies": []}
 _SERIES_CACHE = {"ts": 0, "shows": []}
+_SHOW_INFO_CACHE = {}  # (provider,user,series_id) -> {ts,data}
 _TVMAZE_CACHE = {}  # normalized title/year -> {"ts": epoch, "covers": {season:url}}
-_XT_TTL = 600
+_XT_TTL = 24 * 3600       # catalogs stay local for the session/day; manual refresh overrides
+_SHOW_INFO_TTL = 24 * 3600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
 _EPG_TTL = 3600
 
@@ -533,6 +544,93 @@ def _clean_episode_title(title, show_name):
         return clean_show or suffix or "Episode"
     raw = re.sub(r"^[A-Z0-9+]+(?:-[A-Z0-9+]+)*\s+-\s+", "", raw, flags=re.I)
     return raw or "Episode"
+
+def _tvmaze_episode_schedule(show_name, year="", force=False):
+    """Return latest aired and next 14-day episode from one 24-hour disk cache."""
+    clean = _clean_show_title(show_name)
+    wanted = re.sub(r"[^a-z0-9]", "", clean.lower())
+    wanted_year = str(year or "")[:4]
+    digest = hashlib.sha256((wanted + "|" + wanted_year).encode("utf-8")).hexdigest()[:16]
+    cache_dir = os.path.join(app_dir(), "artwork", "tvmaze-" + digest)
+    cache_path = os.path.join(cache_dir, "episode-schedule.json")
+    now = time.time()
+    if not force:
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cached = json.load(f) or {}
+            if now - float(cached.get("checked_at") or 0) < 24 * 3600:
+                return cached.get("schedule") or {"latest": {}, "upcoming": {}}
+        except Exception:
+            pass
+    schedule = {"latest": {}, "upcoming": {}}
+    try:
+        results = http_get_json("https://api.tvmaze.com/search/shows?" +
+                                urllib.parse.urlencode({"q": clean}), timeout=12)
+        best, best_score = None, -1
+        for row in results or []:
+            show = row.get("show") or {}
+            candidate = re.sub(r"[^a-z0-9]", "",
+                               str(show.get("name") or "").lower())
+            if candidate != wanted:
+                continue
+            score = float(row.get("score") or 0)
+            premiered = str(show.get("premiered") or "")[:4]
+            if wanted_year and premiered == wanted_year:
+                score += 5
+            if score > best_score:
+                best, best_score = show, score
+        if best and best.get("id") is not None:
+            episodes = http_get_json(
+                f"https://api.tvmaze.com/shows/{best['id']}/episodes?specials=0",
+                timeout=12)
+            aired, upcoming = [], []
+            today = time.strftime("%Y-%m-%d")
+            for ep in episodes or []:
+                airdate = str(ep.get("airdate") or "")[:10]
+                if not airdate:
+                    continue
+                season = ep.get("season")
+                number = ep.get("number")
+                if season is None or number is None:
+                    continue
+                airstamp = str(ep.get("airstamp") or "")
+                air_ts = 0
+                if airstamp:
+                    try:
+                        air_ts = datetime.datetime.fromisoformat(
+                            airstamp.replace("Z", "+00:00")).timestamp()
+                    except ValueError:
+                        air_ts = 0
+                row = (int(season), int(number), airdate, ep)
+                has_aired = air_ts <= now if air_ts else airdate <= today
+                within_14_days = air_ts <= now + 14 * 86400 if air_ts else True
+                if has_aired:
+                    aired.append(row)
+                elif within_14_days:
+                    upcoming.append(row)
+            if aired:
+                season, number, airdate, ep = max(
+                    aired, key=lambda item: (item[0], item[1], item[2]))
+                schedule["latest"] = {
+                    "season": season, "episode_num": number,
+                    "title": str(ep.get("name") or f"Episode {number}"),
+                    "airdate": airdate, "airstamp": str(ep.get("airstamp") or "")}
+            if upcoming:
+                season, number, airdate, ep = min(
+                    upcoming, key=lambda item: (item[2], item[0], item[1]))
+                schedule["upcoming"] = {
+                    "season": season, "episode_num": number,
+                    "title": str(ep.get("name") or f"Episode {number}"),
+                    "airdate": airdate, "airstamp": str(ep.get("airstamp") or "")}
+    except Exception:
+        schedule = {"latest": {}, "upcoming": {}}
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump({"checked_at": now, "schedule": schedule}, f, indent=2)
+    except Exception:
+        pass
+    return schedule
 
 def _tvmaze_season_covers(show_name, year=""):
     """Best-effort, no-key season artwork lookup. Failures return an empty map."""
@@ -1154,7 +1252,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .colh{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 10px;font-weight:600}
  @media(max-width:760px){.split{flex-direction:column}}
  .chname{flex:1;min-width:0;font-size:13.5px;word-break:break-word;line-height:1.35}
- .ch4{display:flex;gap:0;align-items:stretch;flex-wrap:nowrap}
+ .ch4{display:flex;gap:0;align-items:stretch;flex-wrap:nowrap;height:82vh;min-height:480px}
  .ch4group{position:relative;display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;padding:0;margin-left:20px;align-self:stretch;overflow:hidden}
  .ch4col{position:relative;z-index:1;width:250px;flex-shrink:0;display:flex;flex-direction:column;padding:14px 16px}
  .ch4col+.ch4col{border-left:1px solid var(--line)}
@@ -1162,10 +1260,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .clrbtn{margin-left:auto;background:none;border:1px solid var(--line2);color:var(--mut);border-radius:6px;padding:2px 9px;font-size:11px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0}
  .clrbtn:hover{border-color:#ff7676;color:#ff7676;filter:none}
  .plbtns{margin-top:12px;padding-top:12px;flex-wrap:wrap}
- .ch4cats{flex-shrink:0;align-self:flex-start;display:flex;flex-direction:column;padding:0 20px 0 0}
- .catsearch{width:100%;margin-bottom:10px;background:var(--bg);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:8px 11px;font-size:13px}
+ .ch4cats{flex-shrink:0;align-self:stretch;display:flex;flex-direction:column;padding:0 20px 0 0;min-height:0}
+ input.catsearch[type=text]{width:100%;height:38px;min-height:38px;flex:0 0 38px;margin-bottom:10px;background:var(--bg);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:8px 11px;font-size:13px}
  .catsearch:focus{outline:none;border-color:var(--acc)}
- #catlist{border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--bg);max-height:74vh;overflow-y:auto;display:grid;grid-template-columns:repeat(4,190px);grid-auto-flow:column;grid-template-rows:repeat(var(--catrows,20),auto);gap:2px 14px;align-content:start}
+ #catlist{border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--bg);flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(4,190px);grid-auto-flow:column;grid-template-rows:repeat(var(--catrows,20),auto);gap:2px 14px;align-content:start}
  .colh{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin:0 0 12px;font-weight:600;display:flex;align-items:center;gap:6px}
  .colh .muted{text-transform:none;letter-spacing:0;font-weight:400}
  .catitem{display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:11.5px;cursor:pointer;border:0;background:none}
@@ -1191,7 +1289,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .chrow{display:flex;align-items:center;gap:10px;padding:8px;border-radius:7px;transition:background .1s}
  .chrow:hover{background:var(--card2)}
  .chrow+.chrow{border-top:1px solid var(--line)}
- @media(max-width:900px){.ch4{flex-wrap:wrap}.ch4cats{flex:1 1 100%}.ch4col{width:100%}#catlist{grid-template-columns:repeat(2,1fr)}}
+ @media(max-width:900px){.ch4{height:auto;min-height:0;flex-wrap:wrap}.ch4cats{height:70vh;flex:1 1 100%}.ch4group{margin:20px 0 0;width:100%}.ch4col{width:100%}#catlist{grid-template-columns:repeat(2,1fr)}}
  .footline{border-top:1px solid var(--line);margin:30px calc(50% - 50vw) 0;width:100vw}
  /* floating pancakes on the search page side margins */
  .pancakes{position:fixed;top:70px;bottom:0;width:calc((100vw - 960px)/2);pointer-events:none;overflow:hidden;z-index:0}
@@ -1213,13 +1311,14 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .movieswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
  .moviefavs{padding:0;max-height:82vh;overflow-y:auto}
  .moviefavlist{display:flex;flex-direction:column;gap:8px}
- .moviefav{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
- .moviefavposter{position:relative;width:74px;height:110px;flex-shrink:0;border-radius:6px;background:#20242c;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#737b89;font-size:24px}
+ .moviefav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);min-height:100px}
+ .moviefavposter{position:relative;width:64px;height:96px;flex-shrink:0;border-radius:5px;background:#20242c;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#737b89;font-size:24px}
  .moviefavposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
- .moviefavinfo{min-width:0;flex:1}
- .moviefavname{font-size:12px;line-height:1.3;word-break:break-word;margin-bottom:5px}
- .moviefavbtns{display:flex;gap:5px}
- .moviefavbtns button{padding:2px 6px;font-size:10px}
+ .moviefavinfo{min-width:0;flex:1;display:flex;justify-content:center;padding:8px 6px 31px 0}
+ .moviefavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center;word-break:break-word}
+ .moviefavbtns{position:absolute;left:73px;right:0;bottom:8px;display:flex;justify-content:center}
+ .moviefavbtns button{padding:3px 7px;font-size:12px}
+ .movieremove{position:absolute;right:0;bottom:8px;padding:3px 7px}
  .moviesmain{width:100%;max-width:900px;min-width:0;margin:0 auto}
  .moviegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:16px}
  .moviecard{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px}
@@ -1397,6 +1496,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <input id="movieQ" type="text" placeholder="Search your movies..." data-i18n-ph="Search your movies..." onkeydown="if(event.key==='Enter')searchMovies()">
           <button onclick="searchMovies()" data-i18n="Search">Search</button>
         </div>
+        <div id="recentMoviesSection">
+          <div class="colh" style="margin-top:20px" data-i18n="Recently Added">Recently Added</div>
+          <div id="recentMovieList"><span class="muted">Loading...</span></div>
+          <div style="text-align:center;margin-top:14px"><button id="recentMovieMore" class="ghost hide" onclick="expandRecentMovies(this)" data-i18n="See what else is new">See what else is new</button></div>
+        </div>
         <div id="movieResults"></div>
       </div>
     </div>
@@ -1414,6 +1518,15 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div class="row">
           <input id="showQ" type="text" placeholder="Search your shows..." data-i18n-ph="Search your shows..." onkeydown="if(event.key==='Enter')searchShows()">
           <button onclick="searchShows()" data-i18n="Search">Search</button>
+        </div>
+        <div id="latestEpisodesSection">
+          <div class="colh" style="margin-top:20px" data-i18n="Your Latest Episodes">Your Latest Episodes</div>
+          <div id="latestEpisodeList"><span class="muted">Loading...</span></div>
+          <div style="text-align:center;margin-top:14px"><button id="latestEpisodeMore" class="ghost hide" onclick="expandLatestEpisodes(this)" data-i18n="See more latest episodes">See more latest episodes</button></div>
+          <div id="upcomingEpisodesSection" class="hide">
+            <div class="colh" style="margin-top:24px" data-i18n="Upcoming Episodes">Upcoming Episodes</div>
+            <div id="upcomingEpisodeList"></div>
+          </div>
         </div>
         <div id="showResults"></div>
         <div id="showDetails" class="showdetails"></div>
@@ -1466,6 +1579,13 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button>
       </div>
       <div id="s_msg" class="muted" style="margin-top:10px"></div>
+      <div id="devSettings" class="hide" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+        <div class="colh" data-i18n="Developer tools">Developer tools</div>
+        <div class="muted" data-i18n="Testing controls that clear temporary performance data.">Testing controls that clear temporary performance data.</div>
+        <div class="row" style="margin-top:10px">
+          <button class="ghost" onclick="resetColdStart(this)" data-i18n="Reset for cold-start test">Reset for cold-start test</button>
+        </div>
+      </div>
     </div>
     </div>
   </section>
@@ -1543,9 +1663,18 @@ const _I18N={
   "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
   "Connection":"Tilkobling","Preferences":"Innstillinger",
+  "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt",
+  "Your Latest Episodes":"Dine nyeste episoder","See more latest episodes":"Se flere nyeste episoder",
+  "Upcoming Episodes":"Kommende episoder","Airs":"Sendes",
+  "Today":"i dag","Tomorrow":"i morgen","in":"om","day":"dag","days":"dager",
+  "hour":"time","hours":"timer","minute":"minutt","minutes":"minutter",
+  "Not available":"Ikke tilgjengelig",
   "Maintenance & Playback":"Vedlikehold og avspilling","Refresh all content":"Oppdater alt innhold",
   "Check favorite shows on startup":"Se etter nye episoder i favorittserier ved oppstart",
   "Artwork cache":"Mellomlagret omslagskunst","Clear artwork cache":"Tøm omslagskunst",
+  "Reset for cold-start test":"Nullstill for kaldstarttest",
+  "Developer tools":"Utviklerverktøy",
+  "Testing controls that clear temporary performance data.":"Testverktøy som tømmer midlertidige ytelsesdata.",
   "Remove":"Fjern","Copy URL":"Kopier URL",
   "Match strictness (0.40–0.80)":"Treffnøyaktighet (0.40–0.80)",
   "Listings countries (comma separated: no, uk, us)":"Land for TV-guide (kommaseparert: no, uk, us)",
@@ -1593,8 +1722,8 @@ function setLang(l){
 }
 function hideAll(){searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');}
 function showMytv(){hideAll();mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
-function showMovies(){hideAll();moviesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();}
-function showShows(){hideAll();showsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();}
+function showMovies(){hideAll();moviesView.classList.remove('hide');document.getElementById('recentMoviesSection').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();}
+function showShows(){_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showMylist(){hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
 function showSearch(){hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
 function showChannels(){hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
@@ -1843,6 +1972,28 @@ async function clearArtworkCache(){
     s_artsize.textContent='0 B';toast('Artwork cache cleared.');
   }catch(e){toast('Could not clear artwork cache.');}
 }
+async function resetColdStart(btn){
+  if(!confirm('Clear performance caches and reload TVMate for a cold-start test?'))return;
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Resetting...';
+  try{
+    const r=await api('/api/reset_cold_start',{method:'POST'});
+    if(!r.ok)throw new Error(r.error||'reset failed');
+    toast('Cold-start caches cleared. Reloading...',1800);
+    setTimeout(()=>location.reload(),1100);
+  }catch(e){
+    toast('Could not reset cold-start caches.');btn.disabled=false;btn.textContent=old;
+  }
+}
+let _devSequence='';
+document.addEventListener('keydown',function(e){
+  const settings=document.getElementById('settingsView');
+  if(!settings||settings.classList.contains('hide')){_devSequence='';return;}
+  if(e.key==='7')_devSequence=(_devSequence+'7').slice(-3);else _devSequence='';
+  if(_devSequence==='777'){
+    document.getElementById('devSettings').classList.remove('hide');
+    _devSequence='';toast('Developer tools unlocked.');
+  }
+});
 async function testLogin(){s_msg.textContent='Testing...';
   const r=await api('/api/test');
   s_msg.innerHTML=r.ok?('OK &mdash; '+JSON.stringify(r.info)):('<span class="err">'+r.error+'</span>');}
@@ -1854,6 +2005,7 @@ async function refreshAllContent(btn){
     s_msg.textContent='Refreshed '+r.channels+' channels, '+r.movies+' movies and '+r.shows+' shows.';
     if(r.new_episodes>0)toast('Found '+r.new_episodes+' new episode'+(r.new_episodes===1?'':'s')+' for your shows',7000);
     else toast('Successfully refreshed all content, no new episodes found',7000);
+    _latestEpisodesLoaded=false;
     refreshStatus();
   }catch(e){s_msg.textContent='Error: '+e.message;toast('Could not refresh all content.',7000);}
   btn.disabled=false;btn.textContent=old;
@@ -2052,6 +2204,38 @@ async function playVLC(sid,btn){
   if(btn){setTimeout(()=>{btn.textContent=old;},1200);}
 }
 let _favMovieSet=new Set();
+function movieCard(m,showYear){
+  const sid=escAttr(String(m.stream_id)), ext=escAttr(m.extension||'mp4');
+  const fav=_favMovieSet.has(String(m.stream_id))?' on':'';
+  const poster=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(127916)">':'&#127916;';
+  let meta='';
+  if(showYear&&m.year)meta+=esc(m.year);
+  if(m.rating)meta+=(meta?' &nbsp; ':'')+'Rating: '+esc(m.rating);
+  return '<div class="moviecard"><div class="movieposter">'+poster+'</div><div class="movieinfo"><div class="movietitle">'+esc(m.name)+'</div>'
+    +(meta?'<div class="moviemeta">'+meta+'</div>':'')
+    +'<div class="movieactions"><span class="favstar moviestar'+fav+'" data-sid="'+sid+'" data-name="'+escAttr(m.name||'')+'" data-ext="'+ext+'" data-year="'+escAttr(m.year||'')+'" data-rating="'+escAttr(m.rating||'')+'" data-cover="'+escAttr(m.cover||'')+'" title="Favorite">&#9733;</span>'
+    +'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button></div></div></div>';
+}
+async function loadRecentMovies(limit){
+  limit=limit||9;
+  const el=document.getElementById('recentMovieList');
+  const more=document.getElementById('recentMovieMore');
+  el.innerHTML='<span class="muted">Loading...</span>';
+  more.classList.add('hide');
+  const r=await api('/api/recent_movies?limit='+limit);
+  if(r.error){el.innerHTML='<span class="muted">Could not load recently added movies.</span>';return false;}
+  if(!r.logged_in){el.innerHTML='<span class="muted">Log in via Settings first.</span>';return false;}
+  if(!r.movies.length){el.innerHTML='<span class="muted">No recent movies found.</span>';return false;}
+  await loadMovieFavorites();
+  el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,false)).join('')+'</div>';
+  if(limit<36&&r.has_more)more.classList.remove('hide');
+  return true;
+}
+async function expandRecentMovies(btn){
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Loading...';
+  await loadRecentMovies(36);
+  btn.disabled=false;btn.textContent=old;btn.classList.add('hide');
+}
 async function loadMovieFavorites(){
   const r=await api('/api/favorites');
   const movies=r.movies||[];
@@ -2063,8 +2247,8 @@ async function loadMovieFavorites(){
     const sid=escAttr(String(m.stream_id)), ext=escAttr(m.extension||'mp4');
     const poster='<span class="moviefavposter">&#127916;'+(m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</span>';
     h+='<div class="moviefav">'+poster+'<div class="moviefavinfo"><div class="moviefavname">'+esc(m.name)+'</div>'
-      +'<div class="moviefavbtns"><button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">VLC</button>'
-      +'<button class="favrm movieremove" data-sid="'+sid+'">&times;</button></div></div></div>';
+      +'<div class="moviefavbtns"><button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">VLC</button></div></div>'
+      +'<button class="favrm movieremove" data-sid="'+sid+'" title="Remove">&times;</button></div>';
   }
   el.innerHTML=h;
 }
@@ -2083,7 +2267,9 @@ async function removeMovieFavorite(sid){
 async function searchMovies(){
   const q=(document.getElementById('movieQ').value||'').trim();
   const el=document.getElementById('movieResults');
-  if(!q){el.innerHTML='<div class="muted" style="margin-top:14px">Enter a movie title.</div>';return;}
+  const recent=document.getElementById('recentMoviesSection');
+  if(!q){recent.classList.remove('hide');el.innerHTML='<div class="muted" style="margin-top:14px">Enter a movie title.</div>';return;}
+  recent.classList.add('hide');
   el.innerHTML='<div class="muted" style="margin-top:14px">Searching your movie library...</div>';
   const r=await api('/api/movies?q='+encodeURIComponent(q));
   if(r.error){el.innerHTML='<div class="err" style="margin-top:14px">'+esc(r.error)+'</div>';return;}
@@ -2091,15 +2277,7 @@ async function searchMovies(){
   if(!r.movies.length){el.innerHTML='<div class="muted" style="margin-top:14px">No movies found for &quot;'+esc(q)+'&quot;.</div>';return;}
   await loadMovieFavorites();
   let h='<div class="muted" style="margin-top:12px">'+r.movies.length+' result'+(r.movies.length===1?'':'s')+'</div><div class="moviegrid">';
-  for(const m of r.movies){
-    const sid=escAttr(String(m.stream_id)), ext=escAttr(m.extension||'mp4');
-    const fav=_favMovieSet.has(String(m.stream_id))?' on':'';
-    const poster=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(127916)">':'&#127916;';
-    h+='<div class="moviecard"><div class="movieposter">'+poster+'</div><div class="movieinfo"><div class="movietitle">'+esc(m.name)+'</div>'
-      +'<div class="moviemeta">'+(m.year?esc(m.year):'')+(m.rating?(' &nbsp; Rating: '+esc(m.rating)):'')+'</div>'
-      +'<div class="movieactions"><span class="favstar moviestar'+fav+'" data-sid="'+sid+'" data-name="'+escAttr(m.name||'')+'" data-ext="'+ext+'" data-year="'+escAttr(m.year||'')+'" data-rating="'+escAttr(m.rating||'')+'" data-cover="'+escAttr(m.cover||'')+'" title="Favorite">&#9733;</span>'
-      +'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button></div></div></div>';
-  }
+  for(const m of r.movies)h+=movieCard(m,true);
   el.innerHTML=h+'</div>';
 }
 async function playMovieVLC(sid,ext,btn){
@@ -2113,6 +2291,77 @@ async function playMovieVLC(sid,ext,btn){
 let _showSeasons={};
 let _activeSeriesId=null;
 let _favShowSet=new Set();
+let _latestEpisodesLoaded=false;
+function latestEpisodeCard(ep){
+  const cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(128250)">':'&#128250;';
+  const action=ep.available
+    ?'<button class="btnvlc latestepisodevlc" data-id="'+escAttr(String(ep.id))+'" data-ext="'+escAttr(ep.extension||'mp4')+'">&#9658; VLC</button>'
+    :'<button class="ghost" disabled>'+tr('Not available')+'</button>';
+  return '<div class="moviecard"><div class="movieposter">'+cover+'</div><div class="movieinfo"><div class="movietitle">'+esc(ep.show_name)+'</div>'
+    +'<div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div>'
+    +'<div class="movieactions">'+action+'</div></div></div>';
+}
+function osloDayNumber(value){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Oslo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(value);
+  const p={};parts.forEach(x=>{if(x.type!=='literal')p[x.type]=parseInt(x.value,10);});
+  return Date.UTC(p.year,p.month-1,p.day)/86400000;
+}
+function friendlyAirdate(ep){
+  if(!ep.airdate&&!ep.airstamp)return '';
+  let target=ep.airstamp?new Date(ep.airstamp):new Date(ep.airdate+'T12:00:00');
+  if(Number.isNaN(target.getTime()))target=new Date(ep.airdate+'T12:00:00');
+  const now=new Date(), remaining=target-now;
+  if(remaining>0&&remaining<86400000){
+    const minutes=Math.max(1,Math.ceil(remaining/60000));
+    if(minutes<60)return tr('in')+' '+minutes+' '+tr(minutes===1?'minute':'minutes');
+    const hours=Math.ceil(minutes/60);
+    return tr('in')+' '+hours+' '+tr(hours===1?'hour':'hours');
+  }
+  const days=Math.round(osloDayNumber(target)-osloDayNumber(now));
+  if(days===0)return tr('Today');
+  if(days===1)return tr('Tomorrow');
+  const weekday=target.toLocaleDateString(_lang==='no'?'nb-NO':undefined,{weekday:'long',timeZone:'Europe/Oslo'});
+  return weekday+' \u00b7 '+tr('in')+' '+days+' '+tr(days===1?'day':'days');
+}
+function upcomingEpisodeCard(ep){
+  const cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(128250)">':'&#128250;';
+  const when=friendlyAirdate(ep);
+  return '<div class="moviecard"><div class="movieposter">'+cover+'</div><div class="movieinfo"><div class="movietitle">'+esc(ep.show_name)+'</div>'
+    +'<div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div>'
+    +'<div class="movieactions"><button class="ghost" disabled>'+tr('Airs')+' '+esc(when)+'</button></div></div></div>';
+}
+async function loadLatestEpisodes(limit,refresh){
+  limit=limit||9;
+  const el=document.getElementById('latestEpisodeList'), more=document.getElementById('latestEpisodeMore');
+  const upcomingSection=document.getElementById('upcomingEpisodesSection'), upcomingList=document.getElementById('upcomingEpisodeList');
+  el.innerHTML='<span class="muted">Loading latest episodes...</span>';more.classList.add('hide');
+  upcomingSection.classList.add('hide');upcomingList.innerHTML='';
+  const r=await api('/api/latest_episodes?limit='+limit+(refresh?'&refresh=1':''));
+  if(r.error){el.innerHTML='<span class="muted">Could not load latest episodes.</span>';return false;}
+  if(!r.logged_in){el.innerHTML='<span class="muted">Log in via Settings first.</span>';return false;}
+  if(r.episodes.length)el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.episodes.map(latestEpisodeCard).join('')+'</div>';
+  else el.innerHTML='<span class="muted">No latest episodes found for your favorite shows.</span>';
+  if(r.upcoming&&r.upcoming.length){
+    upcomingList.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.upcoming.map(upcomingEpisodeCard).join('')+'</div>';
+    upcomingSection.classList.remove('hide');
+  }
+  if(limit<36&&r.has_more)more.classList.remove('hide');
+  _latestEpisodesLoaded=true;
+  return !!(r.episodes.length||(r.upcoming&&r.upcoming.length));
+}
+async function expandLatestEpisodes(btn){
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Loading...';
+  await loadLatestEpisodes(36);
+  btn.disabled=false;btn.textContent=old;btn.classList.add('hide');
+}
+async function playLatestEpisode(id,ext,btn){
+  const old=btn.textContent;btn.textContent='Opening...';
+  try{
+    const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:[{id:id,extension:ext}]})});
+    const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');
+  }catch(e){alert('Could not launch VLC.');}
+  setTimeout(()=>{btn.textContent=old;},1200);
+}
 async function loadShowFavorites(){
   const r=await api('/api/favorites'), shows=r.shows||[];
   _favShowSet=new Set(shows.map(s=>String(s.series_id)));
@@ -2130,17 +2379,21 @@ async function toggleShowFavorite(show,starEl){
   const r=await favPost({action:'toggle_show',show:show});
   _favShowSet=new Set((r.show_ids||[]).map(String));
   if(starEl)starEl.classList.toggle('on',_favShowSet.has(String(show.series_id)));
+  _latestEpisodesLoaded=false;
   await loadShowFavorites();
 }
 async function removeShowFavorite(seriesId){
   await favPost({action:'remove_show',series_id:seriesId});
   document.querySelectorAll('.showstar').forEach(el=>{if(el.getAttribute('data-series')===String(seriesId))el.classList.remove('on');});
+  _latestEpisodesLoaded=false;
   await loadShowFavorites();
 }
 async function searchShows(){
   const q=(document.getElementById('showQ').value||'').trim(), el=document.getElementById('showResults');
   document.getElementById('showDetails').innerHTML='';
-  if(!q){el.innerHTML='<div class="muted" style="margin-top:14px">Enter a show title.</div>';return;}
+  const latest=document.getElementById('latestEpisodesSection');
+  if(!q){latest.classList.remove('hide');el.innerHTML='<div class="muted" style="margin-top:14px">Enter a show title.</div>';return;}
+  latest.classList.add('hide');
   el.innerHTML='<div class="muted" style="margin-top:14px">Searching your shows...</div>';
   const r=await api('/api/shows?q='+encodeURIComponent(q));
   if(r.error){el.innerHTML='<div class="err" style="margin-top:14px">'+esc(r.error)+'</div>';return;}
@@ -2159,6 +2412,7 @@ async function searchShows(){
 }
 async function loadShow(seriesId,refresh){
   _activeSeriesId=seriesId;
+  document.getElementById('latestEpisodesSection').classList.add('hide');
   const el=document.getElementById('showDetails');
   el.innerHTML='<div class="muted">Loading seasons and episodes...</div>';
   const r=await api('/api/show?id='+encodeURIComponent(seriesId)+(refresh?'&refresh=1':''));
@@ -2193,6 +2447,8 @@ async function checkAllShows(btn){
     if(!r.ok||j.error)throw new Error(j.error||'check failed');
     if(_activeSeriesId)await loadShow(_activeSeriesId,true);
     await loadShowFavorites();
+    const latest=document.getElementById('latestEpisodesSection');
+    if(latest&&!latest.classList.contains('hide'))await loadLatestEpisodes(9,true);
     if(j.new_episodes>0)toast('Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
     else toast('Successfully refreshed playlists, no new episodes found',7000);
   }catch(e){toast('Could not refresh show playlists.');}
@@ -2202,6 +2458,7 @@ async function checkShowsOnStartup(){
   try{
     const r=await fetch('/api/check_show_updates',{method:'POST'}), j=await r.json();
     if(!r.ok||j.error)throw new Error(j.error||'check failed');
+    _latestEpisodesLoaded=false;
     if(j.new_episodes>0)toast('Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
     else toast('Successfully refreshed playlists, no new episodes found',7000);
   }catch(e){toast('Could not refresh show playlists.',7000);}
@@ -2449,6 +2706,8 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
+  const lev=e.target.closest('.latestepisodevlc');
+  if(lev){playLatestEpisode(lev.getAttribute('data-id'),lev.getAttribute('data-ext'),lev);return;}
   const ss=e.target.closest('.showstar');
   if(ss){toggleShowFavorite({series_id:ss.getAttribute('data-series'),name:ss.getAttribute('data-name'),cover:ss.getAttribute('data-cover'),year:ss.getAttribute('data-year'),rating:ss.getAttribute('data-rating')},ss);return;}
   const sr=e.target.closest('.showremove');
@@ -2854,6 +3113,64 @@ class Handler(BaseHTTPRequestHandler):
                         break
                 return self._send(200, {"movies": out, "logged_in": True})
 
+            if u.path == "/api/recent_movies":
+                try:
+                    limit = max(1, min(36, int(q.get("limit", ["9"])[0])))
+                except (TypeError, ValueError):
+                    limit = 9
+                cfg = load_config()
+                x = Xtream(cfg)
+                if not x.configured():
+                    return self._send(200, {"movies": [], "logged_in": False})
+                try:
+                    movies = get_xtream_movies(cfg)
+                except Exception as e:
+                    return self._send(200, {"movies": [], "logged_in": True,
+                                            "error": str(e)})
+                this_year = time.localtime().tm_year
+                by_year = {}
+                all_rows = []
+                for m in movies:
+                    raw_year = " ".join(str(value or "") for value in
+                                        (m.get("year"), m.get("releaseDate"),
+                                         m.get("release_date"), m.get("name")))
+                    match = re.search(r"(?:19|20)\d{2}", raw_year)
+                    year = int(match.group(0)) if match else 0
+                    try:
+                        added = int(float(m.get("added") or 0))
+                    except (TypeError, ValueError):
+                        added = 0
+                    row = (added, m, year)
+                    all_rows.append(row)
+                    if year:
+                        by_year.setdefault(year, []).append(row)
+                for rows in by_year.values():
+                    rows.sort(key=lambda item: item[0], reverse=True)
+                usable_years = [year for year in by_year if year <= this_year + 1]
+                target_year = this_year if this_year in by_year else (
+                    max(usable_years) if usable_years else 0)
+                candidate_rows = list(by_year.get(target_year, []))
+                candidate_rows += by_year.get(target_year - 1, [])
+                chosen = candidate_rows[:limit]
+                if not chosen:
+                    all_rows.sort(key=lambda item: item[0], reverse=True)
+                    candidate_rows = all_rows
+                    chosen = candidate_rows[:limit]
+                out = []
+                for _added, m, year in chosen:
+                    cover = str(m.get("stream_icon") or m.get("cover") or
+                                m.get("movie_image") or "").strip()
+                    if not cover.startswith(("http://", "https://")):
+                        cover = ""
+                    out.append({"stream_id": m.get("stream_id"),
+                                "name": str(m.get("name") or ""),
+                                "extension": m.get("container_extension") or "mp4",
+                                "year": year, "rating": m.get("rating") or "",
+                                "cover": cover})
+                return self._send(200, {"movies": out, "logged_in": True,
+                                        "catalog_year": target_year,
+                                        "has_more": len(candidate_rows) > limit})
+
             if u.path == "/api/shows":
                 term = (q.get("q", [""])[0]).strip().lower()
                 cfg = load_config()
@@ -2882,6 +3199,157 @@ class Handler(BaseHTTPRequestHandler):
                     if len(out) >= 100:
                         break
                 return self._send(200, {"shows": out, "logged_in": True})
+
+            if u.path == "/api/latest_episodes":
+                try:
+                    limit = max(1, min(36, int(q.get("limit", ["9"])[0])))
+                except (TypeError, ValueError):
+                    limit = 9
+                refresh_external = q.get("refresh", ["0"])[0] == "1"
+                cfg = load_config()
+                x = Xtream(cfg)
+                if not x.configured():
+                    return self._send(200, {"episodes": [], "logged_in": False})
+                rows = []
+                upcoming_rows = []
+                errors = 0
+                for fav_show in load_favorites().get("shows", []):
+                    series_id = fav_show.get("series_id")
+                    if series_id is None:
+                        continue
+                    try:
+                        data = x.series_info(series_id) or {}
+                        info = data.get("info") or {}
+                        if not isinstance(info, dict):
+                            info = {}
+                        show_name = str(info.get("name") or info.get("title") or
+                                        fav_show.get("name") or "Show")
+                        year_text = " ".join(str(value or "") for value in
+                                             (fav_show.get("year"), info.get("releaseDate"),
+                                              info.get("release_date"), show_name))
+                        year_match = re.search(r"(?:19|20)\d{2}", year_text)
+                        show_year = int(year_match.group(0)) if year_match else 0
+                        raw_episodes = data.get("episodes") or {}
+                        if isinstance(raw_episodes, list):
+                            grouped = {}
+                            for ep in raw_episodes:
+                                grouped.setdefault(str(ep.get("season") or 1), []).append(ep)
+                            raw_episodes = grouped
+                        candidates = []
+                        for season_key, episodes in raw_episodes.items():
+                            if not isinstance(episodes, list):
+                                continue
+                            try:
+                                season_num = int(season_key)
+                            except (TypeError, ValueError):
+                                season_num = 0
+                            for index, episode in enumerate(episodes, 1):
+                                try:
+                                    episode_num = int(episode.get("episode_num") or index)
+                                except (TypeError, ValueError):
+                                    episode_num = index
+                                candidates.append((season_num, episode_num, episode))
+                        cover = str(fav_show.get("cover") or info.get("cover") or
+                                    info.get("movie_image") or "").strip()
+                        if not cover.startswith(("http://", "https://")):
+                            cover = ""
+                        provider_row = None
+                        provider_key = (-1, -1)
+                        if candidates:
+                            season_num, episode_num, episode = max(
+                                candidates, key=lambda item: (item[0], item[1]))
+                            provider_key = (season_num, episode_num)
+                            try:
+                                added = int(float(episode.get("added") or 0))
+                            except (TypeError, ValueError):
+                                added = 0
+                            episode_info = episode.get("info") or {}
+                            if not isinstance(episode_info, dict):
+                                episode_info = {}
+                            episode_date = " ".join(str(value or "") for value in
+                                                    (episode_info.get("releaseDate"),
+                                                     episode_info.get("releasedate"),
+                                                     episode_info.get("air_date"),
+                                                     episode.get("releaseDate")))
+                            episode_ts = 0
+                            date_match = re.search(r"(?:19|20)\d{2}-\d{2}-\d{2}",
+                                                   episode_date)
+                            if date_match:
+                                try:
+                                    episode_ts = time.mktime(time.strptime(
+                                        date_match.group(0), "%Y-%m-%d"))
+                                except (ValueError, OverflowError):
+                                    episode_ts = 0
+                            if not episode_ts and added > 100000000:
+                                episode_ts = added
+                            if episode.get("id") is not None:
+                                provider_row = {
+                                    "id": episode.get("id"), "show_name": show_name,
+                                    "series_id": series_id, "cover": cover,
+                                    "season": season_num, "episode_num": episode_num,
+                                    "title": _clean_episode_title(
+                                        episode.get("title") or f"Episode {episode_num}",
+                                        show_name),
+                                    "extension": episode.get("container_extension") or "mp4",
+                                    "added": episode_ts, "available": True}
+                        schedule = _tvmaze_episode_schedule(
+                            show_name, show_year, force=refresh_external)
+                        external = schedule.get("latest") or {}
+                        upcoming = schedule.get("upcoming") or {}
+                        if upcoming:
+                            upcoming_ts = 0
+                            try:
+                                if upcoming.get("airstamp"):
+                                    upcoming_ts = datetime.datetime.fromisoformat(
+                                        upcoming["airstamp"].replace("Z", "+00:00")).timestamp()
+                                else:
+                                    upcoming_ts = time.mktime(time.strptime(
+                                        upcoming.get("airdate") or "", "%Y-%m-%d"))
+                            except (ValueError, OverflowError, TypeError):
+                                upcoming_ts = 0
+                            upcoming_rows.append({
+                                "show_name": show_name, "series_id": series_id,
+                                "cover": cover,
+                                "season": int(upcoming.get("season") or 0),
+                                "episode_num": int(upcoming.get("episode_num") or 0),
+                                "title": upcoming.get("title") or "Episode",
+                                "airdate": upcoming.get("airdate") or "",
+                                "airstamp": upcoming.get("airstamp") or "",
+                                "air_ts": upcoming_ts})
+                        external_key = (int(external.get("season") or -1),
+                                        int(external.get("episode_num") or -1))
+                        external_ts = 0
+                        if external.get("airdate"):
+                            try:
+                                external_ts = time.mktime(time.strptime(
+                                    external["airdate"], "%Y-%m-%d"))
+                            except (ValueError, OverflowError):
+                                external_ts = 0
+                        if (provider_row and provider_key == external_key and
+                                not provider_row.get("added") and external_ts):
+                            provider_row["added"] = external_ts
+                        cutoff = time.time() - (30 * 24 * 60 * 60)
+                        if (external and external_key > provider_key and
+                                external_ts >= cutoff):
+                            rows.append({"id": None, "show_name": show_name,
+                                         "series_id": series_id, "cover": cover,
+                                         "season": external_key[0],
+                                         "episode_num": external_key[1],
+                                         "title": external.get("title") or "Episode",
+                                         "extension": "", "added": external_ts,
+                                         "available": False})
+                        elif provider_row and provider_row["added"] >= cutoff:
+                            rows.append(provider_row)
+                    except Exception:
+                        errors += 1
+                rows.sort(key=lambda item: (item.get("added") or 0,
+                                             item.get("season") or 0,
+                                             item.get("episode_num") or 0), reverse=True)
+                upcoming_rows.sort(key=lambda item: item.get("air_ts") or 0)
+                return self._send(200, {"episodes": rows[:limit], "logged_in": True,
+                                        "has_more": len(rows) > limit,
+                                        "upcoming": upcoming_rows[:36],
+                                        "errors": errors})
 
             if u.path == "/api/show":
                 series_id = (q.get("id", [""])[0]).strip()
@@ -3019,6 +3487,7 @@ class Handler(BaseHTTPRequestHandler):
             _XT_CACHE.update({"ts": 0, "channels": [], "cats": {}})
             _VOD_CACHE.update({"ts": 0, "movies": []})
             _SERIES_CACHE.update({"ts": 0, "shows": []})
+            _SHOW_INFO_CACHE.clear()
             return self._send(200, {"ok": True})
 
         if u.path == "/api/clear_artwork_cache":
@@ -3029,6 +3498,32 @@ class Handler(BaseHTTPRequestHandler):
                     shutil.rmtree(root)
                 _TVMAZE_CACHE.clear()
                 return self._send(200, {"ok": True, "removed_bytes": removed})
+            except Exception as e:
+                return self._send(500, {"ok": False, "error": str(e)})
+
+        if u.path == "/api/reset_cold_start":
+            removed_schedules = 0
+            try:
+                _XT_CACHE.update({"ts": 0, "channels": [], "cats": {}})
+                _VOD_CACHE.update({"ts": 0, "movies": []})
+                _SERIES_CACHE.update({"ts": 0, "shows": []})
+                _SHOW_INFO_CACHE.clear()
+                _EPG_CACHE.clear()
+                _TV_CACHE.clear()
+                _TVMAZE_CACHE.clear()
+                root = artwork_cache_dir()
+                if os.path.isdir(root):
+                    for base, _dirs, files in os.walk(root):
+                        for name in files:
+                            if name not in ("episode-schedule.json", "latest-episode.json"):
+                                continue
+                            try:
+                                os.remove(os.path.join(base, name))
+                                removed_schedules += 1
+                            except OSError:
+                                pass
+                return self._send(200, {"ok": True,
+                                        "removed_schedules": removed_schedules})
             except Exception as e:
                 return self._send(500, {"ok": False, "error": str(e)})
 
