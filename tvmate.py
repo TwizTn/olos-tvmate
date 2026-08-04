@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b77"
+VERSION = "0.777.b93"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -120,6 +120,8 @@ DEFAULT_CONFIG = {
     "match_threshold": 0.62,           # 0..1, higher = stricter
     "countries": ["no", "gb", "us", "es", "de", "it", "fr"],  # NO/UK/US + big-5 league homes
     "check_shows_on_startup": False,
+    "profile_name": "",
+    "preferred_language": "en",
 }
 
 def artwork_cache_dir():
@@ -495,19 +497,22 @@ def refresh_favorite_show_episodes(cfg):
     refreshed = 0
     errors = 0
     for show in fav.get("shows", []):
-        series_id = show.get("series_id")
-        if series_id is None:
+        series_ids = show.get("series_ids") or [show.get("series_id")]
+        series_ids = [sid for sid in series_ids if sid is not None]
+        if not series_ids:
             continue
         try:
-            data = x.series_info(series_id, refresh=True) or {}
-            raw_eps = data.get("episodes") or {}
-            if isinstance(raw_eps, dict):
-                count = sum(len(eps) for eps in raw_eps.values()
-                            if isinstance(eps, list))
-            elif isinstance(raw_eps, list):
-                count = len(raw_eps)
-            else:
-                count = 0
+            counts = []
+            for series_id in series_ids:
+                data = x.series_info(series_id, refresh=True) or {}
+                raw_eps = data.get("episodes") or {}
+                if isinstance(raw_eps, dict):
+                    counts.append(sum(len(eps) for eps in raw_eps.values()
+                                      if isinstance(eps, list)))
+                elif isinstance(raw_eps, list):
+                    counts.append(len(raw_eps))
+            # Variants are alternate sources, not additional episodes.
+            count = max(counts) if counts else 0
             previous = show.get("episode_count")
             if previous is not None and count > int(previous):
                 new_episodes += count - int(previous)
@@ -524,12 +529,25 @@ def refresh_favorite_show_episodes(cfg):
 
 def _clean_show_title(name):
     title = str(name or "").strip()
-    # Provider prefixes: "EN -", "A+ -", "4K-A+ -", etc.
-    title = re.sub(r"^[A-Z0-9+]+(?:-[A-Z0-9+]+)*\s+-\s+", "", title, flags=re.I)
-    title = re.sub(r"^[A-Z]{2,5}\s*[|:]\s*", "", title, flags=re.I)
+    # Provider prefixes are catalog-defined and can change. Treat the first
+    # explicit dash/pipe segment as the source label instead of maintaining a list.
+    title = re.sub(r"^.+?\s+-\s+", "", title, count=1)
+    title = re.sub(r"^.{1,40}?\s*\|\s*", "", title, count=1)
     title = re.sub(r"\s*\((?:19|20)\d{2}\).*?$", "", title)
     title = re.sub(r"\s*\((?:US|UK|GB|NO|EN|SE|DK|FI)\)\s*$", "", title, flags=re.I)
     return title.strip(" -|")
+
+def _show_key(name):
+    return re.sub(r"[^a-z0-9]+", "-", _clean_show_title(name).lower()).strip("-")
+
+def _show_variant_label(name):
+    """Short provider/quality label shown on an episode play button."""
+    text = str(name or "").strip()
+    match = re.match(r"^(.+?)\s+-\s+", text)
+    if match:
+        return match.group(1).strip()
+    match = re.match(r"^(.{1,40}?)\s*\|\s*", text)
+    return match.group(1).strip() if match else "PLAY"
 
 def _clean_episode_title(title, show_name):
     """Remove provider/quality clutter while retaining season and episode names."""
@@ -544,6 +562,62 @@ def _clean_episode_title(title, show_name):
         return clean_show or suffix or "Episode"
     raw = re.sub(r"^[A-Z0-9+]+(?:-[A-Z0-9+]+)*\s+-\s+", "", raw, flags=re.I)
     return raw or "Episode"
+
+def _latest_provider_variant(x, series_id, fallback_name="Show"):
+    """Return the newest provider episode for one series variant."""
+    data = x.series_info(series_id) or {}
+    info = data.get("info") or {}
+    if not isinstance(info, dict):
+        info = {}
+    variant_name = str(info.get("name") or info.get("title") or fallback_name)
+    raw_episodes = data.get("episodes") or {}
+    if isinstance(raw_episodes, list):
+        grouped = {}
+        for episode in raw_episodes:
+            grouped.setdefault(str(episode.get("season") or 1), []).append(episode)
+        raw_episodes = grouped
+    candidates = []
+    for season_key, episodes in raw_episodes.items():
+        if not isinstance(episodes, list):
+            continue
+        try:
+            season_num = int(season_key)
+        except (TypeError, ValueError):
+            season_num = 0
+        for index, episode in enumerate(episodes, 1):
+            try:
+                episode_num = int(episode.get("episode_num") or index)
+            except (TypeError, ValueError):
+                episode_num = index
+            candidates.append((season_num, episode_num, episode))
+    if not candidates:
+        return None, info
+    season_num, episode_num, episode = max(candidates, key=lambda item: (item[0], item[1]))
+    try:
+        added = int(float(episode.get("added") or 0))
+    except (TypeError, ValueError):
+        added = 0
+    episode_info = episode.get("info") or {}
+    if not isinstance(episode_info, dict):
+        episode_info = {}
+    date_text = " ".join(str(value or "") for value in
+                         (episode_info.get("releaseDate"), episode_info.get("releasedate"),
+                          episode_info.get("air_date"), episode.get("releaseDate")))
+    episode_ts = 0
+    date_match = re.search(r"(?:19|20)\d{2}-\d{2}-\d{2}", date_text)
+    if date_match:
+        try:
+            episode_ts = time.mktime(time.strptime(date_match.group(0), "%Y-%m-%d"))
+        except (ValueError, OverflowError):
+            pass
+    if not episode_ts and added > 100000000:
+        episode_ts = added
+    return ({"id": episode.get("id"), "key": (season_num, episode_num),
+             "season": season_num, "episode_num": episode_num,
+             "title": _clean_episode_title(
+                 episode.get("title") or f"Episode {episode_num}", variant_name),
+             "extension": episode.get("container_extension") or "mp4",
+             "label": _show_variant_label(variant_name), "added": episode_ts}, info)
 
 def _tvmaze_episode_schedule(show_name, year="", force=False):
     """Return latest aired and next 14-day episode from one 24-hour disk cache."""
@@ -1128,6 +1202,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  header a:hover{color:var(--fg)}
  header a.on{color:var(--fg);border-bottom-color:var(--acc)}
  .langsel{display:flex;gap:6px;margin-left:14px}
+ .profilename{font-size:13px;color:var(--fg);margin-left:12px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .langflag{background:none;border:1px solid transparent;border-radius:6px;padding:2px 6px;font-size:17px;line-height:1;cursor:pointer;opacity:.45;filter:grayscale(.5);transition:all .12s}
  .langflag:hover{opacity:.85;filter:none}
  .langflag.on{opacity:1;filter:none;border-color:var(--line2);background:var(--card2)}
@@ -1303,25 +1378,38 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .brandblock{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;width:220px;flex-shrink:0}
  .brandblock .bname{font-size:22px;font-weight:600;color:var(--fg)}
  .brandblock .btag{font-size:13px;color:var(--mut)}
- .settingswrap{display:flex;gap:40px;align-items:center;justify-content:center}
- .settingswrap .card{flex:1;min-width:320px;max-width:640px}
+ .settingswrap{display:flex;flex-direction:row;gap:30px;align-items:center;justify-content:center}
+ .settingswrap .brandblock{width:220px;flex-shrink:0;gap:8px}
+ .settingswrap .brandblock svg{width:100px;height:100px}
+ .settingswrap .brandblock .bname{font-size:18px}
+ .settingswrap .settingscard{width:min(1050px,100%);max-width:1050px;min-width:0;background:none;border:0;padding:0;margin:0}
+ .settingspanels{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:stretch}
+ .settingspanel{border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:18px;min-width:0}
+ .settingspanel input[type=text],.settingspanel input[type=password]{width:100%}
+ #settingsProfile .grid2{grid-template-columns:1fr}
+ #settingsProfile{display:flex;flex-direction:column}
+ #settingsProfile select{width:100%}
+ #settingsProfile>.row:last-child{margin-top:auto!important;padding-top:18px}
+ #settingsSetup .row{flex-wrap:wrap}
+ @media(max-width:1100px){.settingswrap{flex-direction:column}.settingswrap .brandblock{width:100%}.settingspanels{grid-template-columns:1fr}}
  /* playlist builder logo */
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
  .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
  .movieswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
  .moviefavs{padding:0;max-height:82vh;overflow-y:auto}
  .moviefavlist{display:flex;flex-direction:column;gap:8px}
- .moviefav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);min-height:100px}
+ .moviefav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);min-height:100px;cursor:pointer}
+ .moviefav:hover .moviefavname{color:var(--acc)}
  .moviefavposter{position:relative;width:64px;height:96px;flex-shrink:0;border-radius:5px;background:#20242c;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#737b89;font-size:24px}
  .moviefavposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
  .moviefavinfo{min-width:0;flex:1;display:flex;justify-content:center;padding:8px 6px 31px 0}
  .moviefavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center;word-break:break-word}
- .moviefavbtns{position:absolute;left:73px;right:0;bottom:8px;display:flex;justify-content:center}
- .moviefavbtns button{padding:3px 7px;font-size:12px}
- .movieremove{position:absolute;right:0;bottom:8px;padding:3px 7px}
+ .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
  .moviesmain{width:100%;max-width:900px;min-width:0;margin:0 auto}
  .moviegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:16px}
  .moviecard{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px}
+ .recentmovie{cursor:pointer}
+ .recentmovie:hover{border-color:var(--acc)}
  .movieposter{width:92px;height:138px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;color:#737b89;font-size:30px}
  .movieposter img{width:100%;height:100%;object-fit:cover;display:block}
  .movieinfo{display:flex;flex:1;min-width:0;flex-direction:column;gap:9px}
@@ -1365,7 +1453,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .episodes::-webkit-scrollbar-thumb:hover{background:var(--acc)}
  .episode{flex:0 0 calc((100% - 72px)/10);min-width:100px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:7px}
  .episodename{font-size:12px;line-height:1.3;min-height:31px}
- .episode .btnvlc{margin-top:auto}
+.episode .btnvlc{margin-top:auto}
+ .episodequalities{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
+ .episodequalities .btnvlc{flex:1 1 auto;padding-left:7px;padding-right:7px;font-size:11px}
 </style></head><body>
 <header>
   <h1><svg width="38" height="38" viewBox="0 0 240 240" style="vertical-align:-11px;margin-right:8px" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="139" rx="44" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="127" rx="42" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><ellipse cx="101" cy="115" rx="40" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>Olo's TVMate</h1>
@@ -1378,6 +1468,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
   <span id="status" class="muted"></span>
+  <span id="profileName" class="profilename hide"></span>
   <div class="langsel">
     <button class="langflag on" id="langEN" onclick="setLang('en')" title="English">&#127468;&#127463;</button>
     <button class="langflag" id="langNO" onclick="setLang('no')" title="Norsk">&#127475;&#127476;</button>
@@ -1542,41 +1633,52 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="btag">Find your match. Build your playlist.</div>
       <div class="btag" style="opacity:.6;font-size:11px;margin-top:4px">v__VERSION__</div>
     </div>
-    <div class="card">
+    <div class="card settingscard">
+      <div class="settingspanels">
+      <div id="settingsProfile" class="settingspanel">
+        <div class="colh" data-i18n="Profile">Profile</div>
+        <div class="grid2">
+          <div><label data-i18n="Profile name (optional)">Profile name (optional)</label><input id="s_profile" type="text" maxlength="40"></div>
+          <div><label data-i18n="Preferred language">Preferred language</label>
+            <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
+          <div><label data-i18n="Default start section">Default start section</label>
+            <select id="s_start"><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option value="mylist">My List</option></select></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+          <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
+        </label>
+        <div class="row" style="margin-top:16px"><button onclick="saveSettings()" data-i18n="Save">Save</button></div>
+      </div>
+      <div id="settingsSetup" class="settingspanel">
+      <div class="colh" data-i18n="Setup">Setup</div>
       <div class="muted">Your Xtream login is stored locally in config.json next to the app. It's only ever sent to your own provider.</div>
       <div class="colh" style="margin-top:16px" data-i18n="Connection">Connection</div>
       <div class="grid2">
         <div><label data-i18n="Username">Username</label><input id="s_user" type="text"></div>
         <div><label data-i18n="Password">Password</label><input id="s_pass" type="password"></div>
         <div><label data-i18n="Host (e.g. http://example.com:8080)">Host (e.g. http://example.com:8080)</label><input id="s_host" type="text"></div>
-        <div style="display:flex;align-items:flex-end"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button></div>
+        <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button><button class="ghost" onclick="refreshAllContent(this)" data-i18n="Refresh all content">Refresh all content</button></div>
       </div>
-      <div class="colh" style="margin-top:18px" data-i18n="Preferences">Preferences</div>
+      <div class="colh" style="margin-top:18px" data-i18n="Search Options">Search Options</div>
       <div class="grid2">
         <div><label data-i18n="Match strictness (0.40–0.80)">Match strictness (0.40&ndash;0.80)</label><input id="s_thr" type="text"></div>
-        <div><label data-i18n="Default start section">Default start section</label>
-          <select id="s_start"><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option value="mylist">My List</option></select></div>
       </div>
       <label data-i18n="Listings countries (comma separated: no, uk, us)">Listings countries (comma separated: no, uk, us)</label>
       <input id="s_cc" type="text">
-      <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
-        <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
-        <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
-      </label>
       <div class="colh" style="margin-top:18px" data-i18n="Maintenance & Playback">Maintenance &amp; Playback</div>
       <div class="grid2">
         <div><label data-i18n="Stream extension">Stream extension</label>
           <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
       </div>
-      <div class="row" style="margin-top:14px;justify-content:space-between">
-        <span class="muted"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize">Checking...</b></span>
-        <button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button>
-      </div>
-      <div class="row" style="margin-top:14px">
+      <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize">Checking...</b></div>
+      <div class="row" style="margin-top:14px;align-items:flex-end">
         <button onclick="saveSettings()" data-i18n="Save">Save</button>
-        <button class="ghost" onclick="refreshAllContent(this)" data-i18n="Refresh all content">Refresh all content</button>
         <button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button>
-        <button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button>
+        <div style="margin-left:auto;display:flex;flex-direction:column;align-items:stretch;gap:8px">
+          <button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button>
+          <button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button>
+        </div>
       </div>
       <div id="s_msg" class="muted" style="margin-top:10px"></div>
       <div id="devSettings" class="hide" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
@@ -1585,6 +1687,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div class="row" style="margin-top:10px">
           <button class="ghost" onclick="resetColdStart(this)" data-i18n="Reset for cold-start test">Reset for cold-start test</button>
         </div>
+      </div>
+      </div>
       </div>
     </div>
     </div>
@@ -1662,7 +1766,9 @@ const _I18N={
   "Favorite Categories":"Favorittkategorier","Categories":"Kategorier",
   "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
-  "Connection":"Tilkobling","Preferences":"Innstillinger",
+  "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer",
+  "Profile":"Profil","Setup":"Oppsett","Profile name (optional)":"Profilnavn (valgfritt)",
+  "Preferred language":"Foretrukket språk",
   "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt",
   "Your Latest Episodes":"Dine nyeste episoder","See more latest episodes":"Se flere nyeste episoder",
   "Upcoming Episodes":"Kommende episoder","Airs":"Sendes",
@@ -1727,7 +1833,11 @@ function showShows(){_activeSeriesId=null;_showSeasons={};hideAll();showsView.cl
 function showMylist(){hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
 function showSearch(){hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
 function showChannels(){hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
-function showSettings(){loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSettings');setSlogan('settings');}
+function showSettings(){loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');}
+function updateProfileName(name){
+  const el=document.getElementById('profileName'), value=String(name||'').trim();
+  el.textContent=value;el.classList.toggle('hide',!value);
+}
 
 let _catsLoaded=false;
 let _allCats=[];
@@ -1944,15 +2054,20 @@ async function loadSettings(){
   s_cc.value=(c.countries||['no','uk','us']).join(', ');
   s_start.value=c.start_section||'search';
   s_checkshows.checked=!!c.check_shows_on_startup;
+  s_profile.value=c.profile_name||'';
+  s_lang.value=c.preferred_language||'en';
   loadArtworkCacheSize();
 }
 async function saveSettings(){
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
     xtream_pass:s_pass.value,stream_ext:s_ext.value,match_threshold:parseFloat(s_thr.value)||0.55,
     countries:s_cc.value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),
-    start_section:s_start.value,check_shows_on_startup:s_checkshows.checked};
+    start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
+    profile_name:s_profile.value.trim(),preferred_language:s_lang.value};
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  s_msg.textContent=r.ok?'Saved.':'Error saving.';refreshStatus();
+  s_msg.textContent=r.ok?'Saved.':'Error saving.';
+  if(r.ok){updateProfileName(body.profile_name);setLang(body.preferred_language);toast('Saved.');}
+  refreshStatus();
 }
 function formatBytes(n){
   n=Number(n)||0;if(n<1024)return n+' B';
@@ -2204,17 +2319,28 @@ async function playVLC(sid,btn){
   if(btn){setTimeout(()=>{btn.textContent=old;},1200);}
 }
 let _favMovieSet=new Set();
-function movieCard(m,showYear){
+function cleanMovieSearchTitle(name){
+  return String(name||'')
+    .replace(/^\s*.+?\s+-\s+/,'')
+    .replace(/^\s*.{1,40}?\s*\|\s*/,'')
+    .replace(/\s*\((?:US|UK|GB|NO|EN|SE|DK|FI)\)\s*$/i,'')
+    .replace(/\s*\((?:19|20)\d{2}\)\s*$/,'')
+    .trim();
+}
+function movieCard(m,showYear,recent){
   const sid=escAttr(String(m.stream_id)), ext=escAttr(m.extension||'mp4');
   const fav=_favMovieSet.has(String(m.stream_id))?' on':'';
+  const displayName=recent?cleanMovieSearchTitle(m.name):m.name;
   const poster=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(127916)">':'&#127916;';
   let meta='';
   if(showYear&&m.year)meta+=esc(m.year);
   if(m.rating)meta+=(meta?' &nbsp; ':'')+'Rating: '+esc(m.rating);
-  return '<div class="moviecard"><div class="movieposter">'+poster+'</div><div class="movieinfo"><div class="movietitle">'+esc(m.name)+'</div>'
+  const cardClass='moviecard'+(recent?' recentmovie':'');
+  const cardData=recent?' data-query="'+escAttr(cleanMovieSearchTitle(m.name))+'"':'';
+  return '<div class="'+cardClass+'"'+cardData+'><div class="movieposter">'+poster+'</div><div class="movieinfo"><div class="movietitle">'+esc(displayName)+'</div>'
     +(meta?'<div class="moviemeta">'+meta+'</div>':'')
     +'<div class="movieactions"><span class="favstar moviestar'+fav+'" data-sid="'+sid+'" data-name="'+escAttr(m.name||'')+'" data-ext="'+ext+'" data-year="'+escAttr(m.year||'')+'" data-rating="'+escAttr(m.rating||'')+'" data-cover="'+escAttr(m.cover||'')+'" title="Favorite">&#9733;</span>'
-    +'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button></div></div></div>';
+    +(recent?'':'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button>')+'</div></div></div>';
 }
 async function loadRecentMovies(limit){
   limit=limit||9;
@@ -2227,7 +2353,7 @@ async function loadRecentMovies(limit){
   if(!r.logged_in){el.innerHTML='<span class="muted">Log in via Settings first.</span>';return false;}
   if(!r.movies.length){el.innerHTML='<span class="muted">No recent movies found.</span>';return false;}
   await loadMovieFavorites();
-  el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,false)).join('')+'</div>';
+  el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,false,true)).join('')+'</div>';
   if(limit<36&&r.has_more)more.classList.remove('hide');
   return true;
 }
@@ -2244,11 +2370,11 @@ async function loadMovieFavorites(){
   if(!movies.length){el.innerHTML='<span class="muted">No favorite movies yet.</span>';return;}
   let h='';
   for(const m of movies){
-    const sid=escAttr(String(m.stream_id)), ext=escAttr(m.extension||'mp4');
+    const sid=escAttr(String(m.stream_id));
+    const cleanName=cleanMovieSearchTitle(m.name);
     const poster='<span class="moviefavposter">&#127916;'+(m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</span>';
-    h+='<div class="moviefav">'+poster+'<div class="moviefavinfo"><div class="moviefavname">'+esc(m.name)+'</div>'
-      +'<div class="moviefavbtns"><button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">VLC</button></div></div>'
-      +'<button class="favrm movieremove" data-sid="'+sid+'" title="Remove">&times;</button></div>';
+    h+='<div class="moviefav" data-query="'+escAttr(cleanName)+'">'+poster+'<div class="moviefavinfo"><div class="moviefavname">'+esc(cleanName)+'</div></div>'
+      +'<span class="favstar on movieremove" data-sid="'+sid+'" title="Remove from favorites">&#9733;</span></div>';
   }
   el.innerHTML=h;
 }
@@ -2294,9 +2420,11 @@ let _favShowSet=new Set();
 let _latestEpisodesLoaded=false;
 function latestEpisodeCard(ep){
   const cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(128250)">':'&#128250;';
-  const action=ep.available
-    ?'<button class="btnvlc latestepisodevlc" data-id="'+escAttr(String(ep.id))+'" data-ext="'+escAttr(ep.extension||'mp4')+'">&#9658; VLC</button>'
-    :'<button class="ghost" disabled>'+tr('Not available')+'</button>';
+  let action='<button class="ghost" disabled>'+tr('Not available')+'</button>';
+  if(ep.available){
+    const sources=(ep.sources&&ep.sources.length)?ep.sources:[{id:ep.id,extension:ep.extension,label:'VLC'}];
+    action=sources.map(src=>'<button class="btnvlc latestepisodevlc" data-id="'+escAttr(String(src.id))+'" data-ext="'+escAttr(src.extension||'mp4')+'">&#9658; '+esc(src.label)+'</button>').join('');
+  }
   return '<div class="moviecard"><div class="movieposter">'+cover+'</div><div class="movieinfo"><div class="movietitle">'+esc(ep.show_name)+'</div>'
     +'<div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div>'
     +'<div class="movieactions">'+action+'</div></div></div>';
@@ -2364,27 +2492,29 @@ async function playLatestEpisode(id,ext,btn){
 }
 async function loadShowFavorites(){
   const r=await api('/api/favorites'), shows=r.shows||[];
-  _favShowSet=new Set(shows.map(s=>String(s.series_id)));
+  _favShowSet=new Set(shows.map(s=>String(s.show_key||s.series_id)));
   const el=document.getElementById('showFavList');
   if(!shows.length){el.innerHTML='<span class="muted">No favorite shows yet.</span>';return;}
   let h='';
   for(const s of shows){
     const poster='<span class="showfavposter">&#128250;'+(s.cover?'<img src="'+escAttr(s.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</span>';
-    h+='<div class="showfav" data-series="'+escAttr(String(s.series_id))+'">'+poster+'<div class="showfavinfo"><div class="showfavname">'+esc(s.name)+'</div></div>'
-      +'<button class="favrm showremove" data-series="'+escAttr(String(s.series_id))+'" title="Remove">&times;</button></div>';
+    const ids=(s.series_ids&&s.series_ids.length?s.series_ids:[s.series_id]).join(',');
+    const key=String(s.show_key||s.series_id);
+    h+='<div class="showfav" data-series="'+escAttr(ids)+'">'+poster+'<div class="showfavinfo"><div class="showfavname">'+esc(s.name)+'</div></div>'
+      +'<button class="favrm showremove" data-key="'+escAttr(key)+'" title="Remove">&times;</button></div>';
   }
   el.innerHTML=h;
 }
 async function toggleShowFavorite(show,starEl){
   const r=await favPost({action:'toggle_show',show:show});
   _favShowSet=new Set((r.show_ids||[]).map(String));
-  if(starEl)starEl.classList.toggle('on',_favShowSet.has(String(show.series_id)));
+  if(starEl)starEl.classList.toggle('on',_favShowSet.has(String(show.show_key||show.series_id)));
   _latestEpisodesLoaded=false;
   await loadShowFavorites();
 }
-async function removeShowFavorite(seriesId){
-  await favPost({action:'remove_show',series_id:seriesId});
-  document.querySelectorAll('.showstar').forEach(el=>{if(el.getAttribute('data-series')===String(seriesId))el.classList.remove('on');});
+async function removeShowFavorite(showKey){
+  await favPost({action:'remove_show',show_key:showKey});
+  document.querySelectorAll('.showstar').forEach(el=>{if(el.getAttribute('data-key')===String(showKey))el.classList.remove('on');});
   _latestEpisodesLoaded=false;
   await loadShowFavorites();
 }
@@ -2402,11 +2532,12 @@ async function searchShows(){
   await loadShowFavorites();
   let h='<div class="showgrid">';
   for(const s of r.shows){
-    const fav=_favShowSet.has(String(s.series_id))?' on':'';
+    const fav=_favShowSet.has(String(s.show_key))?' on':'';
+    const ids=(s.series_ids||[s.series_id]).join(',');
     const cover=s.cover?'<img src="'+escAttr(s.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
-    h+='<div class="showcard" data-series="'+escAttr(String(s.series_id))+'"><div class="showposter">&#128250;'+cover+'</div>'
+    h+='<div class="showcard" data-series="'+escAttr(ids)+'"><div class="showposter">&#128250;'+cover+'</div>'
       +'<div><div class="showname">'+esc(s.name)+'</div><div class="moviemeta" style="margin-top:7px">'+(s.year?esc(s.year):'')+(s.rating?(' &nbsp; Rating: '+esc(s.rating)):'')+'</div>'
-      +'<span class="favstar showstar'+fav+'" data-series="'+escAttr(String(s.series_id))+'" data-name="'+escAttr(s.name||'')+'" data-cover="'+escAttr(s.cover||'')+'" data-year="'+escAttr(s.year||'')+'" data-rating="'+escAttr(s.rating||'')+'" title="Favorite">&#9733;</span></div></div>';
+      +'<span class="favstar showstar'+fav+'" data-key="'+escAttr(s.show_key)+'" data-series="'+escAttr(String(s.series_id))+'" data-series-ids="'+escAttr(ids)+'" data-name="'+escAttr(s.name||'')+'" data-cover="'+escAttr(s.cover||'')+'" data-year="'+escAttr(s.year||'')+'" data-rating="'+escAttr(s.rating||'')+'" title="Favorite">&#9733;</span></div></div>';
   }
   el.innerHTML=h+'</div>';
 }
@@ -2421,18 +2552,23 @@ async function loadShow(seriesId,refresh){
   document.getElementById('showResults').innerHTML='';
   _showSeasons={};
   const heroCover=r.cover?'<img src="'+escAttr(r.cover)+'" alt="" onerror="this.remove()">':'';
-  const heroFav=_favShowSet.has(String(seriesId))?' on':'';
+  const heroFav=_favShowSet.has(String(r.show_key))?' on':'';
   let h='<div class="showhero"><div class="showheroart">&#128250;'+heroCover+'</div><div><h2>'+esc(r.name||'Show')
-    +'<span class="favstar showstar'+heroFav+'" data-series="'+escAttr(String(seriesId))+'" data-name="'+escAttr(r.name||'Show')+'" data-cover="'+escAttr(r.cover||'')+'" data-year="" data-rating="" title="Favorite">&#9733;</span></h2>'
+    +'<span class="favstar showstar'+heroFav+'" data-key="'+escAttr(r.show_key)+'" data-series="'+escAttr(String(r.series_id))+'" data-series-ids="'+escAttr((r.series_ids||[]).join(','))+'" data-name="'+escAttr(r.name||'Show')+'" data-cover="'+escAttr(r.cover||'')+'" data-year="" data-rating="" title="Favorite">&#9733;</span></h2>'
     +'<div class="muted">'+r.seasons.length+' season'+(r.seasons.length===1?'':'s')+'</div></div></div>';
   for(const season of r.seasons){
-    _showSeasons[String(season.number)]=season.episodes;
+    _showSeasons[String(season.number)]={};
+    for(const ep of season.episodes)for(const src of (ep.sources||[])){
+      if(!_showSeasons[String(season.number)][src.label])_showSeasons[String(season.number)][src.label]=[];
+      _showSeasons[String(season.number)][src.label].push({id:src.id,extension:src.extension,episode_num:ep.episode_num});
+    }
     const seasonCover=season.cover?'<img src="'+escAttr(season.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
     h+='<div class="seasonblock"><div class="seasonlayout"><div class="seasonart">&#128250;'+seasonCover+'</div><div class="seasoncontent"><div class="seasonhead"><b>'+esc(season.title)+'</b></div><div class="episodes">';
     for(let ei=0;ei<season.episodes.length;ei++){
       const ep=season.episodes[ei];
-      h+='<div class="episode"><div class="episodename"><b>E'+esc(ep.episode_num)+'</b> '+esc(ep.title||'Episode')+'</div>'
-        +'<button class="btnvlc episodevlc" data-season="'+escAttr(String(season.number))+'" data-index="'+ei+'">&#9658; VLC</button></div>';
+      h+='<div class="episode"><div class="episodename"><b>E'+esc(ep.episode_num)+'</b> '+esc(ep.title||'Episode')+'</div><div class="episodequalities">';
+      for(const src of (ep.sources||[]))h+='<button class="btnvlc episodevlc" data-season="'+escAttr(String(season.number))+'" data-episode="'+escAttr(String(ep.episode_num))+'" data-source="'+escAttr(src.label)+'">&#9658; '+esc(src.label)+'</button>';
+      h+='</div></div>';
     }
     h+='</div></div></div></div>';
   }
@@ -2463,8 +2599,8 @@ async function checkShowsOnStartup(){
     else toast('Successfully refreshed playlists, no new episodes found',7000);
   }catch(e){toast('Could not refresh show playlists.',7000);}
 }
-async function playEpisodeQueue(season,index,btn){
-  const episodes=(_showSeasons[String(season)]||[]).slice(parseInt(index,10)||0), old=btn.textContent;btn.textContent='Opening...';
+async function playEpisodeQueue(season,episodeNum,source,btn){
+  const episodes=((_showSeasons[String(season)]||{})[source]||[]).filter(ep=>Number(ep.episode_num)>=Number(episodeNum)), old=btn.textContent;btn.textContent='Opening...';
   try{const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');}
   catch(e){alert('Could not launch VLC.');}
   setTimeout(()=>btn.textContent=old,1200);
@@ -2709,21 +2845,25 @@ document.addEventListener('click',function(e){
   const lev=e.target.closest('.latestepisodevlc');
   if(lev){playLatestEpisode(lev.getAttribute('data-id'),lev.getAttribute('data-ext'),lev);return;}
   const ss=e.target.closest('.showstar');
-  if(ss){toggleShowFavorite({series_id:ss.getAttribute('data-series'),name:ss.getAttribute('data-name'),cover:ss.getAttribute('data-cover'),year:ss.getAttribute('data-year'),rating:ss.getAttribute('data-rating')},ss);return;}
+  if(ss){toggleShowFavorite({show_key:ss.getAttribute('data-key'),series_id:ss.getAttribute('data-series'),series_ids:(ss.getAttribute('data-series-ids')||ss.getAttribute('data-series')||'').split(',').filter(Boolean),name:ss.getAttribute('data-name'),cover:ss.getAttribute('data-cover'),year:ss.getAttribute('data-year'),rating:ss.getAttribute('data-rating')},ss);return;}
   const sr=e.target.closest('.showremove');
-  if(sr){removeShowFavorite(sr.getAttribute('data-series'));return;}
+  if(sr){removeShowFavorite(sr.getAttribute('data-key'));return;}
   const sc=e.target.closest('.showcard');
   if(sc){loadShow(sc.getAttribute('data-series'));return;}
   const sf=e.target.closest('.showfav');
   if(sf){loadShow(sf.getAttribute('data-series'));return;}
   const ev=e.target.closest('.episodevlc');
-  if(ev){playEpisodeQueue(ev.getAttribute('data-season'),ev.getAttribute('data-index'),ev);return;}
+  if(ev){playEpisodeQueue(ev.getAttribute('data-season'),ev.getAttribute('data-episode'),ev.getAttribute('data-source'),ev);return;}
   const mv=e.target.closest('.movievlc');
   if(mv){playMovieVLC(mv.getAttribute('data-sid'),mv.getAttribute('data-ext'),mv);return;}
   const ms=e.target.closest('.moviestar');
   if(ms){toggleMovieFavorite({stream_id:ms.getAttribute('data-sid'),name:ms.getAttribute('data-name'),extension:ms.getAttribute('data-ext'),year:ms.getAttribute('data-year'),rating:ms.getAttribute('data-rating'),cover:ms.getAttribute('data-cover')},ms);return;}
+  const recentMovie=e.target.closest('.recentmovie');
+  if(recentMovie){document.getElementById('movieQ').value=recentMovie.getAttribute('data-query')||'';searchMovies();return;}
   const mr=e.target.closest('.movieremove');
   if(mr){removeMovieFavorite(mr.getAttribute('data-sid'));return;}
+  const favoriteMovie=e.target.closest('.moviefav');
+  if(favoriteMovie){document.getElementById('movieQ').value=favoriteMovie.getAttribute('data-query')||'';searchMovies();return;}
   const tt=e.target.closest('.teamtab');
   if(tt){_activeTeam=parseInt(tt.getAttribute('data-team'),10)||0;renderTeamSwitch();renderActiveTeam();return;}
   const bh=e.target.closest('.bchead');
@@ -2763,7 +2903,7 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
 // open the user's default start section
 (async function(){
   let start='search',checkShows=false;
-  try{const c=await api('/api/config');start=c.start_section||'search';checkShows=!!c.check_shows_on_startup;}catch(e){}
+  try{const c=await api('/api/config');start=c.start_section||'search';checkShows=!!c.check_shows_on_startup;updateProfileName(c.profile_name);setLang(c.preferred_language||'en');}catch(e){}
   const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,mylist:showMylist};
   (map[start]||showSearch)();
   if(checkShows)setTimeout(checkShowsOnStartup,500);
@@ -2899,10 +3039,17 @@ class Handler(BaseHTTPRequestHandler):
                         "category": c.get("category", ""),
                         "url": x.stream_url(sid) if (x.configured() and sid is not None) else "",
                     })
+                favorite_shows = []
+                for show in fav.get("shows", []):
+                    item = dict(show)
+                    item["name"] = _clean_show_title(item.get("name")) or item.get("name", "")
+                    item["show_key"] = item.get("show_key") or _show_key(item.get("name")) or str(item.get("series_id", ""))
+                    item["series_ids"] = item.get("series_ids") or [item.get("series_id")]
+                    favorite_shows.append(item)
                 return self._send(200, {"categories": fav.get("categories", []),
                                         "channels": chans,
                                         "movies": fav.get("movies", []),
-                                        "shows": fav.get("shows", [])})
+                                        "shows": favorite_shows})
 
             if u.path == "/api/epg":
                 # ids=comma-separated stream ids; force=1 to bypass cache
@@ -3151,11 +3298,20 @@ class Handler(BaseHTTPRequestHandler):
                     max(usable_years) if usable_years else 0)
                 candidate_rows = list(by_year.get(target_year, []))
                 candidate_rows += by_year.get(target_year - 1, [])
-                chosen = candidate_rows[:limit]
-                if not chosen:
+                if not candidate_rows:
                     all_rows.sort(key=lambda item: item[0], reverse=True)
                     candidate_rows = all_rows
-                    chosen = candidate_rows[:limit]
+                unique_rows = []
+                seen_titles = set()
+                for row in candidate_rows:
+                    clean_title = _clean_show_title(row[1].get("name")) or str(
+                        row[1].get("name") or "")
+                    title_key = re.sub(r"[^a-z0-9]+", "", clean_title.lower())
+                    if not title_key or title_key in seen_titles:
+                        continue
+                    seen_titles.add(title_key)
+                    unique_rows.append(row)
+                chosen = unique_rows[:limit]
                 out = []
                 for _added, m, year in chosen:
                     cover = str(m.get("stream_icon") or m.get("cover") or
@@ -3169,7 +3325,7 @@ class Handler(BaseHTTPRequestHandler):
                                 "cover": cover})
                 return self._send(200, {"movies": out, "logged_in": True,
                                         "catalog_year": target_year,
-                                        "has_more": len(candidate_rows) > limit})
+                                        "has_more": len(unique_rows) > limit})
 
             if u.path == "/api/shows":
                 term = (q.get("q", [""])[0]).strip().lower()
@@ -3185,19 +3341,26 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"shows": [], "logged_in": True,
                                             "error": str(e)})
                 words = [w for w in term.split() if w]
-                out = []
+                grouped = {}
                 for s in shows:
                     name = str(s.get("name") or "")
                     if not all(w in name.lower() for w in words):
                         continue
+                    clean_name = _clean_show_title(name) or name
+                    key = _show_key(name) or str(s.get("series_id"))
                     cover = str(s.get("cover") or s.get("stream_icon") or "").strip()
                     if not cover.startswith(("http://", "https://")):
                         cover = ""
-                    out.append({"series_id": s.get("series_id"), "name": name,
-                                "cover": cover, "year": s.get("year") or "",
-                                "rating": s.get("rating") or ""})
-                    if len(out) >= 100:
+                    row = grouped.setdefault(key, {
+                        "show_key": key, "series_id": s.get("series_id"),
+                        "series_ids": [], "name": clean_name, "cover": cover,
+                        "year": s.get("year") or "", "rating": s.get("rating") or ""})
+                    row["series_ids"].append(s.get("series_id"))
+                    if not row["cover"] and cover:
+                        row["cover"] = cover
+                    if len(grouped) >= 100:
                         break
+                out = list(grouped.values())
                 return self._send(200, {"shows": out, "logged_in": True})
 
             if u.path == "/api/latest_episodes":
@@ -3213,6 +3376,10 @@ class Handler(BaseHTTPRequestHandler):
                 rows = []
                 upcoming_rows = []
                 errors = 0
+                try:
+                    series_catalog = get_xtream_series(cfg)
+                except Exception:
+                    series_catalog = []
                 for fav_show in load_favorites().get("shows", []):
                     series_id = fav_show.get("series_id")
                     if series_id is None:
@@ -3224,6 +3391,7 @@ class Handler(BaseHTTPRequestHandler):
                             info = {}
                         show_name = str(info.get("name") or info.get("title") or
                                         fav_show.get("name") or "Show")
+                        display_show_name = _clean_show_title(show_name) or show_name
                         year_text = " ".join(str(value or "") for value in
                                              (fav_show.get("year"), info.get("releaseDate"),
                                               info.get("release_date"), show_name))
@@ -3292,6 +3460,39 @@ class Handler(BaseHTTPRequestHandler):
                                         show_name),
                                     "extension": episode.get("container_extension") or "mp4",
                                     "added": episode_ts, "available": True}
+                        # Merge all quality/provider variants into this one latest card.
+                        favorite_key = str(fav_show.get("show_key") or
+                                           _show_key(fav_show.get("name")))
+                        series_ids = fav_show.get("series_ids") or [series_id]
+                        siblings = [row.get("series_id") for row in series_catalog
+                                    if _show_key(row.get("name")) == favorite_key]
+                        if siblings:
+                            series_ids = siblings
+                        variant_rows = []
+                        for variant_id in series_ids:
+                            try:
+                                variant_row, _variant_info = _latest_provider_variant(
+                                    x, variant_id, show_name)
+                                if variant_row and variant_row.get("id") is not None:
+                                    variant_rows.append(variant_row)
+                            except Exception:
+                                continue
+                        if variant_rows:
+                            provider_key = max(row["key"] for row in variant_rows)
+                            matching = [row for row in variant_rows
+                                        if row["key"] == provider_key]
+                            first = matching[0]
+                            provider_row = {
+                                "id": first["id"], "show_name": _clean_show_title(show_name),
+                                "series_id": series_id, "cover": cover,
+                                "season": first["season"],
+                                "episode_num": first["episode_num"],
+                                "title": first["title"],
+                                "extension": first["extension"],
+                                "sources": [{"id": row["id"], "extension": row["extension"],
+                                             "label": row["label"]} for row in matching],
+                                "added": max(row["added"] for row in matching),
+                                "available": True}
                         schedule = _tvmaze_episode_schedule(
                             show_name, show_year, force=refresh_external)
                         external = schedule.get("latest") or {}
@@ -3308,7 +3509,7 @@ class Handler(BaseHTTPRequestHandler):
                             except (ValueError, OverflowError, TypeError):
                                 upcoming_ts = 0
                             upcoming_rows.append({
-                                "show_name": show_name, "series_id": series_id,
+                                "show_name": display_show_name, "series_id": series_id,
                                 "cover": cover,
                                 "season": int(upcoming.get("season") or 0),
                                 "episode_num": int(upcoming.get("episode_num") or 0),
@@ -3331,7 +3532,7 @@ class Handler(BaseHTTPRequestHandler):
                         cutoff = time.time() - (30 * 24 * 60 * 60)
                         if (external and external_key > provider_key and
                                 external_ts >= cutoff):
-                            rows.append({"id": None, "show_name": show_name,
+                            rows.append({"id": None, "show_name": display_show_name,
                                          "series_id": series_id, "cover": cover,
                                          "season": external_key[0],
                                          "episode_num": external_key[1],
@@ -3352,30 +3553,53 @@ class Handler(BaseHTTPRequestHandler):
                                         "errors": errors})
 
             if u.path == "/api/show":
-                series_id = (q.get("id", [""])[0]).strip()
+                series_id_text = (q.get("id", [""])[0]).strip()
+                series_ids = [sid.strip() for sid in series_id_text.split(",") if sid.strip()]
                 refresh = (q.get("refresh", ["0"])[0]) == "1"
                 cfg = load_config()
                 x = Xtream(cfg)
-                if not (x.configured() and series_id):
+                if not (x.configured() and series_ids):
                     return self._send(400, {"error": "bad request"})
+                # Upgrade old one-source favorites by discovering sibling variants.
                 try:
-                    data = x.series_info(series_id, refresh=refresh) or {}
-                except Exception as e:
-                    return self._send(200, {"error": str(e)})
-                info = data.get("info") or {}
+                    catalog = get_xtream_series(cfg)
+                    selected = next((row for row in catalog
+                                     if str(row.get("series_id")) in series_ids), None)
+                    selected_key = _show_key((selected or {}).get("name"))
+                    if selected_key:
+                        series_ids = [str(row.get("series_id")) for row in catalog
+                                      if _show_key(row.get("name")) == selected_key]
+                except Exception:
+                    pass
+                variants = []
+                for series_id in series_ids:
+                    try:
+                        data = x.series_info(series_id, refresh=refresh) or {}
+                    except Exception:
+                        continue
+                    info = data.get("info") or {}
+                    if not isinstance(info, dict):
+                        info = {}
+                    variants.append((series_id, data, info))
+                if not variants:
+                    return self._send(200, {"error": "Could not load this show."})
+                series_id, data, info = variants[0]
                 if not isinstance(info, dict):
                     info = {}
                 cover = str(info.get("cover") or info.get("movie_image") or "").strip()
                 if not cover.startswith(("http://", "https://")):
                     cover = ""
-                show_name = info.get("name") or info.get("title") or "Show"
+                raw_show_name = info.get("name") or info.get("title") or "Show"
+                show_name = _clean_show_title(raw_show_name) or raw_show_name
                 release_text = str(info.get("releaseDate") or info.get("release_date") or show_name)
                 year_match = re.search(r"(?:19|20)\d{2}", release_text)
                 show_year = year_match.group(0) if year_match else ""
                 maze_covers = _tvmaze_season_covers(show_name, show_year)
                 xtream_season_covers = {}
-                raw_seasons = data.get("seasons") or []
-                if isinstance(raw_seasons, list):
+                for _variant_id, variant_data, _variant_info in variants:
+                    raw_seasons = variant_data.get("seasons") or []
+                    if not isinstance(raw_seasons, list):
+                        continue
                     for meta in raw_seasons:
                         if not isinstance(meta, dict):
                             continue
@@ -3389,24 +3613,43 @@ class Handler(BaseHTTPRequestHandler):
                                   meta.get("movie_image") or "").strip()
                         if key is not None and art.startswith(("http://", "https://")):
                             xtream_season_covers[str(key)] = art
-                raw_episodes = data.get("episodes") or {}
-                if isinstance(raw_episodes, list):
-                    grouped = {}
-                    for ep in raw_episodes:
-                        grouped.setdefault(str(ep.get("season") or 1), []).append(ep)
-                    raw_episodes = grouped
+                episode_map = {}
+                for _variant_id, variant_data, variant_info in variants:
+                    variant_name = variant_info.get("name") or variant_info.get("title") or show_name
+                    label = _show_variant_label(variant_name)
+                    raw_episodes = variant_data.get("episodes") or {}
+                    if isinstance(raw_episodes, list):
+                        grouped = {}
+                        for ep in raw_episodes:
+                            grouped.setdefault(str(ep.get("season") or 1), []).append(ep)
+                        raw_episodes = grouped
+                    for season_key, eps in raw_episodes.items():
+                        if not isinstance(eps, list):
+                            continue
+                        for i, ep in enumerate(eps, 1):
+                            episode_num = ep.get("episode_num") or i
+                            key = (str(season_key), str(episode_num))
+                            item = episode_map.setdefault(key, {
+                                "episode_num": episode_num,
+                                "title": _clean_episode_title(
+                                    ep.get("title") or f"Episode {i}", show_name),
+                                "sources": []})
+                            source_label = label
+                            used = {src["label"] for src in item["sources"]}
+                            if source_label in used:
+                                suffix = 2
+                                while f"{label} {suffix}" in used:
+                                    suffix += 1
+                                source_label = f"{label} {suffix}"
+                            item["sources"].append({
+                                "id": ep.get("id"), "label": source_label,
+                                "extension": ep.get("container_extension") or "mp4"})
                 seasons = []
-                for season_key, eps in raw_episodes.items():
-                    if not isinstance(eps, list):
-                        continue
-                    normalized = []
-                    for i, ep in enumerate(eps, 1):
-                        normalized.append({
-                            "id": ep.get("id"),
-                            "episode_num": ep.get("episode_num") or i,
-                            "title": _clean_episode_title(ep.get("title") or f"Episode {i}", show_name),
-                            "extension": ep.get("container_extension") or "mp4",
-                        })
+                season_numbers = sorted({key[0] for key in episode_map},
+                    key=lambda value: int(value) if value.isdigit() else 999999)
+                for season_key in season_numbers:
+                    normalized = [item for (season, _number), item in episode_map.items()
+                                  if season == season_key]
                     normalized.sort(key=lambda ep: int(ep["episode_num"]) if str(ep["episode_num"]).isdigit() else 999999)
                     seasons.append({"number": season_key,
                                     "title": f"Season {season_key}",
@@ -3414,7 +3657,8 @@ class Handler(BaseHTTPRequestHandler):
                                               xtream_season_covers.get(str(season_key)) or cover),
                                     "episodes": normalized})
                 seasons.sort(key=lambda s: int(s["number"]) if str(s["number"]).isdigit() else 999999)
-                return self._send(200, {"name": show_name,
+                return self._send(200, {"name": show_name, "show_key": _show_key(show_name),
+                                        "series_id": series_ids[0], "series_ids": series_ids,
                                         "cover": cover, "seasons": seasons})
 
             if u.path == "/api/search":
@@ -3480,7 +3724,8 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
-                      "check_shows_on_startup"):
+                      "check_shows_on_startup", "profile_name",
+                      "preferred_language"):
                 if k in payload:
                     cfg[k] = payload[k]
             save_config(cfg)
@@ -3613,27 +3858,33 @@ class Handler(BaseHTTPRequestHandler):
                                  if str(m.get("stream_id")) != sid]
             elif act == "toggle_show":
                 show = payload.get("show") or {}
-                sid = str(show.get("series_id", ""))
+                key = str(show.get("show_key") or _show_key(show.get("name")) or
+                          show.get("series_id", ""))
                 idx = next((i for i, s in enumerate(fav["shows"])
-                            if str(s.get("series_id")) == sid), -1)
+                            if str(s.get("show_key") or _show_key(s.get("name")) or
+                                   s.get("series_id")) == key), -1)
                 if idx >= 0:
                     fav["shows"].pop(idx)
-                elif sid:
+                elif key:
                     fav["shows"].append({"series_id": show.get("series_id"),
+                                          "series_ids": show.get("series_ids") or [show.get("series_id")],
+                                          "show_key": key,
                                           "name": show.get("name", ""),
                                           "cover": show.get("cover", ""),
                                           "year": show.get("year", ""),
                                           "rating": show.get("rating", "")})
             elif act == "remove_show":
-                sid = str(payload.get("series_id", ""))
+                key = str(payload.get("show_key") or payload.get("series_id", ""))
                 fav["shows"] = [s for s in fav["shows"]
-                                if str(s.get("series_id")) != sid]
+                                if str(s.get("show_key") or _show_key(s.get("name")) or
+                                       s.get("series_id")) != key]
             save_favorites(fav)
             return self._send(200, {"ok": True,
                                     "categories": fav["categories"],
                                     "channel_ids": [c.get("stream_id") for c in fav["channels"]],
                                     "movie_ids": [m.get("stream_id") for m in fav["movies"]],
-                                    "show_ids": [s.get("series_id") for s in fav["shows"]]})
+                                    "show_ids": [s.get("show_key") or _show_key(s.get("name")) or
+                                                 s.get("series_id") for s in fav["shows"]]})
 
         if u.path == "/api/update_download":
             path = download_update()
