@@ -84,7 +84,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b35"
+VERSION = "0.777.b46"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -138,14 +138,16 @@ FAVORITES_PATH = os.path.join(app_dir(), "favorites.json")
 
 def load_favorites():
     if not os.path.exists(FAVORITES_PATH):
-        return {"categories": [], "channels": []}
+        return {"categories": [], "channels": [], "movies": [], "shows": []}
     try:
         with open(FAVORITES_PATH, "r", encoding="utf-8") as f:
             fav = json.load(f) or {}
         return {"categories": list(fav.get("categories", [])),
-                "channels": list(fav.get("channels", []))}
+                "channels": list(fav.get("channels", [])),
+                "movies": list(fav.get("movies", [])),
+                "shows": list(fav.get("shows", []))}
     except Exception:
-        return {"categories": [], "channels": []}
+        return {"categories": [], "channels": [], "movies": [], "shows": []}
 
 def save_favorites(fav):
     with open(FAVORITES_PATH, "w", encoding="utf-8") as f:
@@ -251,6 +253,27 @@ class Xtream:
         return {str(c.get("category_id")): c.get("category_name", "")
                 for c in (data or [])}
 
+    def vod_streams(self):
+        data = http_get_json(self._api("get_vod_streams"), timeout=45)
+        return data if isinstance(data, list) else []
+
+    def movie_url(self, stream_id, extension="mp4"):
+        ext = re.sub(r"[^a-zA-Z0-9]", "", str(extension or "mp4")) or "mp4"
+        return f"{self.base}/movie/{self.user}/{self.password}/{stream_id}.{ext}"
+
+    def series(self):
+        data = http_get_json(self._api("get_series"), timeout=45)
+        return data if isinstance(data, list) else []
+
+    def series_info(self, series_id):
+        q = {"username": self.user, "password": self.password,
+             "action": "get_series_info", "series_id": str(series_id)}
+        return http_get_json(f"{self.base}/player_api.php?" + urllib.parse.urlencode(q), timeout=45)
+
+    def episode_url(self, episode_id, extension="mp4"):
+        ext = re.sub(r"[^a-zA-Z0-9]", "", str(extension or "mp4")) or "mp4"
+        return f"{self.base}/series/{self.user}/{self.password}/{episode_id}.{ext}"
+
     def stream_url(self, stream_id):
         return f"{self.base}/live/{self.user}/{self.password}/{stream_id}.{self.ext}"
 
@@ -317,6 +340,8 @@ class Xtream:
         return out
 
 _XT_CACHE = {"ts": 0, "channels": [], "cats": {}}
+_VOD_CACHE = {"ts": 0, "movies": []}
+_SERIES_CACHE = {"ts": 0, "shows": []}
 _XT_TTL = 600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
 _EPG_TTL = 3600
@@ -410,6 +435,22 @@ def get_xtream_channels(cfg, force=False):
         cats = {}
     _XT_CACHE.update({"ts": now, "channels": channels, "cats": cats})
     return channels, cats
+
+def get_xtream_movies(cfg, force=False):
+    now = time.time()
+    if (not force) and _VOD_CACHE["movies"] and (now - _VOD_CACHE["ts"] < _XT_TTL):
+        return _VOD_CACHE["movies"]
+    movies = Xtream(cfg).vod_streams()
+    _VOD_CACHE.update({"ts": now, "movies": movies})
+    return movies
+
+def get_xtream_series(cfg, force=False):
+    now = time.time()
+    if (not force) and _SERIES_CACHE["shows"] and (now - _SERIES_CACHE["ts"] < _XT_TTL):
+        return _SERIES_CACHE["shows"]
+    shows = Xtream(cfg).series()
+    _SERIES_CACHE.update({"ts": now, "shows": shows})
+    return shows
 
 # --------------------------------------------------------------------------
 # Fotmob tv-guide source (Schema.org ld+json embedded in the page)
@@ -851,6 +892,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .bcchans{display:flex;flex-direction:column}
  .chline{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--line)}
  .chline:first-child{border-top:0}
+ .matchchan{display:flex;align-items:center;min-width:0;flex:1}
+ .matchchan .favstar{display:inline-block;color:#78808e;margin-right:9px}
+ .matchchan .favstar.on{color:#f5c542}
  .chn{font-size:13px}
  .chbtns{display:flex;gap:6px;flex-shrink:0}
  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
@@ -899,6 +943,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvchan .tvflag{flex-shrink:0;font-size:15px;width:20px;text-align:center}
  .tvchan .tvname{flex:1;min-width:0;line-height:1.2;word-break:break-word}
  .tvchan .favstar{margin-right:0}
+ .tvdrag{display:inline-flex;align-items:center;color:#737b89;cursor:grab;font-size:16px;line-height:1;user-select:none}
+ .tvdrag:active{cursor:grabbing}
  .tvprog{flex:1;padding:8px 12px;display:flex;align-items:center;flex-wrap:wrap;gap:2px;font-size:12px;color:var(--mut);min-width:0;overflow:hidden}
  .epgnone{font-size:12px}
  .epgprog{white-space:nowrap;color:var(--mut)}
@@ -906,6 +952,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .epgprog .epgt{color:var(--acc);font-size:11px;margin-right:2px}
  .epgsep{color:var(--line2);margin:0 7px}
  .tvrow{display:flex;border-bottom:1px solid var(--line);min-height:50px;align-items:stretch}
+ .tvrow.tvdragging{opacity:.4}
+ .tvrow.tvdragover{box-shadow:inset 0 2px 0 var(--acc)}
  /* player fills the timeline area when active */
  #tvPlayerSlot .tvplayerbar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#0c0e12;font-size:13px}
  #tvVideo{width:100%;height:calc(100% - 34px);background:#000;display:block;object-fit:contain}
@@ -1002,12 +1050,69 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  /* playlist builder logo */
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
  .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
+ .movieswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .moviefavs{padding:0;max-height:82vh;overflow-y:auto}
+ .moviefavlist{display:flex;flex-direction:column;gap:8px}
+ .moviefav{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+ .moviefavposter{position:relative;width:74px;height:110px;flex-shrink:0;border-radius:6px;background:#20242c;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#737b89;font-size:24px}
+ .moviefavposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .moviefavinfo{min-width:0;flex:1}
+ .moviefavname{font-size:12px;line-height:1.3;word-break:break-word;margin-bottom:5px}
+ .moviefavbtns{display:flex;gap:5px}
+ .moviefavbtns button{padding:2px 6px;font-size:10px}
+ .moviesmain{width:100%;max-width:900px;min-width:0;margin:0 auto}
+ .moviegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:16px}
+ .moviecard{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px}
+ .movieposter{width:92px;height:138px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;color:#737b89;font-size:30px}
+ .movieposter img{width:100%;height:100%;object-fit:cover;display:block}
+ .movieinfo{display:flex;flex:1;min-width:0;flex-direction:column;gap:9px}
+ .movietitle{font-weight:600;line-height:1.3}
+ .moviemeta{font-size:12px;color:var(--mut)}
+ .movieactions{display:flex;gap:7px;margin-top:auto}
+ .showswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .showfavs{max-height:82vh;overflow-y:auto}
+ .showfavlist{display:flex;flex-direction:column;gap:8px}
+ .showfav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;min-height:100px}
+ .showfav:hover .showfavname{color:var(--acc)}
+ .showfavposter{position:relative;width:64px;height:96px;flex-shrink:0;border-radius:5px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center}
+ .showfavposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .showfavinfo{min-width:0;flex:1;display:flex;justify-content:center;padding:8px 6px 27px 0}
+ .showfavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center}
+ .showremove{position:absolute;right:0;bottom:8px;padding:3px 7px}
+ .showsmain{width:100%;max-width:1250px;min-width:0;margin:0 auto}
+ .showgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:16px}
+ .showcard{display:flex;gap:10px;min-height:140px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer}
+ .showcard:hover{border-color:var(--acc)}
+ .showposter{position:relative;width:82px;height:123px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;font-size:28px;color:#737b89}
+ .showposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .showname{font-weight:600;line-height:1.3}
+ .showdetails{margin-top:16px}
+ .showhero{display:flex;align-items:flex-end;gap:18px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+ .showheroart{position:relative;width:150px;height:225px;flex-shrink:0;border-radius:9px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;font-size:38px}
+ .showheroart img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .showhero h2{font-size:28px;margin:0 0 8px;display:flex;align-items:center;gap:10px}
+ .showhero h2 .favstar{font-size:22px;margin-right:0}
+ .seasonblock{margin-bottom:16px;border-top:1px solid var(--line);padding-top:10px}
+ .seasonlayout{display:flex;gap:14px;align-items:flex-start}
+ .seasonart{position:relative;width:105px;height:158px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;font-size:30px;color:#737b89}
+ .seasonart img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .seasoncontent{min-width:0;flex:1}
+ .seasonhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+ .episodes{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px;scrollbar-color:#697487 #20242c;scrollbar-width:auto}
+ .episodes::-webkit-scrollbar{height:12px}
+ .episodes::-webkit-scrollbar-track{background:#20242c;border-radius:8px}
+ .episodes::-webkit-scrollbar-thumb{background:#697487;border:2px solid #20242c;border-radius:8px}
+ .episodes::-webkit-scrollbar-thumb:hover{background:var(--acc)}
+ .episode{flex:0 0 calc((100% - 72px)/10);min-width:100px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:7px}
+ .episodename{font-size:12px;line-height:1.3;min-height:31px}
 </style></head><body>
 <header>
   <h1><svg width="38" height="38" viewBox="0 0 240 240" style="vertical-align:-11px;margin-right:8px" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="139" rx="44" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="127" rx="42" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><ellipse cx="101" cy="115" rx="40" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>Olo's TVMate</h1>
   <a id="navSearch" onclick="showSearch()" data-i18n="Search">Search</a>
   <a id="navChannels" onclick="showChannels()" data-i18n="Playlist Builder">Playlist Builder</a>
   <a id="navMytv" onclick="showMytv()" data-i18n="My TV">My TV</a>
+  <a id="navMovies" onclick="showMovies()" data-i18n="My Movies">My Movies</a>
+  <a id="navShows" onclick="showShows()" data-i18n="My Shows">My Shows</a>
   <a id="navMylist" onclick="showMylist()" data-i18n="My List">My List</a>
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
@@ -1118,6 +1223,41 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     </div>
   </section>
 
+  <section id="moviesView" class="hide">
+    <div class="movieswrap">
+      <aside class="moviefavs">
+        <div class="colh">&#9733; <span data-i18n="Favorite Movies">Favorite Movies</span></div>
+        <div id="movieFavList" class="moviefavlist"><span class="muted">No favorite movies yet.</span></div>
+      </aside>
+      <div class="moviesmain">
+        <h2 class="colh" data-i18n="My Movies">My Movies</h2>
+        <div class="row">
+          <input id="movieQ" type="text" placeholder="Search your movies..." data-i18n-ph="Search your movies..." onkeydown="if(event.key==='Enter')searchMovies()">
+          <button onclick="searchMovies()" data-i18n="Search">Search</button>
+        </div>
+        <div id="movieResults"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="showsView" class="hide">
+    <div class="showswrap">
+      <aside class="showfavs">
+        <div class="colh">&#9733; <span data-i18n="Favorite Shows">Favorite Shows</span></div>
+        <div id="showFavList" class="showfavlist"><span class="muted">No favorite shows yet.</span></div>
+      </aside>
+      <div class="showsmain">
+        <h2 class="colh" data-i18n="My Shows">My Shows</h2>
+        <div class="row">
+          <input id="showQ" type="text" placeholder="Search your shows..." data-i18n-ph="Search your shows..." onkeydown="if(event.key==='Enter')searchShows()">
+          <button onclick="searchShows()" data-i18n="Search">Search</button>
+        </div>
+        <div id="showResults"></div>
+        <div id="showDetails" class="showdetails"></div>
+      </div>
+    </div>
+  </section>
+
   <section id="settingsView" class="hide">
     <div class="settingswrap">
     <div class="brandblock">
@@ -1136,7 +1276,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
         <div><label data-i18n="Match strictness (0.40–0.80)">Match strictness (0.40&ndash;0.80)</label><input id="s_thr" type="text"></div>
         <div><label data-i18n="Default start section">Default start section</label>
-          <select id="s_start"><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="mylist">My List</option></select></div>
+          <select id="s_start"><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option value="mylist">My List</option></select></div>
       </div>
       <label data-i18n="Listings countries (comma separated: no, uk, us)">Listings countries (comma separated: no, uk, us)</label>
       <input id="s_cc" type="text">
@@ -1194,10 +1334,12 @@ function initPlPancakes(){
   const pl=document.getElementById('pcakePL');
   if(pl){makePancakes(pl,10);pl.style.opacity='0.13';}
 }
-function setNav(id){['navSearch','navChannels','navMylist','navMytv','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
+function setNav(id){['navSearch','navChannels','navMylist','navMytv','navMovies','navShows','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
 const _SLOGANS={
   search:["Find the match. Pick a channel. Pour the syrup."],
   mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
+  movies:["Movie night, now serving pancakes."],
+  shows:["One more episode. One more pancake."],
   channels:["Putting the \u201Cpan\u201D in channel planning.","Plan your viewing. Prepare your pancakes."],
   settings:["Powered by pancakes and questionable decisions.","Built with code, football, and pancake batter."],
   mylist:["Curate your channels. Butter generously.","Pancakes on standby."]
@@ -1211,7 +1353,7 @@ function setSlogan(section){
 }
 let _lang='en';
 const _I18N={
-  "Search":"Søk","Playlist Builder":"Lag spilleliste","My List":"Min liste","My TV":"Live TV","Settings":"Innstillinger",
+  "Search":"Søk","Playlist Builder":"Lag spilleliste","My List":"Min liste","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Settings":"Innstillinger",
   "Favorite Channels":"Favorittkanaler","EPG Refresh":"Oppdater EPG","Channels":"Kanaler",
   "All Categories":"Alle kategorier","Selected categories":"Valgte kategorier","Filter Channels":"Kanaler","Playlist":"Spilleliste",
   "Add to Favorites":"Legg til favoritter","Tick all":"Velg alle","Untick all":"Fjern alle","Add ticked":"Legg til valgte",
@@ -1244,6 +1386,8 @@ const _I18N={
   "Default start section":"Standard oppstartseksjon","Search a team, e.g. Leeds":"Søk etter lag, f.eks. Leeds",
   "Find a channel, e.g. tv2 play":"Finn en kanal, f.eks. tv2 play",
   "Search a category, e.g. Norway":"Søk kategori, f.eks. Norge","Filter categories...":"Filtrer kategorier...",
+  "Search your movies...":"Søk i filmene dine...",
+  "Search your shows...":"Søk i seriene dine...",
   "★ Add to Favorites":"★ Legg til favoritter","★ Favorite Channels":"★ Favorittkanaler"
 };
 function tr(s){ if(_lang==='no'&&_I18N[s])return _I18N[s]; return s; }
@@ -1264,8 +1408,10 @@ function setLang(l){
   applyLang();
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
-function hideAll(){searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytvView.classList.add('hide');}
+function hideAll(){searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');}
 function showMytv(){hideAll();mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
+function showMovies(){hideAll();moviesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();}
+function showShows(){hideAll();showsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();}
 function showMylist(){hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
 function showSearch(){hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
 function showChannels(){hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
@@ -1273,16 +1419,27 @@ function showSettings(){loadSettings();hideAll();settingsView.classList.remove('
 
 let _catsLoaded=false;
 let _allCats=[];
-// Prefix (before the |) -> emoji. Country codes get flags; regions/quality
-// get a representative icon; anything unmapped falls back to a globe.
-const _FLAGS={
-  'no':'🇳🇴', 'se':'🇸🇪', 'dk':'🇩🇰', 'fi':'🇫🇮', 'uk':'🇬🇧', 'gb':'🇬🇧', 'us':'🇺🇸', 'ca':'🇨🇦', 'de':'🇩🇪', 'fr':'🇫🇷', 'it':'🇮🇹', 'es':'🇪🇸', 'pt':'🇵🇹', 'nl':'🇳🇱', 'be':'🇧🇪', 'ch':'🇨🇭', 'at':'🇦🇹', 'ie':'🇮🇪', 'pl':'🇵🇱', 'gr':'🇬🇷', 'tr':'🇹🇷', 'ru':'🇷🇺', 'ua':'🇺🇦', 'ro':'🇷🇴', 'bg':'🇧🇬', 'hr':'🇭🇷', 'si':'🇸🇮', 'rs':'🇷🇸', 'cz':'🇨🇿', 'sk':'🇸🇰', 'hu':'🇭🇺', 'al':'🇦🇱', 'ba':'🇧🇦', 'mk':'🇲🇰', 'in':'🇮🇳', 'pk':'🇵🇰', 'ir':'🇮🇷', 'sa':'🇸🇦', 'eg':'🇪🇬', 'il':'🇮🇱', 'br':'🇧🇷', 'mx':'🇲🇽', 'au':'🇦🇺', 'ag':'🇦🇫', 'ar':'🌐', 'afr':'🌍', 'asia':'🌏', 'ex':'🌐', 'ex-yu':'🌐', 'am':'🌐', 'mena':'🌐', '4k':'📺', 'uhd':'📺', 'ppv':'🎫', 'vip':'⭐', 'sport':'⚽', 'sports':'⚽',
+// Build icons from Unicode code points instead of embedding emoji bytes in the
+// source. This keeps flags intact if a Windows editor repacks the script.
+const _COUNTRY_CODES={
+  no:'NO',se:'SE',dk:'DK',fi:'FI',uk:'GB',gb:'GB',us:'US',ca:'CA',de:'DE',fr:'FR',
+  it:'IT',es:'ES',pt:'PT',nl:'NL',be:'BE',ch:'CH',at:'AT',ie:'IE',pl:'PL',gr:'GR',
+  tr:'TR',ru:'RU',ua:'UA',ro:'RO',bg:'BG',hr:'HR',si:'SI',rs:'RS',cz:'CZ',sk:'SK',
+  hu:'HU',al:'AL',ba:'BA',mk:'MK',in:'IN',pk:'PK',ir:'IR',sa:'SA',eg:'EG',il:'IL',
+  br:'BR',mx:'MX',au:'AU',ag:'AF'
 };
+const _ICONS={ar:0x1f310,afr:0x1f30d,asia:0x1f30f,ex:0x1f310,'ex-yu':0x1f310,
+  am:0x1f310,mena:0x1f310,'4k':0x1f4fa,uhd:0x1f4fa,ppv:0x1f3ab,
+  vip:0x2b50,sport:0x26bd,sports:0x26bd};
+function _countryFlag(code){
+  return String.fromCodePoint(...code.split('').map(c=>0x1f1e6+c.charCodeAt(0)-65));
+}
 function _flagFor(name){
   const m=(name||'').match(/^\s*([a-z0-9-]{1,5})\s*\|/i);
-  if(!m)return '🌐';
+  if(!m)return String.fromCodePoint(0x1f310);
   const key=m[1].toLowerCase();
-  return _FLAGS[key]||'🌐';
+  if(_COUNTRY_CODES[key])return _countryFlag(_COUNTRY_CODES[key]);
+  return String.fromCodePoint(_ICONS[key]||0x1f310);
 }
 let _selCats=new Set();
 let _activeCat=null;
@@ -1501,6 +1658,7 @@ async function doSearch(){
   const r=await api('/api/search?q='+encodeURIComponent(q));
   if(r.error){results.innerHTML='<span class="err">'+r.error+'</span>';return;}
   _searchData=r;
+  if(r.logged_in)await refreshFavState();
   let head='';
   if(r.source_errors&&r.source_errors.length)
     head+='<div class="muted err">Some listings failed: '+r.source_errors.join('; ')+'</div>';
@@ -1596,7 +1754,9 @@ function renderFixtureCard(f,fi){
         +'<div class="bcchans hide" id="'+rid+'">';
       if(chans.length){
         for(const m of chans){
-          html+='<div class="chline"><span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span>'
+          const fav=_favChanSet.has(String(m.stream_id))?' on':'';
+          html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
+            +'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
             +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
         }
       }else{
@@ -1610,7 +1770,9 @@ function renderFixtureCard(f,fi){
   if(f.ppv_hits&&f.ppv_hits.length){
     html+='<div class="muted" style="margin-top:8px">Possible PPV/event channels:</div><div class="bcastlist">';
     for(const m of f.ppv_hits){
-      html+='<div class="chline"><span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span>'
+      const fav=_favChanSet.has(String(m.stream_id))?' on':'';
+      html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
+        +'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
         +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
     }
     html+='</div>';
@@ -1676,6 +1838,151 @@ async function playVLC(sid,btn){
     if(!r.ok||j.error){alert(j.error||'Could not launch VLC.');}
   }catch(e){alert('Could not launch VLC.');}
   if(btn){setTimeout(()=>{btn.textContent=old;},1200);}
+}
+let _favMovieSet=new Set();
+async function loadMovieFavorites(){
+  const r=await api('/api/favorites');
+  const movies=r.movies||[];
+  _favMovieSet=new Set(movies.map(m=>String(m.stream_id)));
+  const el=document.getElementById('movieFavList');
+  if(!movies.length){el.innerHTML='<span class="muted">No favorite movies yet.</span>';return;}
+  let h='';
+  for(const m of movies){
+    const sid=escAttr(String(m.stream_id)), ext=escAttr(m.extension||'mp4');
+    const poster='<span class="moviefavposter">&#127916;'+(m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</span>';
+    h+='<div class="moviefav">'+poster+'<div class="moviefavinfo"><div class="moviefavname">'+esc(m.name)+'</div>'
+      +'<div class="moviefavbtns"><button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">VLC</button>'
+      +'<button class="favrm movieremove" data-sid="'+sid+'">&times;</button></div></div></div>';
+  }
+  el.innerHTML=h;
+}
+async function toggleMovieFavorite(movie,starEl){
+  const r=await favPost({action:'toggle_movie',movie:movie});
+  _favMovieSet=new Set((r.movie_ids||[]).map(String));
+  if(starEl)starEl.classList.toggle('on',_favMovieSet.has(String(movie.stream_id)));
+  await loadMovieFavorites();
+}
+async function removeMovieFavorite(sid){
+  await favPost({action:'remove_movie',stream_id:sid});
+  _favMovieSet.delete(String(sid));
+  document.querySelectorAll('.moviestar').forEach(el=>{if(el.getAttribute('data-sid')===String(sid))el.classList.remove('on');});
+  await loadMovieFavorites();
+}
+async function searchMovies(){
+  const q=(document.getElementById('movieQ').value||'').trim();
+  const el=document.getElementById('movieResults');
+  if(!q){el.innerHTML='<div class="muted" style="margin-top:14px">Enter a movie title.</div>';return;}
+  el.innerHTML='<div class="muted" style="margin-top:14px">Searching your movie library...</div>';
+  const r=await api('/api/movies?q='+encodeURIComponent(q));
+  if(r.error){el.innerHTML='<div class="err" style="margin-top:14px">'+esc(r.error)+'</div>';return;}
+  if(!r.logged_in){el.innerHTML='<div class="muted" style="margin-top:14px">Log in via Settings first.</div>';return;}
+  if(!r.movies.length){el.innerHTML='<div class="muted" style="margin-top:14px">No movies found for &quot;'+esc(q)+'&quot;.</div>';return;}
+  await loadMovieFavorites();
+  let h='<div class="muted" style="margin-top:12px">'+r.movies.length+' result'+(r.movies.length===1?'':'s')+'</div><div class="moviegrid">';
+  for(const m of r.movies){
+    const sid=escAttr(String(m.stream_id)), ext=escAttr(m.extension||'mp4');
+    const fav=_favMovieSet.has(String(m.stream_id))?' on':'';
+    const poster=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(127916)">':'&#127916;';
+    h+='<div class="moviecard"><div class="movieposter">'+poster+'</div><div class="movieinfo"><div class="movietitle">'+esc(m.name)+'</div>'
+      +'<div class="moviemeta">'+(m.year?esc(m.year):'')+(m.rating?(' &nbsp; Rating: '+esc(m.rating)):'')+'</div>'
+      +'<div class="movieactions"><span class="favstar moviestar'+fav+'" data-sid="'+sid+'" data-name="'+escAttr(m.name||'')+'" data-ext="'+ext+'" data-year="'+escAttr(m.year||'')+'" data-rating="'+escAttr(m.rating||'')+'" data-cover="'+escAttr(m.cover||'')+'" title="Favorite">&#9733;</span>'
+      +'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button></div></div></div>';
+  }
+  el.innerHTML=h+'</div>';
+}
+async function playMovieVLC(sid,ext,btn){
+  const old=btn.textContent;btn.textContent='Opening...';
+  try{
+    const r=await fetch('/api/play_movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:sid,extension:ext})});
+    const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');
+  }catch(e){alert('Could not launch VLC.');}
+  setTimeout(()=>{btn.textContent=old;},1200);
+}
+let _showSeasons={};
+let _favShowSet=new Set();
+async function loadShowFavorites(){
+  const r=await api('/api/favorites'), shows=r.shows||[];
+  _favShowSet=new Set(shows.map(s=>String(s.series_id)));
+  const el=document.getElementById('showFavList');
+  if(!shows.length){el.innerHTML='<span class="muted">No favorite shows yet.</span>';return;}
+  let h='';
+  for(const s of shows){
+    const poster='<span class="showfavposter">&#128250;'+(s.cover?'<img src="'+escAttr(s.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</span>';
+    h+='<div class="showfav" data-series="'+escAttr(String(s.series_id))+'">'+poster+'<div class="showfavinfo"><div class="showfavname">'+esc(s.name)+'</div></div>'
+      +'<button class="favrm showremove" data-series="'+escAttr(String(s.series_id))+'" title="Remove">&times;</button></div>';
+  }
+  el.innerHTML=h;
+}
+async function toggleShowFavorite(show,starEl){
+  const r=await favPost({action:'toggle_show',show:show});
+  _favShowSet=new Set((r.show_ids||[]).map(String));
+  if(starEl)starEl.classList.toggle('on',_favShowSet.has(String(show.series_id)));
+  await loadShowFavorites();
+}
+async function removeShowFavorite(seriesId){
+  await favPost({action:'remove_show',series_id:seriesId});
+  document.querySelectorAll('.showstar').forEach(el=>{if(el.getAttribute('data-series')===String(seriesId))el.classList.remove('on');});
+  await loadShowFavorites();
+}
+async function searchShows(){
+  const q=(document.getElementById('showQ').value||'').trim(), el=document.getElementById('showResults');
+  document.getElementById('showDetails').innerHTML='';
+  if(!q){el.innerHTML='<div class="muted" style="margin-top:14px">Enter a show title.</div>';return;}
+  el.innerHTML='<div class="muted" style="margin-top:14px">Searching your shows...</div>';
+  const r=await api('/api/shows?q='+encodeURIComponent(q));
+  if(r.error){el.innerHTML='<div class="err" style="margin-top:14px">'+esc(r.error)+'</div>';return;}
+  if(!r.logged_in){el.innerHTML='<div class="muted" style="margin-top:14px">Log in via Settings first.</div>';return;}
+  if(!r.shows.length){el.innerHTML='<div class="muted" style="margin-top:14px">No shows found for &quot;'+esc(q)+'&quot;.</div>';return;}
+  await loadShowFavorites();
+  let h='<div class="showgrid">';
+  for(const s of r.shows){
+    const fav=_favShowSet.has(String(s.series_id))?' on':'';
+    const cover=s.cover?'<img src="'+escAttr(s.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+    h+='<div class="showcard" data-series="'+escAttr(String(s.series_id))+'"><div class="showposter">&#128250;'+cover+'</div>'
+      +'<div><div class="showname">'+esc(s.name)+'</div><div class="moviemeta" style="margin-top:7px">'+(s.year?esc(s.year):'')+(s.rating?(' &nbsp; Rating: '+esc(s.rating)):'')+'</div>'
+      +'<span class="favstar showstar'+fav+'" data-series="'+escAttr(String(s.series_id))+'" data-name="'+escAttr(s.name||'')+'" data-cover="'+escAttr(s.cover||'')+'" data-year="'+escAttr(s.year||'')+'" data-rating="'+escAttr(s.rating||'')+'" title="Favorite">&#9733;</span></div></div>';
+  }
+  el.innerHTML=h+'</div>';
+}
+async function loadShow(seriesId){
+  const el=document.getElementById('showDetails');
+  el.innerHTML='<div class="muted">Loading seasons and episodes...</div>';
+  const r=await api('/api/show?id='+encodeURIComponent(seriesId));
+  if(r.error){el.innerHTML='<div class="err">'+esc(r.error)+'</div>';return;}
+  await loadShowFavorites();
+  document.getElementById('showResults').innerHTML='';
+  _showSeasons={};
+  const heroCover=r.cover?'<img src="'+escAttr(r.cover)+'" alt="" onerror="this.remove()">':'';
+  const heroFav=_favShowSet.has(String(seriesId))?' on':'';
+  let h='<div class="showhero"><div class="showheroart">&#128250;'+heroCover+'</div><div><h2>'+esc(r.name||'Show')
+    +'<span class="favstar showstar'+heroFav+'" data-series="'+escAttr(String(seriesId))+'" data-name="'+escAttr(r.name||'Show')+'" data-cover="'+escAttr(r.cover||'')+'" data-year="" data-rating="" title="Favorite">&#9733;</span></h2>'
+    +'<div class="muted">'+r.seasons.length+' season'+(r.seasons.length===1?'':'s')+'</div></div></div>';
+  for(const season of r.seasons){
+    _showSeasons[String(season.number)]=season.episodes;
+    const seasonCover=season.cover?'<img src="'+escAttr(season.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+    h+='<div class="seasonblock"><div class="seasonlayout"><div class="seasonart">&#128250;'+seasonCover+'</div><div class="seasoncontent"><div class="seasonhead"><b>'+esc(season.title)+'</b>'
+      +'<button class="btnvlc seasonvlc" data-season="'+escAttr(String(season.number))+'">&#9658; VLC - Season</button></div><div class="episodes">';
+    for(let ei=0;ei<season.episodes.length;ei++){
+      const ep=season.episodes[ei];
+      h+='<div class="episode"><div class="episodename"><b>E'+esc(ep.episode_num)+'</b> '+esc(ep.title||'Episode')+'</div>'
+        +'<button class="btnvlc episodevlc" data-season="'+escAttr(String(season.number))+'" data-index="'+ei+'">&#9658; VLC</button></div>';
+    }
+    h+='</div></div></div></div>';
+  }
+  if(!r.seasons.length)h+='<div class="muted">No episodes found.</div>';
+  el.innerHTML=h;
+}
+async function playEpisodeQueue(season,index,btn){
+  const episodes=(_showSeasons[String(season)]||[]).slice(parseInt(index,10)||0), old=btn.textContent;btn.textContent='Opening...';
+  try{const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');}
+  catch(e){alert('Could not launch VLC.');}
+  setTimeout(()=>btn.textContent=old,1200);
+}
+async function playSeasonVLC(season,btn){
+  const episodes=_showSeasons[String(season)]||[], old=btn.textContent;btn.textContent='Opening...';
+  try{const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');}
+  catch(e){alert('Could not launch VLC.');}
+  setTimeout(()=>btn.textContent=old,1200);
 }
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closePlayer();});
 // ---- favorites / My List ----
@@ -1797,8 +2104,9 @@ function renderTvGuide(){
   for(const c of _tvChannels){
     const playing=(_tvPlaying!==null&&String(_tvPlaying)===String(c.stream_id))?' playing':'';
     const fav=_favChanSet.has(String(c.stream_id))?' on':'';
-    h+='<div class="tvrow">'
+    h+='<div class="tvrow" data-sid="'+escAttr(String(c.stream_id))+'">'
       +'<div class="tvchan'+playing+'" data-sid="'+escAttr(String(c.stream_id))+'">'
+      +(_tvSource==='__fav__'?'<span class="tvdrag" draggable="true" title="Drag to reorder">&#9776;</span>':'')
       +'<button class="tvvlc" data-sid="'+escAttr(String(c.stream_id))+'">VLC</button>'
       +'<span class="tvflag">'+_flagFor(c.category||c.name)+'</span>'
       +'<span class="tvname">'+esc(c.name)+'</span>'
@@ -1808,6 +2116,44 @@ function renderTvGuide(){
   }
   body.innerHTML=h;
 }
+let _tvDragSid=null;
+document.addEventListener('dragstart',function(e){
+  const handle=e.target.closest('.tvdrag');
+  if(!handle||_tvSource!=='__fav__')return;
+  const row=handle.closest('.tvrow');
+  _tvDragSid=row?row.getAttribute('data-sid'):null;
+  if(!_tvDragSid)return;
+  row.classList.add('tvdragging');
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',_tvDragSid);
+});
+document.addEventListener('dragover',function(e){
+  const row=e.target.closest('.tvrow');
+  if(!_tvDragSid||!row||_tvSource!=='__fav__')return;
+  e.preventDefault();
+  document.querySelectorAll('.tvrow.tvdragover').forEach(r=>r.classList.remove('tvdragover'));
+  row.classList.add('tvdragover');
+  e.dataTransfer.dropEffect='move';
+});
+document.addEventListener('drop',async function(e){
+  const row=e.target.closest('.tvrow');
+  if(!_tvDragSid||!row||_tvSource!=='__fav__')return;
+  e.preventDefault();
+  const targetSid=row.getAttribute('data-sid');
+  const from=_tvChannels.findIndex(c=>String(c.stream_id)===String(_tvDragSid));
+  const to=_tvChannels.findIndex(c=>String(c.stream_id)===String(targetSid));
+  if(from>=0&&to>=0&&from!==to){
+    const moved=_tvChannels.splice(from,1)[0];
+    _tvChannels.splice(to,0,moved);
+    renderTvGuide();
+    await favPost({action:'reorder_channels',stream_ids:_tvChannels.map(c=>c.stream_id)});
+  }
+  _tvDragSid=null;
+});
+document.addEventListener('dragend',function(){
+  _tvDragSid=null;
+  document.querySelectorAll('.tvrow.tvdragging,.tvrow.tvdragover').forEach(r=>r.classList.remove('tvdragging','tvdragover'));
+});
 function epgCellHtml(sid,winStart,winEnd){
   const progs=_tvEpg[String(sid)];
   if(!progs||!progs.length)return '<span class="epgnone muted">'+tr('No program info')+'</span>';
@@ -1875,6 +2221,24 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
+  const ss=e.target.closest('.showstar');
+  if(ss){toggleShowFavorite({series_id:ss.getAttribute('data-series'),name:ss.getAttribute('data-name'),cover:ss.getAttribute('data-cover'),year:ss.getAttribute('data-year'),rating:ss.getAttribute('data-rating')},ss);return;}
+  const sr=e.target.closest('.showremove');
+  if(sr){removeShowFavorite(sr.getAttribute('data-series'));return;}
+  const sc=e.target.closest('.showcard');
+  if(sc){loadShow(sc.getAttribute('data-series'));return;}
+  const sf=e.target.closest('.showfav');
+  if(sf){loadShow(sf.getAttribute('data-series'));return;}
+  const ev=e.target.closest('.episodevlc');
+  if(ev){playEpisodeQueue(ev.getAttribute('data-season'),ev.getAttribute('data-index'),ev);return;}
+  const sv=e.target.closest('.seasonvlc');
+  if(sv){playSeasonVLC(sv.getAttribute('data-season'),sv);return;}
+  const mv=e.target.closest('.movievlc');
+  if(mv){playMovieVLC(mv.getAttribute('data-sid'),mv.getAttribute('data-ext'),mv);return;}
+  const ms=e.target.closest('.moviestar');
+  if(ms){toggleMovieFavorite({stream_id:ms.getAttribute('data-sid'),name:ms.getAttribute('data-name'),extension:ms.getAttribute('data-ext'),year:ms.getAttribute('data-year'),rating:ms.getAttribute('data-rating'),cover:ms.getAttribute('data-cover')},ms);return;}
+  const mr=e.target.closest('.movieremove');
+  if(mr){removeMovieFavorite(mr.getAttribute('data-sid'));return;}
   const tt=e.target.closest('.teamtab');
   if(tt){_activeTeam=parseInt(tt.getAttribute('data-team'),10)||0;renderTeamSwitch();renderActiveTeam();return;}
   const bh=e.target.closest('.bchead');
@@ -1889,6 +2253,7 @@ document.addEventListener('click',function(e){
   if(src){loadTvSource(src.getAttribute('data-src'));return;}
   const tvv=e.target.closest('.tvvlc');
   if(tvv){playVLC(tvv.getAttribute('data-sid'),tvv);return;}
+  if(e.target.closest('.tvdrag'))return;
   const st=e.target.closest('.favstar');
   if(st){
     if(st.hasAttribute('data-favcat')){toggleFavCat(st.getAttribute('data-favcat'),st);return;}
@@ -1914,7 +2279,7 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
 (async function(){
   let start='search';
   try{const c=await api('/api/config');start=c.start_section||'search';}catch(e){}
-  const map={search:showSearch,channels:showChannels,mytv:showMytv,mylist:showMylist};
+  const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,mylist:showMylist};
   (map[start]||showSearch)();
 })();
 initPancakes();
@@ -1997,6 +2362,7 @@ class Handler(BaseHTTPRequestHandler):
         data = body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", ctype + "; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -2029,7 +2395,9 @@ class Handler(BaseHTTPRequestHandler):
                         "url": x.stream_url(sid) if (x.configured() and sid is not None) else "",
                     })
                 return self._send(200, {"categories": fav.get("categories", []),
-                                        "channels": chans})
+                                        "channels": chans,
+                                        "movies": fav.get("movies", []),
+                                        "shows": fav.get("shows", [])})
 
             if u.path == "/api/epg":
                 # ids=comma-separated stream ids; force=1 to bypass cache
@@ -2201,6 +2569,130 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"channels": capped, "logged_in": True,
                                         "total": total, "shown": len(capped)})
 
+            if u.path == "/api/movies":
+                term = (q.get("q", [""])[0]).strip().lower()
+                cfg = load_config()
+                x = Xtream(cfg)
+                if not x.configured():
+                    return self._send(200, {"movies": [], "logged_in": False})
+                if not term:
+                    return self._send(200, {"movies": [], "logged_in": True})
+                try:
+                    movies = get_xtream_movies(cfg)
+                except Exception as e:
+                    return self._send(200, {"movies": [], "logged_in": True,
+                                            "error": str(e)})
+                words = [w for w in term.split() if w]
+                out = []
+                for m in movies:
+                    name = str(m.get("name") or "")
+                    low = name.lower()
+                    if not all(w in low for w in words):
+                        continue
+                    cover = str(m.get("stream_icon") or m.get("cover") or
+                                m.get("movie_image") or "").strip()
+                    if not cover.startswith(("http://", "https://")):
+                        cover = ""
+                    out.append({
+                        "stream_id": m.get("stream_id"),
+                        "name": name,
+                        "extension": m.get("container_extension") or "mp4",
+                        "year": m.get("year") or "",
+                        "rating": m.get("rating") or "",
+                        "cover": cover,
+                    })
+                    if len(out) >= 100:
+                        break
+                return self._send(200, {"movies": out, "logged_in": True})
+
+            if u.path == "/api/shows":
+                term = (q.get("q", [""])[0]).strip().lower()
+                cfg = load_config()
+                x = Xtream(cfg)
+                if not x.configured():
+                    return self._send(200, {"shows": [], "logged_in": False})
+                if not term:
+                    return self._send(200, {"shows": [], "logged_in": True})
+                try:
+                    shows = get_xtream_series(cfg)
+                except Exception as e:
+                    return self._send(200, {"shows": [], "logged_in": True,
+                                            "error": str(e)})
+                words = [w for w in term.split() if w]
+                out = []
+                for s in shows:
+                    name = str(s.get("name") or "")
+                    if not all(w in name.lower() for w in words):
+                        continue
+                    cover = str(s.get("cover") or s.get("stream_icon") or "").strip()
+                    if not cover.startswith(("http://", "https://")):
+                        cover = ""
+                    out.append({"series_id": s.get("series_id"), "name": name,
+                                "cover": cover, "year": s.get("year") or "",
+                                "rating": s.get("rating") or ""})
+                    if len(out) >= 100:
+                        break
+                return self._send(200, {"shows": out, "logged_in": True})
+
+            if u.path == "/api/show":
+                series_id = (q.get("id", [""])[0]).strip()
+                cfg = load_config()
+                x = Xtream(cfg)
+                if not (x.configured() and series_id):
+                    return self._send(400, {"error": "bad request"})
+                try:
+                    data = x.series_info(series_id) or {}
+                except Exception as e:
+                    return self._send(200, {"error": str(e)})
+                info = data.get("info") or {}
+                if not isinstance(info, dict):
+                    info = {}
+                cover = str(info.get("cover") or info.get("movie_image") or "").strip()
+                if not cover.startswith(("http://", "https://")):
+                    cover = ""
+                season_covers = {}
+                raw_seasons = data.get("seasons") or []
+                if isinstance(raw_seasons, list):
+                    for meta in raw_seasons:
+                        if not isinstance(meta, dict):
+                            continue
+                        key = meta.get("season_number")
+                        if key is None:
+                            key = meta.get("season")
+                        if key is None:
+                            match = re.search(r"\d+", str(meta.get("name") or ""))
+                            key = match.group(0) if match else None
+                        art = str(meta.get("cover") or meta.get("cover_big") or
+                                  meta.get("movie_image") or "").strip()
+                        if key is not None and art.startswith(("http://", "https://")):
+                            season_covers[str(key)] = art
+                raw_episodes = data.get("episodes") or {}
+                if isinstance(raw_episodes, list):
+                    grouped = {}
+                    for ep in raw_episodes:
+                        grouped.setdefault(str(ep.get("season") or 1), []).append(ep)
+                    raw_episodes = grouped
+                seasons = []
+                for season_key, eps in raw_episodes.items():
+                    if not isinstance(eps, list):
+                        continue
+                    normalized = []
+                    for i, ep in enumerate(eps, 1):
+                        normalized.append({
+                            "id": ep.get("id"),
+                            "episode_num": ep.get("episode_num") or i,
+                            "title": ep.get("title") or f"Episode {i}",
+                            "extension": ep.get("container_extension") or "mp4",
+                        })
+                    normalized.sort(key=lambda ep: int(ep["episode_num"]) if str(ep["episode_num"]).isdigit() else 999999)
+                    seasons.append({"number": season_key,
+                                    "title": f"Season {season_key}",
+                                    "cover": season_covers.get(str(season_key), cover),
+                                    "episodes": normalized})
+                seasons.sort(key=lambda s: int(s["number"]) if str(s["number"]).isdigit() else 999999)
+                return self._send(200, {"name": info.get("name") or info.get("title") or "Show",
+                                        "cover": cover, "seasons": seasons})
+
             if u.path == "/api/search":
                 term = (q.get("q", [""])[0]).strip()
                 if not term:
@@ -2268,10 +2760,12 @@ class Handler(BaseHTTPRequestHandler):
                     cfg[k] = payload[k]
             save_config(cfg)
             _XT_CACHE.update({"ts": 0, "channels": [], "cats": {}})
+            _VOD_CACHE.update({"ts": 0, "movies": []})
+            _SERIES_CACHE.update({"ts": 0, "shows": []})
             return self._send(200, {"ok": True})
 
         if u.path == "/api/favorites":
-            # actions: add_cats, remove_cat, add_channels, toggle_channel, remove_channel
+            # actions: category/channel/movie favorite management and reordering
             fav = load_favorites()
             act = payload.get("action", "")
             if act == "add_cats":
@@ -2301,10 +2795,56 @@ class Handler(BaseHTTPRequestHandler):
             elif act == "remove_channel":
                 sid = str(payload.get("stream_id"))
                 fav["channels"] = [c for c in fav["channels"] if str(c.get("stream_id")) != sid]
+            elif act == "reorder_channels":
+                requested = [str(sid) for sid in payload.get("stream_ids", [])]
+                by_id = {str(c.get("stream_id")): c for c in fav["channels"]}
+                reordered = [by_id.pop(sid) for sid in requested if sid in by_id]
+                # Preserve any channels added concurrently or omitted by an old client.
+                reordered.extend(c for c in fav["channels"] if str(c.get("stream_id")) in by_id)
+                fav["channels"] = reordered
+            elif act == "toggle_movie":
+                movie = payload.get("movie") or {}
+                sid = str(movie.get("stream_id", ""))
+                idx = next((i for i, m in enumerate(fav["movies"])
+                            if str(m.get("stream_id")) == sid), -1)
+                if idx >= 0:
+                    fav["movies"].pop(idx)
+                elif sid:
+                    fav["movies"].append({
+                        "stream_id": movie.get("stream_id"),
+                        "name": movie.get("name", ""),
+                        "extension": movie.get("extension", "mp4"),
+                        "year": movie.get("year", ""),
+                        "rating": movie.get("rating", ""),
+                        "cover": movie.get("cover", ""),
+                    })
+            elif act == "remove_movie":
+                sid = str(payload.get("stream_id", ""))
+                fav["movies"] = [m for m in fav["movies"]
+                                 if str(m.get("stream_id")) != sid]
+            elif act == "toggle_show":
+                show = payload.get("show") or {}
+                sid = str(show.get("series_id", ""))
+                idx = next((i for i, s in enumerate(fav["shows"])
+                            if str(s.get("series_id")) == sid), -1)
+                if idx >= 0:
+                    fav["shows"].pop(idx)
+                elif sid:
+                    fav["shows"].append({"series_id": show.get("series_id"),
+                                          "name": show.get("name", ""),
+                                          "cover": show.get("cover", ""),
+                                          "year": show.get("year", ""),
+                                          "rating": show.get("rating", "")})
+            elif act == "remove_show":
+                sid = str(payload.get("series_id", ""))
+                fav["shows"] = [s for s in fav["shows"]
+                                if str(s.get("series_id")) != sid]
             save_favorites(fav)
             return self._send(200, {"ok": True,
                                     "categories": fav["categories"],
-                                    "channel_ids": [c.get("stream_id") for c in fav["channels"]]})
+                                    "channel_ids": [c.get("stream_id") for c in fav["channels"]],
+                                    "movie_ids": [m.get("stream_id") for m in fav["movies"]],
+                                    "show_ids": [s.get("series_id") for s in fav["shows"]]})
 
         if u.path == "/api/update_download":
             path = download_update()
@@ -2388,6 +2928,54 @@ class Handler(BaseHTTPRequestHandler):
                 subprocess.Popen([vlc, url],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return self._send(200, {"ok": True})
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
+
+        if u.path == "/api/play_movie":
+            sid = str(payload.get("stream_id", "")).strip()
+            ext = str(payload.get("extension", "mp4")).strip()
+            cfg = load_config()
+            x = Xtream(cfg)
+            if not (x.configured() and sid):
+                return self._send(400, {"error": "bad request"})
+            vlc = _find_vlc()
+            if not vlc:
+                return self._send(404, {"error": "VLC not found."})
+            try:
+                subprocess.Popen([vlc, x.movie_url(sid, ext)],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return self._send(200, {"ok": True})
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
+
+        if u.path == "/api/play_episode":
+            episode_id = str(payload.get("episode_id", "")).strip()
+            ext = str(payload.get("extension", "mp4")).strip()
+            cfg = load_config()
+            x = Xtream(cfg)
+            vlc = _find_vlc()
+            if not (x.configured() and episode_id and vlc):
+                return self._send(400, {"error": "VLC not found or episode is invalid."})
+            try:
+                subprocess.Popen([vlc, x.episode_url(episode_id, ext)],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return self._send(200, {"ok": True})
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
+
+        if u.path == "/api/play_season":
+            episodes = payload.get("episodes") or []
+            cfg = load_config()
+            x = Xtream(cfg)
+            vlc = _find_vlc()
+            urls = [x.episode_url(ep.get("id"), ep.get("extension", "mp4"))
+                    for ep in episodes if ep.get("id") is not None]
+            if not (x.configured() and urls and vlc):
+                return self._send(400, {"error": "VLC not found or season is empty."})
+            try:
+                subprocess.Popen([vlc] + urls,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return self._send(200, {"ok": True, "count": len(urls)})
             except Exception as e:
                 return self._send(500, {"error": str(e)})
 
