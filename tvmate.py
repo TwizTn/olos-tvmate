@@ -84,7 +84,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b34"
+VERSION = "0.777.b35"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -931,7 +931,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tag{display:inline-block;background:#22262f;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12px;color:var(--mut);margin-left:4px}
  .cc{display:inline-block;background:#1d2b1f;border:1px solid #2b4a30;color:#8fce9a;border-radius:6px;padding:0 6px;font-size:11px;margin-right:4px}
  .url{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--mut);word-break:break-all;margin-top:3px}
- .copy{background:#22262f;border:1px solid var(--line);color:var(--fg);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer}
+ .copy{background:#3a3f49;border:1px solid #555c68;color:#f4f4f4;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer}
+ .copy:hover{background:#4a505c}
  .err{color:#ff7676}
  label{display:block;margin:10px 0 4px;color:var(--mut);font-size:13px}
  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -1221,7 +1222,7 @@ const _I18N={
   "Favorite Categories":"Favorittkategorier","Categories":"Kategorier",
   "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
-  "Remove":"Fjern","Copy":"Kopier",
+  "Remove":"Fjern","Copy URL":"Kopier URL",
   "Match strictness (0.40–0.80)":"Treffnøyaktighet (0.40–0.80)",
   "Listings countries (comma separated: no, uk, us)":"Land for TV-guide (kommaseparert: no, uk, us)",
   "No channels here.":"Ingen kanaler her.","No program info":"Ingen programinfo",
@@ -1622,11 +1623,11 @@ function renderFixtureCard(f,fi){
 }
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function escAttr(s){return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-function playbtns(sid,name,url){
+function playbtns(sid,name,url,showCopy){
   const s=escAttr(String(sid)), n=escAttr(name||''), u=escAttr(url);
   return '<button class="btnplay" data-sid="'+s+'" data-name="'+n+'">&#9658; Play</button>'
     +'<button class="btnvlc" data-sid="'+s+'">&#9658; VLC</button>'
-    +'<button class="copy" data-url="'+u+'">'+tr('Copy')+'</button>';
+    +(showCopy?'<button class="copy" data-url="'+u+'">'+tr('Copy URL')+'</button>':'');
 }
 let _hls=null;
 async function playBrowser(sid,name){
@@ -1707,7 +1708,7 @@ async function loadFavorites(){
     let h='';
     for(const c of r.channels){
       h+='<div class="favcard"><div class="favcardname">'+esc(c.name)+(c.category?' <span class="muted" style="font-size:11px">'+esc(c.category)+'</span>':'')+'</div>'
-        +'<div class="favcardbtns">'+playbtns(c.stream_id,c.name,c.url)
+        +'<div class="favcardbtns">'+playbtns(c.stream_id,c.name,c.url,true)
         +'<button class="favrm" data-sid="'+escAttr(String(c.stream_id))+'">'+tr('Remove')+'</button></div></div>';
     }
     fch.innerHTML=h;
@@ -1904,8 +1905,8 @@ document.addEventListener('click',function(e){
   const b=e.target.closest('.copy');
   if(!b)return;
   const u=b.getAttribute('data-url')||'';
-  navigator.clipboard.writeText(u).then(()=>{b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200);})
-    .catch(()=>{b.textContent='Copy failed';setTimeout(()=>b.textContent='Copy',1500);});
+  navigator.clipboard.writeText(u).then(()=>{b.textContent='Copied';setTimeout(()=>b.textContent=tr('Copy URL'),1200);})
+    .catch(()=>{b.textContent='Copy failed';setTimeout(()=>b.textContent=tr('Copy URL'),1500);});
 });
 // apply saved language
 try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else applyLang();}catch(e){applyLang();}
