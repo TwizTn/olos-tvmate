@@ -39,6 +39,8 @@ import html
 import difflib
 import threading
 import webbrowser
+import hashlib
+import shutil
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -84,7 +86,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b46"
+VERSION = "0.777.b55"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -116,7 +118,24 @@ DEFAULT_CONFIG = {
     "stream_ext": "ts",               # "ts" or "m3u8"
     "match_threshold": 0.62,           # 0..1, higher = stricter
     "countries": ["no", "gb", "us", "es", "de", "it", "fr"],  # NO/UK/US + big-5 league homes
+    "check_shows_on_startup": False,
 }
+
+def artwork_cache_dir():
+    return os.path.join(app_dir(), "artwork")
+
+def artwork_cache_size():
+    total = 0
+    root = artwork_cache_dir()
+    if not os.path.isdir(root):
+        return 0
+    for base, _dirs, files in os.walk(root):
+        for name in files:
+            try:
+                total += os.path.getsize(os.path.join(base, name))
+            except OSError:
+                pass
+    return total
 
 def load_config():
     if not os.path.exists(CONFIG_PATH):
@@ -265,9 +284,11 @@ class Xtream:
         data = http_get_json(self._api("get_series"), timeout=45)
         return data if isinstance(data, list) else []
 
-    def series_info(self, series_id):
+    def series_info(self, series_id, refresh=False):
         q = {"username": self.user, "password": self.password,
              "action": "get_series_info", "series_id": str(series_id)}
+        if refresh:
+            q["_"] = str(int(time.time()))
         return http_get_json(f"{self.base}/player_api.php?" + urllib.parse.urlencode(q), timeout=45)
 
     def episode_url(self, episode_id, extension="mp4"):
@@ -342,6 +363,7 @@ class Xtream:
 _XT_CACHE = {"ts": 0, "channels": [], "cats": {}}
 _VOD_CACHE = {"ts": 0, "movies": []}
 _SERIES_CACHE = {"ts": 0, "shows": []}
+_TVMAZE_CACHE = {}  # normalized title/year -> {"ts": epoch, "covers": {season:url}}
 _XT_TTL = 600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
 _EPG_TTL = 3600
@@ -451,6 +473,144 @@ def get_xtream_series(cfg, force=False):
     shows = Xtream(cfg).series()
     _SERIES_CACHE.update({"ts": now, "shows": shows})
     return shows
+
+def refresh_favorite_show_episodes(cfg):
+    """Refresh favorite-show episode counts and report newly added episodes."""
+    x = Xtream(cfg)
+    if not x.configured():
+        raise ValueError("Not configured")
+    fav = load_favorites()
+    new_episodes = 0
+    refreshed = 0
+    errors = 0
+    for show in fav.get("shows", []):
+        series_id = show.get("series_id")
+        if series_id is None:
+            continue
+        try:
+            data = x.series_info(series_id, refresh=True) or {}
+            raw_eps = data.get("episodes") or {}
+            if isinstance(raw_eps, dict):
+                count = sum(len(eps) for eps in raw_eps.values()
+                            if isinstance(eps, list))
+            elif isinstance(raw_eps, list):
+                count = len(raw_eps)
+            else:
+                count = 0
+            previous = show.get("episode_count")
+            if previous is not None and count > int(previous):
+                new_episodes += count - int(previous)
+            show["episode_count"] = count
+            show["episodes_checked_at"] = int(time.time())
+            refreshed += 1
+        except Exception:
+            errors += 1
+    save_favorites(fav)
+    if errors and not refreshed:
+        raise RuntimeError("Could not refresh favorite shows")
+    return {"new_episodes": new_episodes, "refreshed": refreshed,
+            "errors": errors}
+
+def _clean_show_title(name):
+    title = str(name or "").strip()
+    # Provider prefixes: "EN -", "A+ -", "4K-A+ -", etc.
+    title = re.sub(r"^[A-Z0-9+]+(?:-[A-Z0-9+]+)*\s+-\s+", "", title, flags=re.I)
+    title = re.sub(r"^[A-Z]{2,5}\s*[|:]\s*", "", title, flags=re.I)
+    title = re.sub(r"\s*\((?:19|20)\d{2}\).*?$", "", title)
+    title = re.sub(r"\s*\((?:US|UK|GB|NO|EN|SE|DK|FI)\)\s*$", "", title, flags=re.I)
+    return title.strip(" -|")
+
+def _clean_episode_title(title, show_name):
+    """Remove provider/quality clutter while retaining season and episode names."""
+    raw = str(title or "").strip()
+    clean_show = _clean_show_title(show_name)
+    marker = re.search(r"\bS\d{1,2}E\d{1,3}\b.*", raw, flags=re.I)
+    if marker:
+        suffix = re.sub(r"^S\d{1,2}E\d{1,3}\b", "", marker.group(0),
+                        flags=re.I).strip(" -:|")
+        if clean_show and suffix:
+            return f"{clean_show} - {suffix}"
+        return clean_show or suffix or "Episode"
+    raw = re.sub(r"^[A-Z0-9+]+(?:-[A-Z0-9+]+)*\s+-\s+", "", raw, flags=re.I)
+    return raw or "Episode"
+
+def _tvmaze_season_covers(show_name, year=""):
+    """Best-effort, no-key season artwork lookup. Failures return an empty map."""
+    clean = _clean_show_title(show_name)
+    wanted_year = str(year or "")[:4]
+    key = (re.sub(r"[^a-z0-9]", "", clean.lower()), wanted_year)
+    digest = hashlib.sha256((key[0] + "|" + key[1]).encode("utf-8")).hexdigest()[:16]
+    art_dir = os.path.join(app_dir(), "artwork", "tvmaze-" + digest)
+    manifest_path = os.path.join(art_dir, "manifest.json")
+    now = time.time()
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest = json.load(f) or {}
+        stored = {}
+        for season, filename in (manifest.get("covers") or {}).items():
+            if os.path.exists(os.path.join(art_dir, filename)):
+                stored[str(season)] = f"/api/season_art?show={digest}&season={season}"
+        if stored:
+            return stored
+        if manifest.get("checked") and now - float(manifest.get("checked_at") or 0) < 24 * 3600:
+            return {}
+    except Exception:
+        pass
+    cached = _TVMAZE_CACHE.get(key)
+    if cached and now - cached["ts"] < 24 * 3600:
+        return cached["covers"]
+    covers = {}
+    try:
+        results = http_get_json("https://api.tvmaze.com/search/shows?" +
+                                urllib.parse.urlencode({"q": clean}), timeout=12)
+        wanted = key[0]
+        best, best_score = None, -1
+        for row in results or []:
+            show = row.get("show") or {}
+            candidate = re.sub(r"[^a-z0-9]", "", str(show.get("name") or "").lower())
+            premiered = str(show.get("premiered") or "")[:4]
+            score = float(row.get("score") or 0)
+            if candidate == wanted:
+                score += 10
+            if wanted_year and premiered == wanted_year:
+                score += 5
+            if score > best_score:
+                best, best_score = show, score
+        if best and best.get("id") is not None:
+            seasons = http_get_json(f"https://api.tvmaze.com/shows/{best['id']}/seasons", timeout=12)
+            for season in seasons or []:
+                number = season.get("number")
+                image = season.get("image") or {}
+                url = image.get("medium") or image.get("original")
+                if number is not None and str(url or "").startswith(("http://", "https://")):
+                    covers[str(number)] = url
+    except Exception:
+        covers = {}
+    stored = {}
+    filenames = {}
+    try:
+        os.makedirs(art_dir, exist_ok=True)
+        for season, url in covers.items():
+            filename = f"season-{season}.jpg"
+            path = os.path.join(art_dir, filename)
+            if not os.path.exists(path):
+                req = urllib.request.Request(url, headers={"User-Agent": "OlosTVMate/" + VERSION})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    raw = resp.read(5 * 1024 * 1024 + 1)
+                if not raw or len(raw) > 5 * 1024 * 1024:
+                    continue
+                with open(path, "wb") as f:
+                    f.write(raw)
+            filenames[str(season)] = filename
+            stored[str(season)] = f"/api/season_art?show={digest}&season={season}"
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({"checked": True, "checked_at": now,
+                       "title": clean, "year": wanted_year,
+                       "covers": filenames}, f, indent=2)
+    except Exception:
+        stored = covers
+    _TVMAZE_CACHE[key] = {"ts": now, "covers": stored}
+    return stored
 
 # --------------------------------------------------------------------------
 # Fotmob tv-guide source (Schema.org ld+json embedded in the page)
@@ -1070,6 +1230,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .moviemeta{font-size:12px;color:var(--mut)}
  .movieactions{display:flex;gap:7px;margin-top:auto}
  .showswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .showrefresh{position:fixed;top:68px;right:18px;z-index:30;font-size:12px;padding:7px 13px}
  .showfavs{max-height:82vh;overflow-y:auto}
  .showfavlist{display:flex;flex-direction:column;gap:8px}
  .showfav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;min-height:100px}
@@ -1105,6 +1266,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .episodes::-webkit-scrollbar-thumb:hover{background:var(--acc)}
  .episode{flex:0 0 calc((100% - 72px)/10);min-width:100px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:7px}
  .episodename{font-size:12px;line-height:1.3;min-height:31px}
+ .episode .btnvlc{margin-top:auto}
 </style></head><body>
 <header>
   <h1><svg width="38" height="38" viewBox="0 0 240 240" style="vertical-align:-11px;margin-right:8px" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="139" rx="44" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="127" rx="42" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><ellipse cx="101" cy="115" rx="40" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>Olo's TVMate</h1>
@@ -1241,6 +1403,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </section>
 
   <section id="showsView" class="hide">
+    <button id="showRefreshBtn" class="showrefresh" onclick="checkAllShows(this)">&#8635; <span data-i18n="Check for new episodes">Check for new episodes</span></button>
     <div class="showswrap">
       <aside class="showfavs">
         <div class="colh">&#9733; <span data-i18n="Favorite Shows">Favorite Shows</span></div>
@@ -1268,22 +1431,37 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     </div>
     <div class="card">
       <div class="muted">Your Xtream login is stored locally in config.json next to the app. It's only ever sent to your own provider.</div>
+      <div class="colh" style="margin-top:16px" data-i18n="Connection">Connection</div>
       <div class="grid2">
         <div><label data-i18n="Username">Username</label><input id="s_user" type="text"></div>
         <div><label data-i18n="Password">Password</label><input id="s_pass" type="password"></div>
         <div><label data-i18n="Host (e.g. http://example.com:8080)">Host (e.g. http://example.com:8080)</label><input id="s_host" type="text"></div>
-        <div><label data-i18n="Stream extension">Stream extension</label>
-          <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
+        <div style="display:flex;align-items:flex-end"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button></div>
+      </div>
+      <div class="colh" style="margin-top:18px" data-i18n="Preferences">Preferences</div>
+      <div class="grid2">
         <div><label data-i18n="Match strictness (0.40–0.80)">Match strictness (0.40&ndash;0.80)</label><input id="s_thr" type="text"></div>
         <div><label data-i18n="Default start section">Default start section</label>
           <select id="s_start"><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option value="mylist">My List</option></select></div>
       </div>
       <label data-i18n="Listings countries (comma separated: no, uk, us)">Listings countries (comma separated: no, uk, us)</label>
       <input id="s_cc" type="text">
+      <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+        <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
+        <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
+      </label>
+      <div class="colh" style="margin-top:18px" data-i18n="Maintenance & Playback">Maintenance &amp; Playback</div>
+      <div class="grid2">
+        <div><label data-i18n="Stream extension">Stream extension</label>
+          <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
+      </div>
+      <div class="row" style="margin-top:14px;justify-content:space-between">
+        <span class="muted"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize">Checking...</b></span>
+        <button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button>
+      </div>
       <div class="row" style="margin-top:14px">
         <button onclick="saveSettings()" data-i18n="Save">Save</button>
-        <button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button>
-        <button class="ghost" onclick="reloadCh()" data-i18n="Reload channels">Reload channels</button>
+        <button class="ghost" onclick="refreshAllContent(this)" data-i18n="Refresh all content">Refresh all content</button>
         <button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button>
         <button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button>
       </div>
@@ -1364,6 +1542,10 @@ const _I18N={
   "Favorite Categories":"Favorittkategorier","Categories":"Kategorier",
   "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
+  "Connection":"Tilkobling","Preferences":"Innstillinger",
+  "Maintenance & Playback":"Vedlikehold og avspilling","Refresh all content":"Oppdater alt innhold",
+  "Check favorite shows on startup":"Se etter nye episoder i favorittserier ved oppstart",
+  "Artwork cache":"Mellomlagret omslagskunst","Clear artwork cache":"Tøm omslagskunst",
   "Remove":"Fjern","Copy URL":"Kopier URL",
   "Match strictness (0.40–0.80)":"Treffnøyaktighet (0.40–0.80)",
   "Listings countries (comma separated: no, uk, us)":"Land for TV-guide (kommaseparert: no, uk, us)",
@@ -1388,6 +1570,7 @@ const _I18N={
   "Search a category, e.g. Norway":"Søk kategori, f.eks. Norge","Filter categories...":"Filtrer kategorier...",
   "Search your movies...":"Søk i filmene dine...",
   "Search your shows...":"Søk i seriene dine...",
+  "Check for new episodes":"Se etter nye episoder",
   "★ Add to Favorites":"★ Legg til favoritter","★ Favorite Channels":"★ Favorittkanaler"
 };
 function tr(s){ if(_lang==='no'&&_I18N[s])return _I18N[s]; return s; }
@@ -1631,21 +1814,50 @@ async function loadSettings(){
   s_ext.value=c.stream_ext||'ts';s_thr.value=c.match_threshold||0.55;
   s_cc.value=(c.countries||['no','uk','us']).join(', ');
   s_start.value=c.start_section||'search';
+  s_checkshows.checked=!!c.check_shows_on_startup;
+  loadArtworkCacheSize();
 }
 async function saveSettings(){
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
     xtream_pass:s_pass.value,stream_ext:s_ext.value,match_threshold:parseFloat(s_thr.value)||0.55,
     countries:s_cc.value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),
-    start_section:s_start.value};
+    start_section:s_start.value,check_shows_on_startup:s_checkshows.checked};
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   s_msg.textContent=r.ok?'Saved.':'Error saving.';refreshStatus();
+}
+function formatBytes(n){
+  n=Number(n)||0;if(n<1024)return n+' B';
+  const units=['KB','MB','GB'];let i=-1;
+  do{n/=1024;i++;}while(n>=1024&&i<units.length-1);
+  return n.toFixed(n>=10?1:2)+' '+units[i];
+}
+async function loadArtworkCacheSize(){
+  try{const r=await api('/api/artwork_cache');s_artsize.textContent=formatBytes(r.bytes);}
+  catch(e){s_artsize.textContent='Unavailable';}
+}
+async function clearArtworkCache(){
+  if(!confirm('Clear all downloaded show artwork?'))return;
+  try{
+    const r=await api('/api/clear_artwork_cache',{method:'POST'});
+    if(!r.ok)throw new Error(r.error||'clear failed');
+    s_artsize.textContent='0 B';toast('Artwork cache cleared.');
+  }catch(e){toast('Could not clear artwork cache.');}
 }
 async function testLogin(){s_msg.textContent='Testing...';
   const r=await api('/api/test');
   s_msg.innerHTML=r.ok?('OK &mdash; '+JSON.stringify(r.info)):('<span class="err">'+r.error+'</span>');}
-async function reloadCh(){s_msg.textContent='Reloading...';
-  const r=await api('/api/reload');
-  s_msg.textContent=r.ok?(r.count+' channels loaded'):('Error: '+r.error);refreshStatus();}
+async function refreshAllContent(btn){
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Refreshing...';s_msg.textContent='Refreshing channels, movies, shows and episodes...';
+  try{
+    const r=await api('/api/refresh_all',{method:'POST'});
+    if(!r.ok)throw new Error(r.error||'refresh failed');
+    s_msg.textContent='Refreshed '+r.channels+' channels, '+r.movies+' movies and '+r.shows+' shows.';
+    if(r.new_episodes>0)toast('Found '+r.new_episodes+' new episode'+(r.new_episodes===1?'':'s')+' for your shows',7000);
+    else toast('Successfully refreshed all content, no new episodes found',7000);
+    refreshStatus();
+  }catch(e){s_msg.textContent='Error: '+e.message;toast('Could not refresh all content.',7000);}
+  btn.disabled=false;btn.textContent=old;
+}
 let _searchData=null;   // {fixtures, logged_in, ppv_categories}
 let _teamGroups=[];      // [{team, fixtures:[...]}]
 let _activeTeam=0;
@@ -1899,6 +2111,7 @@ async function playMovieVLC(sid,ext,btn){
   setTimeout(()=>{btn.textContent=old;},1200);
 }
 let _showSeasons={};
+let _activeSeriesId=null;
 let _favShowSet=new Set();
 async function loadShowFavorites(){
   const r=await api('/api/favorites'), shows=r.shows||[];
@@ -1944,11 +2157,12 @@ async function searchShows(){
   }
   el.innerHTML=h+'</div>';
 }
-async function loadShow(seriesId){
+async function loadShow(seriesId,refresh){
+  _activeSeriesId=seriesId;
   const el=document.getElementById('showDetails');
   el.innerHTML='<div class="muted">Loading seasons and episodes...</div>';
-  const r=await api('/api/show?id='+encodeURIComponent(seriesId));
-  if(r.error){el.innerHTML='<div class="err">'+esc(r.error)+'</div>';return;}
+  const r=await api('/api/show?id='+encodeURIComponent(seriesId)+(refresh?'&refresh=1':''));
+  if(r.error){el.innerHTML='<div class="err">'+esc(r.error)+'</div>';return false;}
   await loadShowFavorites();
   document.getElementById('showResults').innerHTML='';
   _showSeasons={};
@@ -1960,8 +2174,7 @@ async function loadShow(seriesId){
   for(const season of r.seasons){
     _showSeasons[String(season.number)]=season.episodes;
     const seasonCover=season.cover?'<img src="'+escAttr(season.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
-    h+='<div class="seasonblock"><div class="seasonlayout"><div class="seasonart">&#128250;'+seasonCover+'</div><div class="seasoncontent"><div class="seasonhead"><b>'+esc(season.title)+'</b>'
-      +'<button class="btnvlc seasonvlc" data-season="'+escAttr(String(season.number))+'">&#9658; VLC - Season</button></div><div class="episodes">';
+    h+='<div class="seasonblock"><div class="seasonlayout"><div class="seasonart">&#128250;'+seasonCover+'</div><div class="seasoncontent"><div class="seasonhead"><b>'+esc(season.title)+'</b></div><div class="episodes">';
     for(let ei=0;ei<season.episodes.length;ei++){
       const ep=season.episodes[ei];
       h+='<div class="episode"><div class="episodename"><b>E'+esc(ep.episode_num)+'</b> '+esc(ep.title||'Episode')+'</div>'
@@ -1971,15 +2184,30 @@ async function loadShow(seriesId){
   }
   if(!r.seasons.length)h+='<div class="muted">No episodes found.</div>';
   el.innerHTML=h;
+  return true;
+}
+async function checkAllShows(btn){
+  const old=btn.innerHTML;btn.disabled=true;btn.textContent='Checking all shows...';
+  try{
+    const r=await fetch('/api/check_show_updates',{method:'POST'}), j=await r.json();
+    if(!r.ok||j.error)throw new Error(j.error||'check failed');
+    if(_activeSeriesId)await loadShow(_activeSeriesId,true);
+    await loadShowFavorites();
+    if(j.new_episodes>0)toast('Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
+    else toast('Successfully refreshed playlists, no new episodes found',7000);
+  }catch(e){toast('Could not refresh show playlists.');}
+  btn.disabled=false;btn.innerHTML=old;
+}
+async function checkShowsOnStartup(){
+  try{
+    const r=await fetch('/api/check_show_updates',{method:'POST'}), j=await r.json();
+    if(!r.ok||j.error)throw new Error(j.error||'check failed');
+    if(j.new_episodes>0)toast('Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
+    else toast('Successfully refreshed playlists, no new episodes found',7000);
+  }catch(e){toast('Could not refresh show playlists.',7000);}
 }
 async function playEpisodeQueue(season,index,btn){
   const episodes=(_showSeasons[String(season)]||[]).slice(parseInt(index,10)||0), old=btn.textContent;btn.textContent='Opening...';
-  try{const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');}
-  catch(e){alert('Could not launch VLC.');}
-  setTimeout(()=>btn.textContent=old,1200);
-}
-async function playSeasonVLC(season,btn){
-  const episodes=_showSeasons[String(season)]||[], old=btn.textContent;btn.textContent='Opening...';
   try{const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');}
   catch(e){alert('Could not launch VLC.');}
   setTimeout(()=>btn.textContent=old,1200);
@@ -2047,11 +2275,11 @@ async function favPlaylist(){
   await favPost({action:'add_channels',channels:items});
   toast('Added '+items.length+' channel'+(items.length===1?'':'s')+' to My List');
 }
-function toast(msg){
+function toast(msg,duration){
   let t=document.getElementById('_toast');
   if(!t){t=document.createElement('div');t.id='_toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card2);border:1px solid var(--line2);color:var(--fg);padding:10px 18px;border-radius:8px;z-index:200;font-size:14px';document.body.appendChild(t);}
   t.textContent=msg;t.style.opacity='1';
-  clearTimeout(t._h);t._h=setTimeout(function(){t.style.opacity='0';},2200);
+  clearTimeout(t._h);t._h=setTimeout(function(){t.style.opacity='0';},duration||2200);
   t.style.transition='opacity .3s';
 }
 // ---- My TV ----
@@ -2231,8 +2459,6 @@ document.addEventListener('click',function(e){
   if(sf){loadShow(sf.getAttribute('data-series'));return;}
   const ev=e.target.closest('.episodevlc');
   if(ev){playEpisodeQueue(ev.getAttribute('data-season'),ev.getAttribute('data-index'),ev);return;}
-  const sv=e.target.closest('.seasonvlc');
-  if(sv){playSeasonVLC(sv.getAttribute('data-season'),sv);return;}
   const mv=e.target.closest('.movievlc');
   if(mv){playMovieVLC(mv.getAttribute('data-sid'),mv.getAttribute('data-ext'),mv);return;}
   const ms=e.target.closest('.moviestar');
@@ -2277,10 +2503,11 @@ document.addEventListener('click',function(e){
 try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else applyLang();}catch(e){applyLang();}
 // open the user's default start section
 (async function(){
-  let start='search';
-  try{const c=await api('/api/config');start=c.start_section||'search';}catch(e){}
+  let start='search',checkShows=false;
+  try{const c=await api('/api/config');start=c.start_section||'search';checkShows=!!c.check_shows_on_startup;}catch(e){}
   const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,mylist:showMylist};
   (map[start]||showSearch)();
+  if(checkShows)setTimeout(checkShowsOnStartup,500);
 })();
 initPancakes();
 refreshStatus();
@@ -2371,6 +2598,25 @@ class Handler(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
         try:
+            if u.path == "/api/season_art":
+                show = (q.get("show", [""])[0]).strip().lower()
+                season = (q.get("season", [""])[0]).strip()
+                if not re.fullmatch(r"[a-f0-9]{16}", show) or not re.fullmatch(r"\d+", season):
+                    return self._send(400, {"error": "bad artwork path"})
+                path = os.path.join(app_dir(), "artwork", "tvmaze-" + show,
+                                    "season-" + season + ".jpg")
+                if not os.path.isfile(path):
+                    return self._send(404, {"error": "artwork not found"})
+                with open(path, "rb") as f:
+                    raw = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+                return
+
             if u.path in ("/", "/index.html"):
                 return self._send(200, PAGE.replace("__VERSION__", VERSION), "text/html")
 
@@ -2497,6 +2743,9 @@ class Handler(BaseHTTPRequestHandler):
 
             if u.path == "/api/config":
                 return self._send(200, load_config())
+
+            if u.path == "/api/artwork_cache":
+                return self._send(200, {"bytes": artwork_cache_size()})
 
             if u.path == "/api/test":
                 ok, info = Xtream(load_config()).login()
@@ -2636,12 +2885,13 @@ class Handler(BaseHTTPRequestHandler):
 
             if u.path == "/api/show":
                 series_id = (q.get("id", [""])[0]).strip()
+                refresh = (q.get("refresh", ["0"])[0]) == "1"
                 cfg = load_config()
                 x = Xtream(cfg)
                 if not (x.configured() and series_id):
                     return self._send(400, {"error": "bad request"})
                 try:
-                    data = x.series_info(series_id) or {}
+                    data = x.series_info(series_id, refresh=refresh) or {}
                 except Exception as e:
                     return self._send(200, {"error": str(e)})
                 info = data.get("info") or {}
@@ -2650,7 +2900,12 @@ class Handler(BaseHTTPRequestHandler):
                 cover = str(info.get("cover") or info.get("movie_image") or "").strip()
                 if not cover.startswith(("http://", "https://")):
                     cover = ""
-                season_covers = {}
+                show_name = info.get("name") or info.get("title") or "Show"
+                release_text = str(info.get("releaseDate") or info.get("release_date") or show_name)
+                year_match = re.search(r"(?:19|20)\d{2}", release_text)
+                show_year = year_match.group(0) if year_match else ""
+                maze_covers = _tvmaze_season_covers(show_name, show_year)
+                xtream_season_covers = {}
                 raw_seasons = data.get("seasons") or []
                 if isinstance(raw_seasons, list):
                     for meta in raw_seasons:
@@ -2665,7 +2920,7 @@ class Handler(BaseHTTPRequestHandler):
                         art = str(meta.get("cover") or meta.get("cover_big") or
                                   meta.get("movie_image") or "").strip()
                         if key is not None and art.startswith(("http://", "https://")):
-                            season_covers[str(key)] = art
+                            xtream_season_covers[str(key)] = art
                 raw_episodes = data.get("episodes") or {}
                 if isinstance(raw_episodes, list):
                     grouped = {}
@@ -2681,16 +2936,17 @@ class Handler(BaseHTTPRequestHandler):
                         normalized.append({
                             "id": ep.get("id"),
                             "episode_num": ep.get("episode_num") or i,
-                            "title": ep.get("title") or f"Episode {i}",
+                            "title": _clean_episode_title(ep.get("title") or f"Episode {i}", show_name),
                             "extension": ep.get("container_extension") or "mp4",
                         })
                     normalized.sort(key=lambda ep: int(ep["episode_num"]) if str(ep["episode_num"]).isdigit() else 999999)
                     seasons.append({"number": season_key,
                                     "title": f"Season {season_key}",
-                                    "cover": season_covers.get(str(season_key), cover),
+                                    "cover": (maze_covers.get(str(season_key)) or
+                                              xtream_season_covers.get(str(season_key)) or cover),
                                     "episodes": normalized})
                 seasons.sort(key=lambda s: int(s["number"]) if str(s["number"]).isdigit() else 999999)
-                return self._send(200, {"name": info.get("name") or info.get("title") or "Show",
+                return self._send(200, {"name": show_name,
                                         "cover": cover, "seasons": seasons})
 
             if u.path == "/api/search":
@@ -2755,7 +3011,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/config":
             cfg = load_config()
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
-                      "stream_ext", "match_threshold", "countries", "start_section"):
+                      "stream_ext", "match_threshold", "countries", "start_section",
+                      "check_shows_on_startup"):
                 if k in payload:
                     cfg[k] = payload[k]
             save_config(cfg)
@@ -2763,6 +3020,43 @@ class Handler(BaseHTTPRequestHandler):
             _VOD_CACHE.update({"ts": 0, "movies": []})
             _SERIES_CACHE.update({"ts": 0, "shows": []})
             return self._send(200, {"ok": True})
+
+        if u.path == "/api/clear_artwork_cache":
+            root = artwork_cache_dir()
+            removed = artwork_cache_size()
+            try:
+                if os.path.isdir(root):
+                    shutil.rmtree(root)
+                _TVMAZE_CACHE.clear()
+                return self._send(200, {"ok": True, "removed_bytes": removed})
+            except Exception as e:
+                return self._send(500, {"ok": False, "error": str(e)})
+
+        if u.path == "/api/check_show_updates":
+            cfg = load_config()
+            try:
+                result = refresh_favorite_show_episodes(cfg)
+                return self._send(200, dict({"ok": True}, **result))
+            except ValueError as e:
+                return self._send(400, {"error": str(e)})
+            except Exception as e:
+                return self._send(502, {"error": str(e)})
+
+        if u.path == "/api/refresh_all":
+            cfg = load_config()
+            x = Xtream(cfg)
+            if not x.configured():
+                return self._send(400, {"error": "Not configured"})
+            try:
+                channels, _cats = get_xtream_channels(cfg, force=True)
+                movies = get_xtream_movies(cfg, force=True)
+                shows = get_xtream_series(cfg, force=True)
+                episode_result = refresh_favorite_show_episodes(cfg)
+                return self._send(200, dict({"ok": True,
+                    "channels": len(channels), "movies": len(movies),
+                    "shows": len(shows)}, **episode_result))
+            except Exception as e:
+                return self._send(502, {"error": str(e)})
 
         if u.path == "/api/favorites":
             # actions: category/channel/movie favorite management and reordering
