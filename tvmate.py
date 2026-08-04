@@ -84,7 +84,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b31"
+VERSION = "0.777.b34"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -482,14 +482,18 @@ def fetch_country_fixtures(country):
         except Exception:
             continue
         for ev in _iter_sportsevents(data):
-            home = (ev.get("homeTeam") or {}).get("name") or ""
-            away = (ev.get("awayTeam") or {}).get("name") or ""
+            home_obj = ev.get("homeTeam") or {}
+            away_obj = ev.get("awayTeam") or {}
+            home = home_obj.get("name") or ""
+            away = away_obj.get("name") or ""
             if not (home or away):
                 nm = ev.get("name") or ""
                 if " vs " in nm:
                     home, away = [s.strip() for s in nm.split(" vs ", 1)]
             fixtures.append({
                 "home": home, "away": away,
+                "home_slug": _slug_name(home_obj.get("url") or ""),
+                "away_slug": _slug_name(away_obj.get("url") or ""),
                 "start": ev.get("startDate", "") or "",
                 "channels": _channels_from_event(ev),
                 "country": disp,
@@ -498,8 +502,85 @@ def fetch_country_fixtures(country):
     _TV_CACHE[country] = {"ts": now, "fixtures": fixtures}
     return fixtures
 
+def _slug_name(url):
+    """Turn a Fotmob team URL like
+    'https://www.fotmob.com/teams/8456/overview/manchester-city' into
+    'manchester city' so full names are searchable even when the display
+    name is a short form ('Man City')."""
+    if not url:
+        return ""
+    try:
+        # last path segment is the slug
+        seg = url.rstrip("/").split("/")[-1]
+        # strip a trailing #id if present
+        seg = seg.split("#")[0].split("?")[0]
+        return seg.replace("-", " ").strip().lower()
+    except Exception:
+        return ""
+
+# Bidirectional alias groups. Each group is a set of equivalent names/nicknames
+# for ONE team. A search term maps to a group if it matches any member; we then
+# search for all members of that group only (not unrelated teams).
+_TEAM_ALIAS_GROUPS = [
+    ["manchester city", "man city"],
+    ["manchester united", "man utd", "man united"],
+    ["wolverhampton wanderers", "wolverhampton", "wolves"],
+    ["tottenham hotspur", "tottenham", "spurs"],
+    ["paris saint germain", "paris saint-germain", "psg"],
+    ["newcastle united", "newcastle", "newcastle utd"],
+    ["brighton hove albion", "brighton & hove albion", "brighton"],
+    ["west ham united", "west ham"],
+    ["sheffield united", "sheffield utd", "sheff utd"],
+    ["sheffield wednesday", "sheff wed"],
+    ["nottingham forest", "nott'm forest", "notts forest"],
+    ["leeds united", "leeds utd", "leeds"],
+    ["bayern munich", "bayern munchen", "fc bayern", "bayern"],
+    ["borussia dortmund", "dortmund", "bvb"],
+    ["borussia monchengladbach", "monchengladbach", "gladbach"],
+    ["internazionale", "inter milan", "inter"],
+    ["ac milan", "milan"],
+    ["atletico madrid", "atletico", "atleti", "atl madrid"],
+    ["real madrid", "real"],
+    ["fc barcelona", "barcelona", "barca"],
+]
+
+def _expand_terms(term_l):
+    """Map a search term to the set of names to look for. If the term matches a
+    specific alias group, return that group's members. Prefer the MOST SPECIFIC
+    match: e.g. 'manchester city' matches only the City group, not United.
+    A bare 'manchester' (matches no full member exactly) falls back to matching
+    any group whose members contain the term."""
+    terms = {term_l}
+    # 1. Exact membership: term equals a group member -> just that group.
+    for group in _TEAM_ALIAS_GROUPS:
+        if term_l in group:
+            terms.update(group)
+            return terms
+    # 2. Term is a substring of a specific member (e.g. 'man city' in nothing,
+    #    but 'tottenham' is a prefix of 'tottenham hotspur'): match groups where
+    #    the term appears as a WHOLE within a member, preferring specific ones.
+    specific = []
+    for group in _TEAM_ALIAS_GROUPS:
+        for member in group:
+            # term is most of a member (e.g. 'manchester city' vs 'man city')
+            if term_l == member or (len(term_l) >= 6 and term_l in member and
+                                    member.startswith(term_l.split()[0])):
+                specific.append(group)
+                break
+    if specific:
+        for g in specific:
+            terms.update(g)
+        return terms
+    # 3. Generic fallback: term is a loose fragment (e.g. 'manchester') that
+    #    appears in multiple groups -> include all matching groups.
+    for group in _TEAM_ALIAS_GROUPS:
+        if any(term_l in member for member in group):
+            terms.update(group)
+    return terms
+
 def search_fixtures(term, countries):
     term_l = term.lower().strip()
+    want = _expand_terms(term_l)
     merged, errors = {}, []
     # normalise (uk->gb) and dedupe while keeping order
     seen_cc, norm_countries = set(), []
@@ -515,8 +596,11 @@ def search_fixtures(term, countries):
             errors.append(f"{_display_cc(country)}: {e}")
             continue
         for f in fx:
-            hay = (f["home"] + " " + f["away"]).lower()
-            if term_l not in hay:
+            hay = " ".join([
+                f.get("home", ""), f.get("away", ""),
+                f.get("home_slug", ""), f.get("away_slug", "")
+            ]).lower()
+            if not any(w in hay for w in want):
                 continue
             day = (f["start"] or "")[:10]
             key = f"{f['home'].lower()}|{f['away'].lower()}|{day}"
@@ -753,6 +837,22 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .pmodal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:400}
  .pmodal.hide{display:none}
  .pbox{background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:min(880px,92vw);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+ .teamtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+ .teamtab{background:var(--card);border:1px solid var(--line);color:var(--mut);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
+ .teamtab.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:600}
+ .teamtab:hover{filter:brightness(1.1)}
+ .bcastlist{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+ .bcrow{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+ .bchead{padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14px;user-select:none}
+ .bchead:hover{background:var(--card2)}
+ .bcrow.open .bchead{border-bottom:1px solid var(--line);background:var(--card2)}
+ .bcname{font-weight:500;color:var(--fg)}
+ .exphint{margin-left:auto;font-size:12px}
+ .bcchans{display:flex;flex-direction:column}
+ .chline{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--line)}
+ .chline:first-child{border-top:0}
+ .chn{font-size:13px}
+ .chbtns{display:flex;gap:6px;flex-shrink:0}
  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
  .pclose{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
  .pclose:hover{color:var(--fg);filter:none}
@@ -1388,6 +1488,10 @@ async function testLogin(){s_msg.textContent='Testing...';
 async function reloadCh(){s_msg.textContent='Reloading...';
   const r=await api('/api/reload');
   s_msg.textContent=r.ok?(r.count+' channels loaded'):('Error: '+r.error);refreshStatus();}
+let _searchData=null;   // {fixtures, logged_in, ppv_categories}
+let _teamGroups=[];      // [{team, fixtures:[...]}]
+let _activeTeam=0;
+
 async function doSearch(){
   const q=document.getElementById('q').value.trim();
   results.innerHTML='';
@@ -1395,75 +1499,126 @@ async function doSearch(){
   results.innerHTML='<span class="muted">Searching listings...</span>';
   const r=await api('/api/search?q='+encodeURIComponent(q));
   if(r.error){results.innerHTML='<span class="err">'+r.error+'</span>';return;}
-  let html='';
+  _searchData=r;
+  let head='';
   if(r.source_errors&&r.source_errors.length)
-    html+='<div class="muted err">Some listings failed: '+r.source_errors.join('; ')+'</div>';
-  if(!r.fixtures.length){results.innerHTML=html+'<div class="muted">No <b>televised</b> match found for "'+esc(q)+'" in the next ~week across your listings countries. The team may still be playing &mdash; untelevised games (e.g. training-ground friendlies) and matches only on broadcasters outside your selected countries will not appear here.</div>';return;}
-  for(const f of r.fixtures){
-    const when=f.start?new Date(f.start).toLocaleString():'';
-    let badge='';
-    if(f.start){
-      const kick=new Date(f.start);
-      const ms=Date.now()-kick.getTime();
-      const mins=Math.floor(ms/60000);
-      const sameDay=kick.toDateString()===new Date().toDateString();
-      if(mins>=0&&mins<=140){          // kicked off within ~2h20m -> live
-        badge=' <span class="live">\u25CF LIVE ~'+mins+"'</span>";
-      }else if(mins>140&&(mins<360||sameDay)){  // finished, still today
-        badge=' <span class="ended">ended / earlier today</span>';
-      }else if(mins<0&&mins>-60){       // starts within the hour
-        badge=' <span class="soon">starts in '+(-mins)+" min</span>";
-      }
+    head+='<div class="muted err">Some listings failed: '+r.source_errors.join('; ')+'</div>';
+  if(!r.fixtures.length){results.innerHTML=head+'<div class="muted">No <b>televised</b> match found for "'+esc(q)+'" in the next ~week across your listings countries. The team may still be playing &mdash; untelevised games and matches only on broadcasters outside your selected countries will not appear here.</div>';return;}
+  // Group fixtures by the team that matches the query (home or away).
+  _teamGroups=groupByTeam(r.fixtures,q);
+  _activeTeam=0;
+  results.innerHTML=head+'<div id="teamSwitch"></div><div id="teamFixtures"></div>';
+  renderTeamSwitch();
+  renderActiveTeam();
+}
+
+function groupByTeam(fixtures,q){
+  // Determine, per fixture, which side matched the query; group under that team name.
+  const ql=q.toLowerCase();
+  const groups={};      // teamName -> [fixtures]
+  const order=[];
+  for(const f of fixtures){
+    // pick the team whose name/slug best contains the query; default home
+    let team=f.home, other=f.away;
+    const h=(f.home||'').toLowerCase(), a=(f.away||'').toLowerCase();
+    // crude: if away contains the query fragment and home doesn't, group under away
+    const hHit=h.includes(ql)||wordsOverlap(ql,h);
+    const aHit=a.includes(ql)||wordsOverlap(ql,a);
+    if(aHit&&!hHit){team=f.away;}
+    if(!groups[team]){groups[team]=[];order.push(team);}
+    groups[team].push(f);
+  }
+  return order.map(function(t){return {team:t,fixtures:groups[t]};});
+}
+function wordsOverlap(q,name){
+  const qs=q.split(/\s+/).filter(Boolean);
+  return qs.some(function(w){return w.length>=3&&name.includes(w);});
+}
+
+function renderTeamSwitch(){
+  const el=document.getElementById('teamSwitch');
+  if(!el)return;
+  if(_teamGroups.length<2){el.innerHTML='';return;}   // only show when 2+ teams
+  let h='<div class="teamtabs">';
+  _teamGroups.forEach(function(g,i){
+    h+='<button class="teamtab'+(i===_activeTeam?' on':'')+'" data-team="'+i+'">'+esc(g.team)+' <span class="muted">('+g.fixtures.length+')</span></button>';
+  });
+  h+='</div>';
+  el.innerHTML=h;
+}
+
+function renderActiveTeam(){
+  const el=document.getElementById('teamFixtures');
+  if(!el)return;
+  const g=_teamGroups[_activeTeam];
+  if(!g){el.innerHTML='';return;}
+  let html='';
+  g.fixtures.forEach(function(f,fi){
+    html+=renderFixtureCard(f,fi);
+  });
+  el.innerHTML=html;
+}
+
+function renderFixtureCard(f,fi){
+  const when=f.start?new Date(f.start).toLocaleString():'';
+  let badge='';
+  if(f.start){
+    const kick=new Date(f.start);
+    const mins=Math.floor((Date.now()-kick.getTime())/60000);
+    const sameDay=kick.toDateString()===new Date().toDateString();
+    if(mins>=0&&mins<=140)badge=' <span class="live">\u25CF LIVE ~'+mins+"'</span>";
+    else if(mins>140&&(mins<360||sameDay))badge=' <span class="ended">ended / earlier today</span>';
+    else if(mins<0&&mins>-60)badge=' <span class="soon">starts in '+(-mins)+" min</span>";
+  }
+  let html='<div class="card"><b>'+esc(f.home)+' v '+esc(f.away)+'</b> <span class="muted">'+when+'</span>'+badge;
+  if(!_searchData.logged_in){
+    html+='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to see which of your Xtream channels match.</div></div>';
+    return html;
+  }
+  // Build broadcaster rows, sorted country then broadcaster.
+  const rows=[];
+  for(const cc of Object.keys(f.by_country||{})){
+    for(const b of f.by_country[cc]){
+      rows.push({cc:cc,bcast:b});
     }
-    html+='<div class="card"><b>'+esc(f.home)+' v '+esc(f.away)+'</b> <span class="muted">'+when+'</span>'+badge;
-    html+='<div class="bcast">';
-    for(const cc of Object.keys(f.by_country))
-      html+='<div style="margin-top:4px"><span class="cc">'+esc(cc)+'</span> <span class="muted">'+esc(f.by_country[cc].join(', '))+'</span></div>';
+  }
+  rows.sort(function(x,y){return x.cc===y.cc?x.bcast.localeCompare(y.bcast):x.cc.localeCompare(y.cc);});
+  if(rows.length){
+    html+='<div class="bcastlist">';
+    rows.forEach(function(row,ri){
+      // channels matched to this broadcaster
+      const chans=(f.matches||[]).filter(function(m){return m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase());});
+      const rid='f'+fi+'b'+ri;
+      html+='<div class="bcrow" data-exp="'+rid+'">'
+        +'<div class="bchead"><span class="cc">'+esc(row.cc)+'</span> <span class="bcname">'+esc(row.bcast)+'</span>'
+        +' <span class="muted exphint">'+(chans.length?('click to expand ('+chans.length+')'):'no matching channels')+'</span></div>'
+        +'<div class="bcchans hide" id="'+rid+'">';
+      if(chans.length){
+        for(const m of chans){
+          html+='<div class="chline"><span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span>'
+            +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
+        }
+      }else{
+        html+='<div class="muted" style="padding:6px 10px">No channels in your list match this broadcaster.</div>';
+      }
+      html+='</div></div>';
+    });
     html+='</div>';
-    if(!r.logged_in){
-      html+='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to see which of your Xtream channels match.</div>';
-    }else{
-      // normal linear matches
-      if(f.matches.length){
-        html+='<table><tr><th>Your channel</th><th>Cat</th><th>Match</th><th>Link</th></tr>';
-        for(const m of f.matches){
-          html+='<tr><td>'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</td>'
-            +'<td class="muted">'+esc(m.category||'')+'</td>'
-            +'<td class="muted">'+m.score+'<br>'+esc(m.matched)+'</td>'
-            +'<td>'+playbtns(m.stream_id,m.xtream_name,m.url)+'</td></tr>';
-        }
-        html+='</table>';
-      }
-      // PPV / event channels named after the teams
-      if(f.ppv_hits&&f.ppv_hits.length){
-        html+='<div class="muted" style="margin-top:8px">Possible PPV/event channels for this match:</div>';
-        html+='<table><tr><th>Channel</th><th>Cat</th><th>Link</th></tr>';
-        for(const m of f.ppv_hits){
-          html+='<tr><td>'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</td>'
-            +'<td class="muted">'+esc(m.category||'')+'</td>'
-            +'<td>'+playbtns(m.stream_id,m.xtream_name,m.url)+'</td></tr>';
-        }
-        html+='</table>';
-      }
-      // streaming-only: no linear channel, point to PPV categories
-      if(f.streaming_only&&(!f.ppv_hits||!f.ppv_hits.length)){
-        html+='<div class="muted" style="margin-top:8px">No specific channel found &mdash; this match is on a streaming service ('
-          +esc(Object.values(f.by_country).flat().join(', '))+').</div>';
-        if(r.ppv_categories&&r.ppv_categories.length){
-          html+='<div class="muted" style="margin-top:4px">Check your PPV categories: ';
-          html+=r.ppv_categories.map(function(pc){
-            return '<a onclick="showChannels();setTimeout(function(){_selCats=new Set([\\''+escAttr(pc.category)+'\\']);renderCatList();renderSelected();openCategory(\\''+escAttr(pc.category)+'\\');},400)" style="color:var(--acc);cursor:pointer">'+esc(pc.category)+' ('+pc.count+')</a>';
-          }).join(' &middot; ');
-          html+='</div>';
-        }
-      }
-      if(!f.matches.length&&(!f.ppv_hits||!f.ppv_hits.length)&&!f.streaming_only){
-        html+='<div class="muted">No Xtream channels matched. Try lowering strictness in Settings.</div>';
-      }
+  }
+  // PPV / streaming fallbacks (kept from before)
+  if(f.ppv_hits&&f.ppv_hits.length){
+    html+='<div class="muted" style="margin-top:8px">Possible PPV/event channels:</div><div class="bcastlist">';
+    for(const m of f.ppv_hits){
+      html+='<div class="chline"><span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span>'
+        +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
     }
     html+='</div>';
   }
-  results.innerHTML=html;
+  if(!rows.length&&(!f.ppv_hits||!f.ppv_hits.length)){
+    html+='<div class="muted">No Xtream channels matched. Try lowering strictness in Settings.</div>';
+  }
+  html+='</div>';
+  return html;
 }
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function escAttr(s){return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -1719,6 +1874,16 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
+  const tt=e.target.closest('.teamtab');
+  if(tt){_activeTeam=parseInt(tt.getAttribute('data-team'),10)||0;renderTeamSwitch();renderActiveTeam();return;}
+  const bh=e.target.closest('.bchead');
+  if(bh){
+    const row=bh.parentElement;
+    const box=row.querySelector('.bcchans');
+    if(box)box.classList.toggle('hide');
+    row.classList.toggle('open');
+    return;
+  }
   const src=e.target.closest('.tvsrc');
   if(src){loadTvSource(src.getAttribute('data-src'));return;}
   const tvv=e.target.closest('.tvvlc');
