@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b93"
+VERSION = "0.777.b111"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -120,6 +120,7 @@ DEFAULT_CONFIG = {
     "match_threshold": 0.62,           # 0..1, higher = stricter
     "countries": ["no", "gb", "us", "es", "de", "it", "fr"],  # NO/UK/US + big-5 league homes
     "check_shows_on_startup": False,
+    "refresh_all_on_startup": False,
     "profile_name": "",
     "preferred_language": "en",
 }
@@ -160,16 +161,17 @@ FAVORITES_PATH = os.path.join(app_dir(), "favorites.json")
 
 def load_favorites():
     if not os.path.exists(FAVORITES_PATH):
-        return {"categories": [], "channels": [], "movies": [], "shows": []}
+        return {"categories": [], "channels": [], "movies": [], "shows": [], "teams": []}
     try:
         with open(FAVORITES_PATH, "r", encoding="utf-8") as f:
             fav = json.load(f) or {}
         return {"categories": list(fav.get("categories", [])),
                 "channels": list(fav.get("channels", [])),
                 "movies": list(fav.get("movies", [])),
-                "shows": list(fav.get("shows", []))}
+                "shows": list(fav.get("shows", [])),
+                "teams": list(fav.get("teams", []))}
     except Exception:
-        return {"categories": [], "channels": [], "movies": [], "shows": []}
+        return {"categories": [], "channels": [], "movies": [], "shows": [], "teams": []}
 
 def save_favorites(fav):
     with open(FAVORITES_PATH, "w", encoding="utf-8") as f:
@@ -789,6 +791,9 @@ def _tvmaze_season_covers(show_name, year=""):
 # --------------------------------------------------------------------------
 
 FOTMOB_TVGUIDE = "https://www.fotmob.com/en-GB/tv-guide/{country}"
+FOTMOB_TEAM_API = "https://www.fotmob.com/api/data/teams?id={team_id}&ccode3=NOR"
+FOTMOB_TEAM_SEARCH = "https://www.fotmob.com/api/search/suggest?term={term}"
+FOTMOB_DAILY_MATCHES = "https://www.fotmob.com/api/data/matches?date={date}&ccode3=NOR"
 
 # Fotmob uses ISO-ish slugs; "uk" is commonly typed but the real page is "gb".
 _CC_ALIAS = {"uk": "gb", "en": "gb", "gbr": "gb", "usa": "us", "nor": "no"}
@@ -804,6 +809,121 @@ def _display_cc(cc):
     return _CC_DISPLAY.get(cc.lower(), cc)
 _TV_CACHE = {}          # country -> {"ts": float, "fixtures": [...]}
 _TV_TTL = 900           # 15 min
+_TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
+_TEAM_FIXTURE_TTL = 180   # live/team schedules stay fresher than TV listings
+_TEAM_ID_CACHE = {}       # normalized favorite name -> FotMob team id
+_DAILY_MATCH_CACHE = {"date": "", "ts": 0, "matches": []}
+_DAILY_MATCH_TTL = 120    # current/live matches: refresh every 2 minutes
+
+def _team_id_from_url(url):
+    text = str(url or "")
+    match = re.search(r"/teams/(\d+)(?:/|$)", text)
+    if match:
+        return match.group(1)
+    match = re.search(r"/teams/[^?#]*?/(\d+)(?:/|$|[?#])", text)
+    return match.group(1) if match else ""
+
+def resolve_fotmob_team_id(team_name):
+    """Resolve a favorite team name without depending on TV-guide coverage."""
+    raw = str(team_name or "").strip()
+    key = raw.lower()
+    if not key:
+        return ""
+    if key in _TEAM_ID_CACHE:
+        return _TEAM_ID_CACHE[key]
+    try:
+        data = http_get_json(FOTMOB_TEAM_SEARCH.format(
+            term=urllib.parse.quote(raw)), timeout=10)
+    except Exception:
+        return ""
+    wanted = _expand_terms(key)
+    candidates = []
+    def walk(obj):
+        if isinstance(obj, dict):
+            name = str(obj.get("name") or obj.get("title") or "").strip()
+            team_id = obj.get("id") or obj.get("teamId") or obj.get("team_id")
+            kind = str(obj.get("type") or obj.get("entityType") or "").lower()
+            if name and team_id is not None and str(team_id).isdigit():
+                low = name.lower()
+                equivalent = (low == key or low in wanted or key in _expand_terms(low))
+                if equivalent:
+                    candidates.append((2 if "team" in kind else 1, str(team_id)))
+            for value in obj.values():
+                walk(value)
+        elif isinstance(obj, list):
+            for value in obj:
+                walk(value)
+    walk(data)
+    if not candidates:
+        return ""
+    candidates.sort(reverse=True)
+    _TEAM_ID_CACHE[key] = candidates[0][1]
+    return candidates[0][1]
+
+def fetch_fotmob_daily_matches():
+    """Today's FotMob match feed, including untelevised live fixtures."""
+    day = time.strftime("%Y%m%d", time.localtime())
+    now = time.time()
+    if (_DAILY_MATCH_CACHE["date"] == day and _DAILY_MATCH_CACHE["matches"] and
+            now - _DAILY_MATCH_CACHE["ts"] < _DAILY_MATCH_TTL):
+        return _DAILY_MATCH_CACHE["matches"]
+    data = http_get_json(FOTMOB_DAILY_MATCHES.format(date=day), timeout=15)
+    matches = []
+    seen = set()
+    def walk(obj):
+        if isinstance(obj, dict):
+            home = obj.get("home")
+            away = obj.get("away")
+            status = obj.get("status")
+            if (isinstance(home, dict) and isinstance(away, dict) and
+                    home.get("name") and away.get("name") and isinstance(status, dict)):
+                key = str(obj.get("id") or "") + "|" + str(status.get("utcTime") or "")
+                if key not in seen:
+                    seen.add(key)
+                    matches.append(obj)
+            for value in obj.values():
+                walk(value)
+        elif isinstance(obj, list):
+            for value in obj:
+                walk(value)
+    walk(data)
+    _DAILY_MATCH_CACHE.update({"date": day, "ts": now, "matches": matches})
+    return matches
+
+def search_daily_matches(term):
+    """Find today's live/upcoming fixtures independent of TV coverage."""
+    term_l = str(term or "").lower().strip()
+    if not term_l:
+        return []
+    wanted = _expand_terms(term_l)
+    out = []
+    for match in fetch_fotmob_daily_matches():
+        home_obj = match.get("home") or {}
+        away_obj = match.get("away") or {}
+        status = match.get("status") or {}
+        if status.get("cancelled") or status.get("finished"):
+            continue
+        home = str(home_obj.get("name") or "")
+        away = str(away_obj.get("name") or "")
+        hay = (home + " " + away).lower()
+        if not any(value in hay for value in wanted):
+            continue
+        start = str(status.get("utcTime") or match.get("startDate") or "")
+        is_live = bool(status.get("started") or status.get("ongoing") or status.get("live"))
+        live_minute = None
+        live_time = status.get("liveTime") or {}
+        if isinstance(live_time, dict):
+            live_clock = str(live_time.get("long") or "").strip()
+            try:
+                live_minute = int(live_clock.split(":", 1)[0]) if live_clock else None
+            except (ValueError, TypeError):
+                live_minute = None
+        out.append({"home": home, "away": away, "start": start,
+                    "home_id": str(home_obj.get("id") or ""),
+                    "away_id": str(away_obj.get("id") or ""),
+                    "is_live": is_live, "live_minute": live_minute,
+                    "by_country": {}, "all_channels": []})
+    return out
 
 _LD_RE = re.compile(
     r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.I | re.S)
@@ -865,6 +985,8 @@ def fetch_country_fixtures(country):
                     home, away = [s.strip() for s in nm.split(" vs ", 1)]
             fixtures.append({
                 "home": home, "away": away,
+                "home_id": _team_id_from_url(home_obj.get("url") or ""),
+                "away_id": _team_id_from_url(away_obj.get("url") or ""),
                 "home_slug": _slug_name(home_obj.get("url") or ""),
                 "away_slug": _slug_name(away_obj.get("url") or ""),
                 "start": ev.get("startDate", "") or "",
@@ -874,6 +996,124 @@ def fetch_country_fixtures(country):
             })
     _TV_CACHE[country] = {"ts": now, "fixtures": fixtures}
     return fixtures
+
+def fetch_team_schedule(team_id, team_name=""):
+    """Fetch a team's real FotMob fixture/status feed (not the TV guide)."""
+    team_id = str(team_id or "").strip()
+    if not team_id:
+        return []
+    now = time.time()
+    cached = _TEAM_FIXTURE_CACHE.get(team_id)
+    if cached and now - cached["ts"] < _TEAM_FIXTURE_TTL:
+        return cached["fixtures"]
+    data = http_get_json(FOTMOB_TEAM_API.format(team_id=urllib.parse.quote(team_id)), timeout=15)
+    fixture_root = data.get("fixtures") or {}
+    all_fixtures = fixture_root.get("allFixtures") or {}
+    raw = all_fixtures.get("fixtures") or fixture_root.get("fixtures") or []
+    if not isinstance(raw, list):
+        raw = []
+    # FotMob moves an in-progress match into overview/ongoing data, so it can
+    # disappear from allFixtures while it is live. Collect fixture-shaped
+    # objects from the full response as well, then deduplicate below.
+    candidates = list(raw)
+    def collect_current(obj):
+        if isinstance(obj, dict):
+            status = obj.get("status")
+            home = obj.get("home")
+            away = obj.get("away")
+            opponent = obj.get("opponent")
+            if (isinstance(status, dict) and
+                    ((isinstance(home, dict) and isinstance(away, dict)) or
+                     isinstance(opponent, dict))):
+                candidates.append(obj)
+            for value in obj.values():
+                collect_current(value)
+        elif isinstance(obj, list):
+            for value in obj:
+                collect_current(value)
+    collect_current(data)
+    # The team endpoint can move/drop an ongoing fixture from its normal list.
+    # FotMob's daily feed is authoritative for today's live matches.
+    daily_status = {}
+    try:
+        for match in fetch_fotmob_daily_matches():
+            home = match.get("home") or {}
+            away = match.get("away") or {}
+            if str(home.get("id") or "") == team_id or str(away.get("id") or "") == team_id:
+                candidates.append(match)
+                if match.get("id") is not None:
+                    daily_status[str(match.get("id"))] = match.get("status") or {}
+    except Exception:
+        pass
+    out = []
+    seen_fixtures = set()
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        home_obj = item.get("home") or {}
+        away_obj = item.get("away") or {}
+        if not isinstance(home_obj, dict):
+            home_obj = {}
+        if not isinstance(away_obj, dict):
+            away_obj = {}
+        home = str(home_obj.get("name") or "").strip()
+        away = str(away_obj.get("name") or "").strip()
+        # Some team-feed variants expose only the opponent + home/away flag.
+        if not (home and away):
+            opponent = item.get("opponent") or {}
+            if isinstance(opponent, dict) and opponent.get("name") and team_name:
+                is_home = item.get("isHome")
+                if is_home is None:
+                    is_home = item.get("home") is True
+                if is_home:
+                    home, away = team_name, str(opponent.get("name"))
+                else:
+                    home, away = str(opponent.get("name")), team_name
+        if not (home and away):
+            continue
+        status = item.get("status") or {}
+        if not isinstance(status, dict):
+            status = {}
+        # Team pages can lag behind the live clock (sometimes returning 0).
+        # Prefer today's daily match status for the same fixture.
+        current_status = daily_status.get(str(item.get("id") or ""))
+        if isinstance(current_status, dict) and current_status.get("ongoing"):
+            status = current_status
+        start = str(status.get("utcTime") or item.get("startDate") or
+                    item.get("start") or "")
+        is_live = bool((status.get("started") or status.get("ongoing") or
+                        status.get("live")) and not status.get("finished"))
+        live_minute = None
+        live_time = status.get("liveTime") or {}
+        if isinstance(live_time, dict):
+            live_clock = str(live_time.get("long") or "").strip()
+            try:
+                live_minute = int(live_clock.split(":", 1)[0]) if live_clock else None
+            except (ValueError, TypeError):
+                live_minute = None
+        # Some overview objects omit `started`; a non-finished match whose
+        # kickoff is in the recent past is still live.
+        if (not is_live and status and not status.get("finished") and
+                not status.get("cancelled") and start):
+            try:
+                kickoff = datetime.datetime.fromisoformat(
+                    start.replace("Z", "+00:00")).timestamp()
+                age = time.time() - kickoff
+                if 0 <= age <= 4 * 60 * 60:
+                    is_live = True
+            except (ValueError, TypeError, OverflowError):
+                pass
+        fixture_key = (str(item.get("id") or ""), home.lower(), away.lower(), start)
+        if fixture_key in seen_fixtures:
+            continue
+        seen_fixtures.add(fixture_key)
+        out.append({"home": home, "away": away, "start": start,
+                    "home_id": str(home_obj.get("id") or ""),
+                    "away_id": str(away_obj.get("id") or ""),
+                    "is_live": is_live, "live_minute": live_minute,
+                    "status_known": bool(status), "by_country": {}})
+    _TEAM_FIXTURE_CACHE[team_id] = {"ts": now, "fixtures": out}
+    return out
 
 def _slug_name(url):
     """Turn a Fotmob team URL like
@@ -951,6 +1191,13 @@ def _expand_terms(term_l):
             terms.update(group)
     return terms
 
+def _team_names_equivalent(a, b):
+    a = str(a or "").lower().strip()
+    b = str(b or "").lower().strip()
+    if not (a and b):
+        return False
+    return a == b or b in _expand_terms(a) or a in _expand_terms(b)
+
 def search_fixtures(term, countries):
     term_l = term.lower().strip()
     want = _expand_terms(term_l)
@@ -980,6 +1227,7 @@ def search_fixtures(term, countries):
             m = merged.get(key)
             if not m:
                 m = {"home": f["home"], "away": f["away"], "start": f["start"],
+                     "home_id": f.get("home_id", ""), "away_id": f.get("away_id", ""),
                      "match_url": f["match_url"], "by_country": {}, "all_channels": []}
                 merged[key] = m
             if f["channels"]:
@@ -1056,7 +1304,7 @@ def _is_streaming(name):
 
 def _is_ppv_category(catname):
     c = (catname or "").lower()
-    return ("ppv" in c) or ("play" in c)
+    return ("ppv" in c) or ("play" in c) or ("event" in c)
 
 # Known country codes that may appear as a channel prefix. If a channel's
 # prefix is one of these AND it isn't the broadcast's country, the channel is
@@ -1132,16 +1380,31 @@ def match_channels(by_country, xtream_channels, cats, threshold):
                 continue
             if _numbers_conflict(xn, sn):
                 continue
-            inter = xset & sset
-            if not inter:
-                continue
-            cover_b = len(inter) / len(sset)
-            cover_c = len(inter) / max(1, len(xset))
-            s = _score(xn, sn)
-            if sset <= xset:
-                s = max(s, 0.8 + 0.2 * cover_c)
+            # Generic tokens such as "tv" or "sport" must never be enough
+            # to establish a match (VG TV must not match VGN TV). At the same
+            # time compact brand spellings are equivalent: VG TV == VGTV.
+            sid = set(_distinctive(sn.split()))
+            xid = set(_distinctive(xn.split()))
+            scompact = re.sub(r"\s+", "", sn)
+            xcompact = re.sub(r"\s+", "", xn)
+            compact_exact = bool(scompact and scompact == xcompact)
+            compact_contained = (len(scompact) >= 4 and
+                                 (scompact in xcompact or xcompact in scompact))
+            inter = xid & sid
+            if compact_exact:
+                s = 1.0
+            elif compact_contained:
+                s = 0.96
             else:
-                s = max(s, cover_b * cover_c)
+                if not inter:
+                    continue
+                cover_b = len(inter) / max(1, len(sid))
+                cover_c = len(inter) / max(1, len(xid))
+                s = _score(xn, sn)
+                if sid and sid <= xid:
+                    s = max(s, 0.8 + 0.2 * cover_c)
+                else:
+                    s = max(s, cover_b * cover_c)
             if s > best:
                 best, best_src, best_country = s, orig, bcountry
         best = round(max(0.0, min(1.0, best)), 3)
@@ -1155,17 +1418,52 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     return rows
 
 def find_team_channels(team_terms, xtream_channels, cats, x):
-    """Find channels whose NAME contains a fixture team name (for PPV/event
-    channels named after the teams). Returns list of channel dicts w/ url."""
-    terms = [t.lower() for t in team_terms if t and len(t) >= 3]
+    """Find plausible match-specific PPV/event channels.
+
+    A one-team name hit is only accepted in a PPV/Play/Event category (or a
+    channel explicitly labelled that way). A channel containing both fixture
+    teams is strong enough to accept regardless of category.
+    """
+    side_forms = []
+    for team in team_terms:
+        raw = str(team or "").lower().strip()
+        if len(raw) < 3:
+            continue
+        forms = set()
+        for alias in _expand_terms(raw):
+            cleaned = normalise(alias)
+            if len(cleaned) >= 3:
+                forms.add(cleaned)
+        cleaned = normalise(raw)
+        if len(cleaned) >= 3:
+            forms.add(cleaned)
+        if forms:
+            side_forms.append(forms)
     out = []
     for ch in xtream_channels:
-        low = ch["name"].lower()
-        if any(t in low for t in terms):
+        cname = ch["name"]
+        hay = normalise(cname)
+        category = cats.get(ch["category_id"], "")
+        hits = 0
+        team_branded = False
+        hay_identity = set(_distinctive(hay.split()))
+        for forms in side_forms:
+            matched_forms = [form for form in forms
+                             if re.search(r"(?<![a-z0-9])" + re.escape(form) +
+                                          r"(?![a-z0-9])", hay)]
+            if matched_forms:
+                hits += 1
+                if hay_identity and any(
+                        hay_identity == set(_distinctive(form.split()))
+                        for form in matched_forms):
+                    team_branded = True
+        strong_event_name = hits >= 2
+        ppv_context = _is_ppv_category(category) or _is_ppv_category(cname)
+        if hits and (strong_event_name or ppv_context or team_branded):
             out.append({
-                "xtream_name": ch["name"], "stream_id": ch["stream_id"],
-                "category": cats.get(ch["category_id"], ""),
-                "quality": quality_tag(ch["name"]),
+                "xtream_name": cname, "stream_id": ch["stream_id"],
+                "category": category,
+                "quality": quality_tag(cname),
                 "url": x.stream_url(ch["stream_id"]),
             })
     return out
@@ -1215,6 +1513,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamtab{background:var(--card);border:1px solid var(--line);color:var(--mut);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
  .teamtab.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:600}
  .teamtab:hover{filter:brightness(1.1)}
+ #teamFixtures{display:flex;gap:10px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;scrollbar-color:var(--line2) transparent;scrollbar-width:thin}
+ #teamFixtures>.card{flex:0 0 280px;margin:0}
  .bcastlist{margin-top:10px;display:flex;flex-direction:column;gap:6px}
  .bcrow{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
  .bchead{padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14px;user-select:none}
@@ -1326,6 +1626,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .col{flex:1;min-width:0}
  .colh{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 10px;font-weight:600}
  @media(max-width:760px){.split{flex-direction:column}}
+ @media(max-width:760px){#teamFixtures{width:calc(100vw - 44px)}#teamFixtures>.card{flex-basis:min(280px,calc(100vw - 56px))}}
  .chname{flex:1;min-width:0;font-size:13.5px;word-break:break-word;line-height:1.35}
  .ch4{display:flex;gap:0;align-items:stretch;flex-wrap:nowrap;height:82vh;min-height:480px}
  .ch4group{position:relative;display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;padding:0;margin-left:20px;align-self:stretch;overflow:hidden}
@@ -1456,6 +1757,30 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 .episode .btnvlc{margin-top:auto}
  .episodequalities{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
  .episodequalities .btnvlc{flex:1 1 auto;padding-left:7px;padding-right:7px;font-size:11px}
+ .teamswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .teamfavs{max-height:82vh;overflow-y:auto}
+ .teamfavlist{display:flex;flex-direction:column;gap:4px}
+ .teamfavitem{position:relative;padding:11px 34px 11px 10px;border-bottom:1px solid var(--line);font-size:14px;font-weight:600}
+ .teamfavitem .teamremove{position:absolute;right:8px;top:50%;transform:translateY(-50%);margin:0}
+ .teamsmain{width:100%;max-width:1250px;min-width:0;margin:0 auto}
+ .teamsearchresults{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+ .teamsearchhit{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+ .teamfixturegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+ .teamfixture{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:12px}
+ .teamfixture.hastv{cursor:pointer}
+ .teamfixture.hastv:hover{border-color:#2b4a30}
+ .teamfixture.livefixture{border-color:#7a1f26;background:#171012}
+ .teamfixtureteams{font-size:15px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:7px}
+ .teamfixtureowner{font-size:11px;color:var(--acc);margin-top:7px}
+ .teamfixturetv{margin-left:auto}
+ .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
+ .teamfixturebroadcasts.hide{display:none}
+ .teamcaster{background:var(--card2);border:1px solid var(--line2);color:var(--fg);border-radius:7px;padding:5px 8px;font-size:11px;cursor:pointer}
+ .teamcaster:hover{border-color:#2b4a30;background:#17241a}
+ .teamcaster .cc{margin-right:5px}
+ .matchstrict{display:flex;align-items:center;gap:9px;margin-top:9px;color:var(--mut);font-size:11px}
+ .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
+ .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
 </style></head><body>
 <header>
   <h1><svg width="38" height="38" viewBox="0 0 240 240" style="vertical-align:-11px;margin-right:8px" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="139" rx="44" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="127" rx="42" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><ellipse cx="101" cy="115" rx="40" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>Olo's TVMate</h1>
@@ -1464,6 +1789,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a id="navMytv" onclick="showMytv()" data-i18n="My TV">My TV</a>
   <a id="navMovies" onclick="showMovies()" data-i18n="My Movies">My Movies</a>
   <a id="navShows" onclick="showShows()" data-i18n="My Shows">My Shows</a>
+  <a id="navTeams" onclick="showTeams()" data-i18n="My Teams">My Teams</a>
   <a id="navMylist" onclick="showMylist()" data-i18n="My List">My List</a>
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
@@ -1484,6 +1810,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div class="row">
           <input id="q" type="text" placeholder="Search a team, e.g. Leeds" data-i18n-ph="Search a team, e.g. Leeds" onkeydown="if(event.key==='Enter')doSearch()">
           <button onclick="doSearch()" data-i18n="Search">Search</button>
+        </div>
+        <div class="matchstrict"><span data-i18n="Match strictness">Match strictness</span>
+          <input id="matchStrict" type="range" min="0.40" max="0.80" step="0.01" value="0.62" oninput="document.getElementById('matchStrictValue').textContent=this.value" onchange="saveMatchStrictness(this.value)">
+          <span id="matchStrictValue" class="matchstrictvalue">0.62</span>
         </div>
         <div id="results"></div>
       </div>
@@ -1625,6 +1955,29 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     </div>
   </section>
 
+  <section id="teamsView" class="hide">
+    <div class="teamswrap">
+      <aside class="teamfavs">
+        <div class="colh">&#9733; <span data-i18n="Favorite Teams">Favorite Teams</span></div>
+        <div id="teamFavList" class="teamfavlist"><span class="muted">No favorite teams yet.</span></div>
+      </aside>
+      <div class="teamsmain">
+        <h2 class="colh" data-i18n="My Teams">My Teams</h2>
+        <div class="row">
+          <input id="teamQ" type="text" placeholder="Search for a team..." data-i18n-ph="Search for a team..." onkeydown="if(event.key==='Enter')searchTeams()">
+          <button onclick="searchTeams()" data-i18n="Search">Search</button>
+        </div>
+        <div id="teamSearchResults" class="teamsearchresults"></div>
+        <div id="teamLiveSection" class="hide">
+          <div class="colh" style="margin-top:22px" data-i18n="Live Matches">Live Matches</div>
+          <div id="teamLiveList" class="teamfixturegrid"></div>
+        </div>
+        <div class="colh" style="margin-top:22px" data-i18n="Upcoming Fixtures">Upcoming Fixtures</div>
+        <div id="teamUpcomingList" class="teamfixturegrid"><span class="muted">Loading...</span></div>
+      </div>
+    </div>
+  </section>
+
   <section id="settingsView" class="hide">
     <div class="settingswrap">
     <div class="brandblock">
@@ -1638,15 +1991,19 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div id="settingsProfile" class="settingspanel">
         <div class="colh" data-i18n="Profile">Profile</div>
         <div class="grid2">
-          <div><label data-i18n="Profile name (optional)">Profile name (optional)</label><input id="s_profile" type="text" maxlength="40"></div>
+          <div><label data-i18n="Profile name">Profile name</label><input id="s_profile" type="text" maxlength="40"></div>
           <div><label data-i18n="Preferred language">Preferred language</label>
             <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
           <div><label data-i18n="Default start section">Default start section</label>
-            <select id="s_start"><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option value="mylist">My List</option></select></div>
+            <select id="s_start"><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option value="teams">My Teams</option><option value="mylist">My List</option></select></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
           <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px">
+          <input id="s_refreshstartup" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Refresh all content on startup">Refresh all content on startup</span>
         </label>
         <div class="row" style="margin-top:16px"><button onclick="saveSettings()" data-i18n="Save">Save</button></div>
       </div>
@@ -1736,7 +2093,7 @@ function initPlPancakes(){
   const pl=document.getElementById('pcakePL');
   if(pl){makePancakes(pl,10);pl.style.opacity='0.13';}
 }
-function setNav(id){['navSearch','navChannels','navMylist','navMytv','navMovies','navShows','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
+function setNav(id){['navSearch','navChannels','navMylist','navMytv','navMovies','navShows','navTeams','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
 const _SLOGANS={
   search:["Find the match. Pick a channel. Pour the syrup."],
   mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
@@ -1755,7 +2112,8 @@ function setSlogan(section){
 }
 let _lang='en';
 const _I18N={
-  "Search":"Søk","Playlist Builder":"Lag spilleliste","My List":"Min liste","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Settings":"Innstillinger",
+  "Search":"Søk","Playlist Builder":"Lag spilleliste","My List":"Min liste","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Teams":"Favorittlag","Settings":"Innstillinger",
+  "Live Matches":"Direktekamper","Upcoming Fixtures":"Kommende kamper","Search for a team...":"Søk etter et lag...",
   "Favorite Channels":"Favorittkanaler","EPG Refresh":"Oppdater EPG","Channels":"Kanaler",
   "All Categories":"Alle kategorier","Selected categories":"Valgte kategorier","Filter Channels":"Kanaler","Playlist":"Spilleliste",
   "Add to Favorites":"Legg til favoritter","Tick all":"Velg alle","Untick all":"Fjern alle","Add ticked":"Legg til valgte",
@@ -1765,9 +2123,10 @@ const _I18N={
   "Tick categories on the left.":"Velg kategorier på venstre side.",
   "Favorite Categories":"Favorittkategorier","Categories":"Kategorier",
   "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
+  "Match strictness":"Treffnøyaktighet",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
   "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer",
-  "Profile":"Profil","Setup":"Oppsett","Profile name (optional)":"Profilnavn (valgfritt)",
+  "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn",
   "Preferred language":"Foretrukket språk",
   "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt",
   "Your Latest Episodes":"Dine nyeste episoder","See more latest episodes":"Se flere nyeste episoder",
@@ -1777,6 +2136,7 @@ const _I18N={
   "Not available":"Ikke tilgjengelig",
   "Maintenance & Playback":"Vedlikehold og avspilling","Refresh all content":"Oppdater alt innhold",
   "Check favorite shows on startup":"Se etter nye episoder i favorittserier ved oppstart",
+  "Refresh all content on startup":"Oppdater alt innhold ved oppstart",
   "Artwork cache":"Mellomlagret omslagskunst","Clear artwork cache":"Tøm omslagskunst",
   "Reset for cold-start test":"Nullstill for kaldstarttest",
   "Developer tools":"Utviklerverktøy",
@@ -1826,10 +2186,11 @@ function setLang(l){
   applyLang();
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
-function hideAll(){searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');}
+function hideAll(){searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');teamsView.classList.add('hide');}
 function showMytv(){hideAll();mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
 function showMovies(){hideAll();moviesView.classList.remove('hide');document.getElementById('recentMoviesSection').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();}
 function showShows(){_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
+function showTeams(){hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();}
 function showMylist(){hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
 function showSearch(){hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
 function showChannels(){hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
@@ -1837,6 +2198,69 @@ function showSettings(){loadSettings();hideAll();settingsView.classList.remove('
 function updateProfileName(name){
   const el=document.getElementById('profileName'), value=String(name||'').trim();
   el.textContent=value;el.classList.toggle('hide',!value);
+}
+
+let _favTeamSet=new Set();
+function teamFixtureCard(f,live){
+  const kick=f.start?new Date(f.start):null;
+  const when=kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+  let status='';
+  if(live&&kick){
+    const estimated=Math.max(0,Math.floor((Date.now()-kick.getTime())/60000));
+    const hasClock=f.live_minute!==null&&f.live_minute!==undefined&&Number.isFinite(Number(f.live_minute));
+    const mins=hasClock?Number(f.live_minute):estimated;
+    status='<span class="live">&#9679; LIVE '+mins+' min</span>';
+  }
+  const owners=(f.favorite_teams||[]).join(', ');
+  const broadcasters=[];
+  for(const cc of Object.keys(f.by_country||{}))for(const name of (f.by_country[cc]||[]))broadcasters.push({cc:cc,name:name});
+  const query=(f.home||'')+' '+(f.away||'');
+  let details='';
+  if(broadcasters.length)details='<div class="teamfixturebroadcasts hide">'+broadcasters.map(row=>'<button class="teamcaster" data-fixture-query="'+escAttr(query)+'"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</button>').join('')+'</div>';
+  return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"><div class="teamfixtureteams">'+esc(f.home)+' v '+esc(f.away)
+    +(broadcasters.length?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
+    +'<div class="muted">'+esc(when)+' '+status+'</div>'+(owners?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')+details+'</div>';
+}
+async function loadMyTeams(){
+  const fav=await api('/api/favorites'), teams=fav.teams||[];
+  _favTeamSet=new Set(teams.map(t=>String(typeof t==='string'?t:t.name).toLowerCase()));
+  const rail=document.getElementById('teamFavList');
+  if(!teams.length)rail.innerHTML='<span class="muted">No favorite teams yet.</span>';
+  else rail.innerHTML=teams.map(t=>{const name=typeof t==='string'?t:t.name;return '<div class="teamfavitem">'+esc(name)+'<span class="favstar on teamremove" data-team-name="'+escAttr(name)+'" title="Remove from favorites">&#9733;</span></div>';}).join('');
+  const upcoming=document.getElementById('teamUpcomingList'), liveList=document.getElementById('teamLiveList'), liveSection=document.getElementById('teamLiveSection');
+  if(!teams.length){liveSection.classList.add('hide');upcoming.innerHTML='<span class="muted">Add a favorite team to see its fixtures.</span>';return;}
+  upcoming.innerHTML='<span class="muted">Loading fixtures...</span>';
+  const r=await api('/api/my_teams');
+  if(r.error){upcoming.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
+  const live=[], future=[];
+  for(const f of (r.fixtures||[])){
+    const ts=f.start?new Date(f.start).getTime():0, mins=ts?(Date.now()-ts)/60000:null;
+    if(f.is_live||(!f.status_known&&mins!==null&&mins>=0&&mins<=140))live.push(f);
+    else if(mins!==null&&mins<0)future.push(f);
+  }
+  if(live.length){liveList.innerHTML=live.map(f=>teamFixtureCard(f,true)).join('');liveSection.classList.remove('hide');}
+  else{liveList.innerHTML='';liveSection.classList.add('hide');}
+  upcoming.innerHTML=future.length?future.slice(0,36).map(f=>teamFixtureCard(f,false)).join(''):'<span class="muted">No upcoming fixtures found.</span>';
+}
+async function searchTeams(){
+  const q=(document.getElementById('teamQ').value||'').trim(), el=document.getElementById('teamSearchResults');
+  if(!q){el.innerHTML='';return;}
+  el.innerHTML='<span class="muted">Searching FotMob...</span>';
+  const r=await api('/api/team_search?q='+encodeURIComponent(q));
+  if(r.error){el.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
+  if(!r.teams.length){el.innerHTML='<span class="muted">No team found in current FotMob listings.</span>';return;}
+  el.innerHTML=r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||'');return '<div class="teamsearchhit"><span>'+esc(name)+'</span><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('');
+}
+async function toggleTeamFavorite(name,star,teamId){
+  const r=await favPost({action:'toggle_team',team:{name:name,team_id:teamId||''}});
+  _favTeamSet=new Set((r.team_names||[]).map(name=>String(name).toLowerCase()));
+  if(star)star.classList.toggle('on',_favTeamSet.has(String(name).toLowerCase()));
+  await loadMyTeams();
+}
+async function removeTeamFavorite(name){
+  await favPost({action:'remove_team',name:name});
+  _favTeamSet.delete(String(name).toLowerCase());
+  await loadMyTeams();
 }
 
 let _catsLoaded=false;
@@ -2045,6 +2469,13 @@ async function refreshStatus(){
   const s=await api('/api/status');
   status.innerHTML=!s.configured?'<span class="err">Not configured &mdash; open Settings</span>'
     :(s.channel_count!=null?s.channel_count+' channels loaded':'configured');
+  const slider=document.getElementById('matchStrict'), value=document.getElementById('matchStrictValue');
+  if(slider&&s.match_threshold!=null){slider.value=Number(s.match_threshold).toFixed(2);value.textContent=slider.value;}
+}
+async function saveMatchStrictness(value){
+  const strict=Math.max(0.40,Math.min(0.80,parseFloat(value)||0.62));
+  if(document.getElementById('s_thr'))s_thr.value=strict.toFixed(2);
+  try{await api('/api/match_strictness',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({match_threshold:strict})});}catch(e){}
 }
 async function loadSettings(){
   const c=await api('/api/config');
@@ -2054,6 +2485,7 @@ async function loadSettings(){
   s_cc.value=(c.countries||['no','uk','us']).join(', ');
   s_start.value=c.start_section||'search';
   s_checkshows.checked=!!c.check_shows_on_startup;
+  s_refreshstartup.checked=!!c.refresh_all_on_startup;
   s_profile.value=c.profile_name||'';
   s_lang.value=c.preferred_language||'en';
   loadArtworkCacheSize();
@@ -2063,6 +2495,7 @@ async function saveSettings(){
     xtream_pass:s_pass.value,stream_ext:s_ext.value,match_threshold:parseFloat(s_thr.value)||0.55,
     countries:s_cc.value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),
     start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
+    refresh_all_on_startup:s_refreshstartup.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value};
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   s_msg.textContent=r.ok?'Saved.':'Error saving.';
@@ -2134,14 +2567,15 @@ async function doSearch(){
   results.innerHTML='';
   if(!q)return;
   results.innerHTML='<span class="muted">Searching listings...</span>';
-  const r=await api('/api/search?q='+encodeURIComponent(q));
+  const strict=document.getElementById('matchStrict').value;
+  const r=await api('/api/search?q='+encodeURIComponent(q)+'&strictness='+encodeURIComponent(strict));
   if(r.error){results.innerHTML='<span class="err">'+r.error+'</span>';return;}
   _searchData=r;
   if(r.logged_in)await refreshFavState();
   let head='';
   if(r.source_errors&&r.source_errors.length)
     head+='<div class="muted err">Some listings failed: '+r.source_errors.join('; ')+'</div>';
-  if(!r.fixtures.length){results.innerHTML=head+'<div class="muted">No <b>televised</b> match found for "'+esc(q)+'" in the next ~week across your listings countries. The team may still be playing &mdash; untelevised games and matches only on broadcasters outside your selected countries will not appear here.</div>';return;}
+  if(!r.fixtures.length){results.innerHTML=head+'<div class="muted">No current or televised upcoming match found for "'+esc(q)+'".</div>';return;}
   // Group fixtures by the team that matches the query (home or away).
   _teamGroups=groupByTeam(r.fixtures,q);
   _activeTeam=0;
@@ -2204,11 +2638,15 @@ function renderFixtureCard(f,fi){
     const kick=new Date(f.start);
     const mins=Math.floor((Date.now()-kick.getTime())/60000);
     const sameDay=kick.toDateString()===new Date().toDateString();
-    if(mins>=0&&mins<=140)badge=' <span class="live">\u25CF LIVE ~'+mins+"'</span>";
+    if(f.is_live||(mins>=0&&mins<=140)){
+      const hasClock=f.live_minute!==null&&f.live_minute!==undefined&&Number.isFinite(Number(f.live_minute));
+      const liveMins=hasClock?Number(f.live_minute):Math.max(0,mins);
+      badge=' <span class="live">\u25CF LIVE '+(hasClock?'':'~')+liveMins+"'</span>";
+    }
     else if(mins>140&&(mins<360||sameDay))badge=' <span class="ended">ended / earlier today</span>';
     else if(mins<0&&mins>-60)badge=' <span class="soon">starts in '+(-mins)+" min</span>";
   }
-  let html='<div class="card"><b>'+esc(f.home)+' v '+esc(f.away)+'</b> <span class="muted">'+when+'</span>'+badge;
+  let html='<div class="card"><div><b>'+esc(f.home)+' v '+esc(f.away)+'</b> <span class="muted">'+when+'</span></div>'+(badge?'<div>'+badge+'</div>':'');
   if(!_searchData.logged_in){
     html+='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to see which of your Xtream channels match.</div></div>';
     return html;
@@ -2248,21 +2686,30 @@ function renderFixtureCard(f,fi){
   // PPV / streaming fallbacks (kept from before)
   if(f.ppv_hits&&f.ppv_hits.length){
     html+='<div class="muted" style="margin-top:8px">Possible PPV/event channels:</div><div class="bcastlist">';
-    for(const m of f.ppv_hits){
+    for(const [ppvIndex,m] of f.ppv_hits.entries()){
       const fav=_favChanSet.has(String(m.stream_id))?' on':'';
-      html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
+      html+='<div class="chline'+(ppvIndex>=7?' ppvextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
         +'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
         +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
     }
     html+='</div>';
+    if(f.ppv_hits.length>7)html+='<button class="ghost ppvexpand" onclick="togglePpv(this)" data-more="'+(f.ppv_hits.length-7)+'">Show '+(f.ppv_hits.length-7)+' more</button>';
   }
   if(!rows.length&&(!f.ppv_hits||!f.ppv_hits.length)){
-    html+='<div class="muted">No Xtream channels matched. Try lowering strictness in Settings.</div>';
+    if(!Object.keys(f.by_country||{}).length)html+='<div class="muted">No TV channels found.</div>';
+    else html+='<div class="muted">No Xtream channels matched. Try lowering strictness.</div>';
   }
   html+='</div>';
   return html;
 }
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function togglePpv(btn){
+  const list=btn.previousElementSibling, extras=list?list.querySelectorAll('.ppvextra'):[];
+  if(!extras.length)return;
+  const opening=extras[0].classList.contains('hide');
+  extras.forEach(el=>el.classList.toggle('hide',!opening));
+  btn.textContent=opening?'Show less':'Show '+btn.dataset.more+' more';
+}
 function escAttr(s){return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function playbtns(sid,name,url,showCopy){
   const s=escAttr(String(sid)), n=escAttr(name||''), u=escAttr(url);
@@ -2599,6 +3046,16 @@ async function checkShowsOnStartup(){
     else toast('Successfully refreshed playlists, no new episodes found',7000);
   }catch(e){toast('Could not refresh show playlists.',7000);}
 }
+async function refreshAllOnStartup(){
+  try{
+    const r=await fetch('/api/refresh_all',{method:'POST'}), j=await r.json();
+    if(!r.ok||j.error)throw new Error(j.error||'refresh failed');
+    _latestEpisodesLoaded=false;
+    if(j.new_episodes>0)toast('Refreshed all content. Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
+    else toast('Successfully refreshed all content, no new episodes found',7000);
+    refreshStatus();
+  }catch(e){toast('Could not refresh all content.',7000);}
+}
 async function playEpisodeQueue(season,episodeNum,source,btn){
   const episodes=((_showSeasons[String(season)]||{})[source]||[]).filter(ep=>Number(ep.episode_num)>=Number(episodeNum)), old=btn.textContent;btn.textContent='Opening...';
   try{const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');}
@@ -2842,6 +3299,14 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
+  const teamCaster=e.target.closest('.teamcaster');
+  if(teamCaster){showSearch();document.getElementById('q').value=teamCaster.getAttribute('data-fixture-query')||'';doSearch();return;}
+  const teamFixture=e.target.closest('.teamfixture.hastv');
+  if(teamFixture){const details=teamFixture.querySelector('.teamfixturebroadcasts');if(details)details.classList.toggle('hide');return;}
+  const teamRemove=e.target.closest('.teamremove');
+  if(teamRemove){removeTeamFavorite(teamRemove.getAttribute('data-team-name'));return;}
+  const teamStar=e.target.closest('.teamstar');
+  if(teamStar){toggleTeamFavorite(teamStar.getAttribute('data-team-name'),teamStar,teamStar.getAttribute('data-team-id'));return;}
   const lev=e.target.closest('.latestepisodevlc');
   if(lev){playLatestEpisode(lev.getAttribute('data-id'),lev.getAttribute('data-ext'),lev);return;}
   const ss=e.target.closest('.showstar');
@@ -2902,11 +3367,12 @@ document.addEventListener('click',function(e){
 try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else applyLang();}catch(e){applyLang();}
 // open the user's default start section
 (async function(){
-  let start='search',checkShows=false;
-  try{const c=await api('/api/config');start=c.start_section||'search';checkShows=!!c.check_shows_on_startup;updateProfileName(c.profile_name);setLang(c.preferred_language||'en');}catch(e){}
-  const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,mylist:showMylist};
+  let start='search',checkShows=false,refreshStartup=false;
+  try{const c=await api('/api/config');start=c.start_section||'search';checkShows=!!c.check_shows_on_startup;refreshStartup=!!c.refresh_all_on_startup;updateProfileName(c.profile_name);setLang(c.preferred_language||'en');}catch(e){}
+  const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,teams:showTeams,mylist:showMylist};
   (map[start]||showSearch)();
-  if(checkShows)setTimeout(checkShowsOnStartup,500);
+  if(refreshStartup)setTimeout(refreshAllOnStartup,500);
+  else if(checkShows)setTimeout(checkShowsOnStartup,500);
 })();
 initPancakes();
 refreshStatus();
@@ -3023,7 +3489,8 @@ class Handler(BaseHTTPRequestHandler):
                 cfg = load_config()
                 x = Xtream(cfg)
                 count = len(_XT_CACHE["channels"]) if (x.configured() and _XT_CACHE["channels"]) else None
-                return self._send(200, {"configured": x.configured(), "channel_count": count})
+                return self._send(200, {"configured": x.configured(), "channel_count": count,
+                                        "match_threshold": cfg.get("match_threshold", 0.62)})
 
             if u.path == "/api/favorites":
                 fav = load_favorites()
@@ -3049,7 +3516,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"categories": fav.get("categories", []),
                                         "channels": chans,
                                         "movies": fav.get("movies", []),
-                                        "shows": favorite_shows})
+                                        "shows": favorite_shows,
+                                        "teams": fav.get("teams", [])})
 
             if u.path == "/api/epg":
                 # ids=comma-separated stream ids; force=1 to bypass cache
@@ -3661,6 +4129,109 @@ class Handler(BaseHTTPRequestHandler):
                                         "series_id": series_ids[0], "series_ids": series_ids,
                                         "cover": cover, "seasons": seasons})
 
+            if u.path == "/api/team_search":
+                term = (q.get("q", [""])[0]).strip()
+                if not term:
+                    return self._send(200, {"teams": []})
+                cfg = load_config()
+                countries = cfg.get("countries") or ["no", "uk", "us"]
+                fixtures, src_err = search_fixtures(term, countries)
+                term_l = term.lower()
+                wanted = _expand_terms(term_l)
+                found = []
+                seen = set()
+                for fixture in fixtures:
+                    sides = ((fixture.get("home", ""), fixture.get("home_id", "")),
+                             (fixture.get("away", ""), fixture.get("away_id", "")))
+                    for name, team_id in sides:
+                        low = name.lower().strip()
+                        matches = (term_l in low or low in wanted or
+                                   any(alias in low or low in alias for alias in wanted
+                                       if len(alias) >= 3))
+                        if matches and low and low not in seen:
+                            seen.add(low)
+                            found.append({"name": name, "team_id": team_id})
+                return self._send(200, {"teams": found, "source_errors": src_err})
+
+            if u.path == "/api/my_teams":
+                cfg = load_config()
+                countries = cfg.get("countries") or ["no", "uk", "us"]
+                fav_data = load_favorites()
+                favorites = fav_data.get("teams", [])
+                favorites_changed = False
+                merged = {}
+                errors = []
+                for favorite in favorites:
+                    team_name = str(favorite.get("name") if isinstance(favorite, dict)
+                                    else favorite).strip()
+                    team_id = str(favorite.get("team_id") if isinstance(favorite, dict)
+                                  else "").strip()
+                    if not team_name:
+                        continue
+                    tv_fixtures, src_err = search_fixtures(team_name, countries)
+                    errors.extend(src_err)
+                    if not team_id:
+                        wanted = _expand_terms(team_name.lower())
+                        for fixture in tv_fixtures:
+                            for side_name, side_id in (
+                                    (fixture.get("home", ""), fixture.get("home_id", "")),
+                                    (fixture.get("away", ""), fixture.get("away_id", ""))):
+                                low = side_name.lower().strip()
+                                if side_id and (team_name.lower() in low or low in wanted or
+                                                any(alias in low or low in alias
+                                                    for alias in wanted if len(alias) >= 3)):
+                                    team_id = str(side_id)
+                                    break
+                            if team_id:
+                                break
+                    if not team_id:
+                        team_id = resolve_fotmob_team_id(team_name)
+                    if team_id and isinstance(favorite, dict) and not favorite.get("team_id"):
+                        favorite["team_id"] = team_id
+                        favorites_changed = True
+                    try:
+                        fixtures = fetch_team_schedule(team_id, team_name) if team_id else []
+                    except Exception as e:
+                        errors.append(f"{team_name}: {e}")
+                        fixtures = []
+                    # Fall back to TV-guide fixtures if the team feed is unavailable.
+                    if not fixtures:
+                        fixtures = [dict(row, is_live=False, status_known=False)
+                                    for row in tv_fixtures]
+                    # Overlay broadcaster listings without using them as the fixture source.
+                    for fixture in fixtures:
+                        fday = str(fixture.get("start") or "")[:10]
+                        for tvrow in tv_fixtures:
+                            if fday and str(tvrow.get("start") or "")[:10] != fday:
+                                continue
+                            home_ok = (normalise(fixture.get("home", "")) == normalise(tvrow.get("home", "")) or
+                                       tvrow.get("home", "").lower() in _expand_terms(fixture.get("home", "").lower()))
+                            away_ok = (normalise(fixture.get("away", "")) == normalise(tvrow.get("away", "")) or
+                                       tvrow.get("away", "").lower() in _expand_terms(fixture.get("away", "").lower()))
+                            if home_ok and away_ok:
+                                fixture["by_country"] = tvrow.get("by_country", {})
+                                break
+                    for fixture in fixtures:
+                        key = "|".join((str(fixture.get("home", "")).lower(),
+                                        str(fixture.get("away", "")).lower(),
+                                        str(fixture.get("start", ""))))
+                        row = merged.get(key)
+                        if row is None:
+                            row = dict(fixture)
+                            row["favorite_teams"] = []
+                            merged[key] = row
+                        elif fixture.get("is_live"):
+                            row["is_live"] = True
+                        if fixture.get("live_minute") is not None:
+                            row["live_minute"] = fixture.get("live_minute")
+                        if team_name not in row["favorite_teams"]:
+                            row["favorite_teams"].append(team_name)
+                if favorites_changed:
+                    save_favorites(fav_data)
+                fixtures = sorted(merged.values(), key=lambda row: row.get("start") or "")
+                return self._send(200, {"fixtures": fixtures,
+                                        "source_errors": list(dict.fromkeys(errors))})
+
             if u.path == "/api/search":
                 term = (q.get("q", [""])[0]).strip()
                 if not term:
@@ -3668,6 +4239,29 @@ class Handler(BaseHTTPRequestHandler):
                 cfg = load_config()
                 countries = cfg.get("countries") or ["no", "uk", "us"]
                 fixtures, src_err = search_fixtures(term, countries)
+                try:
+                    daily_fixtures = search_daily_matches(term)
+                    for daily in daily_fixtures:
+                        duplicate = None
+                        dday = str(daily.get("start") or "")[:10]
+                        for fixture in fixtures:
+                            if dday and str(fixture.get("start") or "")[:10] != dday:
+                                continue
+                            if (_team_names_equivalent(daily.get("home"), fixture.get("home")) and
+                                    _team_names_equivalent(daily.get("away"), fixture.get("away"))):
+                                duplicate = fixture
+                                break
+                        if duplicate is not None:
+                            duplicate["is_live"] = daily.get("is_live", False)
+                            if daily.get("live_minute") is not None:
+                                duplicate["live_minute"] = daily.get("live_minute")
+                            duplicate["home_id"] = duplicate.get("home_id") or daily.get("home_id", "")
+                            duplicate["away_id"] = duplicate.get("away_id") or daily.get("away_id", "")
+                        else:
+                            fixtures.append(daily)
+                    fixtures.sort(key=lambda row: row.get("start") or "")
+                except Exception as e:
+                    src_err.append(f"FotMob matches: {e}")
                 x = Xtream(cfg)
                 logged_in = x.configured()
                 channels, cats = [], {}
@@ -3677,7 +4271,11 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception as e:
                         src_err.append(f"Xtream: {e}")
                         logged_in = False
-                thr = float(cfg.get("match_threshold", 0.55) or 0.55)
+                try:
+                    thr = float(q.get("strictness", [cfg.get("match_threshold", 0.62)])[0])
+                except (TypeError, ValueError):
+                    thr = float(cfg.get("match_threshold", 0.62) or 0.62)
+                thr = max(0.40, min(0.80, thr))
                 ppv_cats = ppv_categories(channels, cats) if logged_in else []
                 out = []
                 for f in fixtures:
@@ -3703,7 +4301,9 @@ class Handler(BaseHTTPRequestHandler):
                         streaming_only = (has_streaming and not has_linear and not matches)
                     out.append({"home": f["home"], "away": f["away"], "start": f["start"],
                                 "by_country": f["by_country"], "matches": matches,
-                                "ppv_hits": ppv_hits, "streaming_only": streaming_only})
+                                "ppv_hits": ppv_hits, "streaming_only": streaming_only,
+                                "is_live": bool(f.get("is_live")),
+                                "live_minute": f.get("live_minute")})
                 return self._send(200, {"fixtures": out, "logged_in": logged_in,
                                         "source_errors": src_err,
                                         "ppv_categories": ppv_cats})
@@ -3720,11 +4320,21 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(raw.decode("utf-8") or "{}")
         except Exception:
             payload = {}
+        if u.path == "/api/match_strictness":
+            cfg = load_config()
+            try:
+                strict = float(payload.get("match_threshold", cfg.get("match_threshold", 0.62)))
+            except (TypeError, ValueError):
+                strict = 0.62
+            strict = max(0.40, min(0.80, strict))
+            cfg["match_threshold"] = strict
+            save_config(cfg)
+            return self._send(200, {"ok": True, "match_threshold": strict})
         if u.path == "/api/config":
             cfg = load_config()
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
-                      "check_shows_on_startup", "profile_name",
+                      "check_shows_on_startup", "refresh_all_on_startup", "profile_name",
                       "preferred_language"):
                 if k in payload:
                     cfg[k] = payload[k]
@@ -3755,6 +4365,9 @@ class Handler(BaseHTTPRequestHandler):
                 _SHOW_INFO_CACHE.clear()
                 _EPG_CACHE.clear()
                 _TV_CACHE.clear()
+                _TEAM_FIXTURE_CACHE.clear()
+                _TEAM_ID_CACHE.clear()
+                _DAILY_MATCH_CACHE.update({"date": "", "ts": 0, "matches": []})
                 _TVMAZE_CACHE.clear()
                 root = artwork_cache_dir()
                 if os.path.isdir(root):
@@ -3878,13 +4491,31 @@ class Handler(BaseHTTPRequestHandler):
                 fav["shows"] = [s for s in fav["shows"]
                                 if str(s.get("show_key") or _show_key(s.get("name")) or
                                        s.get("series_id")) != key]
+            elif act == "toggle_team":
+                team = payload.get("team") or {}
+                name = str(team.get("name") or "").strip()
+                idx = next((i for i, item in enumerate(fav["teams"])
+                            if str(item.get("name") if isinstance(item, dict) else item).lower()
+                            == name.lower()), -1)
+                if idx >= 0:
+                    fav["teams"].pop(idx)
+                elif name:
+                    fav["teams"].append({"name": name,
+                                         "team_id": str(team.get("team_id") or "")})
+            elif act == "remove_team":
+                name = str(payload.get("name") or "").strip().lower()
+                fav["teams"] = [item for item in fav["teams"]
+                                if str(item.get("name") if isinstance(item, dict) else item).lower()
+                                != name]
             save_favorites(fav)
             return self._send(200, {"ok": True,
                                     "categories": fav["categories"],
                                     "channel_ids": [c.get("stream_id") for c in fav["channels"]],
                                     "movie_ids": [m.get("stream_id") for m in fav["movies"]],
                                     "show_ids": [s.get("show_key") or _show_key(s.get("name")) or
-                                                 s.get("series_id") for s in fav["shows"]]})
+                                                 s.get("series_id") for s in fav["shows"]],
+                                    "team_names": [item.get("name") if isinstance(item, dict) else item
+                                                   for item in fav["teams"]]})
 
         if u.path == "/api/update_download":
             path = download_update()
