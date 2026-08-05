@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b111"
+VERSION = "0.777.b112"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2187,14 +2187,21 @@ function setLang(l){
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
 function hideAll(){searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');teamsView.classList.add('hide');}
-function showMytv(){hideAll();mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
-function showMovies(){hideAll();moviesView.classList.remove('hide');document.getElementById('recentMoviesSection').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();}
-function showShows(){_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
-function showTeams(){hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();}
-function showMylist(){hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
-function showSearch(){hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
-function showChannels(){hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
-function showSettings(){loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');}
+let _historyReady=false,_historyRestoring=false,_historySection='';
+function rememberLocation(section,extra){
+  _historySection=section;
+  if(!_historyReady||_historyRestoring)return;
+  const state=Object.assign({tvmate:true,section:section},extra||{});
+  history.pushState(state,'','#'+section);
+}
+function showMytv(){rememberLocation('mytv');hideAll();mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
+function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.remove('hide');document.getElementById('recentMoviesSection').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();}
+function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
+function showTeams(){rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();}
+function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
+function showSearch(){rememberLocation('search');hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
+function showChannels(){rememberLocation('channels');hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
+function showSettings(){rememberLocation('settings');loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');}
 function updateProfileName(name){
   const el=document.getElementById('profileName'), value=String(name||'').trim();
   el.textContent=value;el.classList.toggle('hide',!value);
@@ -2989,6 +2996,7 @@ async function searchShows(){
   el.innerHTML=h+'</div>';
 }
 async function loadShow(seriesId,refresh){
+  if(!refresh)rememberLocation('shows',{seriesId:String(seriesId)});
   _activeSeriesId=seriesId;
   document.getElementById('latestEpisodesSection').classList.add('hide');
   const el=document.getElementById('showDetails');
@@ -3371,9 +3379,22 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
   try{const c=await api('/api/config');start=c.start_section||'search';checkShows=!!c.check_shows_on_startup;refreshStartup=!!c.refresh_all_on_startup;updateProfileName(c.profile_name);setLang(c.preferred_language||'en');}catch(e){}
   const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,teams:showTeams,mylist:showMylist};
   (map[start]||showSearch)();
+  history.replaceState({tvmate:true,section:start},'','#'+start);
+  _historyReady=true;
   if(refreshStartup)setTimeout(refreshAllOnStartup,500);
   else if(checkShows)setTimeout(checkShowsOnStartup,500);
 })();
+window.addEventListener('popstate',function(ev){
+  const state=ev.state;
+  if(!state||!state.tvmate)return;
+  const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,teams:showTeams,mylist:showMylist,settings:showSettings};
+  const fn=map[state.section]||showSearch;
+  _historyRestoring=true;
+  try{
+    fn();
+    if(state.section==='shows'&&state.seriesId)loadShow(state.seriesId,true);
+  }finally{_historyRestoring=false;}
+});
 initPancakes();
 refreshStatus();
 // --- auto-update ---
