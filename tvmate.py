@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b217"
+VERSION = "0.777.b218"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2734,11 +2734,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  :root{--bg:#0f1115;--card:#181b22;--card2:#1e222b;--fg:#e6e8ee;--mut:#8a90a0;--acc:#4f8cff;--line:#262a34;--line2:#313747}
  *{box-sizing:border-box}
  body{margin:0;font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
- header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:center;position:relative;z-index:2;background:var(--bg)}
+ header{padding:12px 22px;border-bottom:1px solid var(--line);display:flex;gap:17px;align-items:center;position:sticky;top:0;z-index:220;background:rgba(15,17,21,.94);backdrop-filter:blur(12px);box-shadow:0 5px 18px rgba(0,0,0,.16)}
  .slogan{position:static;transform:none;margin-left:auto;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-style:italic;color:var(--mut);white-space:nowrap;letter-spacing:.2px;pointer-events:none}
  #status{margin-left:0;flex:0 0 auto}
  header h1{font-size:16px;margin:0;font-weight:600}
- header a{color:var(--mut);text-decoration:none;font-size:14px;cursor:pointer;padding:2px 0;border-bottom:2px solid transparent;flex:0 0 auto}
+ header a{color:var(--mut);text-decoration:none;font-size:14px;cursor:pointer;padding:4px 0 3px;border-bottom:2px solid transparent;flex:0 0 auto;transition:color .13s,border-color .13s}
  header a:hover{color:var(--fg)}
  header a.on{color:var(--fg);border-bottom-color:var(--acc)}
  .langsel{display:flex;gap:6px;margin-left:14px}
@@ -2746,6 +2746,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .langflag{background:none;border:1px solid transparent;border-radius:6px;padding:2px 6px;font-size:17px;line-height:1;cursor:pointer;opacity:.45;filter:grayscale(.5);transition:all .12s}
  .langflag:hover{opacity:.85;filter:none}
  .langflag.on{opacity:1;filter:none;border-color:var(--line2);background:var(--card2)}
+ @media(max-width:1500px){header{gap:12px;padding-left:16px;padding-right:16px}header a{font-size:13px}.slogan{font-size:11px}}
+ @media(max-width:1100px){header{overflow-x:auto;scrollbar-width:none}header::-webkit-scrollbar{display:none}.slogan{display:none}.langsel{margin-left:auto}}
  .updatebanner{position:fixed;top:0;left:0;right:0;background:#16233d;border-bottom:1px solid var(--acc);padding:10px 18px;display:flex;align-items:center;gap:12px;justify-content:center;z-index:300;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
  .updatebanner button{font-size:13px;padding:5px 14px}
  .pmodal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:400}
@@ -3010,16 +3012,19 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  #tvVideo{width:100%;height:calc(100% - 34px);background:#000;display:block;object-fit:contain}
  .favcat .chname{flex:1;min-width:0}
  .favcat .chev{color:var(--acc);font-size:12px;flex-shrink:0}
- main{max-width:960px;margin:0 auto;padding:22px;position:relative;z-index:1}
- main.wide{max-width:none;padding:22px 30px}
+ main{max-width:960px;margin:0 auto;padding:26px 22px 42px;position:relative;z-index:1}
+ main.wide{max-width:none;padding:26px 30px 44px}
  input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px;cursor:pointer}
  .row{display:flex;gap:8px}
  input,select,button{font:inherit}
- input[type=text],input[type=password],select{background:var(--bg);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:9px 12px}
- input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(--acc)}
+ input[type=text],input[type=password],select{background:#101318;border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:9px 12px;transition:border-color .13s,box-shadow .13s,background .13s}
+ input[type=text]:focus,input[type=password]:focus,select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(79,140,255,.11);background:#0d1116}
  input[type=text]{flex:1}
- button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:9px 15px;cursor:pointer;font-weight:500}
+ button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:9px 15px;cursor:pointer;font-weight:500;transition:filter .12s,background .12s,border-color .12s,transform .12s}
  button:hover{filter:brightness(1.08)}
+ button:active:not(:disabled){transform:translateY(1px)}
+ button:disabled{opacity:.48;cursor:not-allowed;filter:none}
+ button:focus-visible,a:focus-visible,.favstar:focus-visible{outline:2px solid #76a7ff;outline-offset:2px}
  button.stopbtn{background:#7a1f26;color:#fff}
  button.ghost{background:var(--card2);border:1px solid var(--line2);color:var(--fg);font-weight:400}
  button.ghost:hover{border-color:var(--acc);filter:none}
@@ -3043,8 +3048,14 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .soon{background:#132a1a;border:1px solid #24512f;color:#7fd79a;border-radius:6px;padding:1px 7px;font-size:12px}
  .split{display:flex;gap:20px;align-items:flex-start}
  .col{flex:1;min-width:0}
+ #searchView .split>.col{padding:2px 2px 4px}#searchView .split>.col+.col{border-left:1px solid var(--line);padding-left:20px}
  .colh{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 10px;font-weight:600}
- @media(max-width:760px){.split{flex-direction:column}}
+ .sectionsearch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.sectionsearch input{min-height:42px}.sectionsearch button{min-width:82px}
+ *{scrollbar-color:#4e5868 #171b22;scrollbar-width:thin}
+ *::-webkit-scrollbar{width:10px;height:10px}*::-webkit-scrollbar-track{background:#171b22;border-radius:8px}*::-webkit-scrollbar-thumb{background:#4e5868;border:2px solid #171b22;border-radius:8px}*::-webkit-scrollbar-thumb:hover{background:#69778b}
+ main>section:not(.hide){animation:viewfade .14s ease-out}@keyframes viewfade{from{opacity:.55;transform:translateY(2px)}to{opacity:1;transform:none}}
+ @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+ @media(max-width:760px){.split{flex-direction:column}#searchView .split>.col{width:100%}#searchView .split>.col+.col{border-left:0;border-top:1px solid var(--line);padding:20px 2px 4px}}
  @media(max-width:760px){#teamFixtures{width:calc(100vw - 44px)}#teamFixtures>.card{flex-basis:min(280px,calc(100vw - 56px))}}
  .chname{flex:1;min-width:0;font-size:13.5px;word-break:break-word;line-height:1.35}
  .ch4{display:flex;gap:0;align-items:stretch;flex-wrap:nowrap;height:82vh;min-height:480px}
@@ -3131,7 +3142,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
  .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
  .movieswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
- .moviefavs{padding:0;max-height:82vh;overflow-y:auto}
+ .moviefavs{padding:0 16px 0 0;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
  .moviefavlist{display:flex;flex-direction:column;gap:8px}
  .moviefav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);min-height:100px;cursor:pointer}
  .moviefav:hover .moviefavname{color:var(--acc)}
@@ -3142,9 +3153,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
  .moviesmain{width:100%;max-width:900px;min-width:0;margin:0 auto}
  .moviegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:16px}
- .moviecard{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px}
+ .moviecard{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px;transition:border-color .13s,background .13s,transform .13s}
  .recentmovie{cursor:pointer}
- .recentmovie:hover{border-color:var(--acc)}
+ .recentmovie:hover{border-color:#496b9f;background:var(--card2);transform:translateY(-1px)}
  .latestshowcard{cursor:pointer}
  .latestshowcard:hover{border-color:var(--acc)}
  .movieposter{width:92px;height:138px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;color:#737b89;font-size:30px}
@@ -3178,8 +3189,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .latestsourceexpand{min-width:108px;padding:9px 15px;font-size:inherit;margin-right:0}
  .latestsources{display:flex;gap:7px;flex-wrap:wrap;width:100%}
  .showswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
- .showrefresh{position:fixed;top:68px;right:18px;z-index:30;font-size:12px;padding:7px 13px}
- .showfavs{max-height:82vh;overflow-y:auto}
+ .showrefresh{position:fixed;top:68px;right:18px;z-index:30;font-size:12px;padding:7px 13px;box-shadow:0 5px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08)}
+ .showfavs{padding-right:16px;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
  .showfavlist{display:flex;flex-direction:column;gap:8px}
  .showfav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;min-height:100px}
  .showfav:hover .showfavname{color:var(--acc)}
@@ -3190,8 +3201,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .showremove{position:absolute;right:0;bottom:8px;padding:3px 7px}
  .showsmain{width:100%;max-width:1250px;min-width:0;margin:0 auto}
  .showgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:16px}
- .showcard{display:flex;gap:10px;min-height:140px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer}
- .showcard:hover{border-color:var(--acc)}
+ .showcard{display:flex;gap:10px;min-height:140px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;transition:border-color .13s,background .13s,transform .13s}
+ .showcard:hover{border-color:#496b9f;background:var(--card2);transform:translateY(-1px)}
  .showposter{position:relative;width:82px;height:123px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;font-size:28px;color:#737b89}
  .showposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
  .showname{font-weight:600;line-height:1.3}
@@ -3220,7 +3231,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .episodequalities{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
  .episodequalities .btnvlc{flex:1 1 auto;padding-left:7px;padding-right:7px;font-size:11px}
  .teamswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
- .teamfavs{max-height:82vh;overflow-y:auto}
+ .teamfavs{padding-right:16px;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
  .teamfavlist{display:flex;flex-direction:column;gap:4px}
  .teamfavitem{position:relative;padding:8px 34px 8px 8px;border-bottom:1px solid var(--line);font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;min-height:48px}
  .teamfavlogo{width:34px;height:34px;flex:0 0 34px;object-fit:contain}
@@ -3228,7 +3239,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfavitem .teamremove{position:absolute;right:8px;top:50%;transform:translateY(-50%);margin:0}
  .teamsmain{width:100%;max-width:1250px;min-width:0;margin:0 auto}
  .teamsearchresults{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
- .teamsearchhit{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+ .teamsearchhit{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:border-color .13s,background .13s}.teamsearchhit:hover{border-color:var(--line2);background:var(--card2)}
  .teamfixturegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
  .topfixturegrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
  .topfixturemore{text-align:center;margin:14px 0 4px}
@@ -3236,9 +3247,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:720px){.topfixturegrid{grid-template-columns:1fr}}
  .teamupcominggroup{margin-bottom:24px}
  .teamupcomingname{font-size:14px;font-weight:600;margin:0 0 9px;color:var(--fg)}
- .teamfixture{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:12px}
+ .teamfixture{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:12px;transition:border-color .13s,background .13s,transform .13s}
  .teamfixture.hastv{cursor:pointer}
- .teamfixture.hastv:hover{border-color:#2b4a30}
+ .teamfixture.hastv:hover{border-color:#397348;background:#172019;transform:translateY(-1px)}
  .teamfixture.livefixture{border-color:#7a1f26;background:#171012}
  .teamfixtureteams{font-size:15px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
  .teamfixtureside{display:inline-flex;align-items:center;gap:6px;min-width:0}
@@ -3255,6 +3266,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .matchstrict{display:flex;align-items:center;gap:9px;margin-top:9px;color:var(--mut);font-size:11px}
  .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
  .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
+ #recentMovieList>.muted,#latestEpisodeList>.muted,#upcomingEpisodeList>.muted,#teamUpcomingList>.muted,#gameWishlist>.muted{display:block;padding:22px 14px;border:1px dashed var(--line2);border-radius:10px;text-align:center;background:rgba(24,27,34,.45)}
+ @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}main.wide{padding-left:18px;padding-right:18px}}
+ @media(max-width:560px){main,main.wide{padding:18px 12px 34px}.sectionsearch{grid-template-columns:1fr}.sectionsearch button{width:100%}.moviegrid,.showgrid,.teamfixturegrid{grid-template-columns:1fr}.showhero{align-items:flex-start}.showheroart{width:110px;height:165px}.showhero h2{font-size:21px}}
  .racinglayout{display:grid;grid-template-columns:minmax(320px,480px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
  .racingwrap{width:100%;min-width:0;margin:0}
  .racingsidebar{min-width:0}
@@ -3577,7 +3591,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </aside>
       <div class="moviesmain">
         <h2 class="colh" data-i18n="My Movies">My Movies</h2>
-        <div class="row">
+        <div class="row sectionsearch">
           <input id="movieQ" type="text" placeholder="Search your movies..." data-i18n-ph="Search your movies..." onkeydown="if(event.key==='Enter')searchMovies()">
           <button onclick="searchMovies()" data-i18n="Search">Search</button>
         </div>
@@ -3600,7 +3614,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </aside>
       <div class="showsmain">
         <h2 class="colh" data-i18n="My Shows">My Shows</h2>
-        <div class="row">
+        <div class="row sectionsearch">
           <input id="showQ" type="text" placeholder="Search your shows..." data-i18n-ph="Search your shows..." onkeydown="if(event.key==='Enter')searchShows()">
           <button onclick="searchShows()" data-i18n="Search">Search</button>
         </div>
@@ -3622,7 +3636,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <section id="gamesView" class="hide">
     <div class="gamesmain" style="max-width:1180px;margin:0 auto">
         <h2 class="colh" data-i18n="My Games">My Games</h2>
-        <div class="row">
+        <div class="row sectionsearch">
           <input id="steamWishlistQ" type="text" placeholder="Steam wishlist URL..." data-i18n-ph="Steam wishlist URL...">
           <button id="steamWishlistBtn" class="ghost" onclick="syncSteamWishlist(this)" data-i18n="Sync wishlist">Sync wishlist</button>
         </div>
@@ -3682,7 +3696,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </aside>
       <div class="teamsmain">
         <h2 class="colh" data-i18n="My Teams">My Teams</h2>
-        <div class="row">
+        <div class="row sectionsearch">
           <input id="teamQ" type="text" placeholder="Search for a team..." data-i18n-ph="Search for a team..." onkeydown="if(event.key==='Enter')searchTeams()">
           <button onclick="searchTeams()" data-i18n="Search">Search</button>
         </div>
