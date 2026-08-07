@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b210"
+VERSION = "0.777.b211"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -369,6 +369,9 @@ def load_config():
             cfg = json.load(f)
         merged = dict(DEFAULT_CONFIG)
         merged.update(cfg or {})
+        # Retro console mode is parked for now.  Always use the modern,
+        # browser-first launcher behavior even if an older config enabled it.
+        merged["hide_cmd_window"] = True
         return merged
     except Exception:
         return dict(DEFAULT_CONFIG)
@@ -3282,12 +3285,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="setupstep hide" data-key="launch">
       <h2>How should TVMate open?</h2>
       <div class="setupintro">TVMate normally opens straight in your browser with no extra windows. The <b>Stop TVMate</b> button is always available in the top-right when you want to shut the app down.</div>
-      <div class="setupfeatures">
-        <label class="setupfeature"><input id="setupLaunchHidden" name="setupLaunch" type="radio" value="hidden" onchange="renderSetupLaunchHelp()"><span><b>Modern TVMate <span class="muted">(recommended)</span></b><small>Just open TVMate in your browser. Clean, automatic and no CMD window.</small></span></label>
-        <label class="setupfeature"><input id="setupLaunchCmd" name="setupLaunch" type="radio" value="cmd" onchange="renderSetupLaunchHelp()"><span><b>Retro ASCII mode</b><small>A neat little throwback: keep the ASCII TV + pancake CMD window and press Enter to open TVMate.</small></span></label>
-      </div>
-      <div id="setupBookmarkHelp" class="setupoptional hide"><b style="display:block;color:var(--fg);margin-bottom:6px">Bookmark TVMate</b><span>Bookmark TVMate for an easy way back. Press <b>Ctrl+D</b> now to add this page to your browser bookmarks. When you're finished, use <b>Stop TVMate</b> in the top-right.</span><div class="row" style="margin-top:10px"><code id="setupLocalUrl"></code><button type="button" class="ghost" onclick="copySetupLocalUrl(this)">Copy address</button></div></div>
-      <div id="setupAutoShutdownWrap" class="setupoptional hide"><b style="display:block;color:var(--fg);margin-bottom:7px">Auto shutdown when inactive</b><label>Stop TVMate after <select id="setupAutoShutdown" style="width:auto;margin-left:7px"><option value="0">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label><div style="margin-top:6px">Mouse, keyboard or touch activity in TVMate resets the timer.</div></div>
+      <div class="setupfeatures"><div class="setupfeature"><span><b>Modern TVMate</b><small>TVMate opens straight in your browser with no CMD window.</small></span></div></div>
+      <div id="setupBookmarkHelp" class="setupoptional"><b style="display:block;color:var(--fg);margin-bottom:6px">Bookmark TVMate</b><span>Bookmark TVMate for an easy way back. Press <b>Ctrl+D</b> now to add this page to your browser bookmarks. When you're finished, use <b>Stop TVMate</b> in the top-right.</span><div class="row" style="margin-top:10px"><code id="setupLocalUrl"></code><button type="button" class="ghost" onclick="copySetupLocalUrl(this)">Copy address</button></div></div>
+      <div id="setupAutoShutdownWrap" class="setupoptional"><b style="display:block;color:var(--fg);margin-bottom:7px">Auto shutdown when inactive</b><label>Stop TVMate after <select id="setupAutoShutdown" style="width:auto;margin-left:7px"><option value="0">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label><div style="margin-top:6px">Mouse, keyboard or touch activity in TVMate resets the timer.</div></div>
     </div>
     <div class="setupstep hide" data-key="finish">
       <h2>You're ready</h2>
@@ -3644,12 +3644,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div><label data-i18n="Stream extension">Stream extension</label>
           <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
       </div>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
-        <input id="s_retrocmd" type="checkbox" style="width:auto;margin:0" onchange="updateCmdSettingsUI()">
-        <span>Retro ASCII CMD window</span>
-      </label>
-      <div class="muted" style="margin:5px 0 0 25px">Optional nostalgia: show TVMate's ASCII console and press Enter before opening the browser. Leave this off for the normal Modern TVMate experience.</div>
-      <div style="margin:10px 0 0 25px"><label>Auto shutdown when inactive <select id="s_autoshutdown" style="width:auto;margin-left:7px"><option value="0">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label></div>
+      <div style="margin-top:12px"><label>Auto shutdown when inactive <select id="s_autoshutdown" style="width:auto;margin-left:7px"><option value="0">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label></div>
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize">Checking...</b></div>
       <div class="row" style="margin-top:14px;align-items:flex-end">
         <button onclick="saveSettings()" data-i18n="Save">Save</button>
@@ -3884,7 +3879,7 @@ function renderSetupStep(){
   if(active==='football')renderSetupTeams();if(active==='racing')renderSetupRacing();if(active==='launch')renderSetupLaunchHelp();
 }
 function setupLocalAddress(){return location.protocol+'//localhost'+(location.port?':'+location.port:'');}
-function renderSetupLaunchHelp(){const box=document.getElementById('setupBookmarkHelp'),auto=document.getElementById('setupAutoShutdownWrap'),url=document.getElementById('setupLocalUrl'),hidden=setupLaunchHidden.checked;if(box)box.classList.toggle('hide',!hidden);if(auto)auto.classList.toggle('hide',!hidden);if(url)url.textContent=setupLocalAddress();}
+function renderSetupLaunchHelp(){const url=document.getElementById('setupLocalUrl');if(url)url.textContent=setupLocalAddress();}
 async function copySetupLocalUrl(btn){const value=setupLocalAddress();try{await navigator.clipboard.writeText(value);const old=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=old,1200);}catch(e){prompt('Copy this TVMate address:',value);}}
 function setupStep(delta){
   const keys=setupStepKeys(),active=keys[_setupIndex];
@@ -3899,7 +3894,6 @@ async function openProfileSetup(firstRun,cfg){
   c=c||{};setupName.value=c.profile_name||'';setupLang.value=c.preferred_language||'en';
   _setupEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderSetupEmblems();
   setupFootball.checked=c.football_enabled!==false;setupRacing.checked=c.f1_enabled!==false;setupGames.checked=c.games_enabled!==false;_setupDemoContent=_setupFirstRun?true:!!c.setup_demo_content;
-  setupLaunchHidden.checked=!!c.hide_cmd_window;setupLaunchCmd.checked=!c.hide_cmd_window;
   setupAutoShutdown.value=String(c.auto_shutdown_minutes||0);
   _setupRacingSeries=new Set(c.racing_series||['f1']);_setupTeams=[];_setupInitialTeams=[];_setupF1Team=null;_setupContentResults={show:[],movie:[]};
   setupTeamResults.innerHTML='';setupShowResults.innerHTML='';setupMovieResults.innerHTML='';
@@ -3950,7 +3944,7 @@ async function syncSetupTeams(){
 }
 async function finishProfileSetup(btn,openXtream){
   const body={profile_name:setupName.value.trim(),preferred_language:setupLang.value,profile_emblem:_setupEmblem,
-    football_enabled:setupFootball.checked,f1_enabled:setupRacing.checked,games_enabled:setupGames.checked,setup_demo_content:_setupDemoContent,hide_cmd_window:setupLaunchHidden.checked,auto_shutdown_minutes:setupLaunchHidden.checked?Number(setupAutoShutdown.value||0):0,setup_complete:true};
+    football_enabled:setupFootball.checked,f1_enabled:setupRacing.checked,games_enabled:setupGames.checked,setup_demo_content:_setupDemoContent,hide_cmd_window:true,auto_shutdown_minutes:Number(setupAutoShutdown.value||0),setup_complete:true};
   if(!body.profile_name){_setupIndex=0;renderSetupStep();setupName.focus();toast('Enter a profile name to continue.');return;}
   btn.disabled=true;btn.textContent='Saving...';
   try{
@@ -4353,11 +4347,9 @@ async function loadSettings(){
   s_f1.checked=c.f1_enabled!==false;
   s_games.checked=c.games_enabled!==false;
   s_decorations.checked=c.decorations_enabled!==false;
-  s_retrocmd.checked=!c.hide_cmd_window;
-  s_autoshutdown.value=String(c.auto_shutdown_minutes||0);updateCmdSettingsUI();
+  s_autoshutdown.value=String(c.auto_shutdown_minutes||0);
   loadArtworkCacheSize();
 }
-function updateCmdSettingsUI(){s_autoshutdown.disabled=s_retrocmd.checked;}
 async function saveSettings(){
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
     xtream_pass:s_pass.value,stream_ext:s_ext.value,match_threshold:parseFloat(s_thr.value)||0.55,
@@ -4366,7 +4358,7 @@ async function saveSettings(){
     refresh_all_on_startup:s_refreshstartup.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
     profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
-    f1_enabled:s_f1.checked,games_enabled:s_games.checked,decorations_enabled:s_decorations.checked,hide_cmd_window:!s_retrocmd.checked,auto_shutdown_minutes:!s_retrocmd.checked?Number(s_autoshutdown.value||0):0};
+    f1_enabled:s_f1.checked,games_enabled:s_games.checked,decorations_enabled:s_decorations.checked,hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0)};
   if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -7150,16 +7142,15 @@ class Handler(BaseHTTPRequestHandler):
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_all_on_startup", "profile_name",
                       "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
-                      "f1_enabled", "games_enabled", "decorations_enabled", "setup_complete", "setup_demo_content", "hide_cmd_window", "auto_shutdown_minutes"):
+                      "f1_enabled", "games_enabled", "decorations_enabled", "setup_complete", "setup_demo_content", "auto_shutdown_minutes"):
                 if k in payload:
                     cfg[k] = payload[k]
+            cfg["hide_cmd_window"] = True
             try:
                 cfg["auto_shutdown_minutes"] = max(0, int(cfg.get("auto_shutdown_minutes") or 0))
             except (TypeError, ValueError):
                 cfg["auto_shutdown_minutes"] = 0
             save_config(cfg)
-            if "hide_cmd_window" in payload:
-                _set_console_visible(not bool(cfg.get("hide_cmd_window")))
             _XT_CACHE.update({"ts": 0, "channels": [], "cats": {}})
             _VOD_CACHE.update({"ts": 0, "movies": []})
             _SERIES_CACHE.update({"ts": 0, "shows": []})
@@ -7839,7 +7830,7 @@ def main():
         except Exception:
             pass
     cfg = load_config()
-    hide_console = bool(cfg.get("hide_cmd_window", False))
+    hide_console = True
     hidden_child = os.environ.get("TVMATE_HIDDEN_CHILD") == "1"
     if hide_console and sys.platform.startswith("win") and not hidden_child:
         # Starting console-less is more reliable than hiding a console after
