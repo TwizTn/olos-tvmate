@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b254"
+VERSION = "0.777.b255"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3116,15 +3116,23 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamtab{background:var(--card);border:1px solid var(--line);color:var(--mut);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
  .teamtab.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:600}
  .teamtab:hover{filter:brightness(1.1)}
- #teamFixtures{display:flex;gap:10px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;scrollbar-color:var(--line2) transparent;scrollbar-width:thin}
- #teamFixtures>.card{flex:0 0 280px;margin:0}
+ #teamFixtures{display:flex;gap:12px;align-items:flex-start;overflow-x:auto;padding:2px 1px 10px;scrollbar-color:#48515f transparent;scrollbar-width:thin;scroll-snap-type:x proximity}
+ #teamFixtures>.card{flex:0 0 min(410px,88vw);margin:0;scroll-snap-align:start}
+ .matchfixture{padding:0!important;overflow:hidden;border-color:var(--line2)!important;background:linear-gradient(180deg,#181c23,#15181e)!important}
+ .matchfixturehead{padding:13px 14px 12px;border-bottom:1px solid var(--line);background:rgba(27,32,41,.75)}
+ .matchfixtureteamsline{display:flex;align-items:center;gap:9px;min-width:0}.matchfixtureteam{display:flex;align-items:center;gap:7px;min-width:0;font-size:14px;font-weight:650}.matchfixtureteam span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .matchfixtureteamlogo{width:30px;height:30px;flex:0 0 30px;object-fit:contain;filter:drop-shadow(0 2px 3px rgba(0,0,0,.28))}.matchfixtureversus{color:var(--mut);font-size:11px;flex:0 0 auto}
+ .matchfixturemeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;color:var(--mut);font-size:11px}.matchfixturemeta .live,.matchfixturemeta .soon,.matchfixturemeta .ended{margin:0}
+ .matchfixtureavailability{margin-left:auto;border:1px solid #315f3b;background:#142219;color:#82d492;border-radius:999px;padding:2px 7px;font-size:10px;white-space:nowrap}.matchfixtureavailability.none{border-color:var(--line2);background:var(--card);color:var(--mut)}
+ .matchfixturebody{padding:10px 12px 12px}.matchfixturebody>.muted:first-child{display:block;padding:8px 2px}
  .bcastlist{margin-top:10px;display:flex;flex-direction:column;gap:6px}
  .bcrow{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
  .bchead{padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14px;user-select:none}
  .bchead:hover{background:var(--card2)}
  .bcrow.open .bchead{border-bottom:1px solid var(--line);background:var(--card2)}
  .bcname{font-weight:500;color:var(--fg)}
- .exphint{margin-left:auto;font-size:12px}
+.exphint{margin-left:auto;font-size:12px}
+ .bcchevron{color:var(--mut);font-size:13px;transition:transform .13s}.bcrow.open .bcchevron{transform:rotate(180deg)}
  .bcchans{display:flex;flex-direction:column}
  .chline{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--line)}
  .chline:first-child{border-top:0}
@@ -3646,13 +3654,15 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamprofilefact span{display:block;color:var(--mut);font-size:9px;letter-spacing:.65px;text-transform:uppercase;margin-bottom:4px}.teamprofilefact b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .teamprofilenext{border-top:1px solid var(--line);padding-top:12px}.teamprofilenextlabel{color:var(--mut);font-size:9px;letter-spacing:.7px;text-transform:uppercase;margin-bottom:6px}.teamprofilenext b{display:block;font-size:13px;margin-bottom:3px}.teamprofilenext .muted{font-size:11px}
  .teamfavdivider{height:1px;background:var(--line);margin:0 0 17px}
- .teammatchfinder{background:linear-gradient(180deg,rgba(24,28,36,.72),rgba(18,21,27,.56));border:1px solid var(--line);border-radius:10px;padding:14px 15px;margin:0 0 20px}
- .teammatchfinder>.colh{margin-bottom:9px;color:var(--fg)}
+ .teammatchfinder{background:linear-gradient(180deg,rgba(24,28,36,.76),rgba(18,21,27,.58));border:1px solid var(--line);border-radius:12px;padding:17px 18px;margin:0 0 22px}
+ .matchfinderhead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:12px}.matchfindertitle{font-size:15px;font-weight:650;color:var(--fg)}.matchfindersub{font-size:11px;color:var(--mut);margin-top:2px}
+ .matchfindercontrols{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-top:8px}.matchfindercontrols .matchstrict{margin:0}.matchfinderhint{font-size:10px;color:var(--mut)}
+ .matchresultslabel{font-size:9px;letter-spacing:.75px;text-transform:uppercase;color:var(--mut);margin:13px 0 7px}
  .teammatchresults:empty{display:none}
  .teammatchresults{margin-top:14px}
  .teammatchresults #teamFixtures>.card{background:var(--card2)}
  .teammatchresults #teamFixtures>.card.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
- .teamsearchresults{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+ .teamsearchresults{margin-top:10px}.teamsearchresults:empty{display:none}.teamsearchchips{display:flex;gap:8px;flex-wrap:wrap}
  .teamsearchhit{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:border-color .13s,background .13s}.teamsearchhit:hover{border-color:var(--line2);background:var(--card2)}
  .teamsearchhit[data-team-select]{cursor:pointer}.teamsearchlogo{width:25px;height:25px;object-fit:contain;flex:0 0 25px}
  .teamfixturegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
@@ -3682,7 +3692,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
  .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
  #recentMovieList>.muted,#latestEpisodeList>.muted,#upcomingEpisodeList>.muted,#teamUpcomingList>.muted,#gameWishlist>.muted{display:block;padding:22px 14px;border:1px dashed var(--line2);border-radius:10px;text-align:center;background:rgba(24,27,34,.45)}
- @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}main.wide{padding-left:18px;padding-right:18px}}
+ @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}.matchfindercontrols{align-items:flex-start;flex-direction:column}main.wide{padding-left:18px;padding-right:18px}}
  @media(max-width:560px){main,main.wide{padding:18px 12px 34px}.sectionsearch{grid-template-columns:1fr}.sectionsearch button{width:100%}.moviegrid,.showgrid,.teamfixturegrid{grid-template-columns:1fr}.showhero{align-items:flex-start}.showheroart{width:110px;height:165px}.showhero h2{font-size:21px}}
  .racinglayout{display:grid;grid-template-columns:minmax(320px,480px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
  .racingwrap{width:100%;min-width:0;margin:0}
@@ -4098,14 +4108,15 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="teamsmain">
         <h2 class="colh" data-i18n="Sports">Sports</h2>
         <div class="teammatchfinder">
-          <div class="colh" data-i18n="Find team or match">Find team or match</div>
+          <div class="matchfinderhead"><div><div class="matchfindertitle" data-i18n="Find a match">Find a match</div><div class="matchfindersub" data-i18n="Search a team to find its fixtures, TV coverage and matching channels.">Search a team to find its fixtures, TV coverage and matching channels.</div></div></div>
           <div class="row sectionsearch">
             <input id="q" type="text" placeholder="Search a team, e.g. Leeds" data-i18n-ph="Search a team, e.g. Leeds" onkeydown="if(event.key==='Enter')searchTeamHub()">
             <button onclick="searchTeamHub()" data-i18n="Search">Search</button>
           </div>
-          <div class="matchstrict"><span data-i18n="Match strictness">Match strictness</span>
-            <input id="matchStrict" type="range" min="0.40" max="0.80" step="0.01" value="0.62" oninput="document.getElementById('matchStrictValue').textContent=this.value" onchange="saveMatchStrictness(this.value)">
-            <span id="matchStrictValue" class="matchstrictvalue">0.62</span>
+          <div class="matchfindercontrols"><div class="matchstrict"><span data-i18n="Match strictness">Match strictness</span>
+              <input id="matchStrict" type="range" min="0.40" max="0.80" step="0.01" value="0.62" oninput="document.getElementById('matchStrictValue').textContent=this.value" onchange="saveMatchStrictness(this.value)">
+              <span id="matchStrictValue" class="matchstrictvalue">0.62</span>
+            </div><span class="matchfinderhint" data-i18n="Lower strictness only if a known channel is being missed.">Lower strictness only if a known channel is being missed.</span>
           </div>
           <div id="teamSearchResults" class="teamsearchresults"></div>
           <div id="results" class="teammatchresults"></div>
@@ -4314,6 +4325,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
@@ -4724,7 +4736,7 @@ async function searchTeams(){
   const r=await api('/api/team_search?q='+encodeURIComponent(q));
   if(r.error){el.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
   if(!r.teams.length){el.innerHTML='<span class="muted">No team found in current FotMob listings.</span>';return;}
-  el.innerHTML=r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||''),logo=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return '<div class="teamsearchhit" data-team-select="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'">'+(logo?'<img class="teamsearchlogo" src="'+escAttr(logo)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('');
+  el.innerHTML='<div class="matchresultslabel">'+esc(tr('Teams'))+'</div><div class="teamsearchchips">'+r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||''),logo=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return '<div class="teamsearchhit" data-team-select="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'">'+(logo?'<img class="teamsearchlogo" src="'+escAttr(logo)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('')+'</div>';
 }
 async function searchTeamHub(query){
   const input=document.getElementById('q');if(query!==undefined&&input)input.value=String(query||'');
@@ -5098,11 +5110,11 @@ async function doSearch(){
   let head='';
   if(r.source_errors&&r.source_errors.length)
     head+='<div class="muted err">Some listings failed: '+r.source_errors.join('; ')+'</div>';
-  if(!r.fixtures.length){resultEl.innerHTML=head+'<div class="muted">No current or televised upcoming match found for "'+esc(q)+'".</div>';return;}
+  if(!r.fixtures.length){resultEl.innerHTML=head+'<div class="muted">No current or upcoming match found for "'+esc(q)+'".</div>';return;}
   // Group fixtures by the team that matches the query (home or away).
   _teamGroups=groupByTeam(r.fixtures,q);
   _activeTeam=0;
-  resultEl.innerHTML=head+'<div id="teamSwitch"></div><div id="teamFixtures"></div>';
+  resultEl.innerHTML=head+'<div class="matchresultslabel">'+esc(tr('Matches'))+' · '+r.fixtures.length+'</div><div id="teamSwitch"></div><div id="teamFixtures"></div>';
   renderTeamSwitch();
   renderActiveTeam();
 }
@@ -5165,7 +5177,7 @@ function fixtureMatchesDeepLink(f){
 function _teamNamesEquivalentForUi(a,b){const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').trim();const x=clean(a),y=clean(b);return !!x&&!!y&&(x===y||x.includes(y)||y.includes(x));}
 
 function renderFixtureCard(f,fi){
-  const when=f.start?new Date(f.start).toLocaleString():'';
+  const when=f.start?new Date(f.start).toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
   let badge='';
   if(f.start){
     const kick=new Date(f.start);
@@ -5179,19 +5191,20 @@ function renderFixtureCard(f,fi){
     else if(mins>140&&(mins<360||sameDay))badge=' <span class="ended">ended / earlier today</span>';
     else if(mins<0&&mins>-60)badge=' <span class="soon">starts in '+(-mins)+" min</span>";
   }
-  let html='<div class="card matchfixture'+(fixtureMatchesDeepLink(f)?' selectedfixture':'')+'"><div><b>'+esc(f.home)+' v '+esc(f.away)+'</b> <span class="muted">'+when+'</span></div>'+(badge?'<div>'+badge+'</div>':'');
+  const rows=[];
+  for(const cc of Object.keys(f.by_country||{}))for(const b of f.by_country[cc])rows.push({cc:cc,bcast:b});
+  rows.sort(function(x,y){return x.cc===y.cc?x.bcast.localeCompare(y.bcast):x.cc.localeCompare(y.cc);});
+  const matchedIds=new Set([...(f.matches||[]),...(f.ppv_hits||[])].map(m=>String(m.stream_id||'' )).filter(Boolean));
+  const availText=matchedIds.size?(matchedIds.size+' '+tr(matchedIds.size===1?'channel':'channels')):(rows.length?tr('TV listed'):tr('No TV'));
+  const availClass=(matchedIds.size||rows.length)?'':' none';
+  const homeLogo=f.home_id?'<img class="matchfixtureteamlogo" src="/api/team_logo?id='+encodeURIComponent(String(f.home_id))+'" alt="" loading="lazy" onerror="this.remove()">':'';
+  const awayLogo=f.away_id?'<img class="matchfixtureteamlogo" src="/api/team_logo?id='+encodeURIComponent(String(f.away_id))+'" alt="" loading="lazy" onerror="this.remove()">':'';
+  let html='<div class="card matchfixture'+(fixtureMatchesDeepLink(f)?' selectedfixture':'')+'"><div class="matchfixturehead"><div class="matchfixtureteamsline"><div class="matchfixtureteam">'+homeLogo+'<span>'+esc(f.home)+'</span></div><span class="matchfixtureversus">v</span><div class="matchfixtureteam">'+awayLogo+'<span>'+esc(f.away)+'</span></div></div><div class="matchfixturemeta"><span>'+esc(when)+'</span>'+(badge||'')+'<span class="matchfixtureavailability'+availClass+'">'+esc(availText)+'</span></div></div><div class="matchfixturebody">';
   if(!_searchData.logged_in){
-    html+='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to see which of your Xtream channels match.</div></div>';
+    html+='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to see which of your Xtream channels match.</div></div></div>';
     return html;
   }
-  // Build broadcaster rows, sorted country then broadcaster.
-  const rows=[];
-  for(const cc of Object.keys(f.by_country||{})){
-    for(const b of f.by_country[cc]){
-      rows.push({cc:cc,bcast:b});
-    }
-  }
-  rows.sort(function(x,y){return x.cc===y.cc?x.bcast.localeCompare(y.bcast):x.cc.localeCompare(y.cc);});
+  // Broadcaster rows are sorted country then broadcaster.
   if(rows.length){
     html+='<div class="bcastlist">';
     rows.forEach(function(row,ri){
@@ -5200,7 +5213,7 @@ function renderFixtureCard(f,fi){
       const rid='f'+fi+'b'+ri;
       html+='<div class="bcrow" data-exp="'+rid+'">'
         +'<div class="bchead"><span class="cc">'+esc(row.cc)+'</span> <span class="bcname">'+esc(row.bcast)+'</span>'
-        +' <span class="muted exphint">'+(chans.length?('click to expand ('+chans.length+')'):'no matching channels')+'</span></div>'
+        +' <span class="muted exphint">'+(chans.length?(chans.length+' '+tr(chans.length===1?'channel':'channels')):tr('No matching channels'))+'</span><span class="bcchevron">&#9662;</span></div>'
         +'<div class="bcchans hide" id="'+rid+'">';
       if(chans.length){
         for(const m of chans){
@@ -5232,7 +5245,7 @@ function renderFixtureCard(f,fi){
     if(!Object.keys(f.by_country||{}).length)html+='<div class="muted">No TV channels found.</div>';
     else html+='<div class="muted">No Xtream channels matched. Try lowering strictness.</div>';
   }
-  html+='</div>';
+  html+='</div></div>';
   return html;
 }
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -7991,6 +8004,8 @@ class Handler(BaseHTTPRequestHandler):
                         # "only streaming" = no linear broadcaster AND no normal matches
                         streaming_only = (has_streaming and not has_linear and not matches)
                     out.append({"home": f["home"], "away": f["away"], "start": f["start"],
+                                "home_id": f.get("home_id", ""),
+                                "away_id": f.get("away_id", ""),
                                 "by_country": f["by_country"], "matches": matches,
                                 "ppv_hits": ppv_hits, "streaming_only": streaming_only,
                                 "is_live": bool(f.get("is_live")),
