@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b213"
+VERSION = "0.777.b214"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -755,22 +755,24 @@ def _schedule_launcher_replacement(launcher_exe, downloaded):
     except Exception:
         return False
 
-def _launcher_migration_worker():
-    """One-time migration from the old console launcher to the GUI launcher."""
+def _launcher_is_current():
+    launcher_exe = os.environ.get("TVMATE_EXE", "").strip()
+    return bool(launcher_exe and os.path.isfile(launcher_exe) and
+                _file_sha256(launcher_exe) == UPDATE_LAUNCHER_SHA256)
+
+def _start_launcher_migration():
+    """Prepare the one-time old-console -> GUI launcher migration."""
     if not sys.platform.startswith("win"):
-        return
+        return False
     launcher_exe = os.environ.get("TVMATE_EXE", "").strip()
     if not launcher_exe or not os.path.isfile(launcher_exe):
-        return
+        return False
     if _file_sha256(launcher_exe) == UPDATE_LAUNCHER_SHA256:
-        return
+        return False
     downloaded = _download_launcher_update(launcher_exe)
     if downloaded and _schedule_launcher_replacement(launcher_exe, downloaded):
-        # Let the browser request finish, then shut down cleanly. The detached
-        # helper waits until the old launcher is unlocked, swaps it, and starts
-        # the verified GUI launcher.
-        time.sleep(1)
-        _STOP_EVENT.set()
+        return True
+    return False
 
 def _find_vlc():
     """Locate the VLC executable across common OS install paths."""
@@ -7939,12 +7941,20 @@ def main():
     cfg = load_config()
     hide_console = True
     hidden_child = os.environ.get("TVMATE_HIDDEN_CHILD") == "1"
-    if hide_console and sys.platform.startswith("win") and not hidden_child:
-        # Starting console-less is more reliable than hiding a console after
-        # Windows Terminal/ConPTY has already created one.
-        if _launch_without_console():
-            _close_launcher_console()
+    if sys.platform.startswith("win") and not hidden_child:
+        # Migrate an old launcher before it can relaunch itself or start the
+        # normal server. This also covers a cold bootstrap where no previous
+        # local tvmate.py existed: as soon as the launcher runs this current
+        # script, it can replace itself once and restart cleanly.
+        if not _launcher_is_current() and _start_launcher_migration():
             return
+        # Unknown/renamed legacy launchers cannot be safely force-replaced.
+        # Keep the old hidden-child fallback for those cases. The verified GUI
+        # launcher is already windowless and needs no extra self-relaunch.
+        if not _launcher_is_current() and hide_console:
+            if _launch_without_console():
+                _close_launcher_console()
+                return
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     _STOP_EVENT.clear()
     _mark_app_activity()
@@ -7971,7 +7981,6 @@ def main():
     # Serve the app in the background so the server is ready before we open.
     threading.Thread(target=server.serve_forever, daemon=True).start()
     threading.Thread(target=_auto_shutdown_watchdog, daemon=True).start()
-    threading.Thread(target=_launcher_migration_worker, daemon=True).start()
     if hide_console:
         # Hidden mode cannot wait for console input: launch the UI immediately.
         try:
