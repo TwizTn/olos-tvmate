@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b242"
+VERSION = "0.777.b243"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5904,28 +5904,29 @@ async function loadMyListTeams(favorites,racingDataPromise){
       if(_myListLayout==='timeline'&&(driverData.drivers||[]).length)h+='<div class="mydashsportsubhead racing">Racing</div>';
       const allDrivers=driverData.drivers||[];_myListRacingDrivers=allDrivers;
       const f1Drivers=allDrivers.filter(driver=>String(driver.series||'')==='f1');
-      if(_myListLayout==='timeline'&&f1Drivers.length){
-        const next=nextDriverRace(f1Drivers[0],racingData.events||[],now),countdown=next?racingCountdown(next):'';
-        const live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now));
-        const team=f1Drivers[0].team||'';
-        const photos=f1Drivers.slice(0,2).map(driver=>'<img class="driver" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()">').join('');
-        const names=f1Drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join('');
-        const race=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.');
-        h+='<div class="mydashteamonly mydashf1card" onclick="showRacing()"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(race)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div>'+(live?'<span class="driverlive mydashdriverlive">LIVE</span>':'')+'</div>';
-      }
-      for(const driver of allDrivers){
-        if(_myListLayout==='timeline'&&String(driver.series||'')==='f1')continue;
-        const live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now));
-        const src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
-        const liveTag=live?'<span class="driverlive mydashdriverlive">LIVE</span>':'';
-        if(_myListLayout==='timeline'){
-          const next=nextDriverRace(driver,racingData.events||[],now),countdown=next?racingCountdown(next):'';
-          const meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × ');
-          const nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.');
-          const imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
-          h+='<div class="mydashteamonly" onclick="showRacing()"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div>'+liveTag+'</div>';
+      if(_myListLayout==='timeline'){
+        const cards=[];
+        if(f1Drivers.length){const next=nextDriverRace(f1Drivers[0],racingData.events||[],now);cards.push({kind:'f1',drivers:f1Drivers,next:next,ts:next?new Date(next.start).getTime():Infinity});}
+        for(const driver of allDrivers){if(String(driver.series||'')==='f1')continue;const next=nextDriverRace(driver,racingData.events||[],now);cards.push({kind:'driver',driver:driver,next:next,ts:next?new Date(next.start).getTime():Infinity});}
+        // Racing follows the calendar: nearest next event first. Football team
+        // cards above deliberately retain the user's favorite/order sequence.
+        cards.sort((a,b)=>(Number.isFinite(a.ts)?a.ts:Infinity)-(Number.isFinite(b.ts)?b.ts:Infinity));
+        for(const card of cards){
+          const next=card.next,countdown=next?racingCountdown(next):'';
+          if(card.kind==='f1'){
+            const drivers=card.drivers,live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now)),team=drivers[0].team||'';
+            const photos=drivers.slice(0,2).map(driver=>'<img class="driver" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()">').join('');
+            const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),race=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.');
+            h+='<div class="mydashteamonly mydashf1card" onclick="showRacing()"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(race)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div>'+(live?'<span class="driverlive mydashdriverlive">LIVE</span>':'')+'</div>';
+          }else{
+            const driver=card.driver,live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
+            const liveTag=live?'<span class="driverlive mydashdriverlive">LIVE</span>':'',meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × '),nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
+            h+='<div class="mydashteamonly" onclick="showRacing()"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div>'+liveTag+'</div>';
+          }
         }
-        else h+='<div class="mydashfixture" onclick="showRacing()" style="cursor:pointer"><div class="mydashteam"><img src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><span>'+esc(driver.name||'')+'</span>'+liveTag+'</div><span class="muted">'+esc(driver.series_name||'Racing')+(driver.team?' · '+esc(driver.team):'')+'</span></div>';
+      }else for(const driver of allDrivers){
+        const live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||'')),liveTag=live?'<span class="driverlive mydashdriverlive">LIVE</span>':'';
+        h+='<div class="mydashfixture" onclick="showRacing()" style="cursor:pointer"><div class="mydashteam"><img src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><span>'+esc(driver.name||'')+'</span>'+liveTag+'</div><span class="muted">'+esc(driver.series_name||'Racing')+(driver.team?' · '+esc(driver.team):'')+'</span></div>';
       }
     }catch(e){}
   }
