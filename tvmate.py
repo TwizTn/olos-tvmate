@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b229"
+VERSION = "0.777.b230"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3397,6 +3397,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .gamecard img{width:100%;aspect-ratio:460/215;object-fit:cover;border-radius:7px;background:#20242c;display:block}
  .gamecardbody{display:flex;align-items:center;gap:10px;margin-top:9px;min-height:38px}
  .gamecardname{font-weight:600;line-height:1.3;flex:1;min-width:0}
+ .gameshead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:8px}.gameshead .colh{margin:0}.gamesheadactions{display:flex;gap:7px;align-items:center}
+ .gameswishlistsettings{margin:10px 0 14px;padding:12px;border:1px solid var(--line);border-radius:9px;background:rgba(20,24,31,.72)}
+ .gamecardrelease{margin-left:auto;text-align:right;flex:0 0 auto}.gamecountdown{display:inline-block;margin-top:4px;color:#70b3ff;background:#102038;border:1px solid #274e7d;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:700;white-space:nowrap}
  @media(max-width:1100px){.gameslayout{grid-template-columns:270px minmax(0,1fr);gap:22px}.steamprofile{padding:17px}.steamprofileavatar{width:82px;height:82px;flex-basis:82px}.steamprofilename{font-size:19px}}
  @media(max-width:820px){.gameslayout{grid-template-columns:1fr}.steamprofile{position:static;max-width:none;min-height:0}.steamprofileinner{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px}.steamprofilesummary{grid-column:1/-1}.steamprofilemeta{align-self:end}}
  .moviemeta{font-size:12px;color:var(--mut)}
@@ -3854,12 +3857,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="gameslayout">
       <aside id="steamProfile" class="steamprofile"><div class="steamprofileempty">Steam profile</div></aside>
       <div class="gamesmain">
-        <h2 class="colh" data-i18n="My Games">My Games</h2>
-        <div class="row sectionsearch">
-          <input id="steamWishlistQ" type="text" placeholder="Steam wishlist URL..." data-i18n-ph="Steam wishlist URL...">
-          <button id="steamWishlistBtn" class="ghost" onclick="syncSteamWishlist(this)" data-i18n="Sync wishlist">Sync wishlist</button>
+        <div class="gameshead">
+          <div><h2 class="colh" data-i18n="My Games">My Games</h2><div id="steamWishlistStatus" class="moviemeta"></div></div>
+          <div class="gamesheadactions"><button id="steamWishlistQuickBtn" class="ghost" onclick="syncSteamWishlist(this)">&#8635; <span data-i18n="Refresh wishlist">Refresh wishlist</span></button><button class="ghost" onclick="toggleSteamWishlistSettings()">&#9881; <span data-i18n="Wishlist settings">Wishlist settings</span></button></div>
         </div>
-        <div id="steamWishlistStatus" class="moviemeta" style="margin-top:6px"></div>
+        <div id="steamWishlistSettings" class="gameswishlistsettings hide"><div class="row sectionsearch"><input id="steamWishlistQ" type="text" placeholder="Steam wishlist URL..." data-i18n-ph="Steam wishlist URL..."><button id="steamWishlistBtn" class="ghost" onclick="syncSteamWishlist(this)" data-i18n="Sync wishlist">Sync wishlist</button></div></div>
         <div id="steamWishlistHelp" class="wishlisthelp hide">
           <b>Steps to Make Your Wishlist Public</b>
           <ul>
@@ -4183,7 +4185,7 @@ const _I18N={
   "Search a category, e.g. Norway":"Søk kategori, f.eks. Norge","Filter categories...":"Filtrer kategorier...",
   "Search your movies...":"Søk i filmene dine...",
   "Search your shows...":"Søk i seriene dine...",
-  "Search Steam games...":"Søk etter Steam-spill...","Steam wishlist URL...":"Steam-ønskeliste-URL...","Filter wishlist...":"Filtrer ønskeliste...","Sync wishlist":"Synkroniser ønskeliste","Refresh wishlist":"Oppdater ønskeliste","Game":"Spill",
+  "Search Steam games...":"Søk etter Steam-spill...","Steam wishlist URL...":"Steam-ønskeliste-URL...","Filter wishlist...":"Filtrer ønskeliste...","Sync wishlist":"Synkroniser ønskeliste","Refresh wishlist":"Oppdater ønskeliste","Wishlist settings":"Ønskelisteinnstillinger","Game":"Spill",
   "Check for new episodes":"Se etter nye episoder",
   "★ Add to Favorites":"★ Legg til favoritter","★ Favorite Channels":"★ Favorittkanaler"
 };
@@ -5201,13 +5203,18 @@ function updateSteamWishlistHelp(){
   const hasGames=_wishlistLinked&&_wishlistGames.length>0,el=document.getElementById('steamWishlistHelp'),filterRow=document.getElementById('gameWishlistFilterRow');
   if(el)el.classList.toggle('hide',hasGames);
   if(filterRow)filterRow.classList.toggle('hide',!hasGames);
+  const settings=document.getElementById('steamWishlistSettings'),quick=document.getElementById('steamWishlistQuickBtn');
+  if(settings&&!_wishlistLinked)settings.classList.remove('hide');
+  if(quick)quick.classList.toggle('hide',!_wishlistLinked);
 }
+function toggleSteamWishlistSettings(){const el=document.getElementById('steamWishlistSettings');if(el)el.classList.toggle('hide');}
 function renderGameWishlist(){
   const el=document.getElementById('gameWishlist');if(!el)return;
   const input=document.getElementById('gameWishlistFilter'),q=String((input&&input.value)||'').trim().toLowerCase();
   const games=q?_wishlistGames.filter(g=>String(g.name||'').toLowerCase().includes(q)):_wishlistGames;
   if(!games.length){el.innerHTML='<span class="muted">'+(q?'No matching wishlist games.':'No Steam wishlist games yet.')+'</span>';return;}
-  el.innerHTML=games.map(g=>{const url=g.url||('https://store.steampowered.com/app/'+encodeURIComponent(String(g.app_id||''))+'/');return '<a class="gamecard wishlistgame" href="'+escAttr(url)+'" target="_blank" rel="noopener noreferrer">'+(g.cover?'<img src="'+escAttr(g.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<div class="gamecardbody"><div class="gamecardname">'+esc(g.name||'Game')+'</div>'+(g.release_text?'<div class="moviemeta">'+esc(g.release_text)+'</div>':'')+'</div></a>';}).join('');
+  const now=Date.now();
+  el.innerHTML=games.map(g=>{const url=g.url||('https://store.steampowered.com/app/'+encodeURIComponent(String(g.app_id||''))+'/'),releaseTs=Date.parse(g.released||''),countdown=Number.isFinite(releaseTs)&&releaseTs>now?racingCountdown({start:g.released}):'',release=(g.release_text||countdown)?'<div class="gamecardrelease">'+(g.release_text?'<div class="moviemeta">'+esc(g.release_text)+'</div>':'')+(countdown?'<div class="gamecountdown">'+esc(countdown)+'</div>':'')+'</div>':'';return '<a class="gamecard wishlistgame" href="'+escAttr(url)+'" target="_blank" rel="noopener noreferrer">'+(g.cover?'<img src="'+escAttr(g.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<div class="gamecardbody"><div class="gamecardname">'+esc(g.name||'Game')+'</div>'+release+'</div></a>';}).join('');
 }
 async function loadGameFavorites(){
   const r=await api('/api/favorites'),now=Date.now(),games=(r.games||[]).filter(g=>g.wishlist_imported),el=document.getElementById('gameWishlist');
@@ -5227,7 +5234,7 @@ async function loadSteamWishlistSetting(){
     const linked=!!String(c.steam_wishlist_url||'').trim();
     _wishlistLinked=linked;updateSteamWishlistHelp();
     if(input){input.value=c.steam_wishlist_url||'';input.readOnly=false;}
-    if(btn){const label=linked?'Refresh wishlist':'Sync wishlist';btn.textContent=tr(label);btn.setAttribute('data-i18n',label);}
+    if(btn){btn.textContent=tr('Sync wishlist');btn.setAttribute('data-i18n','Sync wishlist');}
     if(linked&&status&&c.steam_wishlist_synced_at){
       const locale=_lang==='no'?'nb-NO':undefined;
       status.textContent='Last refreshed '+new Date(Number(c.steam_wishlist_synced_at)*1000).toLocaleString(locale);
