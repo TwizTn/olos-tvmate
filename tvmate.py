@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b258"
+VERSION = "0.777.b259"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3388,6 +3388,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvnowhead:before{content:"";position:absolute;top:4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#e1535c}
  .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
+ .tvplayerslot.mini{position:fixed;top:auto;left:auto;right:22px;bottom:22px;width:min(420px,calc(100vw - 32px));height:min(270px,38vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
+ .tvplayerslot.mini .tvplayerbar{background:#111720}
+ .tvplayerslot.mini #tvVideo{cursor:zoom-in}
  .tvguidebody{flex:1;overflow-y:auto;position:relative;scrollbar-gutter:stable}
  .tvchan{width:286px;flex-shrink:0;border-right:1px solid #303642;display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;font-size:12px;transition:background .1s;background:#11151b}
  .tvchan:hover{background:var(--card2)}
@@ -3422,7 +3425,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:760px){.tvrail{width:92px;padding:6px}.tvsrc{padding:7px 5px;font-size:10.5px}.tvchancol,.tvchan{width:205px}.tvplayerslot{left:205px}.tvwrap{height:78vh;min-height:440px}.tvchan .tvname{font-size:11px}}
  /* player fills the timeline area when active */
  #tvPlayerSlot .tvplayerbar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#0c0e12;font-size:13px}
- #tvVideo{width:100%;height:calc(100% - 34px);background:#000;display:block;object-fit:contain}
+ #tvVideo{width:100%;height:calc(100% - 34px);background:#000;display:block;object-fit:contain;cursor:zoom-out}
  .favcat .chname{flex:1;min-width:0}
  .favcat .chev{color:var(--acc);font-size:12px;flex-shrink:0}
  main{max-width:960px;margin:0 auto;padding:26px 22px 42px;position:relative;z-index:1}
@@ -6491,10 +6494,11 @@ function epgCellHtml(sid,winStart,winEnd){
 async function tvPlay(sid,name){
   _tvPlaying=sid;
   const slot=document.getElementById('tvPlayerSlot');
-  slot.classList.add('on');
+  slot.classList.remove('mini');slot.classList.add('on');
   slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><button class="pclose" onclick="tvStop()">&times;</button></div><video id="tvVideo" controls autoplay playsinline></video>';
   renderTvGuide();
   const video=document.getElementById('tvVideo');
+  video.addEventListener('click',function(){tvToggleMini();});
   let urls;
   try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){return;}
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
@@ -6502,13 +6506,18 @@ async function tvPlay(sid,name){
     const bar=slot.querySelector('.tvplayerbar span');if(bar)bar.title=s||'';
   },function(h,t){window._tvhls=h;window._tvmpegts=t;});
 }
+function tvToggleMini(){
+  const slot=document.getElementById('tvPlayerSlot');
+  if(!slot||!slot.classList.contains('on'))return;
+  slot.classList.toggle('mini');
+}
 function tvStop(){
   _tvPlaying=null;
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
   if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
   if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
   const slot=document.getElementById('tvPlayerSlot');
-  slot.classList.remove('on');slot.innerHTML='';
+  slot.classList.remove('on','mini');slot.innerHTML='';
   renderTvGuide();
 }
 async function epgRefresh(){
