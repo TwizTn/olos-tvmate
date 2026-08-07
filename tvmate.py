@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b256"
+VERSION = "0.777.b258"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1262,6 +1262,7 @@ _TV_TTL = 6 * 3600      # broadcaster listings persist for 6 hours
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
 _TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
+_TEAM_PROFILE_CACHE_SCHEMA = 2  # b257: real FotMob venue/coach/profile paths
 _TEAM_ID_CACHE = {}       # normalized favorite name -> FotMob team id
 _DAILY_MATCH_CACHE = {"date": "", "ts": 0, "matches": []}
 _DAILY_MATCH_TTL = 120    # current/live matches: refresh every 2 minutes
@@ -2423,6 +2424,32 @@ def _team_profile_from_data(data, team_id, team_name=""):
                 if value.get(key):
                     return str(value[key]).strip()
         return ""
+    # FotMob's current team payload keeps the useful identity fields in a few
+    # stable nested objects. Read those explicitly first, then let the generic
+    # walker below handle older/alternate response layouts.
+    details = data.get("details") if isinstance(data.get("details"), dict) else {}
+    overview = data.get("overview") if isinstance(data.get("overview"), dict) else {}
+    sports_json = details.get("sportsTeamJSONLD") if isinstance(details.get("sportsTeamJSONLD"), dict) else {}
+    location = sports_json.get("location") if isinstance(sports_json.get("location"), dict) else {}
+    address = location.get("address") if isinstance(location.get("address"), dict) else {}
+    venue = overview.get("venue") if isinstance(overview.get("venue"), dict) else {}
+    venue_widget = venue.get("widget") if isinstance(venue.get("widget"), dict) else {}
+    lineup = overview.get("lastLineupStats") if isinstance(overview.get("lastLineupStats"), dict) else {}
+    coach = lineup.get("coach") if isinstance(lineup.get("coach"), dict) else {}
+    if details.get("name"):
+        profile["name"] = str(details.get("name")).strip()
+    if address.get("addressCountry"):
+        profile["country"] = str(address.get("addressCountry")).strip()
+    elif details.get("country"):
+        profile["country"] = str(details.get("country")).strip()
+    if details.get("primaryLeagueName"):
+        profile["league"] = str(details.get("primaryLeagueName")).strip()
+    if venue_widget.get("name"):
+        profile["stadium"] = str(venue_widget.get("name")).strip()
+    elif location.get("name"):
+        profile["stadium"] = str(location.get("name")).strip()
+    if coach.get("name"):
+        profile["coach"] = str(coach.get("name")).strip()
     # Search profile/overview metadata, but deliberately skip fixture trees so
     # an away stadium or competition is never mistaken for the team's own fact.
     wanted = {
@@ -2464,7 +2491,7 @@ def _remember_team_profile(team_id, team_name, data):
         return {}
     profile = _team_profile_from_data(data, team_id, team_name)
     _TEAM_PROFILE_CACHE[team_id] = {"ts": time.time(), "profile": profile}
-    _save_timed_data_cache(f"team-profile-{team_id}.json", profile)
+    _save_timed_data_cache(f"team-profile-v{_TEAM_PROFILE_CACHE_SCHEMA}-{team_id}.json", profile)
     return profile
 
 def fetch_team_profile(team_id, team_name=""):
@@ -2475,7 +2502,7 @@ def fetch_team_profile(team_id, team_name=""):
     cached = _TEAM_PROFILE_CACHE.get(team_id)
     if cached and now - cached["ts"] < _TEAM_FIXTURE_TTL:
         return dict(cached["profile"])
-    disk = _load_timed_data_cache(f"team-profile-{team_id}.json", _TEAM_FIXTURE_TTL)
+    disk = _load_timed_data_cache(f"team-profile-v{_TEAM_PROFILE_CACHE_SCHEMA}-{team_id}.json", _TEAM_FIXTURE_TTL)
     if isinstance(disk, dict) and disk:
         _TEAM_PROFILE_CACHE[team_id] = {"ts": now, "profile": disk}
         return dict(disk)
@@ -3666,6 +3693,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamsearchresults{margin-top:10px}.teamsearchresults:empty{display:none}.teamsearchchips{display:flex;gap:8px;flex-wrap:wrap}
  .teamsearchhit{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:border-color .13s,background .13s}.teamsearchhit:hover{border-color:var(--line2);background:var(--card2)}
  .teamsearchhit[data-team-select]{cursor:pointer}.teamsearchlogo{width:25px;height:25px;object-fit:contain;flex:0 0 25px}
+ .teamsearchhit .teamfindfixtures{margin-left:auto;padding:5px 9px;font-size:11px;white-space:nowrap}
  .teamfixturegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
  .topfixturegrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
  .topfixturemore{text-align:center;margin:14px 0 4px}
@@ -4109,10 +4137,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="teamsmain">
         <h2 class="colh" data-i18n="Sports">Sports</h2>
         <div class="teammatchfinder">
-          <div class="matchfinderhead"><div><div class="matchfindertitle" data-i18n="Find a match">Find a match</div><div class="matchfindersub" data-i18n="Search a team to find its fixtures, TV coverage and matching channels.">Search a team to find its fixtures, TV coverage and matching channels.</div></div></div>
+          <div class="matchfinderhead"><div><div class="matchfindertitle" data-i18n="Find a match">Find a match</div><div class="matchfindersub" data-i18n="Search for a team, then choose Find fixtures when you want Matchfinder and TV results.">Search for a team, then choose Find fixtures when you want Matchfinder and TV results.</div></div></div>
           <div class="row sectionsearch">
             <input id="q" type="text" placeholder="Search a team, e.g. Leeds" data-i18n-ph="Search a team, e.g. Leeds" onkeydown="if(event.key==='Enter')searchTeamHub()">
-            <button onclick="searchTeamHub()" data-i18n="Search">Search</button>
+            <button onclick="searchTeamHub()" data-i18n="Find team">Find team</button>
           </div>
           <div class="matchfindercontrols"><div class="matchstrict"><span data-i18n="Match strictness">Match strictness</span>
               <input id="matchStrict" type="range" min="0.40" max="0.80" step="0.01" value="0.62" oninput="document.getElementById('matchStrictValue').textContent=this.value" onchange="saveMatchStrictness(this.value)">
@@ -4327,7 +4355,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
@@ -4739,14 +4767,22 @@ async function searchTeams(){
   const r=await api('/api/team_search?q='+encodeURIComponent(q));
   if(r.error){el.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
   if(!r.teams.length){el.innerHTML='<span class="muted">No team found in current FotMob listings.</span>';return;}
-  el.innerHTML='<div class="matchresultslabel">'+esc(tr('Teams'))+'</div><div class="teamsearchchips">'+r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||''),logo=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return '<div class="teamsearchhit" data-team-select="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'">'+(logo?'<img class="teamsearchlogo" src="'+escAttr(logo)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('')+'</div>';
+  el.innerHTML='<div class="matchresultslabel">'+esc(tr('Teams'))+'</div><div class="teamsearchchips">'+r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||''),logo=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return '<div class="teamsearchhit" data-team-select="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'">'+(logo?'<img class="teamsearchlogo" src="'+escAttr(logo)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span><button type="button" class="ghost teamfindfixtures" data-team-fixtures="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'">'+esc(tr('Find fixtures'))+'</button><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('')+'</div>';
 }
 async function searchTeamHub(query){
   const input=document.getElementById('q');if(query!==undefined&&input)input.value=String(query||'');
   if(!input||!input.value.trim()){clearSportsSearch();return;}
   const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
   _teamDeepLink=null;
-  await Promise.all([searchTeams(),doSearch()]);
+  const results=document.getElementById('results');if(results)results.innerHTML='';
+  await searchTeams();
+}
+async function findSportsFixtures(name,teamId){
+  const input=document.getElementById('q');if(input)input.value=String(name||'');
+  if(!String(name||'').trim())return;
+  const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
+  _teamDeepLink=null;selectMyTeam(name,teamId||'','');
+  await doSearch();
 }
 function clearSportsSearch(){
   const input=document.getElementById('q'),teams=document.getElementById('teamSearchResults'),results=document.getElementById('results'),back=document.getElementById('sportsSearchBack');
@@ -6529,7 +6565,7 @@ async function epgRefresh(){
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
   const teamCaster=e.target.closest('.teamcaster');
-  if(teamCaster){showTeams();searchTeamHub(teamCaster.getAttribute('data-fixture-query')||'');return;}
+  if(teamCaster){const q=teamCaster.getAttribute('data-fixture-query')||'';showTeams();findSportsFixtures(q,'');return;}
   const timelineTeamFixture=e.target.closest('.teamfixture[data-team-fixture="1"]');
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const teamFixture=e.target.closest('.teamfixture.hastv');
@@ -6540,6 +6576,8 @@ document.addEventListener('click',function(e){
   if(teamFav){selectMyTeam(teamFav.getAttribute('data-team-search')||'',teamFav.getAttribute('data-team-id')||'',teamFav.getAttribute('data-team-logo')||'');return;}
   const teamStar=e.target.closest('.teamstar');
   if(teamStar){toggleTeamFavorite(teamStar.getAttribute('data-team-name'),teamStar,teamStar.getAttribute('data-team-id'));return;}
+  const teamFindFixtures=e.target.closest('.teamfindfixtures[data-team-fixtures]');
+  if(teamFindFixtures){findSportsFixtures(teamFindFixtures.getAttribute('data-team-fixtures')||'',teamFindFixtures.getAttribute('data-team-id')||'');return;}
   const teamSearchHit=e.target.closest('.teamsearchhit[data-team-select]');
   if(teamSearchHit){selectMyTeam(teamSearchHit.getAttribute('data-team-select')||'',teamSearchHit.getAttribute('data-team-id')||'','');return;}
   const sourceExpand=e.target.closest('.latestsourceexpand');
