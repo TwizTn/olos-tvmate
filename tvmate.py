@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b249"
+VERSION = "0.777.b250"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3652,7 +3652,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .racingcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
  .racingcard h3{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:10px}
  .racingcard h3>span{position:relative;padding-bottom:6px}
- .racingcard.selected h3>span:after{content:"";position:absolute;left:0;bottom:0;width:42px;height:2px;border-radius:2px;background:var(--series-accent,#747b86);opacity:.92}
+ .racingcard.selected h3>span:after{content:"";position:absolute;left:0;right:0;bottom:0;width:100%;height:2px;border-radius:2px;background:var(--series-accent,#747b86);opacity:.92}
  .racingcard.series-f1{--series-accent:#050505}.racingcard.series-f1.selected h3>span:after{box-shadow:0 1px 0 rgba(255,255,255,.16)}
  .racingcard.series-f2{--series-accent:#20aee5}.racingcard.series-f3{--series-accent:#e86c32}.racingcard.series-indycar{--series-accent:#d8212a}
  .racingcard.series-wec{--series-accent:#7da65a}.racingcard.series-formulae{--series-accent:#19a7b8}.racingcard.series-motogp{--series-accent:#b7bcc4}.racingcard.series-wrc{--series-accent:#f06a22}
