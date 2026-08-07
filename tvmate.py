@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b212"
+VERSION = "0.777.b213"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -718,14 +718,23 @@ def _schedule_launcher_replacement(launcher_exe, downloaded):
     folder = os.path.dirname(launcher_exe)
     old_name = os.path.basename(launcher_exe)
     new_name = os.path.basename(downloaded)
+    # Keep the forced-kill fallback tightly scoped.  Never taskkill an
+    # arbitrary renamed executable supplied through the environment.
+    if old_name.lower() != "otvm.exe":
+        return False
     helper = os.path.join(folder, "_tvmate_launcher_update.bat")
     try:
-        # The old Nuitka onefile parent can hold OTVM.exe briefly after the
-        # Python app exits. Retry the move until Windows releases the file.
+        # The old Nuitka onefile parent can remain alive after the Python app
+        # has stopped and keep OTVM.exe locked. Give the normal shutdown a
+        # moment, then terminate only the known launcher image before retrying
+        # the verified replacement.
         lines = [
             "@echo off\r\n",
             'cd /d "%~dp0"\r\n',
             "setlocal\r\n",
+            "timeout /t 3 /nobreak >nul\r\n",
+            'taskkill /f /im "OTVM.exe" >nul 2>&1\r\n',
+            "timeout /t 1 /nobreak >nul\r\n",
             "for /l %%I in (1,1,30) do (\r\n",
             '  move /y "' + new_name + '" "' + old_name + '" >nul 2>&1 && goto replaced\r\n',
             "  timeout /t 1 /nobreak >nul\r\n",
