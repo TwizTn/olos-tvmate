@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b227"
+VERSION = "0.777.b228"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3186,6 +3186,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .epgprog .epgtitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
  .epgprog.compact{padding-left:5px;padding-right:5px}.epgprog.compact .epgt{display:none}
  .epgfallback{position:absolute;inset:0;display:flex;align-items:center;gap:7px;padding:0 11px;overflow:hidden;color:#7d8593;white-space:nowrap}.epgfallback .epgtitle{overflow:hidden;text-overflow:ellipsis}
+ .epgloadback{position:fixed;inset:0;z-index:130;background:rgba(5,7,10,.68);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px}
+ .epgloadbox{width:min(440px,calc(100vw - 32px));background:#12171f;border:1px solid #3b4655;border-radius:13px;padding:22px 24px;box-shadow:0 24px 70px rgba(0,0,0,.48)}
+ .epgloadtitle{font-size:18px;font-weight:700;margin-bottom:7px}.epgloadstage{color:#aab4c1;font-size:12px;min-height:19px}
+ .epgloadbar{height:8px;border-radius:99px;background:#252d38;overflow:hidden;margin:16px 0 9px}.epgloadbar>span{display:block;height:100%;width:0;background:linear-gradient(90deg,#0b55bc,#4b9cff);border-radius:inherit;transition:width .2s ease}
+ .epgloadmeta{display:flex;justify-content:space-between;gap:12px;color:#7f8a99;font-size:11px;font-variant-numeric:tabular-nums}
  .tvrow{display:flex;border-bottom:1px solid #292f3a;height:50px;min-height:50px;align-items:stretch;transition:background .12s}.tvrow:hover{background:rgba(255,255,255,.016)}
  .tvrow.tvdragging{opacity:.4}
  .tvrow.tvdragover{box-shadow:inset 0 2px 0 var(--acc)}
@@ -4145,6 +4150,8 @@ const _I18N={
   "No channels here.":"Ingen kanaler her.","No program info":"Ingen programinfo",
   "Loading EPG...":"Laster EPG...","EPG loaded":"EPG lastet","EPG failed":"EPG feilet","Loading...":"Laster...",
   "No favorites to load EPG for.":"Ingen favoritter å laste EPG for.",
+  "Updating TV guide":"Oppdaterer TV-guide","Finding channels in your favorites...":"Finner kanaler i favorittene dine...",
+  "Loading programme information...":"Laster programinformasjon...","TV guide is ready.":"TV-guiden er klar.","with programme data":"med programdata",
   "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...",
   "Update downloaded. Restart now to finish updating?":"Oppdatering lastet ned. Start på nytt for å fullføre?",
   "Restart now":"Start på nytt","Update now":"Oppdater nå","Restarting...":"Starter på nytt...",
@@ -6121,18 +6128,36 @@ async function epgRefresh(){
   const btn=document.getElementById('epgRefresh');
   const old=btn.innerHTML;
   btn.innerHTML='<span>'+tr('Loading EPG...')+'</span>';btn.disabled=true;
+  let modal=document.getElementById('epgLoadProgress');
+  if(!modal){
+    modal=document.createElement('div');modal.id='epgLoadProgress';modal.className='epgloadback';
+    modal.innerHTML='<div class="epgloadbox"><div class="epgloadtitle">'+esc(tr('Updating TV guide'))+'</div><div class="epgloadstage" id="epgLoadStage"></div><div class="epgloadbar"><span id="epgLoadBar"></span></div><div class="epgloadmeta"><span id="epgLoadCount">0 / 0</span><span id="epgLoadFound"></span></div></div>';
+    document.body.appendChild(modal);
+  }else modal.classList.remove('hide');
+  const stage=document.getElementById('epgLoadStage'),bar=document.getElementById('epgLoadBar'),count=document.getElementById('epgLoadCount'),found=document.getElementById('epgLoadFound');
   try{
-    // Backend expands this to direct favorite channels plus every channel in
-    // all favorite categories, deduplicated before fetching.
-    const r=await fetch('/api/epg?force=1&favorites=1');
-    const j=await r.json();
-    if(!r.ok||j.error)throw new Error(j.error||'EPG failed');
-    _tvEpg=Object.assign({},_tvEpg,j.epg||{});
-    renderTvGuide();
-    const rows=Object.values(j.epg||{}),withData=rows.filter(function(p){return p&&p.length;}).length,total=Number(j.total||rows.length);
+    stage.textContent=tr('Finding channels in your favorites...');count.textContent='';found.textContent='';bar.style.width='3%';
+    const planRes=await fetch('/api/epg_targets');const plan=await planRes.json();
+    if(!planRes.ok||plan.error)throw new Error(plan.error||'EPG failed');
+    const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,withData=0;
+    count.textContent='0 / '+total;
+    for(let i=0;i<ids.length;i+=batchSize){
+      const batch=ids.slice(i,i+batchSize);
+      stage.textContent=tr('Loading programme information...');
+      const r=await fetch('/api/epg?force=1&ids='+encodeURIComponent(batch.join(',')));
+      const j=await r.json();if(!r.ok||j.error)throw new Error(j.error||'EPG failed');
+      _tvEpg=Object.assign({},_tvEpg,j.epg||{});
+      withData+=Object.values(j.epg||{}).filter(function(p){return p&&p.length;}).length;
+      done+=batch.length;count.textContent=done+' / '+total;found.textContent=withData+' '+tr('with programme data');bar.style.width=(total?Math.max(3,done/total*100):100)+'%';
+      renderTvGuide();
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    stage.textContent=tr('TV guide is ready.');bar.style.width='100%';
     if(!total){toast(tr('No favorites to load EPG for.'));}
     else toast(tr('EPG loaded')+' ('+withData+'/'+total+')');
   }catch(e){toast(tr('EPG failed'));}
+  await new Promise(resolve=>setTimeout(resolve,650));
+  if(modal)modal.classList.add('hide');
   btn.innerHTML=old;btn.disabled=false;
 }
 // Event delegation: any Copy button's data-url is copied on click.
@@ -6534,6 +6559,25 @@ class Handler(BaseHTTPRequestHandler):
                                         "f1_teams": fav.get("f1_teams", []),
                                         "mylist_channels": selected_ids})
 
+            if u.path == "/api/epg_targets":
+                cfg = load_config()
+                x = Xtream(cfg)
+                if not x.configured():
+                    return self._send(400, {"error": "Xtream is not configured"})
+                fav = load_favorites()
+                wanted_categories = set(str(name) for name in fav.get("categories", []))
+                ids = [str(ch.get("stream_id")) for ch in fav.get("channels", [])
+                       if ch.get("stream_id") is not None]
+                if wanted_categories:
+                    try:
+                        channels, cats = get_xtream_channels(cfg)
+                        ids.extend(str(ch.get("stream_id")) for ch in channels
+                                   if ch.get("stream_id") is not None and
+                                   cats.get(ch.get("category_id"), "") in wanted_categories)
+                    except Exception:
+                        pass
+                return self._send(200, {"ids": list(dict.fromkeys(ids))})
+
             if u.path == "/api/epg":
                 # ids=comma-separated stream ids; force=1 bypasses cache.
                 # cached=1 is disk/memory only and never contacts the provider.
@@ -6572,14 +6616,25 @@ class Handler(BaseHTTPRequestHandler):
                         result[sid] = cached["programmes"]
                     elif not cached_only:
                         to_fetch.append(sid)
-                # throttle: fetch in small batches with a short pause
-                import time as _t
-                for i, sid in enumerate(to_fetch):
-                    progs = x.short_epg(sid, limit=6)
-                    _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
-                    result[sid] = progs
-                    if (i + 1) % 4 == 0:
-                        _t.sleep(0.35)   # brief pause every 4 requests
+                # Xtream's short EPG endpoint is one request per channel.  A
+                # small worker pool cuts large favorite-category refreshes
+                # dramatically without hammering the provider with dozens of
+                # simultaneous requests.
+                if to_fetch:
+                    from concurrent.futures import ThreadPoolExecutor, as_completed
+                    fetched = {}
+                    with ThreadPoolExecutor(max_workers=min(4, len(to_fetch))) as pool:
+                        jobs = {pool.submit(x.short_epg, sid, 6): sid for sid in to_fetch}
+                        for job in as_completed(jobs):
+                            sid = jobs[job]
+                            try:
+                                fetched[sid] = job.result()
+                            except Exception:
+                                fetched[sid] = []
+                    for sid in to_fetch:
+                        progs = fetched.get(sid, [])
+                        _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
+                        result[sid] = progs
                 if to_fetch:
                     _save_epg_disk_cache(x)
                 return self._send(200, {"epg": result, "total": len(ids)})
