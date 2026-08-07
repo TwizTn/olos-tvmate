@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b225"
+VERSION = "0.777.b226"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5903,6 +5903,11 @@ function renderTvChannels(){
   renderTvGuide();
 }
 let _tvEpg={};   // stream_id -> [{title,start_ts,stop_ts},...]
+// Keep the guide clock moving even when Live TV is left open. This only
+// re-renders already cached data; it never refreshes EPG over the network.
+setInterval(function(){
+  if(!mytvView.classList.contains('hide')&&_tvChannels.length&&_tvPlaying===null)renderTvGuide();
+},60*1000);
 function renderTvGuide(){
   const head=document.getElementById('tvTimeHead');
   const body=document.getElementById('tvGuideBody');
@@ -6023,16 +6028,16 @@ async function epgRefresh(){
   const old=btn.innerHTML;
   btn.innerHTML='<span>'+tr('Loading EPG...')+'</span>';btn.disabled=true;
   try{
-    // favorite channels only (category channels can be hundreds - too slow)
-    const fav=await api('/api/favorites');
-    const ids=(fav.channels||[]).map(function(c){return String(c.stream_id);});
-    if(!ids.length){toast(tr('No favorites to load EPG for.'));btn.innerHTML=old;btn.disabled=false;return;}
-    const r=await fetch('/api/epg?force=1&ids='+encodeURIComponent(ids.join(',')));
+    // Backend expands this to direct favorite channels plus every channel in
+    // all favorite categories, deduplicated before fetching.
+    const r=await fetch('/api/epg?force=1&favorites=1');
     const j=await r.json();
+    if(!r.ok||j.error)throw new Error(j.error||'EPG failed');
     _tvEpg=Object.assign({},_tvEpg,j.epg||{});
     renderTvGuide();
-    let withData=ids.filter(function(k){return _tvEpg[k]&&_tvEpg[k].length;}).length;
-    toast(tr('EPG loaded')+' ('+withData+'/'+ids.length+')');
+    const rows=Object.values(j.epg||{}),withData=rows.filter(function(p){return p&&p.length;}).length,total=Number(j.total||rows.length);
+    if(!total){toast(tr('No favorites to load EPG for.'));}
+    else toast(tr('EPG loaded')+' ('+withData+'/'+total+')');
   }catch(e){toast(tr('EPG failed'));}
   btn.innerHTML=old;btn.disabled=false;
 }
@@ -6421,12 +6426,29 @@ class Handler(BaseHTTPRequestHandler):
                 ids_raw = (q.get("ids", [""])[0]).strip()
                 force = q.get("force", ["0"])[0] == "1"
                 cached_only = q.get("cached", ["0"])[0] == "1"
+                all_favorites = q.get("favorites", ["0"])[0] == "1"
                 cfg = load_config()
                 x = Xtream(cfg)
-                if not x.configured() or not ids_raw:
+                if not x.configured() or (not ids_raw and not all_favorites):
                     return self._send(400, {"error": "bad request"})
                 _load_epg_disk_cache(x)
-                ids = [s for s in ids_raw.split(",") if s.strip()]
+                ids = [s.strip() for s in ids_raw.split(",") if s.strip()]
+                if all_favorites:
+                    fav = load_favorites()
+                    wanted_categories = set(str(name) for name in fav.get("categories", []))
+                    ids.extend(str(ch.get("stream_id")) for ch in fav.get("channels", [])
+                               if ch.get("stream_id") is not None)
+                    if wanted_categories:
+                        try:
+                            channels, cats = get_xtream_channels(cfg)
+                            ids.extend(str(ch.get("stream_id")) for ch in channels
+                                       if ch.get("stream_id") is not None and
+                                       cats.get(ch.get("category_id"), "") in wanted_categories)
+                        except Exception:
+                            pass
+                # Stable de-duplication matters when a channel is directly
+                # favorited and also belongs to a favorite category.
+                ids = list(dict.fromkeys(ids))
                 now = time.time()
                 result = {}
                 to_fetch = []
@@ -6446,7 +6468,7 @@ class Handler(BaseHTTPRequestHandler):
                         _t.sleep(0.35)   # brief pause every 4 requests
                 if to_fetch:
                     _save_epg_disk_cache(x)
-                return self._send(200, {"epg": result})
+                return self._send(200, {"epg": result, "total": len(ids)})
 
             if u.path == "/api/epg_debug":
                 # Returns the RAW provider response for one stream, for troubleshooting.
