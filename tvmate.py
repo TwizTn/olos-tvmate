@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b244"
+VERSION = "0.777.b245"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4329,7 +4329,7 @@ function showMytv(){rememberLocation('mytv');hideAll(true);mytvView.classList.re
 function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.remove('hide');document.getElementById('recentMoviesSection').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();}
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
-function showRacing(){if(!_f1Enabled){showMylist();return;}rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
+function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
 function showTeams(){if(!_footballEnabled){showSearch();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();}
 function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
@@ -5866,10 +5866,10 @@ function renderMyListSportShells(favorites){
     if(_myListLayout==='timeline')h+='<div class="mydashsportsubhead racing">Racing</div>';
     if(selected.has('f1')){
       const team=((favorites.f1_teams||[])[0]||{}),name=team.name||'Formula 1',src=team.logo||(team.id?'/api/f1_team_logo?id='+encodeURIComponent(String(team.id)):'');
-      h+='<div class="mydashteamonly mydashf1card" onclick="showRacing()">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsportmeta">Formula 1 · '+esc(tr('Loading drivers and next race...'))+'</div></div></div>';
+      h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsportmeta">Formula 1 · '+esc(tr('Loading drivers and next race...'))+'</div></div></div>';
     }
     const quick=[['wrc','wrc-oliver-solberg','Oliver Solberg','WRC × Toyota Gazoo Racing',false],['indycar','indycar-dennis-hauger','Dennis Hauger','IndyCar × Dale Coyne Racing',false],['f2','f2-martinius-stenshorne','Martinius Stenshorne','Formula 2 × Rodin Motorsport',true]];
-    for(const row of quick){if(!selected.has(row[0]))continue;const src='/api/racing_driver_image?id='+encodeURIComponent(row[1]);h+='<div class="mydashteamonly" onclick="showRacing()"><img class="driver'+(row[4]?' car':'')+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportname">'+esc(row[2])+'</div><div class="mydashsportmeta">'+esc(row[3])+' · '+esc(tr('Loading next race...'))+'</div></div></div>';}
+    for(const row of quick){if(!selected.has(row[0]))continue;const src='/api/racing_driver_image?id='+encodeURIComponent(row[1]);h+='<div class="mydashteamonly" data-driver-key="'+escAttr(row[1])+'" onclick="showRacing(this.dataset.driverKey)"><img class="driver'+(row[4]?' car':'')+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportname">'+esc(row[2])+'</div><div class="mydashsportmeta">'+esc(row[3])+' · '+esc(tr('Loading next race...'))+'</div></div></div>';}
   }
   el.innerHTML=h||'<span class="muted">'+tr(_f1Enabled?'No F1 team selected.':'No favorite teams yet.')+'</span>';
 }
@@ -5917,16 +5917,16 @@ async function loadMyListTeams(favorites,racingDataPromise){
             const drivers=card.drivers,live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now)),team=drivers[0].team||'';
             const photos=drivers.slice(0,2).map(driver=>'<img class="driver" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()">').join('');
             const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),race=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.');
-            h+='<div class="mydashteamonly mydashf1card" onclick="showRacing()"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(race)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div>'+(live?'<span class="driverlive mydashdriverlive">LIVE</span>':'')+'</div>';
+            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(race)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div>'+(live?'<span class="driverlive mydashdriverlive">LIVE</span>':'')+'</div>';
           }else{
             const driver=card.driver,live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
             const liveTag=live?'<span class="driverlive mydashdriverlive">LIVE</span>':'',meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × '),nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
-            h+='<div class="mydashteamonly" onclick="showRacing()"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div>'+liveTag+'</div>';
+            h+='<div class="mydashteamonly" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div>'+liveTag+'</div>';
           }
         }
       }else for(const driver of allDrivers){
         const live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||'')),liveTag=live?'<span class="driverlive mydashdriverlive">LIVE</span>':'';
-        h+='<div class="mydashfixture" onclick="showRacing()" style="cursor:pointer"><div class="mydashteam"><img src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><span>'+esc(driver.name||'')+'</span>'+liveTag+'</div><span class="muted">'+esc(driver.series_name||'Racing')+(driver.team?' · '+esc(driver.team):'')+'</span></div>';
+        h+='<div class="mydashfixture" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)" style="cursor:pointer"><div class="mydashteam"><img src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><span>'+esc(driver.name||'')+'</span>'+liveTag+'</div><span class="muted">'+esc(driver.series_name||'Racing')+(driver.team?' · '+esc(driver.team):'')+'</span></div>';
       }
     }catch(e){}
   }
