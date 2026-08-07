@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b226"
+VERSION = "0.777.b227"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1327,6 +1327,39 @@ def steam_wishlist_items(steam_id):
                          urllib.parse.quote(steam_id), timeout=15)
     return ((data.get("response") or {}).get("items") or [])
 
+def _steam_avatar_path(steam_id):
+    safe = re.sub(r"[^0-9]", "", str(steam_id or ""))
+    return os.path.join(artwork_cache_dir(), f"steam-avatar-{safe}.img") if safe else ""
+
+def _cache_steam_avatar(steam_id, image_url, force=False):
+    path = _steam_avatar_path(steam_id)
+    if not path or not str(image_url or "").startswith(("http://", "https://")):
+        return ""
+    if os.path.isfile(path) and not force:
+        return "/api/steam_avatar?id=" + urllib.parse.quote(str(steam_id))
+    try:
+        req = urllib.request.Request(str(image_url),
+                                     headers={"User-Agent": "OlosTVMate/" + VERSION})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw = resp.read(2 * 1024 * 1024 + 1)
+        if not raw or len(raw) > 2 * 1024 * 1024 or not _image_content_type(raw):
+            return ""
+        os.makedirs(artwork_cache_dir(), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(raw)
+        return "/api/steam_avatar?id=" + urllib.parse.quote(str(steam_id))
+    except Exception:
+        return ""
+
+def _steam_html_text(fragment, keep_lines=False):
+    text = re.sub(r"<br\s*/?>", "\n" if keep_lines else " ", str(fragment or ""),
+                  flags=re.I)
+    text = html.unescape(re.sub(r"<[^>]+>", " ", text))
+    if keep_lines:
+        return "\n".join(re.sub(r"\s+", " ", line).strip()
+                           for line in text.splitlines() if line.strip())
+    return re.sub(r"\s+", " ", text).strip()
+
 def steam_public_profile(steam_id, force=False):
     """Fetch a public Steam Community identity without requiring an API key."""
     steam_id = str(steam_id or "").strip()
@@ -1335,10 +1368,14 @@ def steam_public_profile(steam_id, force=False):
     cache_name = "steam-profile.json"
     if not force:
         cached = _load_timed_data_cache(cache_name, 7 * 24 * 3600)
-        if isinstance(cached, dict) and str(cached.get("steam_id") or "") == steam_id:
+        if (isinstance(cached, dict) and cached.get("_v") == 2 and
+                str(cached.get("steam_id") or "") == steam_id):
+            local_avatar = _cache_steam_avatar(steam_id, cached.get("avatar"), force=False)
+            if local_avatar:
+                cached["avatar_local"] = local_avatar
             return cached
     profile_url = f"https://steamcommunity.com/profiles/{steam_id}/"
-    out = {"steam_id": steam_id, "profile_url": profile_url}
+    out = {"_v": 2, "steam_id": steam_id, "profile_url": profile_url}
     try:
         import xml.etree.ElementTree as ET
         xml_text = http_get_text(profile_url + "?xml=1", timeout=15)
@@ -1363,9 +1400,21 @@ def steam_public_profile(steam_id, force=False):
                 continue
     except Exception:
         pass
-    # Steam level is exposed on the normal public profile rather than the XML.
+    # Steam level and several identity fields are also present in the normal
+    # public profile.  Parse these precisely because animated avatar frames sit
+    # next to the real avatar and must never be mistaken for the user picture.
     try:
         page = http_get_text(profile_url, timeout=15)
+        pdata = re.search(r'g_rgProfileData\s*=\s*(\{.*?\})\s*;', page,
+                          flags=re.I | re.S)
+        if pdata:
+            try:
+                profile_data = json.loads(pdata.group(1))
+                out["display_name"] = out.get("display_name") or str(profile_data.get("personaname") or "").strip()
+                out["summary"] = out.get("summary") or str(profile_data.get("summary") or "").strip()
+                out["profile_url"] = str(profile_data.get("url") or out["profile_url"])
+            except Exception:
+                pass
         level = re.search(r'friendPlayerLevelNum[^>]*>\s*(\d+)\s*<', page, flags=re.I)
         if level:
             out["level"] = int(level.group(1))
@@ -1373,13 +1422,57 @@ def steam_public_profile(steam_id, force=False):
             name = re.search(r'actual_persona_name[^>]*>(.*?)<', page, flags=re.I | re.S)
             if name:
                 out["display_name"] = html.unescape(re.sub(r"<[^>]+>", "", name.group(1))).strip()
-        if not out.get("avatar"):
-            avatar = re.search(r'playerAvatar[^>]*>.*?<img[^>]+src="([^"]+)"', page,
+        real_block = re.search(r'header_real_name[^>]*>(.*?)</div>', page,
                                flags=re.I | re.S)
+        if real_block:
+            real = re.search(r'<bdi>(.*?)</bdi>', real_block.group(1), flags=re.I | re.S)
+            if real and not out.get("real_name"):
+                out["real_name"] = _steam_html_text(real.group(1))
+            # Steam commonly prints the location after the <bdi> real name in
+            # this same block (next to the country flag), rather than using a
+            # dedicated header_location element.
+            if not out.get("location"):
+                tail = re.sub(r'^.*?</bdi>', '', real_block.group(1), count=1,
+                              flags=re.I | re.S)
+                location_text = _steam_html_text(tail)
+                if location_text and location_text != out.get("real_name"):
+                    out["location"] = location_text
+        if not out.get("location"):
+            location = re.search(r'header_location[^>]*>(.*?)</div>', page,
+                                 flags=re.I | re.S)
+            if location:
+                out["location"] = _steam_html_text(location.group(1))
+        if not out.get("summary"):
+            summary = re.search(r'profile_summary[^>]*>(.*?)</div>', page,
+                                flags=re.I | re.S)
+            if summary:
+                out["summary"] = _steam_html_text(summary.group(1), keep_lines=True)
+        if not out.get("avatar"):
+            avatar = re.search(
+                r'playerAvatarAutoSizeInner[^>]*>\s*<img[^>]+src=["\']([^"\']+)["\']',
+                page, flags=re.I | re.S)
             if avatar:
                 out["avatar"] = html.unescape(avatar.group(1))
     except Exception:
         pass
+    if out.get("years_service") is None:
+        try:
+            badges = _steam_html_text(http_get_text(profile_url + "badges/1/", timeout=12))
+            member = re.search(r'Member since\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})', badges,
+                               flags=re.I)
+            if member:
+                out["member_since"] = member.group(1)
+                joined = datetime.datetime.strptime(member.group(1), "%B %d, %Y").date()
+                today = datetime.datetime.now().date()
+                out["years_service"] = max(0, today.year - joined.year -
+                                             ((today.month, today.day) <
+                                              (joined.month, joined.day)))
+        except Exception:
+            pass
+    if out.get("avatar"):
+        local_avatar = _cache_steam_avatar(steam_id, out.get("avatar"), force=force)
+        if local_avatar:
+            out["avatar_local"] = local_avatar
     if any(out.get(k) for k in ("display_name", "real_name", "avatar", "location")):
         _save_timed_data_cache(cache_name, out)
     return out
@@ -3258,19 +3351,19 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .gamefav{position:relative;padding:8px 0 30px;border-bottom:1px solid var(--line)}
  .gamefav img{width:100%;max-width:190px;aspect-ratio:460/215;object-fit:cover;border-radius:6px;display:block;margin-bottom:7px}
  .gamefavname{font-size:13px;font-weight:600;line-height:1.3}
- .gameslayout{display:grid;grid-template-columns:240px minmax(0,1180px);gap:28px;width:100%;max-width:1480px;margin:0 auto;align-items:start}
- .gamesmain{width:100%;min-width:0;margin:0}
- .steamprofile{position:sticky;top:76px;background:linear-gradient(155deg,#151b24,#12161c);border:1px solid var(--line);border-radius:11px;padding:17px;min-height:160px;box-shadow:0 10px 28px rgba(0,0,0,.12)}
+ .gameslayout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:38px;width:100%;max-width:none;margin:0;align-items:start}
+ .gamesmain{width:100%;max-width:1180px;min-width:0;margin:0 auto}
+ .steamprofile{position:sticky;top:76px;background:linear-gradient(155deg,#151b24,#11161d);border:1px solid #303a48;border-radius:12px;padding:24px;min-height:310px;box-shadow:0 12px 34px rgba(0,0,0,.16)}
  .steamprofileempty{color:var(--mut);font-size:12px;line-height:1.5}
- .steamprofilehead{display:flex;align-items:center;gap:12px}
- .steamprofileavatar{width:72px;height:72px;object-fit:cover;border-radius:9px;flex:0 0 72px;background:#202936;border:2px solid #315b7b}
- .steamprofilename{font-size:18px;font-weight:700;line-height:1.2;color:#e8f2fa}
- .steamprofilereal{font-size:12px;color:#aab4c0;margin-top:4px}
- .steamprofileloc{font-size:11px;color:#7f8b99;margin-top:3px;line-height:1.35}
- .steamprofilemeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:14px}
- .steamlevel{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 8px;border:2px solid #7f65bb;border-radius:50%;font-size:12px;font-weight:700;color:#ddd0ff}
- .steamyears{font-size:11px;color:#9fb0c1;border-left:1px solid var(--line2);padding-left:9px}
- .steamprofilesummary{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.55;color:#9ca7b4;white-space:pre-line;max-height:150px;overflow:auto;scrollbar-width:thin}
+ .steamprofilehead{display:flex;align-items:center;gap:16px}
+ .steamprofileavatar{width:120px;height:120px;object-fit:cover;border-radius:10px;flex:0 0 120px;background:#202936;border:3px solid #315b7b;box-shadow:0 0 0 1px #0b0e12}
+ .steamprofilename{font-size:23px;font-weight:700;line-height:1.15;color:#e8f2fa}
+ .steamprofilereal{font-size:14px;color:#bac4cf;margin-top:6px}
+ .steamprofileloc{font-size:12px;color:#8e9baa;margin-top:5px;line-height:1.4}
+ .steamprofilemeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}
+ .steamlevel{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 9px;border:2px solid #7f65bb;border-radius:50%;font-size:13px;font-weight:700;color:#ddd0ff}
+ .steamyears{font-size:12px;color:#a9b9c9;border-left:1px solid var(--line2);padding-left:11px}
+ .steamprofilesummary{margin-top:17px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.6;color:#a7b1bd;white-space:pre-line;max-height:220px;overflow:auto;scrollbar-width:thin}
  .steamprofilelink{display:block;color:inherit;text-decoration:none}.steamprofilelink:hover .steamprofilename{color:#66c0f4}
  .gamegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-top:18px}
  .gamecard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}
@@ -3286,7 +3379,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .gamecard img{width:100%;aspect-ratio:460/215;object-fit:cover;border-radius:7px;background:#20242c;display:block}
  .gamecardbody{display:flex;align-items:center;gap:10px;margin-top:9px;min-height:38px}
  .gamecardname{font-weight:600;line-height:1.3;flex:1;min-width:0}
- @media(max-width:950px){.gameslayout{grid-template-columns:1fr}.steamprofile{position:static;max-width:none}.steamprofileinner{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px}.steamprofilesummary{grid-column:1/-1}.steamprofilemeta{align-self:end}}
+ @media(max-width:1100px){.gameslayout{grid-template-columns:270px minmax(0,1fr);gap:22px}.steamprofile{padding:17px}.steamprofileavatar{width:82px;height:82px;flex-basis:82px}.steamprofilename{font-size:19px}}
+ @media(max-width:820px){.gameslayout{grid-template-columns:1fr}.steamprofile{position:static;max-width:none;min-height:0}.steamprofileinner{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px}.steamprofilesummary{grid-column:1/-1}.steamprofilemeta{align-self:end}}
  .moviemeta{font-size:12px;color:var(--mut)}
  .movieactions{display:flex;gap:7px;margin-top:auto;flex-wrap:wrap}
  .movieresultback{text-align:center;margin-top:14px;margin-bottom:24px}
@@ -5073,7 +5167,7 @@ async function loadSteamProfile(){
     const p=await api('/api/steam_profile');
     if(!p||!p.linked){el.innerHTML='<div class="steamprofileempty">Link a Steam wishlist to show your Steam profile here.</div>';return;}
     if(!p.display_name&&!p.avatar){el.innerHTML='<div class="steamprofileempty">Steam profile is linked, but its public profile details are unavailable.</div>';return;}
-    const avatar=p.avatar?'<img class="steamprofileavatar" src="'+escAttr(p.avatar)+'" alt="" referrerpolicy="no-referrer" onerror="this.remove()">':'';
+    const avatar=(p.avatar_local||p.avatar)?'<img class="steamprofileavatar" src="'+escAttr(p.avatar_local||p.avatar)+'" alt="" referrerpolicy="no-referrer" onerror="this.remove()">':'';
     const real=p.real_name?'<div class="steamprofilereal">'+esc(p.real_name)+'</div>':'';
     const loc=p.location?'<div class="steamprofileloc">'+esc(p.location)+'</div>':'';
     const level=(p.level!==undefined&&p.level!==null)?'<span class="steamlevel" title="Steam level">'+esc(p.level)+'</span>':'';
@@ -6352,6 +6446,26 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
                 self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+                return
+
+            if u.path == "/api/steam_avatar":
+                steam_id = (q.get("id", [""])[0]).strip()
+                if not re.fullmatch(r"\d{17}", steam_id):
+                    return self._send(400, {"error": "bad steam id"})
+                path = _steam_avatar_path(steam_id)
+                if not path or not os.path.isfile(path):
+                    return self._send(404, {"error": "avatar not cached"})
+                with open(path, "rb") as f:
+                    raw = f.read(2 * 1024 * 1024 + 1)
+                ctype = _image_content_type(raw)
+                if not ctype or len(raw) > 2 * 1024 * 1024:
+                    return self._send(404, {"error": "invalid avatar"})
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Cache-Control", "public, max-age=86400")
                 self.send_header("Content-Length", str(len(raw)))
                 self.end_headers()
                 self.wfile.write(raw)
