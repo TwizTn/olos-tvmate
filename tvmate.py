@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b252"
+VERSION = "0.777.b253"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3426,14 +3426,15 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .soon{background:#132a1a;border:1px solid #24512f;color:#7fd79a;border-radius:6px;padding:1px 7px;font-size:12px}
  .split{display:flex;gap:20px;align-items:flex-start}
  .col{flex:1;min-width:0}
- #searchView .split>.col{padding:2px 2px 4px}#searchView .split>.col+.col{border-left:1px solid var(--line);padding-left:20px}
+ .playlistsearch{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:0 0 18px;padding:15px 18px;border:1px solid var(--line);border-radius:10px;background:rgba(18,22,28,.72)}
+ .playlistsearch .col{min-width:0}.playlistsearch .col+.col{border-left:1px solid var(--line);padding-left:22px}.playlistsearch .row{margin-bottom:7px}
  .colh{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 10px;font-weight:600}
  .sectionsearch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.sectionsearch input{min-height:42px}.sectionsearch button{min-width:82px}
  *{scrollbar-color:#4e5868 #171b22;scrollbar-width:thin}
  *::-webkit-scrollbar{width:10px;height:10px}*::-webkit-scrollbar-track{background:#171b22;border-radius:8px}*::-webkit-scrollbar-thumb{background:#4e5868;border:2px solid #171b22;border-radius:8px}*::-webkit-scrollbar-thumb:hover{background:#69778b}
  main>section:not(.hide){animation:viewfade .14s ease-out}@keyframes viewfade{from{opacity:.55;transform:translateY(2px)}to{opacity:1;transform:none}}
  @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
- @media(max-width:760px){.split{flex-direction:column}#searchView .split>.col{width:100%}#searchView .split>.col+.col{border-left:0;border-top:1px solid var(--line);padding:20px 2px 4px}}
+ @media(max-width:760px){.split{flex-direction:column}.playlistsearch{grid-template-columns:1fr}.playlistsearch .col+.col{border-left:0;border-top:1px solid var(--line);padding:16px 0 0}}
  @media(max-width:760px){#teamFixtures{width:calc(100vw - 44px)}#teamFixtures>.card{flex-basis:min(280px,calc(100vw - 56px))}}
  .chname{flex:1;min-width:0;font-size:13.5px;word-break:break-word;line-height:1.35}
  .ch4{display:flex;gap:0;align-items:stretch;flex-wrap:nowrap;height:82vh;min-height:480px}
@@ -3488,7 +3489,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .asciimotif{position:absolute;margin:0;white-space:pre;font:600 clamp(8px,.58vw,13px)/1.08 Consolas,"Courier New",monospace;letter-spacing:.02em;color:#7894bd;opacity:.075;text-shadow:0 0 18px rgba(57,110,184,.12);user-select:none}
  .asciimotif.a1{left:2.5%;top:9%;transform:rotate(-2deg)}.asciimotif.a2{right:2.2%;top:32%;transform:scale(.82) rotate(2deg);opacity:.055}.asciimotif.a3{left:7%;bottom:7%;transform:scale(.7);opacity:.045}
  @media(max-width:1050px){.asciimotif.a2,.asciimotif.a3{display:none}.asciimotif.a1{opacity:.04}}
- #searchView{position:relative;z-index:1}
  /* settings branding block */
  .brandblock{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;width:220px;flex-shrink:0}
  .brandblock .bname{font-size:22px;font-weight:600;color:var(--fg)}
@@ -3778,16 +3778,15 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <div id="globalDecor" class="globaldecor"></div>
 <header>
   <h1><svg width="38" height="38" viewBox="0 0 240 240" style="vertical-align:-11px;margin-right:8px" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="139" rx="44" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="127" rx="42" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><ellipse cx="101" cy="115" rx="40" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>Olo's TVMate</h1>
-  <a id="navMylist" onclick="showMylist()" data-i18n="My Profile">My Profile</a>
-  <a id="navMytimeline" class="hide" onclick="showMytimeline()" data-i18n="My Timeline">My Timeline</a>
-  <a id="navSearch" onclick="showSearch()" data-i18n="Search">Search</a>
-  <a id="navChannels" onclick="showChannels()" data-i18n="Playlist Builder">Playlist Builder</a>
-  <a id="navMytv" onclick="showMytv()" data-i18n="My TV">My TV</a>
-  <a id="navMovies" onclick="showMovies()" data-i18n="My Movies">My Movies</a>
-  <a id="navShows" onclick="showShows()" data-i18n="My Shows">My Shows</a>
-  <a id="navGames" onclick="showGames()" data-i18n="My Games">My Games</a>
-  <a id="navRacing" onclick="showRacing()" data-i18n="My Racing">My Racing</a>
-  <a id="navTeams" onclick="showTeams()" data-i18n="My Teams">My Teams</a>
+  <a id="navMylist" onclick="showMylist()" data-i18n="Profile">Profile</a>
+  <a id="navMytimeline" class="hide" onclick="showMytimeline()" data-i18n="Timeline">Timeline</a>
+  <a id="navChannels" onclick="showChannels()" data-i18n="Playlists">Playlists</a>
+  <a id="navMytv" onclick="showMytv()" data-i18n="Live TV">Live TV</a>
+  <a id="navMovies" onclick="showMovies()" data-i18n="Movies">Movies</a>
+  <a id="navShows" onclick="showShows()" data-i18n="Shows">Shows</a>
+  <a id="navGames" onclick="showGames()" data-i18n="Games">Games</a>
+  <a id="navRacing" onclick="showRacing()" data-i18n="Racing">Racing</a>
+  <a id="navTeams" onclick="showTeams()" data-i18n="Sports">Sports</a>
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
   <span id="status" class="muted"></span>
@@ -3815,21 +3814,21 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <h2 data-i18n="What do you want to follow?">What do you want to follow?</h2>
       <div class="setupintro" data-i18n="Movies and shows are always available. Turn the extra sections on or off here.">Movies and shows are always available. Turn the extra sections on or off here.</div>
       <div class="setupfeatures">
-        <label class="setupfeature"><input id="setupFootball" type="checkbox"><span><b data-i18n="Football">Football</b><small data-i18n="Matchfinder, My Teams and fixtures">Matchfinder, My Teams and fixtures</small></span></label>
-        <label class="setupfeature"><input id="setupRacing" type="checkbox"><span><b data-i18n="Racing">Racing</b><small data-i18n="My Racing, schedules and followed drivers">My Racing, schedules and followed drivers</small></span></label>
+        <label class="setupfeature"><input id="setupFootball" type="checkbox"><span><b data-i18n="Football">Football</b><small data-i18n="Matchfinder, Sports and fixtures">Matchfinder, Sports and fixtures</small></span></label>
+        <label class="setupfeature"><input id="setupRacing" type="checkbox"><span><b data-i18n="Racing">Racing</b><small data-i18n="Racing schedules and followed drivers">Racing schedules and followed drivers</small></span></label>
         <label class="setupfeature"><input id="setupGames" type="checkbox"><span><b data-i18n="Games">Games</b><small data-i18n="Steam wishlist and game releases">Steam wishlist and game releases</small></span></label>
       </div>
     </div>
     <div class="setupstep hide" data-key="football">
       <h2 data-i18n="Choose your football teams">Choose your football teams</h2>
-      <div class="setupintro" data-i18n="Pick the teams you want fixtures for. You can add or remove teams later in My Teams.">Pick the teams you want fixtures for. You can add or remove teams later in My Teams.</div>
+      <div class="setupintro" data-i18n="Pick the teams you want fixtures for. You can add or remove teams later in Sports.">Pick the teams you want fixtures for. You can add or remove teams later in Sports.</div>
       <div id="setupTeamSelected" class="setupselected"></div>
       <div class="setupsearch"><input id="setupTeamQuery" type="text" placeholder="Search for a team, e.g. Brann" data-i18n-ph="Search for a team, e.g. Brann" onkeydown="if(event.key==='Enter')setupSearchTeams()"><button type="button" onclick="setupSearchTeams()" data-i18n="Search">Search</button></div>
       <div id="setupTeamResults" class="setupresults"></div>
     </div>
     <div class="setupstep hide" data-key="racing">
       <h2 data-i18n="Choose your racing">Choose your racing</h2>
-      <div class="setupintro" data-i18n="Select the series you want on My Racing and your timeline.">Select the series you want on My Racing and your timeline.</div>
+      <div class="setupintro" data-i18n="Select the series you want in Racing and your timeline.">Select the series you want in Racing and your timeline.</div>
       <div id="setupRacingSeries" class="setupchoices"></div>
       <div id="setupF1TeamWrap" class="setupfields">
         <div class="full"><label data-i18n="Favorite Formula 1 team">Favorite Formula 1 team</label><select id="setupF1TeamSelect" onchange="setupSelectF1Team(this.value)"><option value="" data-i18n="Choose a Formula 1 team">Choose a Formula 1 team</option></select></div>
@@ -3837,7 +3836,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     </div>
     <div class="setupstep hide" data-key="content">
       <h2 data-i18n="Add something to watch">Add something to watch</h2>
-      <div class="setupintro" data-i18n="Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what My Profile looks like.">Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what My Profile looks like.</div>
+      <div class="setupintro" data-i18n="Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what Profile looks like.">Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what Profile looks like.</div>
       <div class="setupstartergrid">
         <div><h3 data-i18n="Shows">Shows</h3><div class="setupsearch"><input id="setupShowQuery" type="text" placeholder="Search shows" data-i18n-ph="Search shows" onkeydown="if(event.key==='Enter')setupSearchContent('show')"><button type="button" onclick="setupSearchContent('show')" data-i18n="Search">Search</button></div><div id="setupShowResults" class="setupresults"></div></div>
         <div><h3 data-i18n="Movies">Movies</h3><div class="setupsearch"><input id="setupMovieQuery" type="text" placeholder="Search movies" data-i18n-ph="Search movies" onkeydown="if(event.key==='Enter')setupSearchContent('movie')"><button type="button" onclick="setupSearchContent('movie')" data-i18n="Search">Search</button></div><div id="setupMovieResults" class="setupresults"></div></div>
@@ -3854,7 +3853,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="setupstep hide" data-key="finish">
       <h2 data-i18n="You're ready">You're ready</h2>
       <div class="setupintro" data-i18n="TVMate is set up around what you follow. A streaming login is only needed for your own channels, movies and shows.">TVMate is set up around what you follow. A streaming login is only needed for your own channels, movies and shows.</div>
-      <div class="setupfinishopts"><div class="setupfinishopt"><b data-i18n="Want playback too?">Want playback too?</b><span class="muted" data-i18n="Set up your Xtream login for your own channels, movies and shows.">Set up your Xtream login for your own channels, movies and shows.</span><br><button type="button" class="ghost" onclick="finishProfileSetup(this,true)" data-i18n="Set up Xtream">Set up Xtream</button></div><div class="setupfinishopt"><b data-i18n="All done">All done</b><span class="muted" data-i18n="Head straight to My Profile and start using TVMate.">Head straight to My Profile and start using TVMate.</span><br><button type="button" onclick="finishProfileSetup(this,false)" data-i18n="Let's go, I'm ready">Let's go, I'm ready</button></div></div>
+      <div class="setupfinishopts"><div class="setupfinishopt"><b data-i18n="Want playback too?">Want playback too?</b><span class="muted" data-i18n="Set up your Xtream login for your own channels, movies and shows.">Set up your Xtream login for your own channels, movies and shows.</span><br><button type="button" class="ghost" onclick="finishProfileSetup(this,true)" data-i18n="Set up Xtream">Set up Xtream</button></div><div class="setupfinishopt"><b data-i18n="All done">All done</b><span class="muted" data-i18n="Head straight to Profile and start using TVMate.">Head straight to Profile and start using TVMate.</span><br><button type="button" onclick="finishProfileSetup(this,false)" data-i18n="Let's go, I'm ready">Let's go, I'm ready</button></div></div>
     </div>
     <div class="setupactions">
       <button id="setupSkip" type="button" class="ghost" onclick="skipProfileSetup()" data-i18n="Skip setup">Skip setup</button>
@@ -3872,7 +3871,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div><label data-i18n="Profile name">Profile name</label><input id="ep_name" type="text"></div>
       <div><label data-i18n="Preferred language">Preferred language</label><select id="ep_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
       <div class="full"><label data-i18n="Emblem">Emblem</label><div id="ep_emblems" class="setupemblems"></div></div>
-      <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="My Profile">My Profile</option><option value="mytimeline" data-i18n="My Timeline">My Timeline</option><option value="search" data-i18n="Search">Search</option><option value="channels" data-i18n="Playlist Builder">Playlist Builder</option><option value="mytv" data-i18n="My TV">My TV</option><option value="movies" data-i18n="My Movies">My Movies</option><option value="shows" data-i18n="My Shows">My Shows</option><option value="games" data-i18n="My Games">My Games</option><option value="racing" data-i18n="My Racing">My Racing</option><option value="teams" data-i18n="My Teams">My Teams</option></select></div>
+      <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="Profile">Profile</option><option value="mytimeline" data-i18n="Timeline">Timeline</option><option value="channels" data-i18n="Playlists">Playlists</option><option value="mytv" data-i18n="Live TV">Live TV</option><option value="movies" data-i18n="Movies">Movies</option><option value="shows" data-i18n="Shows">Shows</option><option value="games" data-i18n="Games">Games</option><option value="racing" data-i18n="Racing">Racing</option><option value="teams" data-i18n="Sports">Sports</option></select></div>
       <div><label data-i18n="Profile layout">Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
       <label class="setupfeature full"><input id="ep_checkshows" type="checkbox"><span><b data-i18n="Check favorite shows on startup">Check favorite shows on startup</b><small data-i18n="Look for newly available episodes when TVMate starts.">Look for newly available episodes when TVMate starts.</small></span></label>
       <label class="setupfeature full"><input id="ep_refreshstartup" type="checkbox"><span><b data-i18n="Refresh all content on startup">Refresh all content on startup</b><small data-i18n="Refresh channels, movies, shows and episode data when TVMate starts.">Refresh channels, movies, shows and episode data when TVMate starts.</small></span></label>
@@ -3882,30 +3881,19 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </div>
 </div>
 <main>
-  <section id="searchView">
-    <div class="pancakes left" id="pcakeL"></div>
-    <div class="pancakes right" id="pcakeR"></div>
-    <div class="split">
+  <section id="channelsView" class="hide">
+    <div class="playlistsearch">
       <div class="col">
-        <h2 class="colh" data-i18n="Channels">Channels</h2>
-        <div class="row">
-          <input id="cq" type="text" placeholder="Find a channel, e.g. tv2 play" data-i18n-ph="Find a channel, e.g. tv2 play" onkeydown="if(event.key==='Enter')doChannelSearch('cq','cresults')">
-          <button onclick="doChannelSearch('cq','cresults')" data-i18n="Search">Find</button>
-        </div>
+        <div class="colh" data-i18n="Find Channels">Find Channels</div>
+        <div class="row"><input id="cq" type="text" placeholder="Find a channel, e.g. tv2 play" data-i18n-ph="Find a channel, e.g. tv2 play" onkeydown="if(event.key==='Enter')doChannelSearch('cq','cresults')"><button onclick="doChannelSearch('cq','cresults')" data-i18n="Search">Find</button></div>
         <div id="cresults"></div>
       </div>
       <div class="col">
-        <h2 class="colh" data-i18n="Categories">Categories</h2>
-        <div class="row">
-          <input id="catq" type="text" placeholder="Search a category, e.g. Norway" data-i18n-ph="Search a category, e.g. Norway" onkeydown="if(event.key==='Enter')doCategorySearch()">
-          <button onclick="doCategorySearch()" data-i18n="Search">Find</button>
-        </div>
+        <div class="colh" data-i18n="Find Categories">Find Categories</div>
+        <div class="row"><input id="catq" type="text" placeholder="Search a category, e.g. Norway" data-i18n-ph="Search a category, e.g. Norway" onkeydown="if(event.key==='Enter')doCategorySearch()"><button onclick="doCategorySearch()" data-i18n="Search">Find</button></div>
         <div id="catresults"></div>
       </div>
     </div>
-  </section>
-
-  <section id="channelsView" class="hide">
     <div class="ch4">
       <div class="ch4cats">
         <div class="colh"><span data-i18n="All Categories">All Categories</span></div>
@@ -3986,7 +3974,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 
   <section id="mytimelineView" class="hide">
     <div class="mytimelinepage">
-      <h2 class="colh" data-i18n="My Timeline">My Timeline</h2>
+      <h2 class="colh" data-i18n="Timeline">Timeline</h2>
       <div id="myTimelineStandalone"></div>
     </div>
   </section>
@@ -3999,7 +3987,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div id="movieFavList" class="moviefavlist"><span class="muted">No favorite movies yet.</span></div>
       </aside>
       <div class="moviesmain">
-        <h2 class="colh" data-i18n="My Movies">My Movies</h2>
+        <h2 class="colh" data-i18n="Movies">Movies</h2>
         <div class="row sectionsearch">
           <input id="movieQ" type="text" placeholder="Search your movies..." data-i18n-ph="Search your movies..." onkeydown="if(event.key==='Enter')searchMovies()">
           <button onclick="searchMovies()" data-i18n="Search">Search</button>
@@ -4022,7 +4010,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div id="showFavList" class="showfavlist"><span class="muted">No favorite shows yet.</span></div>
       </aside>
       <div class="showsmain">
-        <h2 class="colh" data-i18n="My Shows">My Shows</h2>
+        <h2 class="colh" data-i18n="Shows">Shows</h2>
         <div class="row sectionsearch">
           <input id="showQ" type="text" placeholder="Search your shows..." data-i18n-ph="Search your shows..." onkeydown="if(event.key==='Enter')searchShows()">
           <button onclick="searchShows()" data-i18n="Search">Search</button>
@@ -4047,7 +4035,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <aside id="steamProfile" class="steamprofile"><div class="steamprofileempty">Steam profile</div></aside>
       <div class="gamesmain">
         <div class="gameshead">
-          <div><h2 class="colh" data-i18n="My Games">My Games</h2><div id="steamWishlistStatus" class="moviemeta"></div></div>
+          <div><h2 class="colh" data-i18n="Games">Games</h2><div id="steamWishlistStatus" class="moviemeta"></div></div>
           <div class="gamesheadactions"><button id="steamWishlistQuickBtn" class="ghost" onclick="syncSteamWishlist(this)">&#8635; <span data-i18n="Refresh wishlist">Refresh wishlist</span></button><button class="ghost" onclick="toggleSteamWishlistSettings()">&#9881; <span data-i18n="Wishlist settings">Wishlist settings</span></button></div>
         </div>
         <div id="steamWishlistSettings" class="gameswishlistsettings hide"><div class="row sectionsearch"><input id="steamWishlistQ" type="text" placeholder="Steam wishlist URL..." data-i18n-ph="Steam wishlist URL..."><button id="steamWishlistBtn" class="ghost" onclick="syncSteamWishlist(this)" data-i18n="Sync wishlist">Sync wishlist</button></div></div>
@@ -4089,7 +4077,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div id="racingDriverDetail" class="racingdetail"><span class="muted">Choose a driver to see details.</span></div>
       </aside>
       <div class="racingwrap">
-        <h2 class="colh" data-i18n="My Racing">My Racing</h2>
+        <h2 class="colh" data-i18n="Racing">Racing</h2>
         <div class="muted" data-i18n="Choose the racing series you want to follow.">Choose the racing series you want to follow.</div>
         <div id="racingSeries" class="racingseries"></div>
         <div id="racingDrivers" class="racingdrivers"></div>
@@ -4108,7 +4096,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div id="teamFavList" class="teamfavlist"><span class="muted">No favorite teams yet.</span></div>
       </aside>
       <div class="teamsmain">
-        <h2 class="colh" data-i18n="My Teams">My Teams</h2>
+        <h2 class="colh" data-i18n="Sports">Sports</h2>
         <div class="teammatchfinder">
           <div class="colh" data-i18n="Find team or match">Find team or match</div>
           <div class="row sectionsearch">
@@ -4152,12 +4140,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div class="grid2">
           <div><label data-i18n="Profile name">Profile name</label><input id="s_profile" type="text" maxlength="40"></div>
           <div><label data-i18n="Profile emblem">Profile emblem</label><div id="s_emblems" class="emblempicker"></div></div>
-          <div><label data-i18n="My Profile layout">My Profile layout</label>
+          <div><label data-i18n="Profile layout">Profile layout</label>
             <select id="s_mylistlayout"><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="timeline">Now Timeline</option><option value="hub">Profile Hub</option></select></div>
           <div><label data-i18n="Preferred language">Preferred language</label>
             <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
           <div><label data-i18n="Default start section">Default start section</label>
-            <select id="s_start"><option value="mylist">My Profile</option><option id="startTimelineOption" value="mytimeline">My Timeline</option><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option id="startGamesOption" value="games">My Games</option><option id="startRacingOption" value="racing">My Racing</option><option value="teams">My Teams</option></select></div>
+            <select id="s_start"><option value="mylist">Profile</option><option id="startTimelineOption" value="mytimeline">Timeline</option><option value="channels">Playlists</option><option value="mytv">Live TV</option><option value="movies">Movies</option><option value="shows">Shows</option><option id="startGamesOption" value="games">Games</option><option id="startRacingOption" value="racing">Racing</option><option value="teams">Sports</option></select></div>
         </div>
        </div>
        <div class="settingsgroup">
@@ -4295,7 +4283,7 @@ function applyBackgroundStyle(style){
 }
 function initPancakes(){applyBackgroundStyle(_backgroundStyle);}
 function initPlPancakes(){applyBackgroundStyle(_backgroundStyle);}
-function setNav(id){['navSearch','navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
+function setNav(id){['navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'].forEach(function(n){const el=document.getElementById(n);if(el)el.classList.toggle('on',n===id);});}
 const _SLOGANS={
   search:["Find the match. Pick a channel. Pour the syrup."],
   mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
@@ -4314,19 +4302,19 @@ function setSlogan(section){
 }
 let _lang='en';
 const _I18N={
-  "Search":"Søk","Playlist Builder":"Lag spilleliste","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger","Stop TVMate":"Stopp TVMate",
+  "Search":"Søk","Playlist Builder":"Lag spilleliste","Playlists":"Spillelister","Timeline":"Tidslinje","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger","Stop TVMate":"Stopp TVMate",
   "Welcome to TVMate":"Velkommen til TVMate","Let's make it yours. Everything here can be changed later from Settings or Edit Profile.":"La oss gjøre TVMate til ditt. Alt her kan endres senere i Innstillinger eller Rediger profil.","Your name":"Navnet ditt","Pick an emblem":"Velg et emblem","Emblem":"Emblem",
-  "Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what My Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Min profil ser ut.","If you don't add anything yet, TVMate will add a couple of demo items. They disappear permanently when you favorite your first real movie or show.":"Hvis du ikke legger til noe ennå, legger TVMate inn et par demo-elementer. De forsvinner permanent når du favorittmerker din første ekte film eller serie.",
+  "Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what My Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Min profil ser ut.","Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Profil ser ut.","If you don't add anything yet, TVMate will add a couple of demo items. They disappear permanently when you favorite your first real movie or show.":"Hvis du ikke legger til noe ennå, legger TVMate inn et par demo-elementer. De forsvinner permanent når du favorittmerker din første ekte film eller serie.",
   "How should TVMate open?":"Hvordan skal TVMate åpnes?","TVMate opens straight in your browser. Use Stop TVMate in the top-right when you want to shut the app down.":"TVMate åpnes rett i nettleseren. Bruk Stopp TVMate øverst til høyre når du vil avslutte appen.","Modern TVMate":"Moderne TVMate","TVMate opens straight in your browser with no CMD window.":"TVMate åpnes rett i nettleseren uten CMD-vindu.","Bookmark TVMate":"Bokmerk TVMate","Press Ctrl+D to bookmark TVMate for an easy way back.":"Trykk Ctrl+D for å bokmerke TVMate, så finner du enkelt tilbake.","Copy address":"Kopier adresse","Stop TVMate after":"Stopp TVMate etter","Activity in TVMate resets the timer.":"Aktivitet i TVMate nullstiller tidsuret.",
-  "You're ready":"Du er klar","TVMate is set up around what you follow. A streaming login is only needed for your own channels, movies and shows.":"TVMate er satt opp rundt det du følger. Strømmeinnlogging trengs bare for dine egne kanaler, filmer og serier.","Want playback too?":"Vil du også spille av?","Set up your Xtream login for your own channels, movies and shows.":"Sett opp Xtream-innlogging for dine egne kanaler, filmer og serier.","Set up Xtream":"Sett opp Xtream","All done":"Alt klart","Head straight to My Profile and start using TVMate.":"Gå rett til Min profil og begynn å bruke TVMate.","Let's go, I'm ready":"Kjør på, jeg er klar",
+  "You're ready":"Du er klar","TVMate is set up around what you follow. A streaming login is only needed for your own channels, movies and shows.":"TVMate er satt opp rundt det du følger. Strømmeinnlogging trengs bare for dine egne kanaler, filmer og serier.","Want playback too?":"Vil du også spille av?","Set up your Xtream login for your own channels, movies and shows.":"Sett opp Xtream-innlogging for dine egne kanaler, filmer og serier.","Set up Xtream":"Sett opp Xtream","All done":"Alt klart","Head straight to My Profile and start using TVMate.":"Gå rett til Min profil og begynn å bruke TVMate.","Head straight to Profile and start using TVMate.":"Gå rett til Profil og begynn å bruke TVMate.","Let's go, I'm ready":"Kjør på, jeg er klar",
   "Background style":"Bakgrunnsstil","Floating pancakes & TVs":"Flytende pannekaker og TV-er","Off":"Av","What do you want to follow?":"Hva vil du følge?","Movies and shows are always available. Turn the extra sections on or off here.":"Filmer og serier er alltid tilgjengelige. Slå ekstraseksjonene av eller på her.",
-  "Football":"Fotball","Games":"Spill","Movies":"Filmer","Matchfinder, My Teams and fixtures":"Kampfinner, Mine lag og kamper","My Racing, schedules and followed drivers":"Min racing, terminlister og førere du følger","Steam wishlist and game releases":"Steam-ønskeliste og spillanseringer",
-  "Choose your football teams":"Velg fotballagene dine","Pick the teams you want fixtures for. You can add or remove teams later in My Teams.":"Velg lagene du vil se kamper for. Du kan legge til eller fjerne lag senere i Mine lag.","Search for a team, e.g. Brann":"Søk etter et lag, f.eks. Brann",
-  "Choose your racing":"Velg racing","Select the series you want on My Racing and your timeline.":"Velg seriene du vil ha i Min racing og på tidslinjen.","Favorite Formula 1 team":"Favorittlag i Formel 1","Choose a Formula 1 team":"Velg et Formel 1-lag","Add something to watch":"Legg til noe å se på","Search shows":"Søk etter serier","Search movies":"Søk etter filmer",
+  "Football":"Fotball","Games":"Spill","Movies":"Filmer","Matchfinder, My Teams and fixtures":"Kampfinner, Mine lag og kamper","Matchfinder, Sports and fixtures":"Kampfinner, Sport og kamper","My Racing, schedules and followed drivers":"Min racing, terminlister og førere du følger","Racing schedules and followed drivers":"Racingterminlister og førere du følger","Steam wishlist and game releases":"Steam-ønskeliste og spillanseringer",
+  "Choose your football teams":"Velg fotballagene dine","Pick the teams you want fixtures for. You can add or remove teams later in My Teams.":"Velg lagene du vil se kamper for. Du kan legge til eller fjerne lag senere i Mine lag.","Pick the teams you want fixtures for. You can add or remove teams later in Sports.":"Velg lagene du vil se kamper for. Du kan legge til eller fjerne lag senere under Sport.","Search for a team, e.g. Brann":"Søk etter et lag, f.eks. Brann",
+  "Choose your racing":"Velg racing","Select the series you want on My Racing and your timeline.":"Velg seriene du vil ha i Min racing og på tidslinjen.","Select the series you want in Racing and your timeline.":"Velg seriene du vil ha i Racing og på tidslinjen.","Favorite Formula 1 team":"Favorittlag i Formel 1","Choose a Formula 1 team":"Velg et Formel 1-lag","Add something to watch":"Legg til noe å se på","Search shows":"Søk etter serier","Search movies":"Søk etter filmer",
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
+  "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
   "No favorite teams yet.":"Ingen favorittlag ennå.","No upcoming fixture found.":"Ingen kommende kamp funnet.","Could not load team fixtures.":"Kunne ikke laste lagkamper.",
@@ -4356,9 +4344,9 @@ const _I18N={
   "Startup":"Oppstart","Your Xtream login stays in your local config.json and is only sent to your own provider.":"Xtream-innloggingen lagres lokalt i config.json og sendes bare til din egen leverandør.","Auto shutdown when inactive":"Avslutt automatisk ved inaktivitet","Keep running — uses approximately three crumbs and your calculator works harder":"Fortsett å kjøre — bruker omtrent tre smuler, og kalkulatoren din jobber hardere","Changes are kept locally on this device.":"Endringer lagres lokalt på denne enheten.",
   "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt",
   "Check for new movies":"Se etter nye filmer",
-  "Back to My Movies":"Tilbake til Mine filmer",
+  "Back to My Movies":"Tilbake til Mine filmer","Back to Movies":"Tilbake til Filmer",
   "Your Latest Episodes":"Dine nyeste episoder","See more latest episodes":"Se flere nyeste episoder",
-  "Back to My Shows":"Tilbake til Mine serier",
+  "Back to My Shows":"Tilbake til Mine serier","Back to Shows":"Tilbake til Serier",
   "Upcoming Episodes":"Kommende episoder","Airs":"Sendes",
   "Today":"i dag","Tomorrow":"i morgen","in":"om","day":"dag","days":"dager",
   "hour":"time","hours":"timer","minute":"minutt","minutes":"minutter",
@@ -4426,7 +4414,7 @@ function hideAll(keepMytv){
   // Leaving Live TV must also stop the stream. Hiding the section alone left
   // browser playback running invisibly in the background.
   if(!keepMytv&&!mytvView.classList.contains('hide')&&(_tvPlaying!==null||window._tvPlaybackController))tvStop();
-  searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
 }
 let _historyReady=false,_historyRestoring=false,_historySection='';
 function rememberLocation(section,extra){
@@ -4440,10 +4428,12 @@ function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
-function showTeams(target){if(!_footballEnabled){showSearch();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();if(target)setTimeout(()=>openMyTeamsFixture(target),0);}
+function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();if(target)setTimeout(()=>openMyTeamsFixture(target),0);}
 function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
-function showSearch(){rememberLocation('search');hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
+// Backward compatibility for old bookmarks/configs that still point at Search.
+// Search now lives inside Playlists.
+function showSearch(){showChannels();}
 function showChannels(){rememberLocation('channels');hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
 function showSettings(){rememberLocation('settings');loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');}
 function updateProfileName(name){
@@ -4558,7 +4548,7 @@ async function finishProfileSetup(btn,openXtream){
 }
 function renderMyListProfile(){
   const el=document.getElementById('myListProfile');if(!el)return;
-  const name=String(_profileConfig.profile_name||'').trim()||tr('My Profile');
+  const name=String(_profileConfig.profile_name||'').trim()||tr('Profile');
   el.innerHTML='<div class="mylistprofileemblem">'+profileEmblemSvg(_profileConfig.profile_emblem)+'</div><div class="mylistprofilename">'+esc(name)+'</div><button type="button" class="ghost editprofilebtn" onclick="openEditProfile()" data-i18n="Edit Profile">'+esc(tr('Edit Profile'))+'</button>';
 }
 let _editProfileEmblem='tvstack';
@@ -5013,7 +5003,7 @@ async function saveSettings(){
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   s_msg.textContent=r.ok?'Saved.':'Error saving.';
-  if(r.ok){setLang(body.preferred_language);applyProfileConfig(body);toast('Saved.');if(!body.football_enabled&&!teamsView.classList.contains('hide'))showSearch();if(!body.games_enabled&&!gamesView.classList.contains('hide'))showMylist();if(!body.f1_enabled&&!racingView.classList.contains('hide'))showMylist();}
+  if(r.ok){setLang(body.preferred_language);applyProfileConfig(body);toast('Saved.');if(!body.football_enabled&&!teamsView.classList.contains('hide'))showMylist();if(!body.games_enabled&&!gamesView.classList.contains('hide'))showMylist();if(!body.f1_enabled&&!racingView.classList.contains('hide'))showMylist();}
   refreshStatus();
 }
 function formatBytes(n){
@@ -5436,7 +5426,7 @@ async function searchMovies(){
   recent.classList.add('hide');
   el.innerHTML='<div class="muted" style="margin-top:14px">Searching movies...</div>';
   const r=await api('/api/movies?q='+encodeURIComponent(q));
-  const back='<div class="movieresultback"><button class="ghost" onclick="backToMyMovies()">&#8592; '+tr('Back to My Movies')+'</button></div>';
+  const back='<div class="movieresultback"><button class="ghost" onclick="backToMyMovies()">&#8592; '+tr('Back to Movies')+'</button></div>';
   if(r.error){el.innerHTML=back+'<div class="err movieresultstatus">'+esc(r.error)+'</div>';return;}
   if(!r.movies.length){el.innerHTML=back+'<div class="muted movieresultstatus">No movies found for &quot;'+esc(q)+'&quot;.</div>';return;}
   await loadMovieFavorites();
@@ -5810,7 +5800,7 @@ async function searchShows(){
   latest.classList.add('hide');
   el.innerHTML='<div class="muted" style="margin-top:14px">Searching your shows...</div>';
   const r=await api('/api/shows?q='+encodeURIComponent(q));
-  const back='<div class="showresultback"><button class="ghost" onclick="backToMyShows()">&#8592; '+tr('Back to My Shows')+'</button></div>';
+  const back='<div class="showresultback"><button class="ghost" onclick="backToMyShows()">&#8592; '+tr('Back to Shows')+'</button></div>';
   if(r.error){el.innerHTML=back+'<div class="err">'+esc(r.error)+'</div>';return;}
   if(!r.shows.length){el.innerHTML=back+'<div class="muted">No shows found for &quot;'+esc(q)+'&quot;.</div>';return;}
   await loadShowFavorites();
@@ -5844,7 +5834,7 @@ async function loadShow(seriesId,refresh){
   const heroFav=(_favShowSet.has(String(r.show_key))||_favShowTitleSet.has(String(r.show_key)))?' on':'';
   let h='<div class="showhero"><div class="showheroart">&#128250;'+heroCover+'</div><div><h2>'+esc(r.name||'Show')
     +'<span class="favstar showstar'+heroFav+'" data-key="'+escAttr(r.show_key)+'" data-series="'+escAttr(String(r.series_id))+'" data-series-ids="'+escAttr((r.series_ids||[]).join(','))+'" data-name="'+escAttr(r.name||'Show')+'" data-cover="'+escAttr(r.cover||'')+'" data-year="" data-rating="" title="Favorite">&#9733;</span></h2>'
-    +'<div class="muted">'+r.seasons.length+' season'+(r.seasons.length===1?'':'s')+'</div></div><button class="ghost showbackbtn" onclick="backToMyShows()">&#8592; '+tr('Back to My Shows')+'</button></div>';
+    +'<div class="muted">'+r.seasons.length+' season'+(r.seasons.length===1?'':'s')+'</div></div><button class="ghost showbackbtn" onclick="backToMyShows()">&#8592; '+tr('Back to Shows')+'</button></div>';
   for(const season of r.seasons){
     _showSeasons[String(season.number)]={};
     for(const ep of season.episodes)for(const src of (ep.sources||[])){
@@ -5878,7 +5868,7 @@ async function loadExternalShow(catalogId,refresh){
   const cover=r.cover?'<img src="'+escAttr(r.cover)+'" alt="" onerror="this.remove()">':'',key=String(r.catalog_id||r.show_key),fav=_favShowSet.has(key)?' on':'';
   let h='<div class="showhero"><div class="showheroart">&#128250;'+cover+'</div><div><h2>'+esc(r.name||'Show')
     +'<span class="favstar showstar'+fav+'" data-key="'+escAttr(key)+'" data-catalog="'+escAttr(r.catalog_id||'')+'" data-show-key="'+escAttr(r.show_key||'')+'" data-series="" data-series-ids="" data-name="'+escAttr(r.name||'Show')+'" data-cover="'+escAttr(r.cover||'')+'" data-year="'+escAttr(r.year||'')+'" data-rating="'+escAttr(r.rating||'')+'" title="Favorite">&#9733;</span></h2>'
-    +'<div class="muted">'+r.seasons.length+' season'+(r.seasons.length===1?'':'s')+'</div></div><button class="ghost showbackbtn" onclick="backToMyShows()">&#8592; '+tr('Back to My Shows')+'</button></div>';
+    +'<div class="muted">'+r.seasons.length+' season'+(r.seasons.length===1?'':'s')+'</div></div><button class="ghost showbackbtn" onclick="backToMyShows()">&#8592; '+tr('Back to Shows')+'</button></div>';
   for(const season of r.seasons){
     const seasonCover=season.cover?'<img src="'+escAttr(season.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
     h+='<div class="seasonblock"><div class="seasonlayout"><div class="seasonart">&#128250;'+seasonCover+'</div><div class="seasoncontent"><div class="seasonhead"><b>'+esc(season.title)+'</b></div><div class="episodes">';
@@ -6276,13 +6266,13 @@ async function favSelectedCats(){
   const cats=Array.from(_selCats);
   if(!cats.length){alert('Tick some categories first.');return;}
   await favPost({action:'add_cats',categories:cats});
-  toast('Added '+cats.length+' categor'+(cats.length===1?'y':'ies')+' to My Profile');
+  toast('Added '+cats.length+' categor'+(cats.length===1?'y':'ies')+' to Profile');
 }
 async function favPlaylist(){
   const items=Array.from(_playlist.entries()).map(function(kv){return {stream_id:kv[0],name:kv[1].name,category:kv[1].category||''};});
   if(!items.length){alert('Playlist is empty.');return;}
   await favPost({action:'add_channels',channels:items});
-  toast('Added '+items.length+' channel'+(items.length===1?'':'s')+' to My Profile');
+  toast('Added '+items.length+' channel'+(items.length===1?'':'s')+' to Profile');
 }
 function toast(msg,duration){
   let t=document.getElementById('_toast');
@@ -6599,11 +6589,12 @@ document.addEventListener('click',function(e){
 try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else applyLang();}catch(e){applyLang();}
 // open the user's default start section
 (async function(){
-  let start='search',checkShows=false,refreshStartup=false,startupConfig=null;
+  let start='mylist',checkShows=false,refreshStartup=false,startupConfig=null;
   try{const c=await api('/api/config');startupConfig=c;start=c.start_section||'mylist';checkShows=!!c.check_shows_on_startup;refreshStartup=!!c.refresh_all_on_startup;setLang(c.preferred_language||'en');applyProfileConfig(c);if(start==='teams'&&!_footballEnabled)start='mylist';if(start==='games'&&!_gamesEnabled)start='mylist';if(start==='racing'&&!_f1Enabled)start='mylist';}catch(e){}
+  if(start==='search')start='channels'; // migrate the removed Search section
   if(start==='mytimeline'&&_myListLayout==='timeline')start='mylist';
-  const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline};
-  (map[start]||showSearch)();
+  const map={channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline};
+  (map[start]||showMylist)();
   history.replaceState({tvmate:true,section:start},'','#'+start);
   _historyReady=true;
   const setupDone=!!(startupConfig&&startupConfig.setup_complete===true);
@@ -6615,8 +6606,8 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
 window.addEventListener('popstate',function(ev){
   const state=ev.state;
   if(!state||!state.tvmate)return;
-  const map={search:showSearch,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings};
-  const fn=map[state.section]||showSearch;
+  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings};
+  const fn=map[state.section]||showMylist;
   _historyRestoring=true;
   try{
     fn();
