@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b243"
+VERSION = "0.777.b244"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6226,24 +6226,33 @@ document.addEventListener('dragend',function(){
   _tvDragSid=null;
   document.querySelectorAll('.tvrow.tvdragging,.tvrow.tvdragover').forEach(r=>r.classList.remove('tvdragging','tvdragover'));
 });
+function epgWallClockTs(value,fallback){
+  // Xtream's EPG `start`/`end` strings are schedule wall-clock values. Some
+  // servers also expose start_timestamp as if that wall clock were UTC; using
+  // that epoch in a browser then shifts Norwegian listings by +1/+2 hours.
+  // Build the raw schedule time in the viewer's local timezone when available.
+  const s=String(value||'').trim(),m=s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if(m){const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),Number(m[4]),Number(m[5]),Number(m[6]||0));const ts=d.getTime()/1000;if(Number.isFinite(ts))return ts;}
+  return Number(fallback)||0;
+}
 function epgCellHtml(sid,winStart,winEnd){
   const progs=_tvEpg[String(sid)];
   if(!progs||!progs.length)return '<span class="epgnone muted">'+tr('No program info')+'</span>';
   const nowSec=Date.now()/1000,ws=winStart/1000,we=winEnd/1000,span=Math.max(1,we-ws);
   const timed=progs.filter(function(p){
-    if(!p.title||!Number(p.start_ts))return false;
-    const start=Number(p.start_ts),stop=Number(p.stop_ts)||start+1800;
+    const start=epgWallClockTs(p.start,p.start_ts),stop=epgWallClockTs(p.end,p.stop_ts)||start+1800;
+    if(!p.title||!start)return false;
     return stop>ws&&start<we;
-  }).sort(function(a,b){return Number(a.start_ts)-Number(b.start_ts);});
+  }).sort(function(a,b){return epgWallClockTs(a.start,a.start_ts)-epgWallClockTs(b.start,b.start_ts);});
   if(!timed.length){
-    const next=progs.filter(p=>p.title&&Number(p.start_ts)>=ws).sort((a,b)=>Number(a.start_ts)-Number(b.start_ts))[0]||progs.find(p=>p.title);
+    const next=progs.filter(p=>p.title&&epgWallClockTs(p.start,p.start_ts)>=ws).sort((a,b)=>epgWallClockTs(a.start,a.start_ts)-epgWallClockTs(b.start,b.start_ts))[0]||progs.find(p=>p.title);
     if(!next)return '<span class="epgnone muted">'+tr('No program info')+'</span>';
-    if(Number(next.start_ts)>=we)return '<span class="epgnone muted">'+tr('No program info')+'</span>';
-    let tm='';if(next.start_ts){const t=new Date(Number(next.start_ts)*1000);tm=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);}
+    const nextStart=epgWallClockTs(next.start,next.start_ts);if(nextStart>=we)return '<span class="epgnone muted">'+tr('No program info')+'</span>';
+    let tm='';if(nextStart){const t=new Date(nextStart*1000);tm=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);}
     return '<span class="epgfallback"><span class="epgt">'+tm+'</span><span class="epgtitle">'+esc(next.title)+'</span></span>';
   }
   return timed.map(function(p){
-    const start=Number(p.start_ts),rawStop=Number(p.stop_ts)||start+1800,stop=Math.max(start+60,rawStop);
+    const start=epgWallClockTs(p.start,p.start_ts),rawStop=epgWallClockTs(p.end,p.stop_ts)||start+1800,stop=Math.max(start+60,rawStop);
     const visibleStart=Math.max(ws,start),visibleStop=Math.min(we,stop);
     const left=Math.max(0,(visibleStart-ws)/span*100),width=Math.max(.8,(visibleStop-visibleStart)/span*100);
     const live=start<=nowSec&&stop>nowSec;
