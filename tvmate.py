@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b251"
+VERSION = "0.777.b252"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1261,6 +1261,7 @@ _TV_CACHE = {}          # country -> {"ts": float, "fixtures": [...]}
 _TV_TTL = 6 * 3600      # broadcaster listings persist for 6 hours
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
+_TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
 _TEAM_ID_CACHE = {}       # normalized favorite name -> FotMob team id
 _DAILY_MATCH_CACHE = {"date": "", "ts": 0, "matches": []}
 _DAILY_MATCH_TTL = 120    # current/live matches: refresh every 2 minutes
@@ -2408,6 +2409,79 @@ def fetch_country_fixtures(country):
     _save_timed_data_cache(f"tv-guide-{country}.json", fixtures)
     return fixtures
 
+def _team_profile_from_data(data, team_id, team_name=""):
+    """Extract stable team facts from FotMob without depending on one response layout."""
+    profile = {"team_id": str(team_id or ""), "name": str(team_name or "").strip(),
+               "country": "", "league": "", "stadium": "", "coach": ""}
+    if not isinstance(data, dict):
+        return profile
+    def display(value):
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, dict):
+            for key in ("name", "title", "label", "shortName"):
+                if value.get(key):
+                    return str(value[key]).strip()
+        return ""
+    # Search profile/overview metadata, but deliberately skip fixture trees so
+    # an away stadium or competition is never mistaken for the team's own fact.
+    wanted = {
+        "country": {"country", "countryname", "ccode"},
+        "league": {"primaryleague", "league", "leaguename", "tournament"},
+        "stadium": {"stadium", "venue", "ground", "homeground"},
+        "coach": {"coach", "headcoach", "manager", "headmanager"},
+    }
+    skip = {"fixtures", "allfixtures", "matches", "results", "nextmatch", "previousmatch"}
+    def walk(obj):
+        if isinstance(obj, dict):
+            for raw_key, value in obj.items():
+                key = re.sub(r"[^a-z]", "", str(raw_key).lower())
+                if key in skip:
+                    continue
+                for field, aliases in wanted.items():
+                    if not profile[field] and key in aliases:
+                        text = display(value)
+                        if text:
+                            profile[field] = text
+                if isinstance(value, (dict, list)):
+                    walk(value)
+        elif isinstance(obj, list):
+            for value in obj[:50]:
+                walk(value)
+    # Prefer obvious team identity blocks before walking the rest.
+    for block_name in ("details", "teamDetails", "profile", "overview"):
+        block = data.get(block_name)
+        if isinstance(block, dict):
+            if not profile["name"]:
+                profile["name"] = display(block.get("name"))
+            walk(block)
+    walk(data)
+    return profile
+
+def _remember_team_profile(team_id, team_name, data):
+    team_id = str(team_id or "").strip()
+    if not team_id:
+        return {}
+    profile = _team_profile_from_data(data, team_id, team_name)
+    _TEAM_PROFILE_CACHE[team_id] = {"ts": time.time(), "profile": profile}
+    _save_timed_data_cache(f"team-profile-{team_id}.json", profile)
+    return profile
+
+def fetch_team_profile(team_id, team_name=""):
+    team_id = str(team_id or "").strip()
+    if not team_id:
+        return {"team_id": "", "name": str(team_name or "").strip(), "country": "", "league": "", "stadium": "", "coach": ""}
+    now = time.time()
+    cached = _TEAM_PROFILE_CACHE.get(team_id)
+    if cached and now - cached["ts"] < _TEAM_FIXTURE_TTL:
+        return dict(cached["profile"])
+    disk = _load_timed_data_cache(f"team-profile-{team_id}.json", _TEAM_FIXTURE_TTL)
+    if isinstance(disk, dict) and disk:
+        _TEAM_PROFILE_CACHE[team_id] = {"ts": now, "profile": disk}
+        return dict(disk)
+    data = http_get_json(FOTMOB_TEAM_API.format(team_id=urllib.parse.quote(team_id)), timeout=15)
+    return _remember_team_profile(team_id, team_name, data)
+
 def fetch_team_schedule(team_id, team_name=""):
     """Fetch a team's real FotMob fixture/status feed (not the TV guide)."""
     team_id = str(team_id or "").strip()
@@ -2425,6 +2499,7 @@ def fetch_team_schedule(team_id, team_name=""):
         _TEAM_FIXTURE_CACHE[team_id] = {"ts": now, "fixtures": disk}
         return [dict(row) for row in disk]
     data = http_get_json(FOTMOB_TEAM_API.format(team_id=urllib.parse.quote(team_id)), timeout=15)
+    _remember_team_profile(team_id, team_name, data)
     fixture_root = data.get("fixtures") or {}
     all_fixtures = fixture_root.get("allFixtures") or {}
     raw = all_fixtures.get("fixtures") or fixture_root.get("fixtures") or []
@@ -3551,15 +3626,26 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 .episode .btnvlc{margin-top:auto}
  .episodequalities{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
  .episodequalities .btnvlc{flex:1 1 auto;padding-left:7px;padding-right:7px;font-size:11px}
- .teamswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
- .teamfavs{padding-right:16px;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
+ .teamswrap{display:grid;grid-template-columns:minmax(320px,380px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
+ .teamfavs{padding-right:18px;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
  .teamfavlist{display:flex;flex-direction:column;gap:4px}
  .teamfavitem{position:relative;padding:8px 34px 8px 8px;border-bottom:1px solid var(--line);font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;min-height:48px}
  .teamfavitem[data-team-search]{cursor:pointer;border-radius:7px;transition:background .12s,border-color .12s}.teamfavitem[data-team-search]:hover{background:var(--card2);border-bottom-color:var(--line2)}
+ .teamfavitem.selected{background:rgba(31,73,124,.17);border-bottom-color:#33577c}
  .teamfavlogo{width:34px;height:34px;flex:0 0 34px;object-fit:contain}
  .teamfavname{min-width:0;line-height:1.25}
  .teamfavitem .teamremove{position:absolute;right:8px;top:50%;transform:translateY(-50%);margin:0}
- .teamsmain{width:100%;max-width:1250px;min-width:0;margin:0 auto}
+ .teamsmain{width:100%;max-width:1250px;min-width:0;margin:0}
+ .teamprofiledetail{min-height:230px;margin-bottom:17px}
+ .teamprofilehero{display:flex;align-items:center;gap:15px;margin:0 0 16px}
+ .teamprofilebadge{width:104px;height:104px;flex:0 0 104px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,rgba(72,96,132,.34),rgba(20,24,31,.76) 70%);border:1px solid var(--line2);box-shadow:inset 0 0 25px rgba(255,255,255,.025)}
+ .teamprofilebadge img{width:82px;height:82px;object-fit:contain;filter:drop-shadow(0 5px 8px rgba(0,0,0,.32))}
+ .teamprofileidentity{min-width:0}.teamprofileidentity h2{margin:0 0 5px;font-size:22px;line-height:1.12}.teamprofileidentity .muted{font-size:12px}
+ .teamprofilefacts{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 0 14px}
+ .teamprofilefact{min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(24,27,34,.55)}
+ .teamprofilefact span{display:block;color:var(--mut);font-size:9px;letter-spacing:.65px;text-transform:uppercase;margin-bottom:4px}.teamprofilefact b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .teamprofilenext{border-top:1px solid var(--line);padding-top:12px}.teamprofilenextlabel{color:var(--mut);font-size:9px;letter-spacing:.7px;text-transform:uppercase;margin-bottom:6px}.teamprofilenext b{display:block;font-size:13px;margin-bottom:3px}.teamprofilenext .muted{font-size:11px}
+ .teamfavdivider{height:1px;background:var(--line);margin:0 0 17px}
  .teammatchfinder{background:linear-gradient(180deg,rgba(24,28,36,.72),rgba(18,21,27,.56));border:1px solid var(--line);border-radius:10px;padding:14px 15px;margin:0 0 20px}
  .teammatchfinder>.colh{margin-bottom:9px;color:var(--fg)}
  .teammatchresults:empty{display:none}
@@ -3568,6 +3654,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teammatchresults #teamFixtures>.card.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
  .teamsearchresults{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
  .teamsearchhit{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:border-color .13s,background .13s}.teamsearchhit:hover{border-color:var(--line2);background:var(--card2)}
+ .teamsearchhit[data-team-select]{cursor:pointer}.teamsearchlogo{width:25px;height:25px;object-fit:contain;flex:0 0 25px}
  .teamfixturegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
  .topfixturegrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
  .topfixturemore{text-align:center;margin:14px 0 4px}
@@ -4015,6 +4102,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <button id="teamRefreshBtn" class="showrefresh" onclick="checkTeamFixtures(this)">&#8635; <span data-i18n="Refresh fixtures">Refresh fixtures</span></button>
     <div class="teamswrap">
       <aside class="teamfavs">
+        <div id="teamProfileDetail" class="teamprofiledetail"><span class="muted" data-i18n="Choose a team to see details.">Choose a team to see details.</span></div>
+        <div class="teamfavdivider"></div>
         <div class="colh">&#9733; <span data-i18n="Favorite Teams">Favorite Teams</span></div>
         <div id="teamFavList" class="teamfavlist"><span class="muted">No favorite teams yet.</span></div>
       </aside>
@@ -4237,7 +4326,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass",
+  "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
   "No favorite teams yet.":"Ingen favorittlag ennå.","No upcoming fixture found.":"Ingen kommende kamp funnet.","Could not load team fixtures.":"Kunne ikke laste lagkamper.",
@@ -4529,7 +4618,32 @@ function applyProfileConfig(c){
   applyMyListLayout();
 }
 
-let _favTeamSet=new Set(),_teamDeepLink=null;
+let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null;
+function favoriteTeamRow(t){return {name:String(typeof t==='string'?t:(t.name||'')),team_id:String(typeof t==='string'?'':(t.team_id||'')),logo:String(typeof t==='string'?'':(t.logo||''))};}
+function renderTeamFavoriteRail(){
+  const rail=document.getElementById('teamFavList');if(!rail)return;
+  if(!_favTeamRows.length){rail.innerHTML='<span class="muted">'+esc(tr('No favorite teams yet.'))+'</span>';return;}
+  rail.innerHTML=_favTeamRows.map(t=>{const src=t.logo||(t.team_id?'/api/team_logo?id='+encodeURIComponent(t.team_id):''),selected=String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase();return '<div class="teamfavitem'+(selected?' selected':'')+'" data-team-search="'+escAttr(t.name)+'" data-team-id="'+escAttr(t.team_id)+'" data-team-logo="'+escAttr(t.logo)+'">'+(src?'<img class="teamfavlogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span class="teamfavname">'+esc(t.name)+'</span><span class="favstar on teamremove" data-team-name="'+escAttr(t.name)+'" title="Remove from favorites">&#9733;</span></div>';}).join('');
+}
+function selectedTeamNextFixture(){
+  const name=String(_selectedTeamName||'');if(!name)return null;const now=Date.now();
+  return _myTeamFixtures.filter(f=>{const belongs=(f.favorite_teams||[]).some(owner=>_teamNamesEquivalentForUi(owner,name))||_teamNamesEquivalentForUi(f.home,name)||_teamNamesEquivalentForUi(f.away,name);if(!belongs)return false;const ts=f.start?new Date(f.start).getTime():0;return f.is_live||(ts&&ts>now-3*3600000);}).sort((a,b)=>{if(!!a.is_live!==!!b.is_live)return a.is_live?-1:1;return new Date(a.start||0)-new Date(b.start||0);})[0]||null;
+}
+function renderSelectedTeamProfile(profile){
+  const el=document.getElementById('teamProfileDetail');if(!el)return;const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase())||(_selectedTeamRow&&String(_selectedTeamRow.name).toLowerCase()===String(_selectedTeamName).toLowerCase()?_selectedTeamRow:null);if(!row){el.innerHTML='<span class="muted">'+esc(tr('Choose a team to see details.'))+'</span>';return;}
+  profile=profile||_selectedTeamProfile||{};const src=profile.logo||row.logo||(row.team_id?'/api/team_logo?id='+encodeURIComponent(row.team_id):''),meta=[profile.country,profile.league].filter(Boolean).join(' · ');
+  const facts=[['Home ground',profile.stadium||'—'],['Head coach',profile.coach||'—'],['League',profile.league||'—'],['Country',profile.country||'—']];
+  const next=selectedTeamNextFixture();let nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(tr('Next match'))+'</div><span class="muted">'+esc(tr('No upcoming fixture found.'))+'</span></div>';
+  if(next){const kick=next.start?new Date(next.start):null,when=next.is_live?tr('Live now'):(kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'');nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(next.is_live?tr('Live now'):tr('Next match'))+'</div><b>'+esc(next.home||'')+' v '+esc(next.away||'')+'</b><span class="muted">'+esc(when)+(next.league_name?' · '+esc(next.league_name):'')+'</span></div>';}
+  el.innerHTML='<div class="teamprofilehero"><div class="teamprofilebadge">'+(src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</div><div class="teamprofileidentity"><h2>'+esc(profile.name||row.name)+'</h2><div class="muted">'+esc(meta||tr('Football'))+'</div></div></div><div class="teamprofilefacts">'+facts.map(f=>'<div class="teamprofilefact"><span>'+esc(tr(f[0]))+'</span><b title="'+escAttr(f[1])+'">'+esc(f[1])+'</b></div>').join('')+'</div>'+nextHtml;
+}
+async function loadSelectedTeamProfile(row){
+  row=row||_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase());if(!row)return;const req=++_teamProfileReq;_selectedTeamProfile={name:row.name,team_id:row.team_id,logo:row.logo};renderSelectedTeamProfile(_selectedTeamProfile);
+  try{const r=await api('/api/team_profile?id='+encodeURIComponent(row.team_id||'')+'&name='+encodeURIComponent(row.name));if(req!==_teamProfileReq)return;_selectedTeamProfile=Object.assign({},r.profile||{}, {logo:(r.profile||{}).logo||row.logo});renderSelectedTeamProfile(_selectedTeamProfile);}catch(e){}
+}
+function selectMyTeam(name,teamId,logo,search){
+  _selectedTeamName=String(name||'');const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===_selectedTeamName.toLowerCase())||{name:_selectedTeamName,team_id:String(teamId||''),logo:String(logo||'')};_selectedTeamRow=row;renderTeamFavoriteRail();loadSelectedTeamProfile(row);if(search!==false)searchTeamHub(_selectedTeamName);
+}
 function teamFixtureCard(f,live,deepLink){
   const kick=f.start?new Date(f.start):null;
   const when=kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
@@ -4557,15 +4671,18 @@ function teamFixtureCard(f,live,deepLink){
 async function loadMyTeams(){
   const fav=await api('/api/favorites'), teams=fav.teams||[];
   _favTeamSet=new Set(teams.map(t=>String(typeof t==='string'?t:t.name).toLowerCase()));
-  const rail=document.getElementById('teamFavList');
-  if(!teams.length)rail.innerHTML='<span class="muted">No favorite teams yet.</span>';
-  else rail.innerHTML=teams.map(t=>{const name=typeof t==='string'?t:t.name,id=typeof t==='string'?'':String(t.team_id||''),logo=typeof t==='string'?'':(t.logo||'');const src=logo||(id?'/api/team_logo?id='+encodeURIComponent(id):'');return '<div class="teamfavitem" data-team-search="'+escAttr(name)+'">'+(src?'<img class="teamfavlogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span class="teamfavname">'+esc(name)+'</span><span class="favstar on teamremove" data-team-name="'+escAttr(name)+'" title="Remove from favorites">&#9733;</span></div>';}).join('');
+  _favTeamRows=teams.map(favoriteTeamRow).filter(t=>t.name);
+  if(_favTeamRows.length&&!_favTeamRows.some(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase()))_selectedTeamName=_favTeamRows[0].name;
+  if(!_favTeamRows.length)_selectedTeamName='';
+  renderTeamFavoriteRail();
+  const selectedRow=_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase());_selectedTeamRow=selectedRow||null;if(selectedRow)loadSelectedTeamProfile(selectedRow);else renderSelectedTeamProfile(null);
   const upcoming=document.getElementById('teamUpcomingList'), liveList=document.getElementById('teamLiveList'), liveSection=document.getElementById('teamLiveSection');
   const topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
   if(!teams.length){liveSection.classList.add('hide');upcoming.innerHTML='<span class="muted">Add a favorite team to see its fixtures.</span>';}
   upcoming.innerHTML='<span class="muted">Loading fixtures...</span>';
   const r=await api('/api/my_teams');
   if(r.error){upcoming.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
+  _myTeamFixtures=r.fixtures||[];renderSelectedTeamProfile(_selectedTeamProfile);
   const live=[], future=[];
   for(const f of (r.fixtures||[])){
     const ts=f.start?new Date(f.start).getTime():0, mins=ts?(Date.now()-ts)/60000:null;
@@ -4614,7 +4731,7 @@ async function searchTeams(){
   const r=await api('/api/team_search?q='+encodeURIComponent(q));
   if(r.error){el.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
   if(!r.teams.length){el.innerHTML='<span class="muted">No team found in current FotMob listings.</span>';return;}
-  el.innerHTML=r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||'');return '<div class="teamsearchhit"><span>'+esc(name)+'</span><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('');
+  el.innerHTML=r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||''),logo=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return '<div class="teamsearchhit" data-team-select="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'">'+(logo?'<img class="teamsearchlogo" src="'+escAttr(logo)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('');
 }
 async function searchTeamHub(query){
   const input=document.getElementById('q');if(query!==undefined&&input)input.value=String(query||'');
@@ -4626,6 +4743,7 @@ function openMyTeamsFixture(target){
   const read=(name)=>target instanceof Element?target.getAttribute(name):target[name.replace(/^data-/,'').replace(/-([a-z])/g,(_,c)=>c.toUpperCase())];
   _teamDeepLink={home:String(read('data-home')||target.home||''),away:String(read('data-away')||target.away||''),start:String(read('data-start')||target.start||'')};
   const query=String(read('data-search')||target.search||target.owner||_teamDeepLink.home||_teamDeepLink.away||'');
+  _selectedTeamName=query;const favorite=_favTeamRows.find(t=>_teamNamesEquivalentForUi(t.name,query));if(favorite){_selectedTeamRow=favorite;renderTeamFavoriteRail();loadSelectedTeamProfile(favorite);}
   const input=document.getElementById('q');if(input)input.value=query;
   searchTeams();doSearch();
 }
@@ -6402,9 +6520,11 @@ document.addEventListener('click',function(e){
   const teamRemove=e.target.closest('.teamremove');
   if(teamRemove){removeTeamFavorite(teamRemove.getAttribute('data-team-name'));return;}
   const teamFav=e.target.closest('.teamfavitem[data-team-search]');
-  if(teamFav){searchTeamHub(teamFav.getAttribute('data-team-search')||'');return;}
+  if(teamFav){selectMyTeam(teamFav.getAttribute('data-team-search')||'',teamFav.getAttribute('data-team-id')||'',teamFav.getAttribute('data-team-logo')||'',true);return;}
   const teamStar=e.target.closest('.teamstar');
   if(teamStar){toggleTeamFavorite(teamStar.getAttribute('data-team-name'),teamStar,teamStar.getAttribute('data-team-id'));return;}
+  const teamSearchHit=e.target.closest('.teamsearchhit[data-team-select]');
+  if(teamSearchHit){selectMyTeam(teamSearchHit.getAttribute('data-team-select')||'',teamSearchHit.getAttribute('data-team-id')||'','',false);return;}
   const sourceExpand=e.target.closest('.latestsourceexpand');
   if(sourceExpand){const box=sourceExpand.parentElement.querySelector('.latestsources');if(box)box.classList.toggle('hide');return;}
   const timelineGame=e.target.closest('.mylisttimelinegame');
@@ -7682,6 +7802,16 @@ class Handler(BaseHTTPRequestHandler):
                             found.append({"name": name, "team_id": team_id})
                 return self._send(200, {"teams": found, "source_errors": src_err})
 
+            if u.path == "/api/team_profile":
+                team_name = (q.get("name", [""])[0]).strip()
+                team_id = (q.get("id", [""])[0]).strip()
+                if not team_id and team_name:
+                    team_id = resolve_fotmob_team_id(team_name)
+                profile = fetch_team_profile(team_id, team_name)
+                profile["team_id"] = team_id
+                profile["logo"] = _team_logo_url(team_id) if team_id else ""
+                return self._send(200, {"profile": profile})
+
             if u.path == "/api/my_teams":
                 cfg = load_config()
                 countries = cfg.get("countries") or ["no", "uk", "us"]
@@ -8020,6 +8150,7 @@ class Handler(BaseHTTPRequestHandler):
                 _clear_provider_caches()
                 _TV_CACHE.clear()
                 _TEAM_FIXTURE_CACHE.clear()
+                _TEAM_PROFILE_CACHE.clear()
                 _TEAM_ID_CACHE.clear()
                 _DAILY_MATCH_CACHE.update({"date": "", "ts": 0, "matches": []})
                 _F1_SCHEDULE_CACHE.update({"ts": 0, "events": []})
