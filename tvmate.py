@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b239"
+VERSION = "0.777.b240"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -622,7 +622,6 @@ _SHOW_INFO_TTL = 24 * 3600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
 _EPG_TTL = 8 * 3600       # persist an evening's guide; manual EPG refresh overrides
 _EPG_DISK_PROVIDER = None
-_EPG_SERIAL_PROVIDERS = set()  # providers that reject/throttle parallel short-EPG calls
 
 def _clear_provider_caches():
     """Invalidate all in-memory data tied to the configured Xtream account."""
@@ -6769,90 +6768,35 @@ class Handler(BaseHTTPRequestHandler):
                         result[sid] = cached["programmes"]
                     elif not cached_only:
                         to_fetch.append(sid)
-                # Xtream's short EPG endpoint is one request per channel.  A
-                # small worker pool cuts large favorite-category refreshes
-                # dramatically without hammering the provider with dozens of
-                # simultaneous requests.
+                # Xtream's short EPG endpoint is one request per channel.
+                # Restore the proven pre-b228 request pattern: strictly one at
+                # a time, with a small pause after every four channels. Several
+                # providers reject or silently throttle overlapping requests.
                 if to_fetch:
-                    from concurrent.futures import ThreadPoolExecutor, as_completed
-                    fetched = {}
-                    provider_key = _vod_cache_key(x)
-                    safe_mode = provider_key in _EPG_SERIAL_PROVIDERS
-
-                    def fetch_one(sid):
+                    stats["safe_mode"] = True
+                    for i, sid in enumerate(to_fetch):
                         try:
-                            return x.short_epg(sid, 6)
+                            progs = x.short_epg(sid, 6)
                         except Exception:
-                            return None
-
-                    if safe_mode:
-                        for sid in to_fetch:
-                            fetched[sid] = fetch_one(sid)
-                    else:
-                        with ThreadPoolExecutor(max_workers=min(4, len(to_fetch))) as pool:
-                            jobs = {pool.submit(x.short_epg, sid, 6): sid for sid in to_fetch}
-                            for job in as_completed(jobs):
-                                sid = jobs[job]
-                                try:
-                                    fetched[sid] = job.result()
-                                except Exception:
-                                    fetched[sid] = None
-
-                        # Some Xtream providers throttle parallel short-EPG
-                        # calls. Retry transport failures one-at-a-time. If a
-                        # meaningful part of the batch failed, remember this
-                        # provider and keep all following batches sequential.
-                        failed_sids = [sid for sid in to_fetch if fetched.get(sid) is None]
-                        if failed_sids:
-                            if len(failed_sids) >= max(2, len(to_fetch) // 4):
-                                _EPG_SERIAL_PROVIDERS.add(provider_key)
-                                safe_mode = True
-                            for sid in failed_sids:
-                                fetched[sid] = fetch_one(sid)
-
-                        # A few providers respond to throttling with HTTP 200
-                        # and an empty EPG instead of an error. If an entire
-                        # parallel batch is empty, probe a few channels safely.
-                        # Only switch mode when the sequential probe proves the
-                        # provider actually has programme data.
-                        if (not safe_mode and len(to_fetch) >= 4 and
-                                not any(fetched.get(sid) for sid in to_fetch)):
-                            probe_ids = to_fetch[:min(3, len(to_fetch))]
-                            probe_results = {}
-                            for sid in probe_ids:
-                                time.sleep(0.08)
-                                probe_results[sid] = fetch_one(sid)
-                            if any(probe_results.values()):
-                                _EPG_SERIAL_PROVIDERS.add(provider_key)
-                                safe_mode = True
-                                fetched.update(probe_results)
-                                for sid in to_fetch:
-                                    if sid not in probe_results:
-                                        fetched[sid] = fetch_one(sid)
-
-                    stats["safe_mode"] = safe_mode
-                    for sid in to_fetch:
-                        progs = fetched.get(sid)
+                            progs = None
                         old = _EPG_CACHE.get(sid)
                         if progs is None:
                             stats["failed"] += 1
                             if old and old.get("programmes"):
                                 result[sid] = old["programmes"]
-                            continue
-                        if not progs:
+                        elif not progs:
                             stats["no_data"] += 1
-                            # A successful-but-empty provider response can be
-                            # temporary. Keep useful cached listings until their
-                            # normal TTL expires instead of blanking the guide.
                             if old and old.get("programmes"):
                                 result[sid] = old["programmes"]
                             else:
                                 _EPG_CACHE[sid] = {"ts": now, "programmes": []}
                                 result[sid] = []
-                            continue
-                        stats["updated"] += 1
-                        _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
-                        result[sid] = progs
+                        else:
+                            stats["updated"] += 1
+                            _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
+                            result[sid] = progs
+                        if (i + 1) % 4 == 0:
+                            time.sleep(0.35)
                 if to_fetch:
                     _save_epg_disk_cache(x)
                 return self._send(200, {"epg": result, "total": len(ids), "stats": stats})
