@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b221"
+VERSION = "0.777.b222"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6349,6 +6349,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "bad request"})
                 return self._send(200, {"hls": x.hls_url(sid), "ts": x.stream_url(sid)})
 
+            if u.path == "/api/ping":
+                # Cheap local identity check used to prevent duplicate app
+                # instances regardless of what the launcher .exe is named.
+                return self._send(200, {"app": "olos-tvmate", "version": VERSION})
+
             if u.path == "/api/proxy":
                 # Lightweight media relay for browser playback.  This never
                 # transcodes: playlists are rewritten and media bytes are streamed
@@ -8078,6 +8083,30 @@ ENTER_PROMPTS = [
     "Powered by pancakes and questionable decisions....press Enter",
 ]
 
+def _existing_tvmate(port):
+    """Return True only when the service already on *port* is Olo's TVMate.
+
+    This deliberately keys off the running web app rather than a launcher
+    filename.  OTVM.exe, OloTVMate.exe and Windows copies such as
+    ``OTVM (2).exe`` therefore all share the same single-instance check.
+    """
+    base = f"http://127.0.0.1:{int(port)}"
+    # New builds expose a cheap explicit identity endpoint.  Keep the root
+    # fallback so a new launcher also detects an older TVMate already running.
+    try:
+        with urllib.request.urlopen(base + "/api/ping", timeout=0.8) as resp:
+            data = json.loads(resp.read(4096).decode("utf-8", "replace"))
+        if isinstance(data, dict) and data.get("app") == "olos-tvmate":
+            return True
+    except Exception:
+        pass
+    try:
+        with urllib.request.urlopen(base + "/", timeout=0.8) as resp:
+            page = resp.read(8192).decode("utf-8", "replace")
+        return "<title>Olo's TVMate</title>" in page
+    except Exception:
+        return False
+
 def main():
     port = PORT
     if "--port" in sys.argv:
@@ -8085,6 +8114,16 @@ def main():
             port = int(sys.argv[sys.argv.index("--port") + 1])
         except Exception:
             pass
+    url = f"http://localhost:{port}"
+    # Single-instance check comes before launcher migration/relaunch logic.
+    # A second copy should never replace/restart anything underneath the
+    # already-running app; it just brings the existing UI back to the user.
+    if _existing_tvmate(port):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+        return
     cfg = load_config()
     hide_console = True
     hidden_child = os.environ.get("TVMATE_HIDDEN_CHILD") == "1"
@@ -8105,7 +8144,6 @@ def main():
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     _STOP_EVENT.clear()
     _mark_app_activity()
-    url = f"http://localhost:{port}"
     if not hide_console and sys.platform.startswith("win"):
         # The GUI-subsystem OTVM launcher intentionally starts without a
         # console.  Retro mode opts back in and creates one here; manual runs
