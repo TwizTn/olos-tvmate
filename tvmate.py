@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b241"
+VERSION = "0.777.b242"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -553,7 +553,7 @@ class Xtream:
     def hls_url(self, stream_id):
         return f"{self.base}/live/{self.user}/{self.password}/{stream_id}.m3u8"
 
-    def short_epg(self, stream_id, limit=6):
+    def short_epg(self, stream_id, limit=12):
         """Fetch short EPG for one stream. Titles are base64 in Xtream."""
         import base64, calendar, datetime
         q = {"username": self.user, "password": self.password,
@@ -6289,7 +6289,12 @@ async function epgRefresh(){
     stage.textContent=tr('Finding channels in your favorites...');count.textContent='';found.textContent='';bar.style.width='3%';
     const plan=await api('/api/epg_targets');
     if(plan.error)throw new Error(plan.error||'EPG failed');
-    const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,updated=0,noEpg=0,failed=0,safeMode=false;
+    // Populate what the user is looking at first. The complete favorite/category
+    // guide still refreshes afterwards, but a large EPG no longer makes the
+    // currently open category wait behind hundreds of unrelated channels.
+    const visibleIds=_tvChannels.map(c=>String(c.stream_id||'')).filter(Boolean),visibleSet=new Set(visibleIds);
+    const planned=(plan.ids||[]).map(String),ids=visibleIds.filter(id=>planned.includes(id)).concat(planned.filter(id=>!visibleSet.has(id)));
+    const total=ids.length,batchSize=20;let done=0,updated=0,noEpg=0,failed=0,safeMode=false;
     count.textContent='0 / '+total;
     for(let i=0;i<ids.length;i+=batchSize){
       const batch=ids.slice(i,i+batchSize);
@@ -6782,7 +6787,10 @@ class Handler(BaseHTTPRequestHandler):
                     stats["safe_mode"] = True
                     for i, sid in enumerate(to_fetch):
                         try:
-                            progs = x.short_epg(sid, 6)
+                            # Twelve listings gives the grid enough context for
+                            # long/short mixed schedules and providers that return
+                            # a few preceding entries around the current programme.
+                            progs = x.short_epg(sid, 12)
                         except Exception:
                             progs = None
                         old = _EPG_CACHE.get(sid)
