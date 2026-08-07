@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b230"
+VERSION = "0.777.b231"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1352,7 +1352,10 @@ def _cache_steam_avatar(steam_id, image_url, force=False):
         return ""
 
 def _steam_html_text(fragment, keep_lines=False):
-    text = re.sub(r"<br\s*/?>", "\n" if keep_lines else " ", str(fragment or ""),
+    # Steam XML summaries frequently contain escaped HTML.  Unescape first so
+    # encoded <br> tags become real line breaks instead of visible "<br>" text.
+    text = html.unescape(str(fragment or ""))
+    text = re.sub(r"<br\s*/?>", "\n" if keep_lines else " ", text,
                   flags=re.I)
     text = html.unescape(re.sub(r"<[^>]+>", " ", text))
     if keep_lines:
@@ -1368,14 +1371,14 @@ def steam_public_profile(steam_id, force=False):
     cache_name = "steam-profile.json"
     if not force:
         cached = _load_timed_data_cache(cache_name, 7 * 24 * 3600)
-        if (isinstance(cached, dict) and cached.get("_v") == 3 and
+        if (isinstance(cached, dict) and cached.get("_v") == 4 and
                 str(cached.get("steam_id") or "") == steam_id):
             local_avatar = _cache_steam_avatar(steam_id, cached.get("avatar"), force=False)
             if local_avatar:
                 cached["avatar_local"] = local_avatar
             return cached
     profile_url = f"https://steamcommunity.com/profiles/{steam_id}/"
-    out = {"_v": 3, "steam_id": steam_id, "profile_url": profile_url}
+    out = {"_v": 4, "steam_id": steam_id, "profile_url": profile_url}
     try:
         import xml.etree.ElementTree as ET
         xml_text = http_get_text(profile_url + "?xml=1", timeout=15)
@@ -1419,10 +1422,16 @@ def steam_public_profile(steam_id, force=False):
         level = re.search(r'friendPlayerLevelNum[^>]*>\s*(\d+)\s*<', page, flags=re.I)
         if level:
             out["level"] = int(level.group(1))
-        service = re.search(r'\b(\d{1,2})\s+Years?\s+of\s+Service\b',
-                            _steam_html_text(page), flags=re.I)
-        if service:
-            out["years_service"] = int(service.group(1))
+        # Keep this scoped to Steam badge descriptions.  Searching the whole
+        # page can accidentally join the profile level (e.g. 22) to the next
+        # "Years of Service" label.
+        for badge in re.findall(r'badge_info_description[^>]*>(.*?)</div>',
+                                page, flags=re.I | re.S):
+            service = re.search(r'\b(\d{1,2})\s+Years?\s+of\s+Service\b',
+                                _steam_html_text(badge), flags=re.I)
+            if service:
+                out["years_service"] = int(service.group(1))
+                break
         if not out.get("display_name"):
             name = re.search(r'actual_persona_name[^>]*>(.*?)<', page, flags=re.I | re.S)
             if name:
@@ -3369,24 +3378,24 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .gamefav{position:relative;padding:8px 0 30px;border-bottom:1px solid var(--line)}
  .gamefav img{width:100%;max-width:190px;aspect-ratio:460/215;object-fit:cover;border-radius:6px;display:block;margin-bottom:7px}
  .gamefavname{font-size:13px;font-weight:600;line-height:1.3}
- .gameslayout{display:grid;grid-template-columns:400px minmax(0,1fr);gap:30px;width:100%;max-width:1680px;margin:0 auto;align-items:start}
+ .gameslayout{display:grid;grid-template-columns:380px minmax(0,1fr);gap:24px;width:100%;max-width:1600px;margin:0 auto;align-items:start}
  .gamesmain{width:100%;max-width:none;min-width:0;margin:0}
- .steamprofile{position:sticky;top:76px;background:linear-gradient(155deg,#151b24,#11161d);border:1px solid #303a48;border-radius:12px;padding:24px;min-height:330px;box-shadow:0 12px 34px rgba(0,0,0,.16)}
+ .steamprofile{position:sticky;top:76px;background:linear-gradient(145deg,#1b2838 0%,#172331 52%,#101822 100%);border:0;border-top:2px solid #66c0f4;border-radius:3px;padding:22px;min-height:320px;box-shadow:0 14px 38px rgba(0,0,0,.25)}
  .steamprofileempty{color:var(--mut);font-size:12px;line-height:1.5}
  .steamprofilehead{display:flex;align-items:center;gap:16px}
- .steamprofileavatar{width:142px;height:142px;object-fit:cover;border-radius:10px;flex:0 0 142px;background:#202936;border:3px solid #315b7b;box-shadow:0 0 0 1px #0b0e12}
- .steamprofilename{font-size:23px;font-weight:700;line-height:1.15;color:#e8f2fa}
+ .steamprofileavatar{width:132px;height:132px;object-fit:cover;border-radius:2px;flex:0 0 132px;background:#202936;border:2px solid #57a5d3;box-shadow:0 0 0 3px #0d151e}
+ .steamprofilename{font-size:24px;font-weight:500;line-height:1.15;color:#fff}
  .steamprofilereal{font-size:14px;color:#bac4cf;margin-top:6px}
- .steamprofileloc{font-size:12px;color:#8e9baa;margin-top:5px;line-height:1.4}
+ .steamprofileloc{font-size:12px;color:#8f98a0;margin-top:5px;line-height:1.4}
  .steamprofilemeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}
  .steamlevel{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 9px;border:2px solid #7f65bb;border-radius:50%;font-size:13px;font-weight:700;color:#ddd0ff}
- .steamyears{font-size:12px;color:#a9b9c9;border-left:1px solid var(--line2);padding-left:11px}
- .steamprofilesummary{margin-top:17px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.6;color:#a7b1bd;white-space:pre-line;max-height:220px;overflow:auto;scrollbar-width:thin}
+ .steamyears{font-size:12px;color:#c7d5e0;border-left:1px solid #34536b;padding-left:11px}
+ .steamprofilesummary{margin-top:17px;padding-top:14px;border-top:1px solid #314452;font-size:12.5px;line-height:1.6;color:#c7d5e0;white-space:pre-line;max-height:220px;overflow:auto;scrollbar-width:thin}
  .steamprofilelink{display:block;color:inherit;text-decoration:none}.steamprofilelink:hover .steamprofilename{color:#66c0f4}
- .gamegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-top:18px}
- .gamecard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}
+ .gamegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:10px;margin-top:14px}
+ .gamecard{background:linear-gradient(135deg,#1b2838,#16202c);border:1px solid #2a3f51;border-radius:3px;padding:8px;min-width:0;box-shadow:0 4px 14px rgba(0,0,0,.14)}
  .wishlistgame{display:block;color:inherit;text-decoration:none;cursor:pointer;transition:border-color .12s,background .12s}
- .wishlistgame:hover{border-color:var(--line2);background:var(--card2)}
+ .wishlistgame:hover{border-color:#66c0f4;background:linear-gradient(135deg,#22384b,#1b2d3d);box-shadow:0 0 0 1px rgba(102,192,244,.12)}
  .wishlisthelp{margin-top:18px;padding:16px 18px;border:1px solid var(--line);border-radius:9px;background:var(--card);max-width:720px;color:var(--mut)}
  .wishlisthelp b{color:var(--fg)}
  .wishlisthelp ul{margin:10px 0 0;padding-left:20px}
@@ -3394,13 +3403,13 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .wishlisthelp a{color:var(--acc);text-decoration:none}
  .wishlisthelpsection{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
  .wishlistexample{display:block;margin-top:10px;padding:8px 10px;border-radius:6px;background:#0f1115;color:#a9c8ff;font:12px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
- .gamecard img{width:100%;aspect-ratio:460/215;object-fit:cover;border-radius:7px;background:#20242c;display:block}
+ .gamecard img{width:100%;aspect-ratio:460/215;object-fit:cover;border-radius:2px;background:#20242c;display:block}
  .gamecardbody{display:flex;align-items:center;gap:10px;margin-top:9px;min-height:38px}
  .gamecardname{font-weight:600;line-height:1.3;flex:1;min-width:0}
- .gameshead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:8px}.gameshead .colh{margin:0}.gamesheadactions{display:flex;gap:7px;align-items:center}
- .gameswishlistsettings{margin:10px 0 14px;padding:12px;border:1px solid var(--line);border-radius:9px;background:rgba(20,24,31,.72)}
+ .gameshead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px;padding:11px 13px;background:linear-gradient(90deg,#1b2838,#131d27);border-bottom:1px solid #31516a}.gameshead .colh{margin:0;color:#c7d5e0}.gamesheadactions{display:flex;gap:7px;align-items:center}.gamesheadactions .ghost{border-color:#34556d;background:#182838;color:#c7d5e0}.gamesheadactions .ghost:hover{border-color:#66c0f4;color:#fff}
+ .gameswishlistsettings{margin:10px 0 14px;padding:12px;border:1px solid #2c4559;border-radius:3px;background:#172431}
  .gamecardrelease{margin-left:auto;text-align:right;flex:0 0 auto}.gamecountdown{display:inline-block;margin-top:4px;color:#70b3ff;background:#102038;border:1px solid #274e7d;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:700;white-space:nowrap}
- @media(max-width:1100px){.gameslayout{grid-template-columns:270px minmax(0,1fr);gap:22px}.steamprofile{padding:17px}.steamprofileavatar{width:82px;height:82px;flex-basis:82px}.steamprofilename{font-size:19px}}
+ @media(max-width:900px){.gameslayout{grid-template-columns:270px minmax(0,1fr);gap:22px}.steamprofile{padding:17px}.steamprofileavatar{width:82px;height:82px;flex-basis:82px}.steamprofilename{font-size:19px}}
  @media(max-width:820px){.gameslayout{grid-template-columns:1fr}.steamprofile{position:static;max-width:none;min-height:0}.steamprofileinner{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px}.steamprofilesummary{grid-column:1/-1}.steamprofilemeta{align-self:end}}
  .moviemeta{font-size:12px;color:var(--mut)}
  .movieactions{display:flex;gap:7px;margin-top:auto;flex-wrap:wrap}
@@ -4167,6 +4176,7 @@ const _I18N={
   "No favorites to load EPG for.":"Ingen favoritter å laste EPG for.",
   "Updating TV guide":"Oppdaterer TV-guide","Finding channels in your favorites...":"Finner kanaler i favorittene dine...",
   "Loading programme information...":"Laster programinformasjon...","TV guide is ready.":"TV-guiden er klar.","with programme data":"med programdata",
+  "Retrying this batch one channel at a time...":"Prøver denne gruppen på nytt, én kanal om gangen...","channels could not be refreshed.":"kanaler kunne ikke oppdateres.",
   "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...",
   "Update downloaded. Restart now to finish updating?":"Oppdatering lastet ned. Start på nytt for å fullføre?",
   "Restart now":"Start på nytt","Update now":"Oppdater nå","Restarting...":"Starter på nytt...",
@@ -5235,6 +5245,7 @@ async function loadSteamWishlistSetting(){
     _wishlistLinked=linked;updateSteamWishlistHelp();
     if(input){input.value=c.steam_wishlist_url||'';input.readOnly=false;}
     if(btn){btn.textContent=tr('Sync wishlist');btn.setAttribute('data-i18n','Sync wishlist');}
+    const settings=document.getElementById('steamWishlistSettings');if(settings&&linked)settings.classList.add('hide');
     if(linked&&status&&c.steam_wishlist_synced_at){
       const locale=_lang==='no'?'nb-NO':undefined;
       status.textContent='Last refreshed '+new Date(Number(c.steam_wishlist_synced_at)*1000).toLocaleString(locale);
@@ -6160,23 +6171,33 @@ async function epgRefresh(){
     stage.textContent=tr('Finding channels in your favorites...');count.textContent='';found.textContent='';bar.style.width='3%';
     const planRes=await fetch('/api/epg_targets');const plan=await planRes.json();
     if(!planRes.ok||plan.error)throw new Error(plan.error||'EPG failed');
-    const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,withData=0;
+    const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,withData=0,failed=0;
     count.textContent='0 / '+total;
     for(let i=0;i<ids.length;i+=batchSize){
       const batch=ids.slice(i,i+batchSize);
       stage.textContent=tr('Loading programme information...');
-      const r=await fetch('/api/epg?force=1&ids='+encodeURIComponent(batch.join(',')));
-      const j=await r.json();if(!r.ok||j.error)throw new Error(j.error||'EPG failed');
-      _tvEpg=Object.assign({},_tvEpg,j.epg||{});
-      withData+=Object.values(j.epg||{}).filter(function(p){return p&&p.length;}).length;
+      let epg={};
+      try{
+        const r=await fetch('/api/epg?force=1&ids='+encodeURIComponent(batch.join(','))),j=await r.json();
+        if(!r.ok||j.error)throw new Error(j.error||'EPG batch failed');epg=j.epg||{};
+      }catch(batchError){
+        // A provider/proxy may dislike concurrent batches.  Retry this batch
+        // channel-by-channel so one bad request cannot abort the entire guide.
+        stage.textContent=tr('Retrying this batch one channel at a time...');
+        for(const sid of batch){
+          try{const rr=await fetch('/api/epg?force=1&ids='+encodeURIComponent(sid)),jj=await rr.json();if(!rr.ok||jj.error)throw new Error(jj.error||'EPG channel failed');Object.assign(epg,jj.epg||{});}catch(e){failed++;}
+        }
+      }
+      _tvEpg=Object.assign({},_tvEpg,epg);
+      withData+=Object.values(epg).filter(function(p){return p&&p.length;}).length;
       done+=batch.length;count.textContent=done+' / '+total;found.textContent=withData+' '+tr('with programme data');bar.style.width=(total?Math.max(3,done/total*100):100)+'%';
       renderTvGuide();
       await new Promise(resolve=>setTimeout(resolve,0));
     }
-    stage.textContent=tr('TV guide is ready.');bar.style.width='100%';
+    stage.textContent=failed?(tr('TV guide is ready.')+' '+failed+' '+tr('channels could not be refreshed.')):tr('TV guide is ready.');bar.style.width='100%';
     if(!total){toast(tr('No favorites to load EPG for.'));}
     else toast(tr('EPG loaded')+' ('+withData+'/'+total+')');
-  }catch(e){toast(tr('EPG failed'));}
+  }catch(e){stage.textContent=tr('EPG failed')+': '+String(e&&e.message||e);bar.style.background='#8f2d35';toast(tr('EPG failed'));await new Promise(resolve=>setTimeout(resolve,2800));}
   await new Promise(resolve=>setTimeout(resolve,650));
   if(modal)modal.classList.add('hide');
   btn.innerHTML=old;btn.disabled=false;
