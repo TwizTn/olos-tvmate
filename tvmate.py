@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b232"
+VERSION = "0.777.b233"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -865,6 +865,8 @@ def get_xtream_channels(cfg, force=False):
     now = time.time()
     if (not force) and _XT_CACHE["channels"] and (now - _XT_CACHE["ts"] < _XT_TTL):
         return _XT_CACHE["channels"], _XT_CACHE["cats"]
+    if force:
+        _clear_racing_availability_cache()
     x = Xtream(cfg)
     channels = x.live_streams()
     try:
@@ -2915,6 +2917,11 @@ _RACING_CHANNEL_TERMS = {
     "motogp": ("motogp", "moto gp"),
     "wrc": ("wrc", "world rally"),
 }
+_RACING_AVAILABILITY_CACHE = {"key": "", "ts": 0, "availability": {}}
+_RACING_AVAILABILITY_TTL = 15 * 60
+
+def _clear_racing_availability_cache():
+    _RACING_AVAILABILITY_CACHE.update({"key": "", "ts": 0, "availability": {}})
 
 def _racing_event_key(event):
     return "|".join(str(event.get(k) or "") for k in
@@ -5741,13 +5748,20 @@ async function loadFavorites(){
   renderMyListProfile();
   applyMyListLayout();
   renderMyListChannels();
-  if(_footballEnabled||_f1Enabled)loadMyListTeams(r);
-  if(_f1Enabled)loadMyListRacing();else{_myListF1Moments=[];renderMyListTimeline();}
+  const racingDataPromise=_f1Enabled?api('/api/racing'):null;
+  if(_footballEnabled||_f1Enabled)loadMyListTeams(r,racingDataPromise);
+  if(_f1Enabled)loadMyListRacing(racingDataPromise);else{_myListF1Moments=[];scheduleMyListTimelineRender();}
   loadMyListMovies();
-  if(_gamesEnabled)loadMyListGames(r);else{_myListGameMoments=[];renderMyListTimeline();}
+  if(_gamesEnabled)loadMyListGames(r);else{_myListGameMoments=[];scheduleMyListTimelineRender();}
   loadMyListShows();
 }
 let _myListFavData={channels:[],teams:[],f1_teams:[]},_myListSelectedChannels=[],_myListTeamMoments=[],_myListF1Moments=[],_myListMovieMoments=[],_myListGameMoments=[],_myListShowMoments=[];
+let _myListTimelineRenderPending=false;
+function scheduleMyListTimelineRender(){
+  if(_myListTimelineRenderPending)return;
+  _myListTimelineRenderPending=true;
+  requestAnimationFrame(()=>{_myListTimelineRenderPending=false;renderMyListTimeline();});
+}
 function renderMyListChannels(){
   const el=document.getElementById('myListChannels');if(!el)return;
   const byId=new Map((_myListFavData.channels||[]).map(c=>[String(c.stream_id),c]));
@@ -5828,11 +5842,11 @@ function renderMyListSportShells(favorites){
   }
   el.innerHTML=h||'<span class="muted">'+tr(_f1Enabled?'No F1 team selected.':'No favorite teams yet.')+'</span>';
 }
-async function loadMyListTeams(favorites){
+async function loadMyListTeams(favorites,racingDataPromise){
   const el=document.getElementById('myListTeams'),teams=(favorites.teams||[]),now=Date.now();
   _myListTeamMoments=[];_myListF1Moments=[];let h='';
   renderMyListSportShells(favorites);
-  const racingPromise=_f1Enabled?Promise.all([api('/api/racing_drivers'),api('/api/racing')]):null;
+  const racingPromise=_f1Enabled?Promise.all([api('/api/racing_drivers'),racingDataPromise||api('/api/racing')]):null;
   if(_footballEnabled&&teams.length){
     try{
       const r=await api('/api/my_teams'),fixtures=r.fixtures||[];
@@ -5884,12 +5898,12 @@ async function loadMyListTeams(favorites){
     }catch(e){}
   }
   el.innerHTML=h||'<span class="muted">'+tr(_f1Enabled?'No F1 team selected.':'No favorite teams yet.')+'</span>';
-  renderMyListTimeline();
+  scheduleMyListTimelineRender();
 }
-async function loadMyListRacing(){
+async function loadMyListRacing(racingDataPromise){
   _myListF1Moments=[];
   try{
-    const r=await api('/api/racing'),now=Date.now();
+    const r=await (racingDataPromise||api('/api/racing')),now=Date.now();
     const groups=new Map();
     for(const event of (r.events||[])){
       const row={event:event,ts:new Date(event.start).getTime()};
@@ -5901,10 +5915,10 @@ async function loadMyListRacing(){
     // Keep the timeline balanced when several championships are enabled:
     // a session-heavy F1 weekend should not crowd WRC/MotoGP/etc. off it.
     _myListF1Moments=Array.from(groups.values()).flatMap(rows=>rows.sort((a,b)=>a.ts-b.ts).slice(0,3)).sort((a,b)=>a.ts-b.ts).slice(0,18);
-    renderMyListTimeline();
+    scheduleMyListTimelineRender();
     try{const a=await api('/api/racing_availability');for(const row of _myListF1Moments)row.event.channels=(a.availability||{})[racingAvailabilityKey(row.event)]||[];}catch(e){}
   }catch(e){}
-  renderMyListTimeline();
+  scheduleMyListTimelineRender();
 }
 async function loadMyListMovies(){
   _myListMovieMoments=[];
@@ -5912,12 +5926,12 @@ async function loadMyListMovies(){
     const r=await api('/api/favorite_movie_status'),windowMs=2*24*3600000,now=Date.now();
     _myListMovieMoments=(r.movies||[]).map(movie=>({movie:movie,ts:Date.parse(movie.released||'')})).filter(row=>Number.isFinite(row.ts)&&Math.abs(row.ts-now)<=windowMs).sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)).slice(0,4);
   }catch(e){}
-  renderMyListTimeline();
+  scheduleMyListTimelineRender();
 }
 function loadMyListGames(favorites){
   const now=Date.now(),recentCutoff=now-2*24*3600000;
   _myListGameMoments=(favorites.games||[]).filter(game=>game.wishlist_imported).map(game=>({game:game,ts:Date.parse(game.released||'')})).filter(row=>Number.isFinite(row.ts)&&row.ts>=recentCutoff).sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)).slice(0,4);
-  renderMyListTimeline();
+  scheduleMyListTimelineRender();
 }
 function myListEpisodeWhen(ts,upcoming){
   const delta=ts-Date.now();
@@ -5959,12 +5973,12 @@ async function loadMyListShows(){
     for(const row of candidates){if(Math.abs(row.ts-Date.now())>windowMs)continue;const key=String(row.ep.show_name||'').toLowerCase();const old=nearest.get(key);if(!old||Math.abs(row.ts-Date.now())<Math.abs(old.ts-Date.now()))nearest.set(key,row);}
     const rows=Array.from(nearest.values()).sort((a,b)=>Math.abs(a.ts-Date.now())-Math.abs(b.ts-Date.now())).slice(0,5);
     _myListShowMoments=rows;
-    if(!rows.length){el.innerHTML='<span class="muted">'+tr('Nothing airing close to now from your favorite shows.')+'</span>';renderMyListTimeline();return;}
+    if(!rows.length){el.innerHTML='<span class="muted">'+tr('Nothing airing close to now from your favorite shows.')+'</span>';scheduleMyListTimelineRender();return;}
     el.innerHTML=rows.map(row=>{const ep=row.ep,cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';let action='';
       if(!row.upcoming&&ep.available){const src=(ep.sources&&ep.sources.length)?ep.sources[0]:{id:ep.id,extension:ep.extension};if(src&&src.id!=null)action='<div class="movieactions"><button class="btnvlc latestepisodevlc" data-id="'+escAttr(String(src.id))+'" data-ext="'+escAttr(src.extension||'mp4')+'">&#9658; VLC</button></div>';}
       return '<div class="mydashepisode mylistshowcard" data-series="'+escAttr(String(ep.series_id||''))+'" data-catalog="'+escAttr(ep.catalog_id||'')+'">'+cover+'<div class="mydashepisodeinfo"><div class="mydashepisodename">'+esc(ep.show_name)+'</div><div class="mydashwhen">'+esc(myListEpisodeWhen(row.ts,row.upcoming))+'</div><div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div>'+action+'</div></div>';}).join('');
-    renderMyListTimeline();
-  }catch(e){el.innerHTML='<span class="muted">'+tr('Could not load your shows.')+'</span>';renderMyListTimeline();}
+    scheduleMyListTimelineRender();
+  }catch(e){el.innerHTML='<span class="muted">'+tr('Could not load your shows.')+'</span>';scheduleMyListTimelineRender();}
 }
 function myListSportArtwork(fixture){
   const id=String((fixture&&fixture.league_id)||'');
@@ -6502,6 +6516,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"availability": {}, "logged_in": False})
                 selected = [key for key in cfg.get("racing_series", ["f1"])
                             if key in _RACING_CHANNEL_TERMS]
+                cache_key = _vod_cache_key(x) + "|" + ",".join(selected)
+                cached = _RACING_AVAILABILITY_CACHE
+                if (cached.get("key") == cache_key and
+                        time.time() - float(cached.get("ts") or 0) < _RACING_AVAILABILITY_TTL):
+                    return self._send(200, {"availability": cached.get("availability") or {},
+                                            "logged_in": True})
                 events = get_racing_events(selected)
                 try:
                     channels, cats = get_xtream_channels(cfg)
@@ -6518,6 +6538,8 @@ class Handler(BaseHTTPRequestHandler):
                     hits = find_racing_channels(event, channels, cats, x)
                     if hits:
                         availability[_racing_event_key(event)] = hits
+                _RACING_AVAILABILITY_CACHE.update({"key": cache_key, "ts": time.time(),
+                                                   "availability": availability})
                 return self._send(200, {"availability": availability, "logged_in": True})
 
             if u.path == "/api/racing_drivers":
@@ -7817,6 +7839,7 @@ class Handler(BaseHTTPRequestHandler):
             selected = [key for key in allowed if key in requested]
             cfg["racing_series"] = selected
             save_config(cfg)
+            _clear_racing_availability_cache()
             return self._send(200, {"ok": True, "series": selected})
         if u.path == "/api/import_steam_wishlist":
             cfg = load_config()
@@ -7893,6 +7916,7 @@ class Handler(BaseHTTPRequestHandler):
             _VOD_CACHE.update({"ts": 0, "movies": []})
             _SERIES_CACHE.update({"ts": 0, "shows": []})
             _SHOW_INFO_CACHE.clear()
+            _clear_racing_availability_cache()
             return self._send(200, {"ok": True})
 
         if u.path == "/api/clear_artwork_cache":
@@ -7920,6 +7944,7 @@ class Handler(BaseHTTPRequestHandler):
                 _DAILY_MATCH_CACHE.update({"date": "", "ts": 0, "matches": []})
                 _F1_SCHEDULE_CACHE.update({"ts": 0, "events": []})
                 _F1_TEAMS_CACHE.update({"ts": 0, "teams": []})
+                _clear_racing_availability_cache()
                 _TVMAZE_CACHE.clear()
                 cache_root = data_cache_dir()
                 if os.path.isdir(cache_root):
@@ -8013,6 +8038,7 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             x = Xtream(cfg)
             try:
+                _clear_racing_availability_cache()
                 if cfg.get("f1_enabled", True):
                     get_racing_events(cfg.get("racing_series", ["f1"]), force=True)
                     if "f1" in cfg.get("racing_series", ["f1"]):
