@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b234"
+VERSION = "0.777.b238"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -220,9 +220,11 @@ def _cache_league_logo(league_id):
     except Exception:
         return ""
 
-def _channel_logo_path(stream_id):
+def _channel_logo_path(stream_id, provider=""):
     safe_id = re.sub(r"[^0-9A-Za-z_-]", "", str(stream_id or ""))
-    return os.path.join(artwork_cache_dir(), f"channel-{safe_id}.img") if safe_id else ""
+    safe_provider = re.sub(r"[^0-9A-Za-z_-]", "", str(provider or ""))
+    prefix = f"channel-{safe_provider}-" if safe_provider else "channel-"
+    return os.path.join(artwork_cache_dir(), f"{prefix}{safe_id}.img") if safe_id else ""
 
 def _image_content_type(raw):
     if raw.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -235,9 +237,9 @@ def _image_content_type(raw):
         return "image/webp"
     return ""
 
-def _cache_channel_logo(stream_id, url):
+def _cache_channel_logo(stream_id, url, provider=""):
     """Cache a provider-supplied Xtream channel icon after validating it as an image."""
-    path = _channel_logo_path(stream_id)
+    path = _channel_logo_path(stream_id, provider)
     if not path or not str(url or "").startswith(("http://", "https://")):
         return ""
     if os.path.isfile(path):
@@ -610,9 +612,9 @@ class Xtream:
             })
         return out
 
-_XT_CACHE = {"ts": 0, "channels": [], "cats": {}}
-_VOD_CACHE = {"ts": 0, "movies": []}
-_SERIES_CACHE = {"ts": 0, "shows": []}
+_XT_CACHE = {"provider": "", "ts": 0, "channels": [], "cats": {}}
+_VOD_CACHE = {"provider": "", "ts": 0, "movies": []}
+_SERIES_CACHE = {"provider": "", "ts": 0, "shows": []}
 _SHOW_INFO_CACHE = {}  # (provider,user,series_id) -> {ts,data}
 _TVMAZE_CACHE = {}  # normalized title/year -> {"ts": epoch, "covers": {season:url}}
 _XT_TTL = 24 * 3600       # catalogs stay local for the session/day; manual refresh overrides
@@ -620,6 +622,22 @@ _SHOW_INFO_TTL = 24 * 3600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
 _EPG_TTL = 8 * 3600       # persist an evening's guide; manual EPG refresh overrides
 _EPG_DISK_PROVIDER = None
+
+def _clear_provider_caches():
+    """Invalidate all in-memory data tied to the configured Xtream account."""
+    global _EPG_DISK_PROVIDER
+    _XT_CACHE.update({"provider": "", "ts": 0, "channels": [], "cats": {}})
+    _VOD_CACHE.update({"provider": "", "ts": 0, "movies": []})
+    _SERIES_CACHE.update({"provider": "", "ts": 0, "shows": []})
+    _SHOW_INFO_CACHE.clear()
+    _EPG_CACHE.clear()
+    _EPG_DISK_PROVIDER = None
+    try:
+        _clear_racing_availability_cache()
+    except NameError:
+        # The helper is declared later in this single-file module. This only
+        # matters to import-time tooling; normal requests run after load.
+        pass
 
 def _load_epg_disk_cache(x):
     """Hydrate the small EPG cache once per configured provider."""
@@ -863,43 +881,49 @@ def _sync_favorite_channel_icons(channels):
 
 def get_xtream_channels(cfg, force=False):
     now = time.time()
-    if (not force) and _XT_CACHE["channels"] and (now - _XT_CACHE["ts"] < _XT_TTL):
+    x = Xtream(cfg)
+    provider = _vod_cache_key(x)
+    if ((not force) and _XT_CACHE.get("provider") == provider and
+            _XT_CACHE["channels"] and (now - _XT_CACHE["ts"] < _XT_TTL)):
         return _XT_CACHE["channels"], _XT_CACHE["cats"]
     if force:
         _clear_racing_availability_cache()
-    x = Xtream(cfg)
     channels = x.live_streams()
     try:
         cats = x.categories()
     except Exception:
         cats = {}
-    _XT_CACHE.update({"ts": now, "channels": channels, "cats": cats})
+    _XT_CACHE.update({"provider": provider, "ts": now, "channels": channels, "cats": cats})
     _sync_favorite_channel_icons(channels)
     return channels, cats
 
 def get_xtream_movies(cfg, force=False):
     now = time.time()
-    if (not force) and _VOD_CACHE["movies"]:
-        return _VOD_CACHE["movies"]
     x = Xtream(cfg)
+    provider = _vod_cache_key(x)
+    if (not force) and _VOD_CACHE.get("provider") == provider and _VOD_CACHE["movies"]:
+        return _VOD_CACHE["movies"]
     disk_movies = _load_vod_catalog_cache(x)
     if not force and disk_movies:
-        _VOD_CACHE.update({"ts": now, "movies": disk_movies})
+        _VOD_CACHE.update({"provider": provider, "ts": now, "movies": disk_movies})
         return disk_movies
     movies = x.vod_streams()
     if movies:
         movies = _save_vod_catalog_cache(x, movies)
     elif disk_movies:
         movies = disk_movies
-    _VOD_CACHE.update({"ts": now, "movies": movies})
+    _VOD_CACHE.update({"provider": provider, "ts": now, "movies": movies})
     return movies
 
 def get_xtream_series(cfg, force=False):
     now = time.time()
-    if (not force) and _SERIES_CACHE["shows"] and (now - _SERIES_CACHE["ts"] < _XT_TTL):
+    x = Xtream(cfg)
+    provider = _vod_cache_key(x)
+    if ((not force) and _SERIES_CACHE.get("provider") == provider and
+            _SERIES_CACHE["shows"] and (now - _SERIES_CACHE["ts"] < _XT_TTL)):
         return _SERIES_CACHE["shows"]
-    shows = Xtream(cfg).series()
-    _SERIES_CACHE.update({"ts": now, "shows": shows})
+    shows = x.series()
+    _SERIES_CACHE.update({"provider": provider, "ts": now, "shows": shows})
     return shows
 
 def refresh_favorite_show_episodes(cfg):
@@ -2776,10 +2800,6 @@ def _cc_from_prefix(text):
     code = m.group(1).lower()
     return code if code in _COUNTRY_CODES else None
 
-def _channel_cc(name):
-    """Country code from a channel NAME prefix (or None)."""
-    return _cc_from_prefix(name)
-
 def _resolve_channel_country(name, category):
     """Determine a channel's country. Prefer the CATEGORY prefix (e.g.
     'NO| NORWAY HD/RAW') since providers group channels by country there and
@@ -4172,7 +4192,6 @@ function applyBackgroundStyle(style){
   }
   makePancakes(global,18);
 }
-function applyDecorations(enabled){applyBackgroundStyle(enabled?'float':'off');}
 function initPancakes(){applyBackgroundStyle(_backgroundStyle);}
 function initPlPancakes(){applyBackgroundStyle(_backgroundStyle);}
 function setNav(id){['navSearch','navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
@@ -4547,8 +4566,8 @@ async function checkTeamFixtures(btn){
   const old=btn.innerHTML;
   btn.disabled=true;btn.textContent='Refreshing fixtures...';
   try{
-    const r=await fetch('/api/check_team_fixtures',{method:'POST'}),j=await r.json();
-    if(!r.ok||j.error)throw new Error(j.error||'Refresh failed');
+    const j=await api('/api/check_team_fixtures',{method:'POST'});
+    if(j.error)throw new Error(j.error||'Refresh failed');
     await loadMyTeams();
     toast('Successfully refreshed favorite-team fixtures.',7000);
   }catch(e){toast('Could not refresh team fixtures.',7000);}
@@ -4782,8 +4801,15 @@ async function doChannelSearch(inputId, targetId){
   }
   el.innerHTML=html;
 }
-async function api(p,o){const r=await fetch(p,o);return r.json();}
-async function favPost(body){const r=await fetch('/api/favorites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+async function api(p,o){
+  const r=await fetch(p,o);let j;
+  try{j=await r.json();}catch(e){return {error:'Invalid server response',status:r.status};}
+  if(!j||typeof j!=='object')j={data:j};
+  if(!r.ok&&!j.error)j.error='HTTP '+r.status;
+  j._httpStatus=r.status;j._httpOk=r.ok;
+  return j;
+}
+async function favPost(body){return api('/api/favorites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
 async function refreshStatus(){
   const s=await api('/api/status');
   status.innerHTML=!s.configured?'<span class="err">Not configured &mdash; open Settings</span>'
@@ -4853,7 +4879,7 @@ async function clearArtworkCache(){
 async function stopTVMate(){
   if(!confirm('Stop TVMate? Streaming links and the local TVMate page will stop until you start the app again.'))return;
   try{
-    const r=await fetch('/api/shutdown',{method:'POST'}),j=await r.json();if(!r.ok||!j.ok)throw new Error('shutdown failed');
+    const j=await api('/api/shutdown',{method:'POST'});if(j.error||!j.ok)throw new Error('shutdown failed');
     document.body.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;background:#0d1013;color:#e7e7e7;font-family:system-ui,sans-serif"><div style="text-align:center"><div style="font-size:54px">📺</div><h1>TVMate has stopped</h1><p style="color:#999">You can close this tab. Start TVMate again whenever you are ready.</p></div></div>';
   }catch(e){toast('Could not stop TVMate.');}
 }
@@ -5128,7 +5154,7 @@ async function playBrowser(sid,name){
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
   if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
   let urls;
-  try{const r=await fetch('/api/hls?id='+encodeURIComponent(sid));urls=await r.json();if(!r.ok||!urls.hls)throw new Error('stream url');}catch(e){msg.textContent='Could not build stream URL.';return;}
+  try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){msg.textContent='Could not build stream URL.';return;}
   const controller=startSmartStream(video,urls,s=>msg.textContent=s,function(h,t){_hls=h;_mpegts=t;});
   modal._playbackController=controller;
 }
@@ -5144,9 +5170,8 @@ async function playVLC(sid,btn){
   const old=btn?btn.textContent:'';
   if(btn){btn.textContent='Opening...';}
   try{
-    const r=await fetch('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:sid})});
-    const j=await r.json();
-    if(!r.ok||j.error){alert(j.error||'Could not launch VLC.');}
+    const j=await api('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:sid})});
+    if(j.error){alert(j.error||'Could not launch VLC.');}
   }catch(e){alert('Could not launch VLC.');}
   if(btn){setTimeout(()=>{btn.textContent=old;},1200);}
 }
@@ -5192,8 +5217,8 @@ async function loadRecentMovies(limit){
 async function checkMovies(btn){
   const old=btn.innerHTML;btn.disabled=true;btn.textContent='Checking for new movies...';
   try{
-    const r=await fetch('/api/check_movie_updates',{method:'POST'}),j=await r.json();
-    if(!r.ok||j.error)throw new Error(j.error||'movie refresh failed');
+    const j=await api('/api/check_movie_updates',{method:'POST'});
+    if(j.error)throw new Error(j.error||'movie refresh failed');
     await loadRecentMovies(9);
     if(j.new_movies>0)toast('Found '+j.new_movies+' new movie'+(j.new_movies===1?'':'s'),7000);
     else toast('Movie library is up to date.',7000);
@@ -5258,8 +5283,8 @@ function backToMyMovies(){
 async function playMovieVLC(sid,ext,btn){
   const old=btn.textContent;btn.textContent='Opening...';
   try{
-    const r=await fetch('/api/play_movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:sid,extension:ext})});
-    const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');
+    const j=await api('/api/play_movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:sid,extension:ext})});
+    if(j.error)alert(j.error||'Could not launch VLC.');
   }catch(e){alert('Could not launch VLC.');}
   setTimeout(()=>{btn.textContent=old;},1200);
 }
@@ -5329,8 +5354,8 @@ async function syncSteamWishlist(btn){
   if(!value){status.textContent='Enter your public Steam wishlist URL.';return;}
   const old=btn.textContent;btn.disabled=true;btn.textContent='Syncing...';status.textContent='Reading Steam wishlist...';
   try{
-    const r=await fetch('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:value})}),j=await r.json();
-    if(!r.ok||j.error)throw new Error(j.error||'Wishlist sync failed');
+    const j=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:value})});
+    if(j.error)throw new Error(j.error||'Wishlist sync failed');
     await loadGameFavorites();loadFavorites();await loadSteamWishlistSetting();status.textContent='Synced '+j.imported+' games from Steam.';
   }catch(e){status.textContent='Could not sync wishlist: '+e.message;}
   btn.disabled=false;if(btn.textContent==='Syncing...')btn.textContent=old;
@@ -5343,8 +5368,8 @@ async function maybeAutoRefreshSteamWishlist(c){
   const url=String((c&&c.steam_wishlist_url)||'').trim(),synced=Number((c&&c.steam_wishlist_synced_at)||0)*1000;
   if(!url||(synced&&Date.now()-synced<7*24*60*60*1000))return;
   try{
-    const r=await fetch('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})}),j=await r.json();
-    if(!r.ok||j.error)return;
+    const j=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})});
+    if(j.error)return;
     if(!gamesView.classList.contains('hide')){await loadGameFavorites();await loadSteamWishlistSetting();}
     if(!mylistView.classList.contains('hide'))loadFavorites();
   }catch(e){}
@@ -5570,8 +5595,8 @@ async function expandLatestEpisodes(btn){
 async function playLatestEpisode(id,ext,btn){
   const old=btn.textContent;btn.textContent='Opening...';
   try{
-    const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:[{id:id,extension:ext}]})});
-    const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');
+    const j=await api('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:[{id:id,extension:ext}]})});
+    if(j.error)alert(j.error||'Could not launch VLC.');
   }catch(e){alert('Could not launch VLC.');}
   setTimeout(()=>{btn.textContent=old;},1200);
 }
@@ -5693,8 +5718,8 @@ async function loadExternalShow(catalogId,refresh){
 async function checkAllShows(btn){
   const old=btn.innerHTML;btn.disabled=true;btn.textContent='Checking all shows...';
   try{
-    const r=await fetch('/api/check_show_updates',{method:'POST'}), j=await r.json();
-    if(!r.ok||j.error)throw new Error(j.error||'check failed');
+    const j=await api('/api/check_show_updates',{method:'POST'});
+    if(j.error)throw new Error(j.error||'check failed');
     if(_activeSeriesId)await loadShow(_activeSeriesId,true);
     await loadShowFavorites();
     const latest=document.getElementById('latestEpisodesSection');
@@ -5706,8 +5731,8 @@ async function checkAllShows(btn){
 }
 async function checkShowsOnStartup(){
   try{
-    const r=await fetch('/api/check_show_updates',{method:'POST'}), j=await r.json();
-    if(!r.ok||j.error)throw new Error(j.error||'check failed');
+    const j=await api('/api/check_show_updates',{method:'POST'});
+    if(j.error)throw new Error(j.error||'check failed');
     _latestEpisodesLoaded=false;
     if(j.new_episodes>0)toast('Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
     else toast('Successfully refreshed playlists, no new episodes found',7000);
@@ -5715,8 +5740,8 @@ async function checkShowsOnStartup(){
 }
 async function refreshAllOnStartup(){
   try{
-    const r=await fetch('/api/refresh_all',{method:'POST'}), j=await r.json();
-    if(!r.ok||j.error)throw new Error(j.error||'refresh failed');
+    const j=await api('/api/refresh_all',{method:'POST'});
+    if(j.error)throw new Error(j.error||'refresh failed');
     _latestEpisodesLoaded=false;
     if(j.new_episodes>0)toast('Refreshed all content. Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
     else toast('Successfully refreshed all content, no new episodes found',7000);
@@ -5725,7 +5750,7 @@ async function refreshAllOnStartup(){
 }
 async function playEpisodeQueue(season,episodeNum,source,btn){
   const episodes=((_showSeasons[String(season)]||{})[source]||[]).filter(ep=>Number(ep.episode_num)>=Number(episodeNum)), old=btn.textContent;btn.textContent='Opening...';
-  try{const r=await fetch('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});const j=await r.json();if(!r.ok||j.error)alert(j.error||'Could not launch VLC.');}
+  try{const j=await api('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});if(j.error)alert(j.error||'Could not launch VLC.');}
   catch(e){alert('Could not launch VLC.');}
   setTimeout(()=>btn.textContent=old,1200);
 }
@@ -6117,11 +6142,8 @@ async function loadTvSource(src){
   // refresh the provider; the Update EPG button remains the network action.
   const epgIds=_tvChannels.map(function(c){return String(c.stream_id);}).filter(Boolean);
   if(epgIds.length){
-    try{const r=await fetch('/api/epg?cached=1&ids='+encodeURIComponent(epgIds.join(',')));const j=await r.json();_tvEpg=Object.assign({},_tvEpg,j.epg||{});}catch(e){}
+    try{const j=await api('/api/epg?cached=1&ids='+encodeURIComponent(epgIds.join(',')));if(!j.error)_tvEpg=Object.assign({},_tvEpg,j.epg||{});}catch(e){}
   }
-  renderTvGuide();
-}
-function renderTvChannels(){
   renderTvGuide();
 }
 let _tvEpg={};   // stream_id -> [{title,start_ts,stop_ts},...]
@@ -6230,7 +6252,7 @@ async function tvPlay(sid,name){
   renderTvGuide();
   const video=document.getElementById('tvVideo');
   let urls;
-  try{const r=await fetch('/api/hls?id='+encodeURIComponent(sid));urls=await r.json();if(!r.ok||!urls.hls)throw new Error('stream url');}catch(e){return;}
+  try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){return;}
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
   window._tvPlaybackController=startSmartStream(video,urls,function(s){
     const bar=slot.querySelector('.tvplayerbar span');if(bar)bar.title=s||'';
@@ -6258,8 +6280,8 @@ async function epgRefresh(){
   const stage=document.getElementById('epgLoadStage'),bar=document.getElementById('epgLoadBar'),count=document.getElementById('epgLoadCount'),found=document.getElementById('epgLoadFound');
   try{
     stage.textContent=tr('Finding channels in your favorites...');count.textContent='';found.textContent='';bar.style.width='3%';
-    const planRes=await fetch('/api/epg_targets');const plan=await planRes.json();
-    if(!planRes.ok||plan.error)throw new Error(plan.error||'EPG failed');
+    const plan=await api('/api/epg_targets');
+    if(plan.error)throw new Error(plan.error||'EPG failed');
     const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,updated=0,noEpg=0,failed=0;
     count.textContent='0 / '+total;
     for(let i=0;i<ids.length;i+=batchSize){
@@ -6267,15 +6289,15 @@ async function epgRefresh(){
       stage.textContent=tr('Loading programme information...');
       let epg={};
       try{
-        const r=await fetch('/api/epg?force=1&ids='+encodeURIComponent(batch.join(','))),j=await r.json();
-        if(!r.ok||j.error)throw new Error(j.error||'EPG batch failed');epg=j.epg||{};
+        const j=await api('/api/epg?force=1&ids='+encodeURIComponent(batch.join(',')));
+        if(j.error)throw new Error(j.error||'EPG batch failed');epg=j.epg||{};
         const s=j.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;
       }catch(batchError){
         // A provider/proxy may dislike concurrent batches.  Retry this batch
         // channel-by-channel so one bad request cannot abort the entire guide.
         stage.textContent=tr('Retrying this batch one channel at a time...');
         for(const sid of batch){
-          try{const rr=await fetch('/api/epg?force=1&ids='+encodeURIComponent(sid)),jj=await rr.json();if(!rr.ok||jj.error)throw new Error(jj.error||'EPG channel failed');Object.assign(epg,jj.epg||{});const s=jj.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;}catch(e){failed++;}
+          try{const jj=await api('/api/epg?force=1&ids='+encodeURIComponent(sid));if(jj.error)throw new Error(jj.error||'EPG channel failed');Object.assign(epg,jj.epg||{});const s=jj.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;}catch(e){failed++;}
         }
       }
       _tvEpg=Object.assign({},_tvEpg,epg);
@@ -6405,8 +6427,7 @@ refreshStatus();
 let _updateLatest=null;
 async function openConfigFolder(){
   try{
-    const r=await fetch('/api/open_folder',{method:'POST'});
-    const j=await r.json();
+    const j=await api('/api/open_folder',{method:'POST'});
     if(!j.ok)toast(tr('Could not open folder.')+(j.path?(' '+j.path):''));
   }catch(e){toast(tr('Could not open folder.'));}
 }
@@ -6414,8 +6435,7 @@ async function checkForUpdate(manual){
   const btn=document.getElementById('checkUpdateBtn');
   if(manual&&btn){btn.textContent=tr('Checking...');btn.disabled=true;}
   try{
-    const r=await fetch('/api/update_check');
-    const j=await r.json();
+    const j=await api('/api/update_check');
     if(j.available&&j.latest){
       _updateLatest=j.latest;
       document.getElementById('updateMsg').textContent=tr('Update available')+': v'+j.latest+' ('+tr('you have')+' v'+j.current+')';
@@ -6432,8 +6452,7 @@ async function doUpdateNow(){
   const btn=document.getElementById('updateNowBtn');
   btn.textContent=tr('Downloading...');btn.disabled=true;
   try{
-    const r=await fetch('/api/update_download',{method:'POST'});
-    const j=await r.json();
+    const j=await api('/api/update_download',{method:'POST'});
     if(!j.ok){throw new Error('dl');}
     document.getElementById('updateMsg').textContent=tr('Update downloaded. Restart now to finish updating?');
     btn.textContent=tr('Restart now');btn.disabled=false;
@@ -6447,8 +6466,7 @@ async function doUpdateRestart(){
   const btn=document.getElementById('updateNowBtn');
   btn.textContent=tr('Restarting...');btn.disabled=true;
   try{
-    const r=await fetch('/api/update_restart',{method:'POST'});
-    const j=await r.json();
+    const j=await api('/api/update_restart',{method:'POST'});
     if(j.relaunch===false){
       document.getElementById('updateMsg').textContent=tr('Update installed. Please close this window and open Olo\u2019s TVMate again.');
     }else{
@@ -6496,94 +6514,87 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_image_file(self, path, ctype=None, cache_control="public, max-age=31536000, immutable"):
+        with open(path, "rb") as f:
+            raw = f.read()
+        ctype = ctype or _image_content_type(raw) or "image/jpeg"
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Cache-Control", cache_control)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def _get_racing_api(self, path, q):
+        if path == "/api/f1_schedule":
+            return self._send(200, {"events": get_f1_schedule()})
+        if path == "/api/racing":
+            cfg = load_config()
+            selected = [key for key in cfg.get("racing_series", ["f1"])
+                        if key in ("f1", "f2", "f3", "indycar", "wec", "formulae", "motogp", "wrc")]
+            return self._send(200, {"selected": selected, "events": get_racing_events(selected)})
+        if path == "/api/racing_availability":
+            cfg = load_config(); x = Xtream(cfg)
+            if not x.configured():
+                return self._send(200, {"availability": {}, "logged_in": False})
+            selected = [key for key in cfg.get("racing_series", ["f1"])
+                        if key in _RACING_CHANNEL_TERMS]
+            cache_key = _vod_cache_key(x) + "|" + ",".join(selected)
+            cached = _RACING_AVAILABILITY_CACHE
+            if (cached.get("key") == cache_key and
+                    time.time() - float(cached.get("ts") or 0) < _RACING_AVAILABILITY_TTL):
+                return self._send(200, {"availability": cached.get("availability") or {},
+                                        "logged_in": True})
+            events = get_racing_events(selected)
+            try:
+                channels, cats = get_xtream_channels(cfg)
+            except Exception:
+                return self._send(200, {"availability": {}, "logged_in": True})
+            now = time.time(); availability = {}
+            for event in events:
+                try:
+                    ets = datetime.datetime.fromisoformat(str(event.get("start") or "").replace("Z", "+00:00")).timestamp()
+                except Exception:
+                    continue
+                if ets < now - 12 * 3600 or ets > now + 45 * 24 * 3600:
+                    continue
+                hits = find_racing_channels(event, channels, cats, x)
+                if hits:
+                    availability[_racing_event_key(event)] = hits
+            _RACING_AVAILABILITY_CACHE.update({"key": cache_key, "ts": time.time(),
+                                               "availability": availability})
+            return self._send(200, {"availability": availability, "logged_in": True})
+        if path == "/api/racing_drivers":
+            return self._send(200, {"drivers": get_racing_drivers()})
+        if path == "/api/racing_driver_image":
+            key = (q.get("id", [""])[0]).strip()
+            if not re.fullmatch(r"[0-9A-Za-z_-]+", key):
+                return self._send(400, {"error": "bad driver id"})
+            driver = next((row for row in get_racing_drivers() if row.get("key") == key), None)
+            image_path = _cache_racing_driver_picture(driver or {}) if driver else ""
+            if not image_path:
+                return self._send(404, {"error": "driver image not found"})
+            return self._send_image_file(image_path)
+        if path == "/api/f1_teams":
+            return self._send(200, {"teams": get_f1_teams(),
+                                    "favorites": load_favorites().get("f1_teams", [])})
+        if path == "/api/f1_team_logo":
+            constructor_id = (q.get("id", [""])[0]).strip()
+            if not re.fullmatch(r"[0-9A-Za-z_-]+", constructor_id):
+                return self._send(400, {"error": "bad constructor id"})
+            image_path = _cache_f1_logo(constructor_id)
+            if not image_path:
+                return self._send(404, {"error": "F1 team logo not found"})
+            return self._send_image_file(image_path)
+
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
         try:
-            if u.path == "/api/f1_schedule":
-                return self._send(200, {"events": get_f1_schedule()})
-
-            if u.path == "/api/racing":
-                cfg = load_config()
-                selected = [key for key in cfg.get("racing_series", ["f1"])
-                            if key in ("f1", "f2", "f3", "indycar", "wec", "formulae", "motogp", "wrc")]
-                return self._send(200, {"selected": selected,
-                                        "events": get_racing_events(selected)})
-
-            if u.path == "/api/racing_availability":
-                cfg = load_config()
-                x = Xtream(cfg)
-                if not x.configured():
-                    return self._send(200, {"availability": {}, "logged_in": False})
-                selected = [key for key in cfg.get("racing_series", ["f1"])
-                            if key in _RACING_CHANNEL_TERMS]
-                cache_key = _vod_cache_key(x) + "|" + ",".join(selected)
-                cached = _RACING_AVAILABILITY_CACHE
-                if (cached.get("key") == cache_key and
-                        time.time() - float(cached.get("ts") or 0) < _RACING_AVAILABILITY_TTL):
-                    return self._send(200, {"availability": cached.get("availability") or {},
-                                            "logged_in": True})
-                events = get_racing_events(selected)
-                try:
-                    channels, cats = get_xtream_channels(cfg)
-                except Exception:
-                    return self._send(200, {"availability": {}, "logged_in": True})
-                now = time.time(); availability = {}
-                for event in events:
-                    try:
-                        ets = datetime.datetime.fromisoformat(str(event.get("start") or "").replace("Z", "+00:00")).timestamp()
-                    except Exception:
-                        continue
-                    if ets < now - 12 * 3600 or ets > now + 45 * 24 * 3600:
-                        continue
-                    hits = find_racing_channels(event, channels, cats, x)
-                    if hits:
-                        availability[_racing_event_key(event)] = hits
-                _RACING_AVAILABILITY_CACHE.update({"key": cache_key, "ts": time.time(),
-                                                   "availability": availability})
-                return self._send(200, {"availability": availability, "logged_in": True})
-
-            if u.path == "/api/racing_drivers":
-                return self._send(200, {"drivers": get_racing_drivers()})
-
-            if u.path == "/api/racing_driver_image":
-                key = (q.get("id", [""])[0]).strip()
-                if not re.fullmatch(r"[0-9A-Za-z_-]+", key):
-                    return self._send(400, {"error": "bad driver id"})
-                driver = next((row for row in get_racing_drivers() if row.get("key") == key), None)
-                path = _cache_racing_driver_picture(driver or {}) if driver else ""
-                if not path:
-                    return self._send(404, {"error": "driver image not found"})
-                with open(path, "rb") as f:
-                    raw = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", _image_content_type(raw) or "image/jpeg")
-                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-                return
-
-            if u.path == "/api/f1_teams":
-                return self._send(200, {"teams": get_f1_teams(),
-                                        "favorites": load_favorites().get("f1_teams", [])})
-
-            if u.path == "/api/f1_team_logo":
-                constructor_id = (q.get("id", [""])[0]).strip()
-                if not re.fullmatch(r"[0-9A-Za-z_-]+", constructor_id):
-                    return self._send(400, {"error": "bad constructor id"})
-                path = _cache_f1_logo(constructor_id)
-                if not path:
-                    return self._send(404, {"error": "F1 team logo not found"})
-                with open(path, "rb") as f:
-                    raw = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", _image_content_type(raw) or "image/jpeg")
-                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-                return
+            if u.path in {"/api/f1_schedule", "/api/racing", "/api/racing_availability",
+                           "/api/racing_drivers", "/api/racing_driver_image",
+                           "/api/f1_teams", "/api/f1_team_logo"}:
+                return self._get_racing_api(u.path, q)
 
             if u.path == "/api/team_logo":
                 team_id = (q.get("id", [""])[0]).strip()
@@ -6591,16 +6602,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "bad team id"})
                 if not _cache_team_logo(team_id):
                     return self._send(404, {"error": "team logo not found"})
-                path = _team_logo_path(team_id)
-                with open(path, "rb") as f:
-                    raw = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", "image/png")
-                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-                return
+                return self._send_image_file(_team_logo_path(team_id), "image/png")
 
             if u.path == "/api/league_logo":
                 league_id = (q.get("id", [""])[0]).strip()
@@ -6608,23 +6610,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "bad league id"})
                 if not _cache_league_logo(league_id):
                     return self._send(404, {"error": "league logo not found"})
-                path = _league_logo_path(league_id)
-                with open(path, "rb") as f:
-                    raw = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", "image/png")
-                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-                return
+                return self._send_image_file(_league_logo_path(league_id), "image/png")
 
             if u.path == "/api/channel_logo":
                 stream_id = (q.get("id", [""])[0]).strip()
                 if not re.fullmatch(r"[0-9A-Za-z_-]+", stream_id):
                     return self._send(400, {"error": "bad stream id"})
                 icon_url = _stream_icon_for_id(stream_id)
-                path = _cache_channel_logo(stream_id, icon_url)
+                provider = _vod_cache_key(Xtream(load_config()))
+                path = _cache_channel_logo(stream_id, icon_url, provider)
                 if not path:
                     return self._send(404, {"error": "channel logo not found"})
                 with open(path, "rb") as f:
@@ -6669,15 +6663,7 @@ class Handler(BaseHTTPRequestHandler):
                                     "season-" + season + ".jpg")
                 if not os.path.isfile(path):
                     return self._send(404, {"error": "artwork not found"})
-                with open(path, "rb") as f:
-                    raw = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", "image/jpeg")
-                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-                return
+                return self._send_image_file(path, "image/jpeg")
 
             if u.path in ("/", "/index.html"):
                 return self._send(200, PAGE.replace("__VERSION__", VERSION), "text/html")
@@ -7816,22 +7802,15 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._send(500, {"error": str(e)})
 
-    def do_POST(self):
-        u = urllib.parse.urlparse(self.path)
-        length = int(self.headers.get("Content-Length", 0))
-        raw = self.rfile.read(length) if length else b"{}"
-        try:
-            payload = json.loads(raw.decode("utf-8") or "{}")
-        except Exception:
-            payload = {}
-        if u.path == "/api/activity":
+    def _post_core_api(self, path, payload):
+        if path == "/api/activity":
             _mark_app_activity()
             return self._send(200, {"ok": True})
-        if u.path == "/api/shutdown":
+        if path == "/api/shutdown":
             self._send(200, {"ok": True})
             _STOP_EVENT.set()
             return
-        if u.path == "/api/test_credentials":
+        if path == "/api/test_credentials":
             test_cfg = dict(DEFAULT_CONFIG)
             test_cfg.update({"xtream_host": str(payload.get("xtream_host") or "").strip(),
                              "xtream_port": str(payload.get("xtream_port") or "").strip(),
@@ -7842,7 +7821,7 @@ class Handler(BaseHTTPRequestHandler):
             ok, info = Xtream(test_cfg).login()
             return self._send(200, {"ok": ok, "info": info if ok else None,
                                     "error": None if ok else info})
-        if u.path == "/api/match_strictness":
+        if path == "/api/match_strictness":
             cfg = load_config()
             try:
                 strict = float(payload.get("match_threshold", cfg.get("match_threshold", 0.62)))
@@ -7852,7 +7831,7 @@ class Handler(BaseHTTPRequestHandler):
             cfg["match_threshold"] = strict
             save_config(cfg)
             return self._send(200, {"ok": True, "match_threshold": strict})
-        if u.path == "/api/racing_series":
+        if path == "/api/racing_series":
             cfg = load_config()
             allowed = ("f1", "f2", "f3", "indycar", "wec", "formulae", "motogp", "wrc")
             requested = payload.get("series") if isinstance(payload.get("series"), list) else []
@@ -7861,6 +7840,18 @@ class Handler(BaseHTTPRequestHandler):
             save_config(cfg)
             _clear_racing_availability_cache()
             return self._send(200, {"ok": True, "series": selected})
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        if u.path in {"/api/activity", "/api/shutdown", "/api/test_credentials",
+                      "/api/match_strictness", "/api/racing_series"}:
+            return self._post_core_api(u.path, payload)
         if u.path == "/api/import_steam_wishlist":
             cfg = load_config()
             saved_url = str(cfg.get("steam_wishlist_url") or "").strip()
@@ -7932,11 +7923,7 @@ class Handler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 cfg["auto_shutdown_minutes"] = 0
             save_config(cfg)
-            _XT_CACHE.update({"ts": 0, "channels": [], "cats": {}})
-            _VOD_CACHE.update({"ts": 0, "movies": []})
-            _SERIES_CACHE.update({"ts": 0, "shows": []})
-            _SHOW_INFO_CACHE.clear()
-            _clear_racing_availability_cache()
+            _clear_provider_caches()
             return self._send(200, {"ok": True})
 
         if u.path == "/api/clear_artwork_cache":
@@ -7953,11 +7940,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/reset_cold_start":
             removed_schedules = 0
             try:
-                _XT_CACHE.update({"ts": 0, "channels": [], "cats": {}})
-                _VOD_CACHE.update({"ts": 0, "movies": []})
-                _SERIES_CACHE.update({"ts": 0, "shows": []})
-                _SHOW_INFO_CACHE.clear()
-                _EPG_CACHE.clear()
+                _clear_provider_caches()
                 _TV_CACHE.clear()
                 _TEAM_FIXTURE_CACHE.clear()
                 _TEAM_ID_CACHE.clear()
@@ -8045,7 +8028,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not fresh:
                     raise RuntimeError("Provider returned an empty movie catalog")
                 movies = _save_vod_catalog_cache(x, fresh)
-                _VOD_CACHE.update({"ts": time.time(), "movies": movies})
+                _VOD_CACHE.update({"provider": _vod_cache_key(x), "ts": time.time(), "movies": movies})
                 fresh_ids = {str(row.get("stream_id")) for row in movies
                              if row.get("stream_id") is not None}
                 new_movies = len(fresh_ids - previous_ids) if previous_ids else 0
