@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b248"
+VERSION = "0.777.b249"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3650,8 +3650,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .driverlive{display:inline-block;background:#102c19;border:1px solid #2f7e48;color:#70d18a;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:7px;vertical-align:1px}
  .mydashdriverlive{margin-left:auto}
  .racingcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
- .racingcard.selected{border-color:#d83a3a;box-shadow:0 0 0 1px rgba(216,58,58,.34),0 0 18px rgba(216,58,58,.09)}
  .racingcard h3{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:10px}
+ .racingcard h3>span{position:relative;padding-bottom:6px}
+ .racingcard.selected h3>span:after{content:"";position:absolute;left:0;bottom:0;width:42px;height:2px;border-radius:2px;background:var(--series-accent,#747b86);opacity:.92}
+ .racingcard.series-f1{--series-accent:#050505}.racingcard.series-f1.selected h3>span:after{box-shadow:0 1px 0 rgba(255,255,255,.16)}
+ .racingcard.series-f2{--series-accent:#20aee5}.racingcard.series-f3{--series-accent:#e86c32}.racingcard.series-indycar{--series-accent:#d8212a}
+ .racingcard.series-wec{--series-accent:#7da65a}.racingcard.series-formulae{--series-accent:#19a7b8}.racingcard.series-motogp{--series-accent:#b7bcc4}.racingcard.series-wrc{--series-accent:#f06a22}
  .racingserieslogo{display:block;width:58px;height:28px;object-fit:contain;object-position:left center;flex:0 0 auto;border:0;background:transparent}
  .racingevent{padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
  .racingevent:hover b{color:var(--acc)}
@@ -5523,7 +5527,7 @@ function renderRacingScheduleCards(){
   const selectedDriver=_racingDriverRows.find(row=>String(row.key||'')===String(_racingDetailKey||''));
   const selectedSeries=_racingDetailKey==='f1-team'?'f1':String((selectedDriver&&selectedDriver.series)||'');
   for(const event of _racingEventRows){const ts=new Date(event.start).getTime();if(!Number.isFinite(ts)||ts<now-24*3600000)continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
-  let h='';for(const row of _RACING_SERIES){if(!_racingSelected.has(row[0]))continue;const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard'+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
+  let h='';for(const row of _RACING_SERIES){if(!_racingSelected.has(row[0]))continue;const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard series-'+escAttr(row[0])+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
   info.innerHTML=h||'<span class="muted">'+esc(tr('Choose at least one racing series above.'))+'</span>';
 }
 async function loadRacingAvailability(){
