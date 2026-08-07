@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b216"
+VERSION = "0.777.b217"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -132,6 +132,7 @@ DEFAULT_CONFIG = {
     "racing_series": ["f1"],
     "games_enabled": True,
     "decorations_enabled": True,
+    "background_style": "float",
     "hide_cmd_window": True,
     "auto_shutdown_minutes": 0,
     "start_section": "mylist",
@@ -371,6 +372,11 @@ def load_config():
             cfg = json.load(f)
         merged = dict(DEFAULT_CONFIG)
         merged.update(cfg or {})
+        if "background_style" not in (cfg or {}):
+            merged["background_style"] = "float" if merged.get("decorations_enabled", True) else "off"
+        if merged.get("background_style") not in ("float", "ascii", "off"):
+            merged["background_style"] = "float"
+        merged["decorations_enabled"] = merged["background_style"] != "off"
         # Retro console mode is parked for now.  Always use the modern,
         # browser-first launcher behavior even if an older config enabled it.
         merged["hide_cmd_window"] = True
@@ -3089,30 +3095,38 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @keyframes floaty{0%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-22px) rotate(4deg)}100%{transform:translateY(0) rotate(0deg)}}
  .globaldecor{position:fixed;inset:64px 0 0;pointer-events:none;overflow:hidden;z-index:0;opacity:.17}
  .globaldecor .pcake{opacity:.75}
+ .globaldecor.asciibg{opacity:1;font-family:Consolas,"Courier New",monospace;color:#7894bd}
+ .asciimotif{position:absolute;margin:0;white-space:pre;font:600 clamp(8px,.58vw,13px)/1.08 Consolas,"Courier New",monospace;letter-spacing:.02em;color:#7894bd;opacity:.075;text-shadow:0 0 18px rgba(57,110,184,.12);user-select:none}
+ .asciimotif.a1{left:2.5%;top:9%;transform:rotate(-2deg)}.asciimotif.a2{right:2.2%;top:32%;transform:scale(.82) rotate(2deg);opacity:.055}.asciimotif.a3{left:7%;bottom:7%;transform:scale(.7);opacity:.045}
+ @media(max-width:1050px){.asciimotif.a2,.asciimotif.a3{display:none}.asciimotif.a1{opacity:.04}}
  #searchView{position:relative;z-index:1}
  /* settings branding block */
  .brandblock{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;width:220px;flex-shrink:0}
  .brandblock .bname{font-size:22px;font-weight:600;color:var(--fg)}
  .brandblock .btag{font-size:13px;color:var(--mut)}
- .settingswrap{display:flex;flex-direction:row;gap:30px;align-items:center;justify-content:center}
- .settingswrap .brandblock{width:220px;flex-shrink:0;gap:8px}
- .settingswrap .brandblock svg{width:100px;height:100px}
- .settingswrap .brandblock .bname{font-size:18px}
- .settingswrap .settingscard{width:min(1050px,100%);max-width:1050px;min-width:0;background:none;border:0;padding:0;margin:0}
- .settingspanels{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:stretch}
- .settingspanel{border:1px solid var(--line2);border-radius:10px;background:var(--card);padding:18px;min-width:0}
+ .settingswrap{display:grid;grid-template-columns:205px minmax(0,1080px);gap:22px;align-items:start;justify-content:center;max-width:1340px;margin:0 auto;padding:18px 12px 34px}
+ .settingswrap .brandblock{width:auto;gap:6px;position:sticky;top:86px;padding:22px 12px 18px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(160deg,rgba(24,30,39,.94),rgba(15,18,23,.86))}
+ .settingswrap .brandblock svg{width:78px;height:78px}
+ .settingswrap .brandblock .bname{font-size:17px}
+ .settingswrap .settingscard{width:100%;max-width:none;min-width:0;background:none;border:0;padding:0;margin:0}
+ .settingspanels{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:14px;align-items:start}
+ .settingspanel{border:0;border-radius:0;background:transparent;padding:0;min-width:0;display:flex;flex-direction:column;gap:12px}
  .settingspanel input[type=text],.settingspanel input[type=password]{width:100%}
- #settingsProfile .grid2{grid-template-columns:1fr}
- #settingsProfile{display:flex;flex-direction:column}
+ #settingsProfile .grid2{grid-template-columns:1fr 1fr}
  #settingsProfile select{width:100%}
- #settingsProfile>.row:last-child{margin-top:auto!important;padding-top:18px}
+ .settingsgroup{border:1px solid var(--line2);border-radius:12px;background:linear-gradient(180deg,var(--card),#11151b);padding:16px}
+ .settingsgroup .colh{margin-bottom:12px}.settingsgroup .colh+.muted{margin-top:-4px;margin-bottom:14px;line-height:1.45}
+ .settingschecks{display:grid;gap:9px}.settingscheck{display:flex;align-items:flex-start;gap:9px;padding:8px 9px;border-radius:8px;background:rgba(255,255,255,.018)}.settingscheck input{width:auto;margin:2px 0 0}.settingscheck span{line-height:1.35}
+ .settingsdisplay{display:grid;grid-template-columns:1fr;gap:12px;margin-top:13px}
+ .settingsactions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 2px}.settingsactions .push{margin-left:auto}
  .emblempicker{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px}
  .emblemchoice{width:48px;height:48px;padding:5px;border:1px solid var(--line2);border-radius:9px;background:var(--bg);opacity:.65}
  .emblemchoice:hover{opacity:1;border-color:var(--acc)}
  .emblemchoice.on{opacity:1;border:2px solid var(--acc);background:#16233d}
  .emblemchoice svg{width:100%;height:100%;display:block}
  #settingsSetup .row{flex-wrap:wrap}
- @media(max-width:1100px){.settingswrap{flex-direction:column}.settingswrap .brandblock{width:100%}.settingspanels{grid-template-columns:1fr}}
+ @media(max-width:1150px){.settingswrap{grid-template-columns:1fr;max-width:900px}.settingswrap .brandblock{position:static;flex-direction:row;text-align:left;justify-content:flex-start;padding:11px 16px}.settingswrap .brandblock svg{width:54px;height:54px}.settingswrap .brandblock .btag{display:none}.settingspanels{grid-template-columns:1fr}}
+ @media(max-width:650px){#settingsProfile .grid2{grid-template-columns:1fr}.settingswrap{padding:8px}.settingsgroup{padding:13px}}
  /* playlist builder logo */
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
  .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
@@ -3308,23 +3322,23 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .racingevent:first-of-type{border-top:0}
  @media(max-width:1600px){.racinglayout{grid-template-columns:320px minmax(0,1fr);gap:24px}}
  @media(max-width:1000px){.racinglayout{grid-template-columns:1fr}.racingsidebar{max-width:520px}.racinggrid{grid-template-columns:1fr}.racingdetail{min-height:0}}
- .setupoverlay{position:fixed;inset:0;z-index:3000;background:rgba(5,7,10,.82);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px}
+ .setupoverlay{position:fixed;inset:0;z-index:3000;background:rgba(5,7,10,.84);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px}
  .setupoverlay.hide{display:none}
- .setupwizard{width:min(760px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#101318;border:1px solid var(--line2);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.55);padding:24px 26px}
+ .setupwizard{width:min(860px,100%);max-height:calc(100vh - 48px);overflow:auto;background:linear-gradient(160deg,#11161d 0%,#0d1116 100%);border:1px solid #4a515d;border-radius:18px;box-shadow:0 28px 100px rgba(0,0,0,.64);padding:0}
  .editprofiledialog{width:min(620px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#101318;border:1px solid var(--line2);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.55);padding:22px 24px}.editprofiledialog h2{margin:0 0 5px}.editprofileactions{display:flex;align-items:center;gap:8px;margin-top:20px;padding-top:15px;border-top:1px solid var(--line)}.editprofileactions .spacer{flex:1}
- .setupbrand{display:flex;align-items:center;gap:11px;margin-bottom:18px}.setupbrand svg{width:42px;height:42px}.setupbrand b{font-size:18px}
- .setupsteps{display:flex;gap:7px;margin:0 0 24px}.setupdot{height:3px;flex:1;border-radius:4px;background:var(--line)}.setupdot.on{background:var(--acc)}
- .setupstep.hide{display:none}.setupstep h2{font-size:22px;margin:0 0 7px}.setupintro{color:var(--mut);margin-bottom:20px;line-height:1.5}
+ .setupbrand{display:flex;align-items:center;gap:11px;padding:20px 28px 13px}.setupbrand svg{width:42px;height:42px}.setupbrand b{font-size:18px}.setupstepmeta{margin-left:auto;color:#7f8a99;font-size:11px;letter-spacing:.75px;text-transform:uppercase}
+ .setupsteps{display:flex;gap:7px;margin:0 28px 27px}.setupdot{height:4px;flex:1;border-radius:5px;background:#242b35;transition:background .18s}.setupdot.on{background:linear-gradient(90deg,#0b55c8,#2b80ff)}
+ .setupstep{padding:0 28px 4px;min-height:330px}.setupstep.hide{display:none}.setupstep h2{font-size:25px;margin:0 0 8px;letter-spacing:-.2px}.setupintro{color:var(--mut);margin-bottom:22px;line-height:1.55;max-width:700px}
  .setupfields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.setupfields .full{grid-column:1/-1}.setupfields input,.setupfields select{width:100%}
  .setupemblems{display:flex;gap:8px;flex-wrap:wrap}.setupemblems .emblemchoice{width:58px;height:58px}
- .setupfeatures{display:grid;grid-template-columns:1fr 1fr;gap:10px}.setupfeature{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--card);border-radius:9px;padding:13px;cursor:pointer}.setupfeature input{width:auto;margin:0}.setupfeature b{display:block}.setupfeature small{display:block;color:var(--mut);margin-top:2px}
- .setupoptional{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:13px;margin-top:14px;color:var(--mut);font-size:12px}
+ .setupfeatures{display:grid;grid-template-columns:1fr 1fr;gap:11px}.setupfeature{display:flex;align-items:center;gap:11px;border:1px solid var(--line);background:rgba(20,25,32,.9);border-radius:11px;padding:15px;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}.setupfeature:hover{border-color:#566276;transform:translateY(-1px)}.setupfeature:has(input:checked){border-color:#2869c9;background:#12223a}.setupfeature input{width:auto;margin:0}.setupfeature b{display:block}.setupfeature small{display:block;color:var(--mut);margin-top:3px;line-height:1.4}
+ .setupoptional{border:1px solid var(--line);background:rgba(20,25,32,.72);border-radius:11px;padding:14px 15px;margin-top:15px;color:var(--mut);font-size:12px;line-height:1.5}
  .setupchoices{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.setupchoice{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;padding:9px 13px}.setupchoice.on{border-color:#2768d8;background:#102347;color:#dbeaff}
  .setupsearch{display:grid;grid-template-columns:1fr auto;gap:8px;margin:10px 0}.setupresults{display:grid;gap:7px;margin-top:8px;max-height:210px;overflow:auto}.setupresult{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}.setupresult img{width:38px;height:50px;object-fit:cover;border-radius:5px}.setupresult .grow{flex:1}.setupresult button{min-width:64px}.setupselected{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}.setupchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:var(--card)}
  .setupstartergrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.setupstartergrid h3{margin:0 0 7px}.setupfinishopts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.setupfinishopt{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:16px}.setupfinishopt b{display:block;margin-bottom:5px}.setupfinishopt button{margin-top:13px}
- .setupactions{display:flex;align-items:center;gap:9px;margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}.setupactions .setupspacer{flex:1}.setupactions button{min-width:90px}
+ .setupactions{display:flex;align-items:center;gap:9px;margin:22px 28px 0;padding:17px 0 23px;border-top:1px solid var(--line)}.setupactions .setupspacer{flex:1}.setupactions button{min-width:94px}
  .setuptest{font-size:12px;color:var(--mut);min-height:18px;margin-top:8px}.setuptest.ok{color:#70d18a}.setuptest.err{color:#ff7676}
- @media(max-width:650px){.setupfields,.setupfeatures,.setupstartergrid,.setupfinishopts{grid-template-columns:1fr}.setupfields .full{grid-column:1}.setupwizard{padding:20px}.setupactions{flex-wrap:wrap}}
+ @media(max-width:650px){.setupfields,.setupfeatures,.setupstartergrid,.setupfinishopts{grid-template-columns:1fr}.setupfields .full{grid-column:1}.setupbrand{padding:17px 18px 12px}.setupsteps{margin:0 18px 22px}.setupstep{padding:0 18px;min-height:0}.setupactions{margin:20px 18px 0;flex-wrap:wrap}}
 </style></head><body>
 <div id="globalDecor" class="globaldecor"></div>
 <header>
@@ -3350,7 +3364,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 </header>
 <div id="profileSetupOverlay" class="setupoverlay hide">
   <div class="setupwizard" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
-    <div class="setupbrand"><span id="setupBrandEmblem"></span><b>Olo's TVMate</b></div>
+    <div class="setupbrand"><span id="setupBrandEmblem"></span><b>Olo's TVMate</b><span id="setupStepMeta" class="setupstepmeta"></span></div>
     <div id="setupProgress" class="setupsteps"></div>
     <div class="setupstep" data-key="profile">
       <h2 id="setupTitle">Welcome to TVMate</h2>
@@ -3359,6 +3373,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div><label>Profile name</label><input id="setupName" type="text" placeholder="Your name"></div>
         <div><label>Preferred language</label><select id="setupLang"><option value="en">English</option><option value="no">Norsk</option></select></div>
         <div class="full"><label>Pick an emblem</label><div id="setupEmblems" class="setupemblems"></div></div>
+        <div class="full"><label>Background style</label><select id="setupBackground"><option value="float">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off">Off</option></select></div>
       </div>
     </div>
     <div class="setupstep hide" data-key="follow">
@@ -3426,7 +3441,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div><label>Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
       <label class="setupfeature full"><input id="ep_checkshows" type="checkbox"><span><b>Check favorite shows on startup</b><small>Look for newly available episodes when TVMate starts.</small></span></label>
       <label class="setupfeature full"><input id="ep_refreshstartup" type="checkbox"><span><b>Refresh all content on startup</b><small>Refresh channels, movies, shows and episode data when TVMate starts.</small></span></label>
-      <label class="setupfeature full"><input id="ep_decorations" type="checkbox"><span><b>Floating pancakes &amp; TVs</b><small>Show the animated background decorations around TVMate.</small></span></label>
+      <div class="full"><label>Background style</label><select id="ep_background"><option value="float">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off">Off</option></select></div>
     </div>
     <div class="editprofileactions"><button type="button" class="ghost" onclick="runSetupGuideFromProfile()">Run setup guide</button><div class="spacer"></div><button type="button" class="ghost" onclick="closeEditProfile()">Cancel</button><button type="button" onclick="saveEditProfile(this)">Save</button></div>
   </div>
@@ -3697,6 +3712,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="card settingscard">
       <div class="settingspanels">
       <div id="settingsProfile" class="settingspanel">
+       <div class="settingsgroup">
         <div class="colh" data-i18n="Profile">Profile</div>
         <div class="grid2">
           <div><label data-i18n="Profile name">Profile name</label><input id="s_profile" type="text" maxlength="40"></div>
@@ -3708,64 +3724,67 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <div><label data-i18n="Default start section">Default start section</label>
             <select id="s_start"><option value="mylist">My Profile</option><option id="startTimelineOption" value="mytimeline">My Timeline</option><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option id="startGamesOption" value="games">My Games</option><option id="startRacingOption" value="racing">My Racing</option><option value="teams">My Teams</option></select></div>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+       </div>
+       <div class="settingsgroup">
+        <div class="colh">Startup</div>
+        <div class="settingschecks">
+        <label class="settingscheck">
           <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:10px">
+        <label class="settingscheck">
           <input id="s_refreshstartup" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Refresh all content on startup">Refresh all content on startup</span>
         </label>
-        <div class="colh" style="margin-top:18px" data-i18n="Features & Display">Features &amp; Display</div>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        </div>
+       </div>
+       <div class="settingsgroup">
+        <div class="colh" data-i18n="Features & Display">Features &amp; Display</div>
+        <div class="settingschecks">
+        <label class="settingscheck">
           <input id="s_football" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Show football features">Show football features</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <label class="settingscheck">
           <input id="s_f1" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Show racing features">Show racing features</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <label class="settingscheck">
           <input id="s_games" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Show game features">Show game features</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
-          <input id="s_decorations" type="checkbox" style="width:auto;margin:0">
-          <span data-i18n="Animated background decorations">Animated background decorations</span>
-        </label>
-        <div class="row" style="margin-top:16px"><button onclick="saveSettings()" data-i18n="Save">Save</button></div>
+        </div>
+        <div class="settingsdisplay"><div><label>Background style</label><select id="s_background"><option value="float">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off">Off</option></select></div></div>
+       </div>
       </div>
       <div id="settingsSetup" class="settingspanel">
-      <div class="colh" data-i18n="Setup">Setup</div>
-      <div class="muted">Your Xtream login is stored locally in config.json next to the app. It's only ever sent to your own provider.</div>
-      <div class="colh" style="margin-top:16px" data-i18n="Connection">Connection</div>
+      <div class="settingsgroup">
+      <div class="colh" data-i18n="Connection">Connection</div>
+      <div class="muted">Your Xtream login stays in your local config.json and is only sent to your own provider.</div>
       <div class="grid2">
         <div><label data-i18n="Username">Username</label><input id="s_user" type="text"></div>
         <div><label data-i18n="Password">Password</label><input id="s_pass" type="password"></div>
         <div><label data-i18n="Host (e.g. http://example.com:8080)">Host (e.g. http://example.com:8080)</label><input id="s_host" type="text"></div>
         <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button><button class="ghost" onclick="refreshAllContent(this)" data-i18n="Refresh all content">Refresh all content</button></div>
       </div>
-      <div class="colh" style="margin-top:18px" data-i18n="Search Options">Search Options</div>
+      </div>
+      <div class="settingsgroup">
+      <div class="colh" data-i18n="Search Options">Search Options</div>
       <div class="grid2">
         <div><label data-i18n="Match strictness (0.40–0.80)">Match strictness (0.40&ndash;0.80)</label><input id="s_thr" type="text"></div>
       </div>
       <label data-i18n="Listings countries (comma separated: no, uk, us)">Listings countries (comma separated: no, uk, us)</label>
       <input id="s_cc" type="text">
-      <div class="colh" style="margin-top:18px" data-i18n="Maintenance & Playback">Maintenance &amp; Playback</div>
+      </div>
+      <div class="settingsgroup">
+      <div class="colh" data-i18n="Maintenance & Playback">Maintenance &amp; Playback</div>
       <div class="grid2">
         <div><label data-i18n="Stream extension">Stream extension</label>
           <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
       </div>
       <div style="margin-top:12px"><label>Auto shutdown when inactive <select id="s_autoshutdown" style="width:auto;margin-left:7px"><option value="0">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label></div>
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize">Checking...</b></div>
-      <div class="row" style="margin-top:14px;align-items:flex-end">
-        <button onclick="saveSettings()" data-i18n="Save">Save</button>
-        <button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button>
-        <div style="margin-left:auto;display:flex;flex-direction:column;align-items:stretch;gap:8px">
-          <button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button>
-          <button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button>
-        </div>
-      </div>
+      <div class="row" style="margin-top:14px"><button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button><button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button></div>
       <div id="s_msg" class="muted" style="margin-top:10px"></div>
       <div id="devSettings" class="hide" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
         <div class="colh" data-i18n="Developer tools">Developer tools</div>
@@ -3776,6 +3795,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       </div>
       </div>
+      </div>
+      <div class="settingsactions"><button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button><span class="muted">Changes are kept locally on this device.</span><button class="push" onclick="saveSettings()" data-i18n="Save">Save changes</button></div>
     </div>
     </div>
   </section>
@@ -3820,18 +3841,26 @@ function makePancakes(el,count){
   }
   el.innerHTML=html;
 }
-let _decorationsEnabled=true;
-function applyDecorations(enabled){
-  _decorationsEnabled=!!enabled;
+let _backgroundStyle='float',_decorationsEnabled=true;
+const _ASCII_TV='&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#92; | /<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.----------------.<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;__________&nbsp;&nbsp;&nbsp;| o<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#92;&nbsp;&nbsp;| o<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;| [______] |&nbsp;&nbsp;| |<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;| (======) |&nbsp;&nbsp;|<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;| (======) |&nbsp;&nbsp;|<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;|&nbsp;&nbsp;&#92;____/&nbsp;&nbsp;|&nbsp;&nbsp;|<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&#92;__________/&nbsp;&nbsp;|<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#39;----------------&#39;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;||&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;||';
+function applyBackgroundStyle(style){
+  _backgroundStyle=['float','ascii','off'].includes(style)?style:'float';
+  _decorationsEnabled=_backgroundStyle!=='off';
   const global=document.getElementById('globalDecor');
   const l=document.getElementById('pcakeL'),r=document.getElementById('pcakeR'),pl=document.getElementById('pcakePL');
   if(l)l.innerHTML='';if(r)r.innerHTML='';if(pl)pl.innerHTML='';
   if(!global)return;
-  if(!_decorationsEnabled){global.innerHTML='';return;}
-  if(!global.children.length)makePancakes(global,18);
+  global.innerHTML='';global.classList.toggle('asciibg',_backgroundStyle==='ascii');
+  if(_backgroundStyle==='off')return;
+  if(_backgroundStyle==='ascii'){
+    global.innerHTML='<pre class="asciimotif a1">'+_ASCII_TV+'</pre><pre class="asciimotif a2">'+_ASCII_TV+'</pre><pre class="asciimotif a3">'+_ASCII_TV+'</pre>';
+    return;
+  }
+  makePancakes(global,18);
 }
-function initPancakes(){applyDecorations(_decorationsEnabled);}
-function initPlPancakes(){applyDecorations(_decorationsEnabled);}
+function applyDecorations(enabled){applyBackgroundStyle(enabled?'float':'off');}
+function initPancakes(){applyBackgroundStyle(_backgroundStyle);}
+function initPlPancakes(){applyBackgroundStyle(_backgroundStyle);}
 function setNav(id){['navSearch','navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'].forEach(function(n){document.getElementById(n).classList.toggle('on',n===id);});}
 const _SLOGANS={
   search:["Find the match. Pick a channel. Pour the syrup."],
@@ -3963,7 +3992,7 @@ function updateProfileName(name){
   // Profile identity lives inside My Profile now. The permanent top-right
   // action is Stop TVMate, so profile names no longer occupy header space.
 }
-let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true};
+let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
 let _selectedEmblem='tvstack',_footballEnabled=true,_f1Enabled=true,_gamesEnabled=true,_myListLayout='timeline';
 function profileEmblemSvg(key){return _PROFILE_EMBLEMS[key]||_PROFILE_EMBLEMS.tvstack;}
 function renderEmblemPicker(){
@@ -3986,6 +4015,7 @@ function renderSetupStep(){
   document.querySelectorAll('.setupstep').forEach(el=>el.classList.toggle('hide',el.dataset.key!==active));
   const total=keys.length,progress=document.getElementById('setupProgress');
   if(progress)progress.innerHTML=Array.from({length:total},(_,i)=>'<span class="setupdot'+(i<=_setupIndex?' on':'')+'"></span>').join('');
+  const meta=document.getElementById('setupStepMeta');if(meta)meta.textContent='Step '+(_setupIndex+1)+' of '+total;
   setupBack.classList.toggle('hide',_setupIndex===0);setupNext.classList.toggle('hide',active==='finish');
   setupSkip.classList.toggle('hide',!_setupFirstRun||_setupIndex===0);
   if(active==='football')renderSetupTeams();if(active==='racing')renderSetupRacing();if(active==='launch')renderSetupLaunchHelp();
@@ -4003,7 +4033,7 @@ function setupStep(delta){
 async function openProfileSetup(firstRun,cfg){
   _setupFirstRun=!!firstRun;_setupIndex=0;
   let c=cfg||null;try{if(!c)c=await api('/api/config');}catch(e){c={};}
-  c=c||{};setupName.value=c.profile_name||'';setupLang.value=c.preferred_language||'en';
+  c=c||{};setupName.value=c.profile_name||'';setupLang.value=c.preferred_language||'en';setupBackground.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   _setupEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderSetupEmblems();
   setupFootball.checked=c.football_enabled!==false;setupRacing.checked=c.f1_enabled!==false;setupGames.checked=c.games_enabled!==false;_setupDemoContent=_setupFirstRun?true:!!c.setup_demo_content;
   setupAutoShutdown.value=String(c.auto_shutdown_minutes||0);
@@ -4014,7 +4044,7 @@ async function openProfileSetup(firstRun,cfg){
 }
 function closeProfileSetup(){profileSetupOverlay.classList.add('hide');}
 async function skipProfileSetup(){
-  const body={profile_name:setupName.value.trim(),preferred_language:setupLang.value,profile_emblem:_setupEmblem,setup_complete:true};
+  const body={profile_name:setupName.value.trim(),preferred_language:setupLang.value,profile_emblem:_setupEmblem,background_style:setupBackground.value,decorations_enabled:setupBackground.value!=='off',setup_complete:true};
   if(!body.profile_name){_setupIndex=0;renderSetupStep();setupName.focus();toast('Enter a profile name to continue.');return;}
   try{
     const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -4055,7 +4085,7 @@ async function syncSetupTeams(){
   for(const [key,t] of after)if(!before.has(key))await favPost({action:'toggle_team',team:t});
 }
 async function finishProfileSetup(btn,openXtream){
-  const body={profile_name:setupName.value.trim(),preferred_language:setupLang.value,profile_emblem:_setupEmblem,
+  const body={profile_name:setupName.value.trim(),preferred_language:setupLang.value,profile_emblem:_setupEmblem,background_style:setupBackground.value,decorations_enabled:setupBackground.value!=='off',
     football_enabled:setupFootball.checked,f1_enabled:setupRacing.checked,games_enabled:setupGames.checked,setup_demo_content:_setupDemoContent,hide_cmd_window:true,auto_shutdown_minutes:Number(setupAutoShutdown.value||0),setup_complete:true};
   if(!body.profile_name){_setupIndex=0;renderSetupStep();setupName.focus();toast('Enter a profile name to continue.');return;}
   btn.disabled=true;btn.textContent='Saving...';
@@ -4079,13 +4109,13 @@ function selectEditProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_editProf
 async function openEditProfile(){
   let c={};try{c=await api('/api/config');}catch(e){c=_profileConfig||{};}
   ep_name.value=c.profile_name||'';ep_lang.value=c.preferred_language||'en';_editProfileEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEditProfileEmblems();
-  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshstartup.checked=!!c.refresh_all_on_startup;ep_decorations.checked=c.decorations_enabled!==false;
+  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshstartup.checked=!!c.refresh_all_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   editProfileOverlay.classList.remove('hide');setTimeout(()=>ep_name.focus(),30);
 }
 function closeEditProfile(){editProfileOverlay.classList.add('hide');}
 function runSetupGuideFromProfile(){closeEditProfile();openProfileSetup(false);}
 async function saveEditProfile(btn){
-  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,refresh_all_on_startup:ep_refreshstartup.checked,decorations_enabled:ep_decorations.checked};
+  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,refresh_all_on_startup:ep_refreshstartup.checked,background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
   if(!body.profile_name){ep_name.focus();toast('Enter a profile name.');return;}if(body.mylist_layout==='timeline'&&body.start_section==='mytimeline')body.start_section='mylist';if(!_gamesEnabled&&body.start_section==='games')body.start_section='mylist';if(!_f1Enabled&&body.start_section==='racing')body.start_section='mylist';if(!_footballEnabled&&body.start_section==='teams')body.start_section='mylist';
   const old=btn.textContent;btn.disabled=true;btn.textContent='Saving...';
   try{const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('save failed');setLang(body.preferred_language);applyProfileConfig(body);closeEditProfile();toast('Profile saved.');}catch(e){toast('Could not save profile.');}
@@ -4125,7 +4155,7 @@ function applyProfileConfig(c){
   if(!_gamesEnabled)_myListGameMoments=[];
   document.querySelectorAll('.f1Feature').forEach(el=>el.classList.toggle('hide',!_f1Enabled));
   updateProfileName(_profileConfig.profile_name);
-  applyDecorations(_profileConfig.decorations_enabled!==false);
+  applyBackgroundStyle(_profileConfig.background_style||(_profileConfig.decorations_enabled===false?'off':'float'));
   renderMyListProfile();
   applyMyListLayout();
 }
@@ -4458,7 +4488,7 @@ async function loadSettings(){
   s_football.checked=c.football_enabled!==false;
   s_f1.checked=c.f1_enabled!==false;
   s_games.checked=c.games_enabled!==false;
-  s_decorations.checked=c.decorations_enabled!==false;
+  s_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   s_autoshutdown.value=String(c.auto_shutdown_minutes||0);
   loadArtworkCacheSize();
 }
@@ -4470,7 +4500,7 @@ async function saveSettings(){
     refresh_all_on_startup:s_refreshstartup.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
     profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
-    f1_enabled:s_f1.checked,games_enabled:s_games.checked,decorations_enabled:s_decorations.checked,hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0)};
+    f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0)};
   if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -7254,9 +7284,14 @@ class Handler(BaseHTTPRequestHandler):
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_all_on_startup", "profile_name",
                       "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
-                      "f1_enabled", "games_enabled", "decorations_enabled", "setup_complete", "setup_demo_content", "auto_shutdown_minutes"):
+                      "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes"):
                 if k in payload:
                     cfg[k] = payload[k]
+            if "background_style" not in payload and "decorations_enabled" in payload:
+                cfg["background_style"] = "float" if payload.get("decorations_enabled") else "off"
+            if cfg.get("background_style") not in ("float", "ascii", "off"):
+                cfg["background_style"] = "float" if cfg.get("decorations_enabled", True) else "off"
+            cfg["decorations_enabled"] = cfg["background_style"] != "off"
             cfg["hide_cmd_window"] = True
             try:
                 cfg["auto_shutdown_minutes"] = max(0, int(cfg.get("auto_shutdown_minutes") or 0))
