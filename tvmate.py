@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b247"
+VERSION = "0.777.b248"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3879,7 +3879,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="mydash">
       <div id="myListProfile" class="mylistprofile"></div>
       <div class="mydashblock" id="myListTeamsBlock">
-        <div class="mydashhead"><div class="mydashsportheading sport">Sport</div></div>
+        <div class="mydashhead" id="myListSportHeading"><div class="mydashsportheading sport">Sport</div></div>
         <div id="myListTeams" class="mydashgrid"><span class="muted">Loading...</span></div>
       </div>
       <div class="mydashblock" id="myListShowsBlock">
@@ -4506,10 +4506,11 @@ function applyProfileConfig(c){
   _footballEnabled=_profileConfig.football_enabled!==false;
   _f1Enabled=_profileConfig.f1_enabled!==false;
   _gamesEnabled=_profileConfig.games_enabled!==false;
-  const nav=document.getElementById('navTeams'),searchCol=document.getElementById('footballSearchCol'),teamBlock=document.getElementById('myListTeamsBlock'),gamesNav=document.getElementById('navGames'),gamesStart=document.getElementById('startGamesOption'),racingNav=document.getElementById('navRacing'),racingStart=document.getElementById('startRacingOption');
+  const nav=document.getElementById('navTeams'),searchCol=document.getElementById('footballSearchCol'),teamBlock=document.getElementById('myListTeamsBlock'),sportHeading=document.getElementById('myListSportHeading'),gamesNav=document.getElementById('navGames'),gamesStart=document.getElementById('startGamesOption'),racingNav=document.getElementById('navRacing'),racingStart=document.getElementById('startRacingOption');
   if(nav)nav.classList.toggle('hide',!_footballEnabled);
   if(searchCol)searchCol.classList.toggle('hide',!_footballEnabled);
   if(teamBlock)teamBlock.classList.toggle('hide',!(_footballEnabled||_f1Enabled));
+  if(sportHeading)sportHeading.classList.toggle('hide',!_footballEnabled);
   if(gamesNav)gamesNav.classList.toggle('hide',!_gamesEnabled);
   if(gamesStart)gamesStart.classList.toggle('hide',!_gamesEnabled);
   if(racingNav)racingNav.classList.toggle('hide',!_f1Enabled);
