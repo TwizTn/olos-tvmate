@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b223"
+VERSION = "0.777.b224"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -618,7 +618,30 @@ _TVMAZE_CACHE = {}  # normalized title/year -> {"ts": epoch, "covers": {season:u
 _XT_TTL = 24 * 3600       # catalogs stay local for the session/day; manual refresh overrides
 _SHOW_INFO_TTL = 24 * 3600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
-_EPG_TTL = 3600
+_EPG_TTL = 8 * 3600       # persist an evening's guide; manual EPG refresh overrides
+_EPG_DISK_PROVIDER = None
+
+def _load_epg_disk_cache(x):
+    """Hydrate the small EPG cache once per configured provider."""
+    global _EPG_DISK_PROVIDER
+    provider = _vod_cache_key(x)
+    if _EPG_DISK_PROVIDER == provider:
+        return
+    _EPG_CACHE.clear()
+    cached = _load_timed_data_cache("epg-cache.json", _EPG_TTL)
+    if isinstance(cached, dict) and cached.get("provider") == provider:
+        entries = cached.get("entries") or {}
+        if isinstance(entries, dict):
+            now = time.time()
+            for sid, row in entries.items():
+                if (isinstance(row, dict) and isinstance(row.get("programmes"), list)
+                        and now - float(row.get("ts") or 0) < _EPG_TTL):
+                    _EPG_CACHE[str(sid)] = row
+    _EPG_DISK_PROVIDER = provider
+
+def _save_epg_disk_cache(x):
+    _save_timed_data_cache("epg-cache.json", {
+        "provider": _vod_cache_key(x), "entries": _EPG_CACHE})
 
 def _fetch_text(url, timeout=8):
     """Fetch a URL as text, or None on any failure (offline, 404, etc.)."""
@@ -5778,6 +5801,12 @@ async function loadTvSource(src){
     _tvChannels=(r.channels||[]).map(function(c){return {stream_id:c.stream_id,name:c.name,category:c.category||'',url:c.url,logo:c.logo||''};});
   }
   await refreshFavState();
+  // Restore EPG from disk/memory only. Entering Live TV must not silently
+  // refresh the provider; the Update EPG button remains the network action.
+  const epgIds=_tvChannels.map(function(c){return String(c.stream_id);}).filter(Boolean);
+  if(epgIds.length){
+    try{const r=await fetch('/api/epg?cached=1&ids='+encodeURIComponent(epgIds.join(',')));const j=await r.json();_tvEpg=Object.assign({},_tvEpg,j.epg||{});}catch(e){}
+  }
   renderTvGuide();
 }
 function renderTvChannels(){
@@ -6297,13 +6326,16 @@ class Handler(BaseHTTPRequestHandler):
                                         "mylist_channels": selected_ids})
 
             if u.path == "/api/epg":
-                # ids=comma-separated stream ids; force=1 to bypass cache
+                # ids=comma-separated stream ids; force=1 bypasses cache.
+                # cached=1 is disk/memory only and never contacts the provider.
                 ids_raw = (q.get("ids", [""])[0]).strip()
                 force = q.get("force", ["0"])[0] == "1"
+                cached_only = q.get("cached", ["0"])[0] == "1"
                 cfg = load_config()
                 x = Xtream(cfg)
                 if not x.configured() or not ids_raw:
                     return self._send(400, {"error": "bad request"})
+                _load_epg_disk_cache(x)
                 ids = [s for s in ids_raw.split(",") if s.strip()]
                 now = time.time()
                 result = {}
@@ -6312,7 +6344,7 @@ class Handler(BaseHTTPRequestHandler):
                     cached = _EPG_CACHE.get(sid)
                     if cached and not force and (now - cached["ts"] < _EPG_TTL):
                         result[sid] = cached["programmes"]
-                    else:
+                    elif not cached_only:
                         to_fetch.append(sid)
                 # throttle: fetch in small batches with a short pause
                 import time as _t
@@ -6322,6 +6354,8 @@ class Handler(BaseHTTPRequestHandler):
                     result[sid] = progs
                     if (i + 1) % 4 == 0:
                         _t.sleep(0.35)   # brief pause every 4 requests
+                if to_fetch:
+                    _save_epg_disk_cache(x)
                 return self._send(200, {"epg": result})
 
             if u.path == "/api/epg_debug":
