@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b250"
+VERSION = "0.777.b251"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3555,10 +3555,17 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfavs{padding-right:16px;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
  .teamfavlist{display:flex;flex-direction:column;gap:4px}
  .teamfavitem{position:relative;padding:8px 34px 8px 8px;border-bottom:1px solid var(--line);font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;min-height:48px}
+ .teamfavitem[data-team-search]{cursor:pointer;border-radius:7px;transition:background .12s,border-color .12s}.teamfavitem[data-team-search]:hover{background:var(--card2);border-bottom-color:var(--line2)}
  .teamfavlogo{width:34px;height:34px;flex:0 0 34px;object-fit:contain}
  .teamfavname{min-width:0;line-height:1.25}
  .teamfavitem .teamremove{position:absolute;right:8px;top:50%;transform:translateY(-50%);margin:0}
  .teamsmain{width:100%;max-width:1250px;min-width:0;margin:0 auto}
+ .teammatchfinder{background:linear-gradient(180deg,rgba(24,28,36,.72),rgba(18,21,27,.56));border:1px solid var(--line);border-radius:10px;padding:14px 15px;margin:0 0 20px}
+ .teammatchfinder>.colh{margin-bottom:9px;color:var(--fg)}
+ .teammatchresults:empty{display:none}
+ .teammatchresults{margin-top:14px}
+ .teammatchresults #teamFixtures>.card{background:var(--card2)}
+ .teammatchresults #teamFixtures>.card.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
  .teamsearchresults{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
  .teamsearchhit{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:border-color .13s,background .13s}.teamsearchhit:hover{border-color:var(--line2);background:var(--card2)}
  .teamfixturegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
@@ -3792,18 +3799,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="pancakes left" id="pcakeL"></div>
     <div class="pancakes right" id="pcakeR"></div>
     <div class="split">
-      <div class="col" id="footballSearchCol">
-        <h2 class="colh" data-i18n="Matchfinder - Get Live / Next Match">Matchfinder - Get Live / Next Match</h2>
-        <div class="row">
-          <input id="q" type="text" placeholder="Search a team, e.g. Leeds" data-i18n-ph="Search a team, e.g. Leeds" onkeydown="if(event.key==='Enter')doSearch()">
-          <button onclick="doSearch()" data-i18n="Search">Search</button>
-        </div>
-        <div class="matchstrict"><span data-i18n="Match strictness">Match strictness</span>
-          <input id="matchStrict" type="range" min="0.40" max="0.80" step="0.01" value="0.62" oninput="document.getElementById('matchStrictValue').textContent=this.value" onchange="saveMatchStrictness(this.value)">
-          <span id="matchStrictValue" class="matchstrictvalue">0.62</span>
-        </div>
-        <div id="results"></div>
-      </div>
       <div class="col">
         <h2 class="colh" data-i18n="Channels">Channels</h2>
         <div class="row">
@@ -4025,11 +4020,19 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </aside>
       <div class="teamsmain">
         <h2 class="colh" data-i18n="My Teams">My Teams</h2>
-        <div class="row sectionsearch">
-          <input id="teamQ" type="text" placeholder="Search for a team..." data-i18n-ph="Search for a team..." onkeydown="if(event.key==='Enter')searchTeams()">
-          <button onclick="searchTeams()" data-i18n="Search">Search</button>
+        <div class="teammatchfinder">
+          <div class="colh" data-i18n="Find team or match">Find team or match</div>
+          <div class="row sectionsearch">
+            <input id="q" type="text" placeholder="Search a team, e.g. Leeds" data-i18n-ph="Search a team, e.g. Leeds" onkeydown="if(event.key==='Enter')searchTeamHub()">
+            <button onclick="searchTeamHub()" data-i18n="Search">Search</button>
+          </div>
+          <div class="matchstrict"><span data-i18n="Match strictness">Match strictness</span>
+            <input id="matchStrict" type="range" min="0.40" max="0.80" step="0.01" value="0.62" oninput="document.getElementById('matchStrictValue').textContent=this.value" onchange="saveMatchStrictness(this.value)">
+            <span id="matchStrictValue" class="matchstrictvalue">0.62</span>
+          </div>
+          <div id="teamSearchResults" class="teamsearchresults"></div>
+          <div id="results" class="teammatchresults"></div>
         </div>
-        <div id="teamSearchResults" class="teamsearchresults"></div>
         <div id="teamLiveSection" class="hide">
           <div class="colh" style="margin-top:22px" data-i18n="Live Matches">Live Matches</div>
           <div id="teamLiveList" class="teamfixturegrid"></div>
@@ -4233,7 +4236,7 @@ const _I18N={
   "Choose your racing":"Velg racing","Select the series you want on My Racing and your timeline.":"Velg seriene du vil ha i Min racing og på tidslinjen.","Favorite Formula 1 team":"Favorittlag i Formel 1","Choose a Formula 1 team":"Velg et Formel 1-lag","Add something to watch":"Legg til noe å se på","Search shows":"Søk etter serier","Search movies":"Søk etter filmer",
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
-  "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Refresh fixtures":"Oppdater kamper",
+  "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
@@ -4348,7 +4351,7 @@ function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
-function showTeams(){if(!_footballEnabled){showSearch();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();}
+function showTeams(target){if(!_footballEnabled){showSearch();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();if(target)setTimeout(()=>openMyTeamsFixture(target),0);}
 function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
 function showSearch(){rememberLocation('search');hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
@@ -4510,9 +4513,8 @@ function applyProfileConfig(c){
   _footballEnabled=_profileConfig.football_enabled!==false;
   _f1Enabled=_profileConfig.f1_enabled!==false;
   _gamesEnabled=_profileConfig.games_enabled!==false;
-  const nav=document.getElementById('navTeams'),searchCol=document.getElementById('footballSearchCol'),teamBlock=document.getElementById('myListTeamsBlock'),sportHeading=document.getElementById('myListSportHeading'),gamesNav=document.getElementById('navGames'),gamesStart=document.getElementById('startGamesOption'),racingNav=document.getElementById('navRacing'),racingStart=document.getElementById('startRacingOption');
+  const nav=document.getElementById('navTeams'),teamBlock=document.getElementById('myListTeamsBlock'),sportHeading=document.getElementById('myListSportHeading'),gamesNav=document.getElementById('navGames'),gamesStart=document.getElementById('startGamesOption'),racingNav=document.getElementById('navRacing'),racingStart=document.getElementById('startRacingOption');
   if(nav)nav.classList.toggle('hide',!_footballEnabled);
-  if(searchCol)searchCol.classList.toggle('hide',!_footballEnabled);
   if(teamBlock)teamBlock.classList.toggle('hide',!(_footballEnabled||_f1Enabled));
   if(sportHeading)sportHeading.classList.toggle('hide',!_footballEnabled);
   if(gamesNav)gamesNav.classList.toggle('hide',!_gamesEnabled);
@@ -4527,8 +4529,8 @@ function applyProfileConfig(c){
   applyMyListLayout();
 }
 
-let _favTeamSet=new Set();
-function teamFixtureCard(f,live){
+let _favTeamSet=new Set(),_teamDeepLink=null;
+function teamFixtureCard(f,live,deepLink){
   const kick=f.start?new Date(f.start):null;
   const when=kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
   let status='';
@@ -4541,13 +4543,14 @@ function teamFixtureCard(f,live){
   const owners=(f.favorite_teams||[]).join(', ');
   const broadcasters=[];
   for(const cc of Object.keys(f.by_country||{}))for(const name of (f.by_country[cc]||[]))broadcasters.push({cc:cc,name:name});
-  const query=(f.home||'')+' '+(f.away||'');
+  const query=(f.home||'')+' '+(f.away||''),matchQuery=(f.favorite_teams||[])[0]||f.home||f.away||'';
   const homeLogo=f.home_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.home_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
   let details='';
-  if(broadcasters.length)details='<div class="teamfixturebroadcasts hide">'+broadcasters.map(row=>'<button class="teamcaster" data-fixture-query="'+escAttr(query)+'"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</button>').join('')+'</div>';
-  return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
+  if(broadcasters.length)details='<div class="teamfixturebroadcasts hide">'+broadcasters.map(row=>'<button class="teamcaster" data-fixture-query="'+escAttr(matchQuery)+'"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</button>').join('')+'</div>';
+  const deepAttrs=deepLink?' data-team-fixture="1" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"':'';
+  return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"'+deepAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
     +(broadcasters.length?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
     +competition+'<div class="muted">'+esc(when)+' '+status+'</div>'+(owners?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')+details+'</div>';
 }
@@ -4556,7 +4559,7 @@ async function loadMyTeams(){
   _favTeamSet=new Set(teams.map(t=>String(typeof t==='string'?t:t.name).toLowerCase()));
   const rail=document.getElementById('teamFavList');
   if(!teams.length)rail.innerHTML='<span class="muted">No favorite teams yet.</span>';
-  else rail.innerHTML=teams.map(t=>{const name=typeof t==='string'?t:t.name,id=typeof t==='string'?'':String(t.team_id||''),logo=typeof t==='string'?'':(t.logo||'');const src=logo||(id?'/api/team_logo?id='+encodeURIComponent(id):'');return '<div class="teamfavitem">'+(src?'<img class="teamfavlogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span class="teamfavname">'+esc(name)+'</span><span class="favstar on teamremove" data-team-name="'+escAttr(name)+'" title="Remove from favorites">&#9733;</span></div>';}).join('');
+  else rail.innerHTML=teams.map(t=>{const name=typeof t==='string'?t:t.name,id=typeof t==='string'?'':String(t.team_id||''),logo=typeof t==='string'?'':(t.logo||'');const src=logo||(id?'/api/team_logo?id='+encodeURIComponent(id):'');return '<div class="teamfavitem" data-team-search="'+escAttr(name)+'">'+(src?'<img class="teamfavlogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span class="teamfavname">'+esc(name)+'</span><span class="favstar on teamremove" data-team-name="'+escAttr(name)+'" title="Remove from favorites">&#9733;</span></div>';}).join('');
   const upcoming=document.getElementById('teamUpcomingList'), liveList=document.getElementById('teamLiveList'), liveSection=document.getElementById('teamLiveSection');
   const topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
   if(!teams.length){liveSection.classList.add('hide');upcoming.innerHTML='<span class="muted">Add a favorite team to see its fixtures.</span>';}
@@ -4605,13 +4608,26 @@ function toggleTopFixtures(btn){
   btn.textContent=tr(opening?'Show fewer matches':'Show more matches');
 }
 async function searchTeams(){
-  const q=(document.getElementById('teamQ').value||'').trim(), el=document.getElementById('teamSearchResults');
+  const q=(document.getElementById('q').value||'').trim(), el=document.getElementById('teamSearchResults');
   if(!q){el.innerHTML='';return;}
   el.innerHTML='<span class="muted">Searching FotMob...</span>';
   const r=await api('/api/team_search?q='+encodeURIComponent(q));
   if(r.error){el.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
   if(!r.teams.length){el.innerHTML='<span class="muted">No team found in current FotMob listings.</span>';return;}
   el.innerHTML=r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||'');return '<div class="teamsearchhit"><span>'+esc(name)+'</span><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('');
+}
+async function searchTeamHub(query){
+  const input=document.getElementById('q');if(query!==undefined&&input)input.value=String(query||'');
+  _teamDeepLink=null;
+  await Promise.all([searchTeams(),doSearch()]);
+}
+function openMyTeamsFixture(target){
+  if(!target)return;
+  const read=(name)=>target instanceof Element?target.getAttribute(name):target[name.replace(/^data-/,'').replace(/-([a-z])/g,(_,c)=>c.toUpperCase())];
+  _teamDeepLink={home:String(read('data-home')||target.home||''),away:String(read('data-away')||target.away||''),start:String(read('data-start')||target.start||'')};
+  const query=String(read('data-search')||target.search||target.owner||_teamDeepLink.home||_teamDeepLink.away||'');
+  const input=document.getElementById('q');if(input)input.value=query;
+  searchTeams();doSearch();
 }
 async function toggleTeamFavorite(name,star,teamId){
   const r=await favPost({action:'toggle_team',team:{name:name,team_id:teamId||''}});
@@ -4958,23 +4974,24 @@ let _activeTeam=0;
 
 async function doSearch(){
   if(!_footballEnabled)return;
-  const q=document.getElementById('q').value.trim();
-  results.innerHTML='';
+  const q=document.getElementById('q').value.trim(),resultEl=document.getElementById('results');
+  if(!resultEl)return;
+  resultEl.innerHTML='';
   if(!q)return;
-  results.innerHTML='<span class="muted">Searching listings...</span>';
+  resultEl.innerHTML='<span class="muted">Searching listings...</span>';
   const strict=document.getElementById('matchStrict').value;
   const r=await api('/api/search?q='+encodeURIComponent(q)+'&strictness='+encodeURIComponent(strict));
-  if(r.error){results.innerHTML='<span class="err">'+r.error+'</span>';return;}
+  if(r.error){resultEl.innerHTML='<span class="err">'+r.error+'</span>';return;}
   _searchData=r;
   if(r.logged_in)await refreshFavState();
   let head='';
   if(r.source_errors&&r.source_errors.length)
     head+='<div class="muted err">Some listings failed: '+r.source_errors.join('; ')+'</div>';
-  if(!r.fixtures.length){results.innerHTML=head+'<div class="muted">No current or televised upcoming match found for "'+esc(q)+'".</div>';return;}
+  if(!r.fixtures.length){resultEl.innerHTML=head+'<div class="muted">No current or televised upcoming match found for "'+esc(q)+'".</div>';return;}
   // Group fixtures by the team that matches the query (home or away).
   _teamGroups=groupByTeam(r.fixtures,q);
   _activeTeam=0;
-  results.innerHTML=head+'<div id="teamSwitch"></div><div id="teamFixtures"></div>';
+  resultEl.innerHTML=head+'<div id="teamSwitch"></div><div id="teamFixtures"></div>';
   renderTeamSwitch();
   renderActiveTeam();
 }
@@ -5020,11 +5037,21 @@ function renderActiveTeam(){
   const g=_teamGroups[_activeTeam];
   if(!g){el.innerHTML='';return;}
   let html='';
-  g.fixtures.forEach(function(f,fi){
+  const rows=g.fixtures.slice().sort((a,b)=>Number(fixtureMatchesDeepLink(b))-Number(fixtureMatchesDeepLink(a)));
+  rows.forEach(function(f,fi){
     html+=renderFixtureCard(f,fi);
   });
   el.innerHTML=html;
 }
+
+function fixtureMatchesDeepLink(f){
+  if(!_teamDeepLink||!f)return false;
+  const teams=_teamNamesEquivalentForUi(f.home,_teamDeepLink.home)&&_teamNamesEquivalentForUi(f.away,_teamDeepLink.away);
+  if(!teams)return false;
+  if(!_teamDeepLink.start||!f.start)return true;
+  const a=new Date(f.start).getTime(),b=new Date(_teamDeepLink.start).getTime();return Number.isFinite(a)&&Number.isFinite(b)?Math.abs(a-b)<6*3600000:true;
+}
+function _teamNamesEquivalentForUi(a,b){const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').trim();const x=clean(a),y=clean(b);return !!x&&!!y&&(x===y||x.includes(y)||y.includes(x));}
 
 function renderFixtureCard(f,fi){
   const when=f.start?new Date(f.start).toLocaleString():'';
@@ -5041,7 +5068,7 @@ function renderFixtureCard(f,fi){
     else if(mins>140&&(mins<360||sameDay))badge=' <span class="ended">ended / earlier today</span>';
     else if(mins<0&&mins>-60)badge=' <span class="soon">starts in '+(-mins)+" min</span>";
   }
-  let html='<div class="card"><div><b>'+esc(f.home)+' v '+esc(f.away)+'</b> <span class="muted">'+when+'</span></div>'+(badge?'<div>'+badge+'</div>':'');
+  let html='<div class="card matchfixture'+(fixtureMatchesDeepLink(f)?' selectedfixture':'')+'"><div><b>'+esc(f.home)+' v '+esc(f.away)+'</b> <span class="muted">'+when+'</span></div>'+(badge?'<div>'+badge+'</div>':'');
   if(!_searchData.logged_in){
     html+='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to see which of your Xtream channels match.</div></div>';
     return html;
@@ -6091,7 +6118,7 @@ function renderMyListTimeline(){
     if(moment.kind==='team'){
       const row=moment.data,f=row.fixture;
       const when=row.live?tr('Live now'):(f.start?timelineUpcomingWhen(row.ts,false):tr('Next match'));
-      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent"><span class="mylisttimelinekind sport">'+esc(tr('Sports'))+'</span>'+myListSportArtwork(f)+teamFixtureCard(f,row.live)+'</div></div>';
+      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent"><span class="mylisttimelinekind sport">'+esc(tr('Sports'))+'</span>'+myListSportArtwork(f)+teamFixtureCard(f,row.live,true)+'</div></div>';
     }else if(moment.kind==='f1'){
       const row=moment.data,event=row.event,date=new Date(row.ts),when=moment.live?tr('Live now'):timelineUpcomingWhen(row.ts,!!event.all_day);
       const racingUrl=event.url||('https://www.formula1.com/en/racing/'+date.getFullYear()),series=event.series_name||'Formula 1';
@@ -6367,11 +6394,15 @@ async function epgRefresh(){
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
   const teamCaster=e.target.closest('.teamcaster');
-  if(teamCaster){showSearch();document.getElementById('q').value=teamCaster.getAttribute('data-fixture-query')||'';doSearch();return;}
+  if(teamCaster){showTeams();searchTeamHub(teamCaster.getAttribute('data-fixture-query')||'');return;}
+  const timelineTeamFixture=e.target.closest('.teamfixture[data-team-fixture="1"]');
+  if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const teamFixture=e.target.closest('.teamfixture.hastv');
   if(teamFixture){const details=teamFixture.querySelector('.teamfixturebroadcasts');if(details)details.classList.toggle('hide');return;}
   const teamRemove=e.target.closest('.teamremove');
   if(teamRemove){removeTeamFavorite(teamRemove.getAttribute('data-team-name'));return;}
+  const teamFav=e.target.closest('.teamfavitem[data-team-search]');
+  if(teamFav){searchTeamHub(teamFav.getAttribute('data-team-search')||'');return;}
   const teamStar=e.target.closest('.teamstar');
   if(teamStar){toggleTeamFavorite(teamStar.getAttribute('data-team-name'),teamStar,teamStar.getAttribute('data-team-id'));return;}
   const sourceExpand=e.target.closest('.latestsourceexpand');
