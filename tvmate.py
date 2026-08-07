@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b192"
+VERSION = "0.777.b209"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -130,6 +130,8 @@ DEFAULT_CONFIG = {
     "racing_series": ["f1"],
     "games_enabled": True,
     "decorations_enabled": True,
+    "hide_cmd_window": True,
+    "auto_shutdown_minutes": 0,
     "start_section": "mylist",
     "setup_complete": False,
     "setup_demo_content": False,
@@ -2619,7 +2621,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  header a:hover{color:var(--fg)}
  header a.on{color:var(--fg);border-bottom-color:var(--acc)}
  .langsel{display:flex;gap:6px;margin-left:14px}
- .profilename{font-size:13px;color:var(--fg);margin-left:12px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .headerstop{font-size:12px;padding:5px 10px;margin-left:4px;white-space:nowrap;flex:0 0 auto}
  .langflag{background:none;border:1px solid transparent;border-radius:6px;padding:2px 6px;font-size:17px;line-height:1;cursor:pointer;opacity:.45;filter:grayscale(.5);transition:all .12s}
  .langflag:hover{opacity:.85;filter:none}
  .langflag.on{opacity:1;filter:none;border-color:var(--line2);background:var(--card2)}
@@ -2897,6 +2899,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  input[type=text]{flex:1}
  button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:9px 15px;cursor:pointer;font-weight:500}
  button:hover{filter:brightness(1.08)}
+ button.stopbtn{background:#7a1f26;color:#fff}
  button.ghost{background:var(--card2);border:1px solid var(--line2);color:var(--fg);font-weight:400}
  button.ghost:hover{border-color:var(--acc);filter:none}
  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
@@ -3193,6 +3196,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .setupoverlay{position:fixed;inset:0;z-index:3000;background:rgba(5,7,10,.82);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px}
  .setupoverlay.hide{display:none}
  .setupwizard{width:min(760px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#101318;border:1px solid var(--line2);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.55);padding:24px 26px}
+ .editprofiledialog{width:min(620px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#101318;border:1px solid var(--line2);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.55);padding:22px 24px}.editprofiledialog h2{margin:0 0 5px}.editprofileactions{display:flex;align-items:center;gap:8px;margin-top:20px;padding-top:15px;border-top:1px solid var(--line)}.editprofileactions .spacer{flex:1}
  .setupbrand{display:flex;align-items:center;gap:11px;margin-bottom:18px}.setupbrand svg{width:42px;height:42px}.setupbrand b{font-size:18px}
  .setupsteps{display:flex;gap:7px;margin:0 0 24px}.setupdot{height:3px;flex:1;border-radius:4px;background:var(--line)}.setupdot.on{background:var(--acc)}
  .setupstep.hide{display:none}.setupstep h2{font-size:22px;margin:0 0 7px}.setupintro{color:var(--mut);margin-bottom:20px;line-height:1.5}
@@ -3223,7 +3227,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
   <span id="status" class="muted"></span>
-  <span id="profileName" class="profilename hide"></span>
+  <button type="button" class="stopbtn headerstop" onclick="stopTVMate()" data-i18n="Stop TVMate" title="Stop TVMate">Stop TVMate</button>
   <div class="langsel">
     <button class="langflag on" id="langEN" onclick="setLang('en')" title="English">&#127468;&#127463;</button>
     <button class="langflag" id="langNO" onclick="setLang('no')" title="Norsk">&#127475;&#127476;</button>
@@ -3273,7 +3277,17 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div><h3>Shows</h3><div class="setupsearch"><input id="setupShowQuery" type="text" placeholder="Search shows" onkeydown="if(event.key==='Enter')setupSearchContent('show')"><button type="button" onclick="setupSearchContent('show')">Search</button></div><div id="setupShowResults" class="setupresults"></div></div>
         <div><h3>Movies</h3><div class="setupsearch"><input id="setupMovieQuery" type="text" placeholder="Search movies" onkeydown="if(event.key==='Enter')setupSearchContent('movie')"><button type="button" onclick="setupSearchContent('movie')">Search</button></div><div id="setupMovieResults" class="setupresults"></div></div>
       </div>
-      <label class="setupfeature" style="margin-top:18px"><input id="setupDemo" type="checkbox"><span><b>Add demo items to My Profile</b><small>Temporary examples disappear for good when you favorite your first real movie or show.</small></span></label>
+      <div class="setupoptional">If you don't add anything yet, TVMate will automatically add a couple of demo items so you can see how My Profile looks. They disappear permanently as soon as you favorite your first real movie or show.</div>
+    </div>
+    <div class="setupstep hide" data-key="launch">
+      <h2>How should TVMate open?</h2>
+      <div class="setupintro">TVMate normally opens straight in your browser with no extra windows. The <b>Stop TVMate</b> button is always available in the top-right when you want to shut the app down.</div>
+      <div class="setupfeatures">
+        <label class="setupfeature"><input id="setupLaunchHidden" name="setupLaunch" type="radio" value="hidden" onchange="renderSetupLaunchHelp()"><span><b>Modern TVMate <span class="muted">(recommended)</span></b><small>Just open TVMate in your browser. Clean, automatic and no CMD window.</small></span></label>
+        <label class="setupfeature"><input id="setupLaunchCmd" name="setupLaunch" type="radio" value="cmd" onchange="renderSetupLaunchHelp()"><span><b>Retro ASCII mode</b><small>A neat little throwback: keep the ASCII TV + pancake CMD window and press Enter to open TVMate.</small></span></label>
+      </div>
+      <div id="setupBookmarkHelp" class="setupoptional hide"><b style="display:block;color:var(--fg);margin-bottom:6px">Bookmark TVMate</b><span>Bookmark TVMate for an easy way back. Press <b>Ctrl+D</b> now to add this page to your browser bookmarks. When you're finished, use <b>Stop TVMate</b> in the top-right.</span><div class="row" style="margin-top:10px"><code id="setupLocalUrl"></code><button type="button" class="ghost" onclick="copySetupLocalUrl(this)">Copy address</button></div></div>
+      <div id="setupAutoShutdownWrap" class="setupoptional hide"><b style="display:block;color:var(--fg);margin-bottom:7px">Auto shutdown when inactive</b><label>Stop TVMate after <select id="setupAutoShutdown" style="width:auto;margin-left:7px"><option value="0">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label><div style="margin-top:6px">Mouse, keyboard or touch activity in TVMate resets the timer.</div></div>
     </div>
     <div class="setupstep hide" data-key="finish">
       <h2>You're ready</h2>
@@ -3286,6 +3300,23 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <button id="setupBack" type="button" class="ghost hide" onclick="setupStep(-1)">Back</button>
       <button id="setupNext" type="button" onclick="setupStep(1)">Next</button>
     </div>
+  </div>
+</div>
+<div id="editProfileOverlay" class="setupoverlay hide" onclick="if(event.target===this)closeEditProfile()">
+  <div class="editprofiledialog" role="dialog" aria-modal="true" aria-labelledby="editProfileTitle">
+    <h2 id="editProfileTitle">Edit Profile</h2>
+    <div class="setupintro">Your everyday TVMate preferences. Use the setup guide below if you want to change what you follow.</div>
+    <div class="setupfields">
+      <div><label>Profile name</label><input id="ep_name" type="text"></div>
+      <div><label>Preferred language</label><select id="ep_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
+      <div class="full"><label>Emblem</label><div id="ep_emblems" class="setupemblems"></div></div>
+      <div><label>Default start section</label><select id="ep_start"><option value="mylist">My Profile</option><option value="mytimeline">My Timeline</option><option value="search">Search</option><option value="channels">Playlist Builder</option><option value="mytv">My TV</option><option value="movies">My Movies</option><option value="shows">My Shows</option><option value="games">My Games</option><option value="racing">My Racing</option><option value="teams">My Teams</option></select></div>
+      <div><label>Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
+      <label class="setupfeature full"><input id="ep_checkshows" type="checkbox"><span><b>Check favorite shows on startup</b><small>Look for newly available episodes when TVMate starts.</small></span></label>
+      <label class="setupfeature full"><input id="ep_refreshstartup" type="checkbox"><span><b>Refresh all content on startup</b><small>Refresh channels, movies, shows and episode data when TVMate starts.</small></span></label>
+      <label class="setupfeature full"><input id="ep_decorations" type="checkbox"><span><b>Floating pancakes &amp; TVs</b><small>Show the animated background decorations around TVMate.</small></span></label>
+    </div>
+    <div class="editprofileactions"><button type="button" class="ghost" onclick="runSetupGuideFromProfile()">Run setup guide</button><div class="spacer"></div><button type="button" class="ghost" onclick="closeEditProfile()">Cancel</button><button type="button" onclick="saveEditProfile(this)">Save</button></div>
   </div>
 </div>
 <main>
@@ -3613,6 +3644,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div><label data-i18n="Stream extension">Stream extension</label>
           <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
       </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
+        <input id="s_retrocmd" type="checkbox" style="width:auto;margin:0" onchange="updateCmdSettingsUI()">
+        <span>Retro ASCII CMD window</span>
+      </label>
+      <div class="muted" style="margin:5px 0 0 25px">Optional nostalgia: show TVMate's ASCII console and press Enter before opening the browser. Leave this off for the normal Modern TVMate experience.</div>
+      <div style="margin:10px 0 0 25px"><label>Auto shutdown when inactive <select id="s_autoshutdown" style="width:auto;margin-left:7px"><option value="0">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label></div>
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize">Checking...</b></div>
       <div class="row" style="margin-top:14px;align-items:flex-end">
         <button onclick="saveSettings()" data-i18n="Save">Save</button>
@@ -3707,7 +3744,7 @@ function setSlogan(section){
 }
 let _lang='en';
 const _I18N={
-  "Search":"Søk","Playlist Builder":"Lag spilleliste","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger",
+  "Search":"Søk","Playlist Builder":"Lag spilleliste","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger","Stop TVMate":"Stopp TVMate",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Refresh fixtures":"Oppdater kamper",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
@@ -3810,14 +3847,14 @@ function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(){if(!_f1Enabled){showMylist();return;}rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
 function showTeams(){if(!_footballEnabled){showSearch();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');loadMyTeams();}
-function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.getElementById('profileName').classList.add('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
+function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
 function showSearch(){rememberLocation('search');hideAll();searchView.classList.remove('hide');document.querySelector('main').classList.remove('wide');setNav('navSearch');setSlogan('search');initPancakes();}
 function showChannels(){rememberLocation('channels');hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
 function showSettings(){rememberLocation('settings');loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');}
 function updateProfileName(name){
-  const el=document.getElementById('profileName'), value=String(name||'').trim();
-  el.textContent=value;el.classList.toggle('hide',!value);
+  // Profile identity lives inside My Profile now. The permanent top-right
+  // action is Stop TVMate, so profile names no longer occupy header space.
 }
 let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true};
 let _selectedEmblem='tvstack',_footballEnabled=true,_f1Enabled=true,_gamesEnabled=true,_myListLayout='timeline';
@@ -3827,7 +3864,7 @@ function renderEmblemPicker(){
   el.innerHTML=Object.keys(_PROFILE_EMBLEMS).map(key=>'<button type="button" class="emblemchoice'+(key===_selectedEmblem?' on':'')+'" data-key="'+key+'" onclick="selectProfileEmblem(this.dataset.key)" title="'+key+'">'+profileEmblemSvg(key)+'</button>').join('');
 }
 function selectProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_selectedEmblem=key;renderEmblemPicker();}
-let _setupIndex=0,_setupEmblem='tvstack',_setupFirstRun=false,_setupTeams=[],_setupInitialTeams=[],_setupRacingSeries=new Set(['f1']),_setupF1Team=null,_setupContentResults={show:[],movie:[]};
+let _setupIndex=0,_setupEmblem='tvstack',_setupFirstRun=false,_setupTeams=[],_setupInitialTeams=[],_setupRacingSeries=new Set(['f1']),_setupF1Team=null,_setupContentResults={show:[],movie:[]},_setupDemoContent=false;
 function renderSetupEmblems(){
   const el=document.getElementById('setupEmblems');if(!el)return;
   el.innerHTML=Object.keys(_PROFILE_EMBLEMS).map(key=>'<button type="button" class="emblemchoice'+(key===_setupEmblem?' on':'')+'" data-key="'+key+'" onclick="selectSetupEmblem(this.dataset.key)" title="'+key+'">'+profileEmblemSvg(key)+'</button>').join('');
@@ -3835,7 +3872,7 @@ function renderSetupEmblems(){
 }
 function selectSetupEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_setupEmblem=key;renderSetupEmblems();}
 function setupStepKeys(){
-  const keys=['profile','follow'];if(setupFootball.checked)keys.push('football');if(setupRacing.checked)keys.push('racing');keys.push('content','finish');return keys;
+  const keys=['profile','follow'];if(setupFootball.checked)keys.push('football');if(setupRacing.checked)keys.push('racing');keys.push('content','launch','finish');return keys;
 }
 function renderSetupStep(){
   const keys=setupStepKeys();_setupIndex=Math.max(0,Math.min(keys.length-1,_setupIndex));const active=keys[_setupIndex];
@@ -3844,8 +3881,11 @@ function renderSetupStep(){
   if(progress)progress.innerHTML=Array.from({length:total},(_,i)=>'<span class="setupdot'+(i<=_setupIndex?' on':'')+'"></span>').join('');
   setupBack.classList.toggle('hide',_setupIndex===0);setupNext.classList.toggle('hide',active==='finish');
   setupSkip.classList.toggle('hide',!_setupFirstRun||_setupIndex===0);
-  if(active==='football')renderSetupTeams();if(active==='racing')renderSetupRacing();
+  if(active==='football')renderSetupTeams();if(active==='racing')renderSetupRacing();if(active==='launch')renderSetupLaunchHelp();
 }
+function setupLocalAddress(){return location.protocol+'//localhost'+(location.port?':'+location.port:'');}
+function renderSetupLaunchHelp(){const box=document.getElementById('setupBookmarkHelp'),auto=document.getElementById('setupAutoShutdownWrap'),url=document.getElementById('setupLocalUrl'),hidden=setupLaunchHidden.checked;if(box)box.classList.toggle('hide',!hidden);if(auto)auto.classList.toggle('hide',!hidden);if(url)url.textContent=setupLocalAddress();}
+async function copySetupLocalUrl(btn){const value=setupLocalAddress();try{await navigator.clipboard.writeText(value);const old=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=old,1200);}catch(e){prompt('Copy this TVMate address:',value);}}
 function setupStep(delta){
   const keys=setupStepKeys(),active=keys[_setupIndex];
   if(delta>0&&active==='profile'&&!setupName.value.trim()){
@@ -3858,10 +3898,12 @@ async function openProfileSetup(firstRun,cfg){
   let c=cfg||null;try{if(!c)c=await api('/api/config');}catch(e){c={};}
   c=c||{};setupName.value=c.profile_name||'';setupLang.value=c.preferred_language||'en';
   _setupEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderSetupEmblems();
-  setupFootball.checked=c.football_enabled!==false;setupRacing.checked=c.f1_enabled!==false;setupGames.checked=c.games_enabled!==false;setupDemo.checked=!!c.setup_demo_content;
+  setupFootball.checked=c.football_enabled!==false;setupRacing.checked=c.f1_enabled!==false;setupGames.checked=c.games_enabled!==false;_setupDemoContent=_setupFirstRun?true:!!c.setup_demo_content;
+  setupLaunchHidden.checked=!!c.hide_cmd_window;setupLaunchCmd.checked=!c.hide_cmd_window;
+  setupAutoShutdown.value=String(c.auto_shutdown_minutes||0);
   _setupRacingSeries=new Set(c.racing_series||['f1']);_setupTeams=[];_setupInitialTeams=[];_setupF1Team=null;_setupContentResults={show:[],movie:[]};
   setupTeamResults.innerHTML='';setupShowResults.innerHTML='';setupMovieResults.innerHTML='';
-  try{const fav=await api('/api/favorites');_setupTeams=(fav.teams||[]).map(t=>typeof t==='string'?{name:t,team_id:''}:{name:t.name||'',team_id:String(t.team_id||'')}).filter(t=>t.name);_setupInitialTeams=_setupTeams.map(t=>Object.assign({},t));_setupF1Team=(fav.f1_teams||[])[0]||null;}catch(e){}
+  try{const fav=await api('/api/favorites');_setupTeams=(fav.teams||[]).map(t=>typeof t==='string'?{name:t,team_id:''}:{name:t.name||'',team_id:String(t.team_id||'')}).filter(t=>t.name);_setupInitialTeams=_setupTeams.map(t=>Object.assign({},t));_setupF1Team=(fav.f1_teams||[])[0]||null;if((fav.shows||[]).length||(fav.movies||[]).length)_setupDemoContent=false;}catch(e){}
   profileSetupOverlay.classList.remove('hide');renderSetupStep();setTimeout(()=>setupName.focus(),50);
 }
 function closeProfileSetup(){profileSetupOverlay.classList.add('hide');}
@@ -3899,7 +3941,7 @@ async function setupSearchContent(kind){
 }
 async function setupFavoriteContent(kind,i,btn){
   const item=(_setupContentResults[kind]||[])[i];if(!item)return;btn.disabled=true;
-  try{if(kind==='show')await favPost({action:'toggle_show',show:item});else await favPost({action:'toggle_movie',movie:item});setupDemo.checked=false;btn.textContent='Added';toast((item.name||'Item')+' added to favorites.');}catch(e){btn.disabled=false;toast('Could not add favorite.');}
+  try{if(kind==='show')await favPost({action:'toggle_show',show:item});else await favPost({action:'toggle_movie',movie:item});_setupDemoContent=false;btn.textContent='Added';toast((item.name||'Item')+' added to favorites.');}catch(e){btn.disabled=false;toast('Could not add favorite.');}
 }
 async function syncSetupTeams(){
   const before=new Map(_setupInitialTeams.map(t=>[t.name.toLowerCase(),t])),after=new Map(_setupTeams.map(t=>[t.name.toLowerCase(),t]));
@@ -3908,7 +3950,7 @@ async function syncSetupTeams(){
 }
 async function finishProfileSetup(btn,openXtream){
   const body={profile_name:setupName.value.trim(),preferred_language:setupLang.value,profile_emblem:_setupEmblem,
-    football_enabled:setupFootball.checked,f1_enabled:setupRacing.checked,games_enabled:setupGames.checked,setup_demo_content:setupDemo.checked,setup_complete:true};
+    football_enabled:setupFootball.checked,f1_enabled:setupRacing.checked,games_enabled:setupGames.checked,setup_demo_content:_setupDemoContent,hide_cmd_window:setupLaunchHidden.checked,auto_shutdown_minutes:setupLaunchHidden.checked?Number(setupAutoShutdown.value||0):0,setup_complete:true};
   if(!body.profile_name){_setupIndex=0;renderSetupStep();setupName.focus();toast('Enter a profile name to continue.');return;}
   btn.disabled=true;btn.textContent='Saving...';
   try{
@@ -3923,7 +3965,25 @@ async function finishProfileSetup(btn,openXtream){
 function renderMyListProfile(){
   const el=document.getElementById('myListProfile');if(!el)return;
   const name=String(_profileConfig.profile_name||'').trim()||tr('My Profile');
-  el.innerHTML='<div class="mylistprofileemblem">'+profileEmblemSvg(_profileConfig.profile_emblem)+'</div><div class="mylistprofilename">'+esc(name)+'</div><button type="button" class="ghost editprofilebtn" onclick="openProfileSetup(false)" data-i18n="Edit Profile">'+esc(tr('Edit Profile'))+'</button>';
+  el.innerHTML='<div class="mylistprofileemblem">'+profileEmblemSvg(_profileConfig.profile_emblem)+'</div><div class="mylistprofilename">'+esc(name)+'</div><button type="button" class="ghost editprofilebtn" onclick="openEditProfile()" data-i18n="Edit Profile">'+esc(tr('Edit Profile'))+'</button>';
+}
+let _editProfileEmblem='tvstack';
+function renderEditProfileEmblems(){const el=document.getElementById('ep_emblems');if(!el)return;el.innerHTML=Object.keys(_PROFILE_EMBLEMS).map(key=>'<button type="button" class="emblemchoice'+(key===_editProfileEmblem?' on':'')+'" data-key="'+key+'" onclick="selectEditProfileEmblem(this.dataset.key)" title="'+key+'">'+profileEmblemSvg(key)+'</button>').join('');}
+function selectEditProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_editProfileEmblem=key;renderEditProfileEmblems();}
+async function openEditProfile(){
+  let c={};try{c=await api('/api/config');}catch(e){c=_profileConfig||{};}
+  ep_name.value=c.profile_name||'';ep_lang.value=c.preferred_language||'en';_editProfileEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEditProfileEmblems();
+  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshstartup.checked=!!c.refresh_all_on_startup;ep_decorations.checked=c.decorations_enabled!==false;
+  editProfileOverlay.classList.remove('hide');setTimeout(()=>ep_name.focus(),30);
+}
+function closeEditProfile(){editProfileOverlay.classList.add('hide');}
+function runSetupGuideFromProfile(){closeEditProfile();openProfileSetup(false);}
+async function saveEditProfile(btn){
+  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,refresh_all_on_startup:ep_refreshstartup.checked,decorations_enabled:ep_decorations.checked};
+  if(!body.profile_name){ep_name.focus();toast('Enter a profile name.');return;}if(body.mylist_layout==='timeline'&&body.start_section==='mytimeline')body.start_section='mylist';if(!_gamesEnabled&&body.start_section==='games')body.start_section='mylist';if(!_f1Enabled&&body.start_section==='racing')body.start_section='mylist';if(!_footballEnabled&&body.start_section==='teams')body.start_section='mylist';
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Saving...';
+  try{const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('save failed');setLang(body.preferred_language);applyProfileConfig(body);closeEditProfile();toast('Profile saved.');}catch(e){toast('Could not save profile.');}
+  btn.disabled=false;btn.textContent=old;
 }
 function applyMyListLayout(){
   const dash=document.querySelector('#mylistView .mydash');if(!dash)return;
@@ -4293,8 +4353,11 @@ async function loadSettings(){
   s_f1.checked=c.f1_enabled!==false;
   s_games.checked=c.games_enabled!==false;
   s_decorations.checked=c.decorations_enabled!==false;
+  s_retrocmd.checked=!c.hide_cmd_window;
+  s_autoshutdown.value=String(c.auto_shutdown_minutes||0);updateCmdSettingsUI();
   loadArtworkCacheSize();
 }
+function updateCmdSettingsUI(){s_autoshutdown.disabled=s_retrocmd.checked;}
 async function saveSettings(){
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
     xtream_pass:s_pass.value,stream_ext:s_ext.value,match_threshold:parseFloat(s_thr.value)||0.55,
@@ -4303,7 +4366,7 @@ async function saveSettings(){
     refresh_all_on_startup:s_refreshstartup.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
     profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
-    f1_enabled:s_f1.checked,games_enabled:s_games.checked,decorations_enabled:s_decorations.checked};
+    f1_enabled:s_f1.checked,games_enabled:s_games.checked,decorations_enabled:s_decorations.checked,hide_cmd_window:!s_retrocmd.checked,auto_shutdown_minutes:!s_retrocmd.checked?Number(s_autoshutdown.value||0):0};
   if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -4329,6 +4392,20 @@ async function clearArtworkCache(){
     s_artsize.textContent='0 B';toast('Artwork cache cleared.');
   }catch(e){toast('Could not clear artwork cache.');}
 }
+async function stopTVMate(){
+  if(!confirm('Stop TVMate? Streaming links and the local TVMate page will stop until you start the app again.'))return;
+  try{
+    const r=await fetch('/api/shutdown',{method:'POST'}),j=await r.json();if(!r.ok||!j.ok)throw new Error('shutdown failed');
+    document.body.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;background:#0d1013;color:#e7e7e7;font-family:system-ui,sans-serif"><div style="text-align:center"><div style="font-size:54px">📺</div><h1>TVMate has stopped</h1><p style="color:#999">You can close this tab. Start TVMate again whenever you are ready.</p></div></div>';
+  }catch(e){toast('Could not stop TVMate.');}
+}
+let _lastActivityPing=0;
+function markTVMateActivity(){const now=Date.now();if(now-_lastActivityPing<20000)return;_lastActivityPing=now;fetch('/api/activity',{method:'POST',keepalive:true}).catch(()=>{});}
+document.addEventListener('pointerdown',markTVMateActivity,{passive:true});
+document.addEventListener('keydown',markTVMateActivity,{passive:true});
+document.addEventListener('touchstart',markTVMateActivity,{passive:true});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)markTVMateActivity();});
+markTVMateActivity();
 async function resetColdStart(btn){
   if(!confirm('Clear performance caches and reload TVMate for a cold-start test?'))return;
   const old=btn.textContent;btn.disabled=true;btn.textContent='Resetting...';
@@ -5214,9 +5291,31 @@ function mySportTeamMeta(fixtures){
   else if(/premiership/.test(low))country='Scotland';
   return (country?country+' × ':'')+best.name;
 }
+function renderMyListSportShells(favorites){
+  const el=document.getElementById('myListTeams'),teams=(favorites.teams||[]);if(!el)return;
+  let h='';
+  if(_footballEnabled)for(const team of teams){
+    const name=String(typeof team==='string'?team:team.name||''),id=typeof team==='string'?'':String(team.team_id||''),logo=typeof team==='string'?'':(team.logo||''),src=logo||(id?'/api/team_logo?id='+encodeURIComponent(id):'');
+    if(_myListLayout==='timeline')h+='<div class="mydashteamonly" onclick="showTeams()">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsporteventline"><span class="mydashsportnext muted">'+esc(tr('Loading fixture...'))+'</span></div></div></div></div>';
+    else h+='<div class="mydashfixture"><div class="mydashteam">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span></div><span class="muted">'+esc(tr('Loading fixture...'))+'</span></div>';
+  }
+  if(_f1Enabled){
+    const selected=new Set((_profileConfig.racing_series||['f1']).map(String));
+    if(_myListLayout==='timeline')h+='<div class="mydashsportsubhead racing">Racing</div>';
+    if(selected.has('f1')){
+      const team=((favorites.f1_teams||[])[0]||{}),name=team.name||'Formula 1',src=team.logo||(team.id?'/api/f1_team_logo?id='+encodeURIComponent(String(team.id)):'');
+      h+='<div class="mydashteamonly mydashf1card" onclick="showRacing()">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsportmeta">Formula 1 · '+esc(tr('Loading drivers and next race...'))+'</div></div></div>';
+    }
+    const quick=[['wrc','wrc-oliver-solberg','Oliver Solberg','WRC × Toyota Gazoo Racing',false],['indycar','indycar-dennis-hauger','Dennis Hauger','IndyCar × Dale Coyne Racing',false],['f2','f2-martinius-stenshorne','Martinius Stenshorne','Formula 2 × Rodin Motorsport',true]];
+    for(const row of quick){if(!selected.has(row[0]))continue;const src='/api/racing_driver_image?id='+encodeURIComponent(row[1]);h+='<div class="mydashteamonly" onclick="showRacing()"><img class="driver'+(row[4]?' car':'')+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportname">'+esc(row[2])+'</div><div class="mydashsportmeta">'+esc(row[3])+' · '+esc(tr('Loading next race...'))+'</div></div></div>';}
+  }
+  el.innerHTML=h||'<span class="muted">'+tr(_f1Enabled?'No F1 team selected.':'No favorite teams yet.')+'</span>';
+}
 async function loadMyListTeams(favorites){
   const el=document.getElementById('myListTeams'),teams=(favorites.teams||[]),now=Date.now();
   _myListTeamMoments=[];_myListF1Moments=[];let h='';
+  renderMyListSportShells(favorites);
+  const racingPromise=_f1Enabled?Promise.all([api('/api/racing_drivers'),api('/api/racing')]):null;
   if(_footballEnabled&&teams.length){
     try{
       const r=await api('/api/my_teams'),fixtures=r.fixtures||[];
@@ -5239,7 +5338,7 @@ async function loadMyListTeams(favorites){
   }
   if(_f1Enabled){
     try{
-      const [driverData,racingData]=await Promise.all([api('/api/racing_drivers'),api('/api/racing')]);
+      const [driverData,racingData]=await racingPromise;
       if(_myListLayout==='timeline'&&(driverData.drivers||[]).length)h+='<div class="mydashsportsubhead racing">Racing</div>';
       const allDrivers=driverData.drivers||[],f1Drivers=allDrivers.filter(driver=>String(driver.series||'')==='f1');
       if(_myListLayout==='timeline'&&f1Drivers.length){
@@ -5792,6 +5891,18 @@ checkForUpdate();
 # --------------------------------------------------------------------------
 # Request handler
 # --------------------------------------------------------------------------
+
+_LAST_ACTIVITY = time.monotonic()
+_ACTIVITY_LOCK = threading.Lock()
+
+def _mark_app_activity():
+    global _LAST_ACTIVITY
+    with _ACTIVITY_LOCK:
+        _LAST_ACTIVITY = time.monotonic()
+
+def _inactive_seconds():
+    with _ACTIVITY_LOCK:
+        return max(0.0, time.monotonic() - _LAST_ACTIVITY)
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -6950,6 +7061,13 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(raw.decode("utf-8") or "{}")
         except Exception:
             payload = {}
+        if u.path == "/api/activity":
+            _mark_app_activity()
+            return self._send(200, {"ok": True})
+        if u.path == "/api/shutdown":
+            self._send(200, {"ok": True})
+            _STOP_EVENT.set()
+            return
         if u.path == "/api/test_credentials":
             test_cfg = dict(DEFAULT_CONFIG)
             test_cfg.update({"xtream_host": str(payload.get("xtream_host") or "").strip(),
@@ -7032,10 +7150,16 @@ class Handler(BaseHTTPRequestHandler):
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_all_on_startup", "profile_name",
                       "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
-                      "f1_enabled", "games_enabled", "decorations_enabled", "setup_complete", "setup_demo_content"):
+                      "f1_enabled", "games_enabled", "decorations_enabled", "setup_complete", "setup_demo_content", "hide_cmd_window", "auto_shutdown_minutes"):
                 if k in payload:
                     cfg[k] = payload[k]
+            try:
+                cfg["auto_shutdown_minutes"] = max(0, int(cfg.get("auto_shutdown_minutes") or 0))
+            except (TypeError, ValueError):
+                cfg["auto_shutdown_minutes"] = 0
             save_config(cfg)
+            if "hide_cmd_window" in payload:
+                _set_console_visible(not bool(cfg.get("hide_cmd_window")))
             _XT_CACHE.update({"ts": 0, "channels": [], "cats": {}})
             _VOD_CACHE.update({"ts": 0, "movies": []})
             _SERIES_CACHE.update({"ts": 0, "shows": []})
@@ -7538,6 +7662,19 @@ class Handler(BaseHTTPRequestHandler):
 # Main
 # --------------------------------------------------------------------------
 
+_STOP_EVENT = threading.Event()
+
+def _auto_shutdown_watchdog():
+    while not _STOP_EVENT.wait(15):
+        try:
+            cfg = load_config()
+            minutes = max(0, int(cfg.get("auto_shutdown_minutes") or 0))
+            if cfg.get("hide_cmd_window") and minutes and _inactive_seconds() >= minutes * 60:
+                _STOP_EVENT.set()
+                return
+        except Exception:
+            pass
+
 def _enable_ansi():
     """Turn on ANSI color in the Windows console. Since some environments
     (e.g. compiled onefile exes) support color even when the handle dance
@@ -7556,6 +7693,103 @@ def _enable_ansi():
         pass
     # Assume color works (the console has shown ANSI color before).
     return True
+
+def _set_console_visible(visible):
+    """Attach/detach this process' Windows console. No-op elsewhere."""
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        if not visible:
+            # SW_HIDE can become a minimize operation under Windows Terminal.
+            # Detaching closes the console for a normal double-click launch.
+            k.FreeConsole()
+            return
+        hwnd = k.GetConsoleWindow()
+        if not hwnd and k.AllocConsole():
+            # Reconnect Python's standard streams when switching back to retro
+            # mode in the current session. A restart will restore them too.
+            try:
+                sys.stdin = open("CONIN$", "r", encoding="utf-8", errors="replace")
+                sys.stdout = open("CONOUT$", "w", encoding="utf-8", errors="replace", buffering=1)
+                sys.stderr = open("CONOUT$", "w", encoding="utf-8", errors="replace", buffering=1)
+            except Exception:
+                pass
+            hwnd = k.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
+    except Exception:
+        pass
+
+def _launch_without_console():
+    """Relaunch TVMate as a genuine console-less Windows process."""
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        env = os.environ.copy()
+        env["TVMATE_HIDDEN_CHILD"] = "1"
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable] + sys.argv[1:]
+        else:
+            cmd = [sys.executable, os.path.abspath(__file__)] + sys.argv[1:]
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        subprocess.Popen(cmd, env=env, creationflags=flags,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, close_fds=True)
+        return True
+    except Exception:
+        return False
+
+def _close_launcher_console():
+    """Close the dedicated tvmate.exe console without touching user terminals."""
+    if not sys.platform.startswith("win"):
+        return
+    # The permanent TVMate launcher sets this.  Do not close a console when the
+    # script was started manually with `python tvmate.py`.
+    launcher = os.environ.get("TVMATE_EXE", "").strip()
+    if not launcher or not launcher.lower().endswith(".exe"):
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+        k = ctypes.windll.kernel32
+        launcher_norm = os.path.normcase(os.path.abspath(launcher))
+
+        # If the permanent launcher is another process attached to this same
+        # console, stop that exact executable.  This is deliberately stricter
+        # than killing a parent cmd.exe/terminal process.
+        pids = (wintypes.DWORD * 32)()
+        count = k.GetConsoleProcessList(pids, len(pids))
+        if count > len(pids):
+            pids = (wintypes.DWORD * count)()
+            count = k.GetConsoleProcessList(pids, len(pids))
+        PROCESS_TERMINATE = 0x0001
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        for pid in list(pids)[:count]:
+            if not pid or pid == os.getpid():
+                continue
+            hproc = k.OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
+                                  False, pid)
+            if not hproc:
+                continue
+            try:
+                size = wintypes.DWORD(32768)
+                buf = ctypes.create_unicode_buffer(size.value)
+                if k.QueryFullProcessImageNameW(hproc, 0, buf, ctypes.byref(size)):
+                    proc_norm = os.path.normcase(os.path.abspath(buf.value))
+                    if proc_norm == launcher_norm:
+                        k.TerminateProcess(hproc, 0)
+            finally:
+                k.CloseHandle(hproc)
+
+        hwnd = k.GetConsoleWindow()
+        if hwnd:
+            # WM_CLOSE closes the dedicated console window.  FreeConsole alone
+            # only detaches Python and can leave tvmate.exe's empty window up.
+            ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+    except Exception:
+        pass
 
 _GOLD = "\033[93m"   # bright yellow (syrup gold)
 _RESET = "\033[0m"
@@ -7592,42 +7826,71 @@ def main():
             port = int(sys.argv[sys.argv.index("--port") + 1])
         except Exception:
             pass
+    cfg = load_config()
+    hide_console = bool(cfg.get("hide_cmd_window", False))
+    hidden_child = os.environ.get("TVMATE_HIDDEN_CHILD") == "1"
+    if hide_console and sys.platform.startswith("win") and not hidden_child:
+        # Starting console-less is more reliable than hiding a console after
+        # Windows Terminal/ConPTY has already created one.
+        if _launch_without_console():
+            _close_launcher_console()
+            return
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    _STOP_EVENT.clear()
+    _mark_app_activity()
     url = f"http://localhost:{port}"
-    use_color = _enable_ansi()
-    try:
-        print(_colored_banner(use_color))
-    except Exception:
+    if not hide_console and sys.platform.startswith("win"):
+        # The GUI-subsystem OTVM launcher intentionally starts without a
+        # console.  Retro mode opts back in and creates one here; manual runs
+        # from an existing terminal simply keep using their current console.
+        _set_console_visible(True)
+    use_color = _enable_ansi() if not hide_console else False
+    if not hide_console:
         try:
-            print(BANNER)
+            print(_colored_banner(use_color))
         except Exception:
-            pass
-    print("  " + "=" * 56)
-    print(f"   Olo's TVMate is RUNNING   (v{VERSION})")
-    print(f"     Watch here ->   {url}")
-    print("     To QUIT    ->   close this window   (or press Ctrl+C)")
-    print("  " + "=" * 56)
+            try:
+                print(BANNER)
+            except Exception:
+                pass
+        print("  " + "=" * 56)
+        print(f"   Olo's TVMate is RUNNING   (v{VERSION})")
+        print(f"     Watch here ->   {url}")
+        print("     To QUIT    ->   close this window   (or press Ctrl+C)")
+        print("  " + "=" * 56)
     # Serve the app in the background so the server is ready before we open.
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    # Rotating pancake-themed prompt; open the browser when the user presses Enter.
-    import random as _rnd
-    prompt = _rnd.choice(ENTER_PROMPTS)
-    line = "  " + (_GOLD + prompt + _RESET if use_color else prompt)
-    try:
-        input("\n" + line + "\n")
-        webbrowser.open(url)
-    except Exception:
-        # No console input available (edge case) - just open the browser.
+    threading.Thread(target=_auto_shutdown_watchdog, daemon=True).start()
+    if hide_console:
+        # Hidden mode cannot wait for console input: launch the UI immediately.
         try:
             webbrowser.open(url)
         except Exception:
             pass
-    # Keep running until the window is closed / Ctrl+C.
+        # CREATE_NO_WINDOW children are already hidden. This is only a
+        # fallback for platforms/launchers where the relaunch was unavailable.
+        if not hidden_child:
+            _set_console_visible(False)
+    else:
+        # Normal mode keeps the familiar pancake prompt and waits for Enter.
+        import random as _rnd
+        prompt = _rnd.choice(ENTER_PROMPTS)
+        line = "  " + (_GOLD + prompt + _RESET if use_color else prompt)
+        try:
+            input("\n" + line + "\n")
+            webbrowser.open(url)
+        except Exception:
+            # No console input available (edge case) - just open the browser.
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
+    # Keep running until Ctrl+C, the console closes, or the web UI asks us to stop.
     try:
-        while True:
-            _t_sleep(3600)
+        _STOP_EVENT.wait()
     except KeyboardInterrupt:
         print("\n  Stopping Olo's TVMate. Bye!")
+    finally:
         server.shutdown()
 
 def _t_sleep(sec):
