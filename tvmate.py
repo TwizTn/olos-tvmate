@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b222"
+VERSION = "0.777.b223"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2989,7 +2989,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvtimeslot{flex:1 1 20%;min-width:0;border-right:1px solid #343a46;padding:0 10px;display:flex;align-items:center;font-size:10.5px;color:#8f98a8;font-variant-numeric:tabular-nums;letter-spacing:.02em}
  .tvnowhead{position:absolute;top:0;bottom:0;width:2px;background:#e1535c;z-index:3;pointer-events:none;box-shadow:0 0 7px rgba(225,83,92,.38)}
  .tvnowhead:before{content:"";position:absolute;top:4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#e1535c}
- .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:5;display:none}
+ .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
  .tvguidebody{flex:1;overflow-y:auto;position:relative;scrollbar-gutter:stable}
  .tvchan{width:286px;flex-shrink:0;border-right:1px solid #303642;display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;font-size:12px;transition:background .1s;background:#11151b}
@@ -3994,7 +3994,12 @@ function setLang(l){
   applyLang();
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
-function hideAll(){searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);}
+function hideAll(keepMytv){
+  // Leaving Live TV must also stop the stream. Hiding the section alone left
+  // browser playback running invisibly in the background.
+  if(!keepMytv&&!mytvView.classList.contains('hide')&&(_tvPlaying!==null||window._tvPlaybackController))tvStop();
+  searchView.classList.add('hide');settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
+}
 let _historyReady=false,_historyRestoring=false,_historySection='';
 function rememberLocation(section,extra){
   _historySection=section;
@@ -4002,7 +4007,7 @@ function rememberLocation(section,extra){
   const state=Object.assign({tvmate:true,section:section},extra||{});
   history.pushState(state,'','#'+section);
 }
-function showMytv(){rememberLocation('mytv');hideAll();mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
+function showMytv(){rememberLocation('mytv');hideAll(true);mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
 function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.remove('hide');document.getElementById('recentMoviesSection').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();}
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
