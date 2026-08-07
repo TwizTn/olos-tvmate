@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b224"
+VERSION = "0.777.b225"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1326,6 +1326,63 @@ def steam_wishlist_items(steam_id):
     data = http_get_json("https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=" +
                          urllib.parse.quote(steam_id), timeout=15)
     return ((data.get("response") or {}).get("items") or [])
+
+def steam_public_profile(steam_id, force=False):
+    """Fetch a public Steam Community identity without requiring an API key."""
+    steam_id = str(steam_id or "").strip()
+    if not re.fullmatch(r"\d{17}", steam_id):
+        return {}
+    cache_name = "steam-profile.json"
+    if not force:
+        cached = _load_timed_data_cache(cache_name, 7 * 24 * 3600)
+        if isinstance(cached, dict) and str(cached.get("steam_id") or "") == steam_id:
+            return cached
+    profile_url = f"https://steamcommunity.com/profiles/{steam_id}/"
+    out = {"steam_id": steam_id, "profile_url": profile_url}
+    try:
+        import xml.etree.ElementTree as ET
+        xml_text = http_get_text(profile_url + "?xml=1", timeout=15)
+        root = ET.fromstring(xml_text)
+        def xtext(name):
+            node = root.find(name)
+            return str(node.text or "").strip() if node is not None else ""
+        out.update({"display_name": xtext("steamID"), "real_name": xtext("realname"),
+                    "location": xtext("location"), "summary": xtext("summary"),
+                    "avatar": xtext("avatarFull") or xtext("avatarMedium"),
+                    "member_since": xtext("memberSince")})
+        member_since = out.get("member_since") or ""
+        for fmt in ("%B %d, %Y", "%b %d, %Y"):
+            try:
+                joined = datetime.datetime.strptime(member_since, fmt).date()
+                today = datetime.datetime.now().date()
+                years = today.year - joined.year - ((today.month, today.day) <
+                                                     (joined.month, joined.day))
+                out["years_service"] = max(0, years)
+                break
+            except ValueError:
+                continue
+    except Exception:
+        pass
+    # Steam level is exposed on the normal public profile rather than the XML.
+    try:
+        page = http_get_text(profile_url, timeout=15)
+        level = re.search(r'friendPlayerLevelNum[^>]*>\s*(\d+)\s*<', page, flags=re.I)
+        if level:
+            out["level"] = int(level.group(1))
+        if not out.get("display_name"):
+            name = re.search(r'actual_persona_name[^>]*>(.*?)<', page, flags=re.I | re.S)
+            if name:
+                out["display_name"] = html.unescape(re.sub(r"<[^>]+>", "", name.group(1))).strip()
+        if not out.get("avatar"):
+            avatar = re.search(r'playerAvatar[^>]*>.*?<img[^>]+src="([^"]+)"', page,
+                               flags=re.I | re.S)
+            if avatar:
+                out["avatar"] = html.unescape(avatar.group(1))
+    except Exception:
+        pass
+    if any(out.get(k) for k in ("display_name", "real_name", "avatar", "location")):
+        _save_timed_data_cache(cache_name, out)
+    return out
 
 def steam_store_items(app_ids):
     app_ids = [str(app_id) for app_id in app_ids if str(app_id).isdigit()]
@@ -3201,7 +3258,20 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .gamefav{position:relative;padding:8px 0 30px;border-bottom:1px solid var(--line)}
  .gamefav img{width:100%;max-width:190px;aspect-ratio:460/215;object-fit:cover;border-radius:6px;display:block;margin-bottom:7px}
  .gamefavname{font-size:13px;font-weight:600;line-height:1.3}
- .gamesmain{width:100%;max-width:1000px;margin:0 auto}
+ .gameslayout{display:grid;grid-template-columns:240px minmax(0,1180px);gap:28px;width:100%;max-width:1480px;margin:0 auto;align-items:start}
+ .gamesmain{width:100%;min-width:0;margin:0}
+ .steamprofile{position:sticky;top:76px;background:linear-gradient(155deg,#151b24,#12161c);border:1px solid var(--line);border-radius:11px;padding:17px;min-height:160px;box-shadow:0 10px 28px rgba(0,0,0,.12)}
+ .steamprofileempty{color:var(--mut);font-size:12px;line-height:1.5}
+ .steamprofilehead{display:flex;align-items:center;gap:12px}
+ .steamprofileavatar{width:72px;height:72px;object-fit:cover;border-radius:9px;flex:0 0 72px;background:#202936;border:2px solid #315b7b}
+ .steamprofilename{font-size:18px;font-weight:700;line-height:1.2;color:#e8f2fa}
+ .steamprofilereal{font-size:12px;color:#aab4c0;margin-top:4px}
+ .steamprofileloc{font-size:11px;color:#7f8b99;margin-top:3px;line-height:1.35}
+ .steamprofilemeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:14px}
+ .steamlevel{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 8px;border:2px solid #7f65bb;border-radius:50%;font-size:12px;font-weight:700;color:#ddd0ff}
+ .steamyears{font-size:11px;color:#9fb0c1;border-left:1px solid var(--line2);padding-left:9px}
+ .steamprofilesummary{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.55;color:#9ca7b4;white-space:pre-line;max-height:150px;overflow:auto;scrollbar-width:thin}
+ .steamprofilelink{display:block;color:inherit;text-decoration:none}.steamprofilelink:hover .steamprofilename{color:#66c0f4}
  .gamegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-top:18px}
  .gamecard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}
  .wishlistgame{display:block;color:inherit;text-decoration:none;cursor:pointer;transition:border-color .12s,background .12s}
@@ -3216,6 +3286,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .gamecard img{width:100%;aspect-ratio:460/215;object-fit:cover;border-radius:7px;background:#20242c;display:block}
  .gamecardbody{display:flex;align-items:center;gap:10px;margin-top:9px;min-height:38px}
  .gamecardname{font-weight:600;line-height:1.3;flex:1;min-width:0}
+ @media(max-width:950px){.gameslayout{grid-template-columns:1fr}.steamprofile{position:static;max-width:none}.steamprofileinner{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px}.steamprofilesummary{grid-column:1/-1}.steamprofilemeta{align-self:end}}
  .moviemeta{font-size:12px;color:var(--mut)}
  .movieactions{display:flex;gap:7px;margin-top:auto;flex-wrap:wrap}
  .movieresultback{text-align:center;margin-top:14px;margin-bottom:24px}
@@ -3668,7 +3739,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </section>
 
   <section id="gamesView" class="hide">
-    <div class="gamesmain" style="max-width:1180px;margin:0 auto">
+    <div class="gameslayout">
+      <aside id="steamProfile" class="steamprofile"><div class="steamprofileempty">Steam profile</div></aside>
+      <div class="gamesmain">
         <h2 class="colh" data-i18n="My Games">My Games</h2>
         <div class="row sectionsearch">
           <input id="steamWishlistQ" type="text" placeholder="Steam wishlist URL..." data-i18n-ph="Steam wishlist URL...">
@@ -3698,6 +3771,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <input id="gameWishlistFilter" type="text" placeholder="Filter wishlist..." data-i18n-ph="Filter wishlist..." oninput="renderGameWishlist()">
         </div>
         <div id="gameWishlist" class="gamegrid" style="margin-top:18px"></div>
+      </div>
     </div>
   </section>
 
@@ -4993,6 +5067,21 @@ async function playMovieVLC(sid,ext,btn){
   setTimeout(()=>{btn.textContent=old;},1200);
 }
 let _wishlistGames=[],_wishlistLinked=false;
+async function loadSteamProfile(){
+  const el=document.getElementById('steamProfile');if(!el)return;
+  try{
+    const p=await api('/api/steam_profile');
+    if(!p||!p.linked){el.innerHTML='<div class="steamprofileempty">Link a Steam wishlist to show your Steam profile here.</div>';return;}
+    if(!p.display_name&&!p.avatar){el.innerHTML='<div class="steamprofileempty">Steam profile is linked, but its public profile details are unavailable.</div>';return;}
+    const avatar=p.avatar?'<img class="steamprofileavatar" src="'+escAttr(p.avatar)+'" alt="" referrerpolicy="no-referrer" onerror="this.remove()">':'';
+    const real=p.real_name?'<div class="steamprofilereal">'+esc(p.real_name)+'</div>':'';
+    const loc=p.location?'<div class="steamprofileloc">'+esc(p.location)+'</div>':'';
+    const level=(p.level!==undefined&&p.level!==null)?'<span class="steamlevel" title="Steam level">'+esc(p.level)+'</span>':'';
+    const years=(p.years_service!==undefined&&p.years_service!==null)?'<span class="steamyears">'+esc(p.years_service)+' years of service</span>':'';
+    const summary=p.summary?'<div class="steamprofilesummary">'+esc(p.summary)+'</div>':'';
+    el.innerHTML='<div class="steamprofileinner"><a class="steamprofilelink" href="'+escAttr(p.profile_url||'#')+'" target="_blank" rel="noopener noreferrer"><div class="steamprofilehead">'+avatar+'<div><div class="steamprofilename">'+esc(p.display_name||'Steam')+'</div>'+real+loc+'</div></div></a><div class="steamprofilemeta">'+level+years+'</div>'+summary+'</div>';
+  }catch(e){el.innerHTML='<div class="steamprofileempty">Steam profile details unavailable.</div>';}
+}
 function updateSteamWishlistHelp(){
   const hasGames=_wishlistLinked&&_wishlistGames.length>0,el=document.getElementById('steamWishlistHelp'),filterRow=document.getElementById('gameWishlistFilterRow');
   if(el)el.classList.toggle('hide',hasGames);
@@ -5029,6 +5118,7 @@ async function loadSteamWishlistSetting(){
       status.textContent='Last refreshed '+new Date(Number(c.steam_wishlist_synced_at)*1000).toLocaleString(locale);
     }
   }catch(e){}
+  loadSteamProfile();
 }
 async function syncSteamWishlist(btn){
   const input=document.getElementById('steamWishlistQ'),status=document.getElementById('steamWishlistStatus'),value=(input.value||'').trim();
@@ -6374,6 +6464,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"error": str(e), "url": dbg_url})
                 return self._send(200, {"raw": raw, "parsed": x.short_epg(sid, limit=3)})
 
+            if u.path == "/api/steam_profile":
+                cfg = load_config()
+                steam_id = str(cfg.get("steam_wishlist_id") or "").strip()
+                if not re.fullmatch(r"\d{17}", steam_id):
+                    return self._send(200, {"linked": False})
+                try:
+                    profile = steam_public_profile(steam_id)
+                    profile["linked"] = True
+                    return self._send(200, profile)
+                except Exception as e:
+                    return self._send(200, {"linked": True, "error": str(e)})
+
             if u.path == "/api/update_check":
                 available, remote = check_for_update()
                 return self._send(200, {"available": available,
@@ -7426,6 +7528,10 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["steam_wishlist_id"] = steam_id
                 cfg["steam_wishlist_synced_at"] = int(time.time())
                 save_config(cfg)
+                try:
+                    steam_public_profile(steam_id, force=True)
+                except Exception:
+                    pass
                 return self._send(200, {"ok": True, "imported": len(metadata),
                                         "wishlist_total": len(ids),
                                         "synced_at": cfg["steam_wishlist_synced_at"]})
