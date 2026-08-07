@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b209"
+VERSION = "0.777.b210"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -7707,6 +7707,14 @@ def _set_console_visible(visible):
             k.FreeConsole()
             return
         hwnd = k.GetConsoleWindow()
+        # The GUI-subsystem onefile launcher can leave us attached to an
+        # invisible/ConPTY console.  ShowWindow cannot make that usable for
+        # Retro mode, so launcher-started sessions deliberately replace it
+        # with a fresh console window.  Direct `python tvmate.py` runs keep
+        # their existing terminal.
+        if visible and os.environ.get("TVMATE_EXE") and hwnd:
+            k.FreeConsole()
+            hwnd = None
         if not hwnd and k.AllocConsole():
             # Reconnect Python's standard streams when switching back to retro
             # mode in the current session. A restart will restore them too.
@@ -7718,6 +7726,10 @@ def _set_console_visible(visible):
                 pass
             hwnd = k.GetConsoleWindow()
         if hwnd:
+            try:
+                k.SetConsoleTitleW("Olo's TVMate - Retro ASCII mode")
+            except Exception:
+                pass
             ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
     except Exception:
         pass
