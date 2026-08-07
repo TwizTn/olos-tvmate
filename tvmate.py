@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b238"
+VERSION = "0.777.b239"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -622,6 +622,7 @@ _SHOW_INFO_TTL = 24 * 3600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
 _EPG_TTL = 8 * 3600       # persist an evening's guide; manual EPG refresh overrides
 _EPG_DISK_PROVIDER = None
+_EPG_SERIAL_PROVIDERS = set()  # providers that reject/throttle parallel short-EPG calls
 
 def _clear_provider_caches():
     """Invalidate all in-memory data tied to the configured Xtream account."""
@@ -4265,6 +4266,7 @@ const _I18N={
   "No favorites to load EPG for.":"Ingen favoritter å laste EPG for.",
   "Updating TV guide":"Oppdaterer TV-guide","Finding channels in your favorites...":"Finner kanaler i favorittene dine...",
   "Loading programme information...":"Laster programinformasjon...","TV guide is ready.":"TV-guiden er klar.","with programme data":"med programdata",
+  "Compatibility mode: loading one channel at a time...":"Kompatibilitetsmodus: laster én kanal om gangen...",
   "Retrying this batch one channel at a time...":"Prøver denne gruppen på nytt, én kanal om gangen...","channels could not be refreshed.":"kanaler kunne ikke oppdateres.",
   "Channels available":"Kanaler tilgjengelig",
   "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...",
@@ -6282,22 +6284,22 @@ async function epgRefresh(){
     stage.textContent=tr('Finding channels in your favorites...');count.textContent='';found.textContent='';bar.style.width='3%';
     const plan=await api('/api/epg_targets');
     if(plan.error)throw new Error(plan.error||'EPG failed');
-    const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,updated=0,noEpg=0,failed=0;
+    const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,updated=0,noEpg=0,failed=0,safeMode=false;
     count.textContent='0 / '+total;
     for(let i=0;i<ids.length;i+=batchSize){
       const batch=ids.slice(i,i+batchSize);
-      stage.textContent=tr('Loading programme information...');
+      stage.textContent=safeMode?tr('Compatibility mode: loading one channel at a time...'):tr('Loading programme information...');
       let epg={};
       try{
         const j=await api('/api/epg?force=1&ids='+encodeURIComponent(batch.join(',')));
         if(j.error)throw new Error(j.error||'EPG batch failed');epg=j.epg||{};
-        const s=j.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;
+        const s=j.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;safeMode=safeMode||!!s.safe_mode;
       }catch(batchError){
         // A provider/proxy may dislike concurrent batches.  Retry this batch
         // channel-by-channel so one bad request cannot abort the entire guide.
         stage.textContent=tr('Retrying this batch one channel at a time...');
         for(const sid of batch){
-          try{const jj=await api('/api/epg?force=1&ids='+encodeURIComponent(sid));if(jj.error)throw new Error(jj.error||'EPG channel failed');Object.assign(epg,jj.epg||{});const s=jj.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;}catch(e){failed++;}
+          try{const jj=await api('/api/epg?force=1&ids='+encodeURIComponent(sid));if(jj.error)throw new Error(jj.error||'EPG channel failed');Object.assign(epg,jj.epg||{});const s=jj.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;safeMode=safeMode||!!s.safe_mode;}catch(e){failed++;}
         }
       }
       _tvEpg=Object.assign({},_tvEpg,epg);
@@ -6774,14 +6776,61 @@ class Handler(BaseHTTPRequestHandler):
                 if to_fetch:
                     from concurrent.futures import ThreadPoolExecutor, as_completed
                     fetched = {}
-                    with ThreadPoolExecutor(max_workers=min(4, len(to_fetch))) as pool:
-                        jobs = {pool.submit(x.short_epg, sid, 6): sid for sid in to_fetch}
-                        for job in as_completed(jobs):
-                            sid = jobs[job]
-                            try:
-                                fetched[sid] = job.result()
-                            except Exception:
-                                fetched[sid] = None
+                    provider_key = _vod_cache_key(x)
+                    safe_mode = provider_key in _EPG_SERIAL_PROVIDERS
+
+                    def fetch_one(sid):
+                        try:
+                            return x.short_epg(sid, 6)
+                        except Exception:
+                            return None
+
+                    if safe_mode:
+                        for sid in to_fetch:
+                            fetched[sid] = fetch_one(sid)
+                    else:
+                        with ThreadPoolExecutor(max_workers=min(4, len(to_fetch))) as pool:
+                            jobs = {pool.submit(x.short_epg, sid, 6): sid for sid in to_fetch}
+                            for job in as_completed(jobs):
+                                sid = jobs[job]
+                                try:
+                                    fetched[sid] = job.result()
+                                except Exception:
+                                    fetched[sid] = None
+
+                        # Some Xtream providers throttle parallel short-EPG
+                        # calls. Retry transport failures one-at-a-time. If a
+                        # meaningful part of the batch failed, remember this
+                        # provider and keep all following batches sequential.
+                        failed_sids = [sid for sid in to_fetch if fetched.get(sid) is None]
+                        if failed_sids:
+                            if len(failed_sids) >= max(2, len(to_fetch) // 4):
+                                _EPG_SERIAL_PROVIDERS.add(provider_key)
+                                safe_mode = True
+                            for sid in failed_sids:
+                                fetched[sid] = fetch_one(sid)
+
+                        # A few providers respond to throttling with HTTP 200
+                        # and an empty EPG instead of an error. If an entire
+                        # parallel batch is empty, probe a few channels safely.
+                        # Only switch mode when the sequential probe proves the
+                        # provider actually has programme data.
+                        if (not safe_mode and len(to_fetch) >= 4 and
+                                not any(fetched.get(sid) for sid in to_fetch)):
+                            probe_ids = to_fetch[:min(3, len(to_fetch))]
+                            probe_results = {}
+                            for sid in probe_ids:
+                                time.sleep(0.08)
+                                probe_results[sid] = fetch_one(sid)
+                            if any(probe_results.values()):
+                                _EPG_SERIAL_PROVIDERS.add(provider_key)
+                                safe_mode = True
+                                fetched.update(probe_results)
+                                for sid in to_fetch:
+                                    if sid not in probe_results:
+                                        fetched[sid] = fetch_one(sid)
+
+                    stats["safe_mode"] = safe_mode
                     for sid in to_fetch:
                         progs = fetched.get(sid)
                         old = _EPG_CACHE.get(sid)
