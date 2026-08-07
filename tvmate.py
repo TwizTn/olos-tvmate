@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b233"
+VERSION = "0.777.b234"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -557,10 +557,10 @@ class Xtream:
         q = {"username": self.user, "password": self.password,
              "action": "get_short_epg", "stream_id": str(stream_id), "limit": str(limit)}
         url = f"{self.base}/player_api.php?" + urllib.parse.urlencode(q)
-        try:
-            data = http_get_json(url)
-        except Exception:
-            return []
+        # Let transport/provider failures propagate to the EPG cache layer.
+        # An empty successful response really means "no EPG"; an exception
+        # must not be turned into [] because that would erase good cached data.
+        data = http_get_json(url)
         rows = (data or {}).get("epg_listings", []) if isinstance(data, dict) else []
 
         def _dec(v):
@@ -4242,6 +4242,7 @@ const _I18N={
   "Listings countries (comma separated: no, uk, us)":"Land for TV-guide (kommaseparert: no, uk, us)",
   "No channels here.":"Ingen kanaler her.","No program info":"Ingen programinfo",
   "Loading EPG...":"Laster EPG...","EPG loaded":"EPG lastet","EPG failed":"EPG feilet","Loading...":"Laster...",
+  "Updated":"Oppdatert","No EPG":"Ingen EPG","Failed":"Feilet",
   "No favorites to load EPG for.":"Ingen favoritter å laste EPG for.",
   "Updating TV guide":"Oppdaterer TV-guide","Finding channels in your favorites...":"Finner kanaler i favorittene dine...",
   "Loading programme information...":"Laster programinformasjon...","TV guide is ready.":"TV-guiden er klar.","with programme data":"med programdata",
@@ -6259,7 +6260,7 @@ async function epgRefresh(){
     stage.textContent=tr('Finding channels in your favorites...');count.textContent='';found.textContent='';bar.style.width='3%';
     const planRes=await fetch('/api/epg_targets');const plan=await planRes.json();
     if(!planRes.ok||plan.error)throw new Error(plan.error||'EPG failed');
-    const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,withData=0,failed=0;
+    const ids=plan.ids||[],total=ids.length,batchSize=20;let done=0,updated=0,noEpg=0,failed=0;
     count.textContent='0 / '+total;
     for(let i=0;i<ids.length;i+=batchSize){
       const batch=ids.slice(i,i+batchSize);
@@ -6268,23 +6269,23 @@ async function epgRefresh(){
       try{
         const r=await fetch('/api/epg?force=1&ids='+encodeURIComponent(batch.join(','))),j=await r.json();
         if(!r.ok||j.error)throw new Error(j.error||'EPG batch failed');epg=j.epg||{};
+        const s=j.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;
       }catch(batchError){
         // A provider/proxy may dislike concurrent batches.  Retry this batch
         // channel-by-channel so one bad request cannot abort the entire guide.
         stage.textContent=tr('Retrying this batch one channel at a time...');
         for(const sid of batch){
-          try{const rr=await fetch('/api/epg?force=1&ids='+encodeURIComponent(sid)),jj=await rr.json();if(!rr.ok||jj.error)throw new Error(jj.error||'EPG channel failed');Object.assign(epg,jj.epg||{});}catch(e){failed++;}
+          try{const rr=await fetch('/api/epg?force=1&ids='+encodeURIComponent(sid)),jj=await rr.json();if(!rr.ok||jj.error)throw new Error(jj.error||'EPG channel failed');Object.assign(epg,jj.epg||{});const s=jj.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;}catch(e){failed++;}
         }
       }
       _tvEpg=Object.assign({},_tvEpg,epg);
-      withData+=Object.values(epg).filter(function(p){return p&&p.length;}).length;
-      done+=batch.length;count.textContent=done+' / '+total;found.textContent=withData+' '+tr('with programme data');bar.style.width=(total?Math.max(3,done/total*100):100)+'%';
+      done+=batch.length;count.textContent=done+' / '+total;found.textContent=tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed;bar.style.width=(total?Math.max(3,done/total*100):100)+'%';
       renderTvGuide();
       await new Promise(resolve=>setTimeout(resolve,0));
     }
-    stage.textContent=failed?(tr('TV guide is ready.')+' '+failed+' '+tr('channels could not be refreshed.')):tr('TV guide is ready.');bar.style.width='100%';
+    stage.textContent=tr('TV guide is ready.')+' '+tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed;bar.style.width='100%';
     if(!total){toast(tr('No favorites to load EPG for.'));}
-    else toast(tr('EPG loaded')+' ('+withData+'/'+total+')');
+    else toast(tr('EPG loaded')+': '+tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed,7000);
   }catch(e){stage.textContent=tr('EPG failed')+': '+String(e&&e.message||e);bar.style.background='#8f2d35';toast(tr('EPG failed'));await new Promise(resolve=>setTimeout(resolve,2800));}
   await new Promise(resolve=>setTimeout(resolve,650));
   if(modal)modal.classList.add('hide');
@@ -6773,6 +6774,7 @@ class Handler(BaseHTTPRequestHandler):
                 now = time.time()
                 result = {}
                 to_fetch = []
+                stats = {"updated": 0, "no_data": 0, "failed": 0}
                 for sid in ids:
                     cached = _EPG_CACHE.get(sid)
                     if cached and not force and (now - cached["ts"] < _EPG_TTL):
@@ -6793,14 +6795,32 @@ class Handler(BaseHTTPRequestHandler):
                             try:
                                 fetched[sid] = job.result()
                             except Exception:
-                                fetched[sid] = []
+                                fetched[sid] = None
                     for sid in to_fetch:
-                        progs = fetched.get(sid, [])
+                        progs = fetched.get(sid)
+                        old = _EPG_CACHE.get(sid)
+                        if progs is None:
+                            stats["failed"] += 1
+                            if old and old.get("programmes"):
+                                result[sid] = old["programmes"]
+                            continue
+                        if not progs:
+                            stats["no_data"] += 1
+                            # A successful-but-empty provider response can be
+                            # temporary. Keep useful cached listings until their
+                            # normal TTL expires instead of blanking the guide.
+                            if old and old.get("programmes"):
+                                result[sid] = old["programmes"]
+                            else:
+                                _EPG_CACHE[sid] = {"ts": now, "programmes": []}
+                                result[sid] = []
+                            continue
+                        stats["updated"] += 1
                         _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
                         result[sid] = progs
                 if to_fetch:
                     _save_epg_disk_cache(x)
-                return self._send(200, {"epg": result, "total": len(ids)})
+                return self._send(200, {"epg": result, "total": len(ids), "stats": stats})
 
             if u.path == "/api/epg_debug":
                 # Returns the RAW provider response for one stream, for troubleshooting.
