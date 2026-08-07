@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b231"
+VERSION = "0.777.b232"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2905,6 +2905,67 @@ def find_team_channels(team_terms, xtream_channels, cats, x):
             })
     return out
 
+_RACING_CHANNEL_TERMS = {
+    "f1": ("f1", "formula 1", "formula one"),
+    "f2": ("f2", "formula 2"),
+    "f3": ("f3", "formula 3"),
+    "indycar": ("indycar", "indy car"),
+    "wec": ("wec", "world endurance"),
+    "formulae": ("formula e", "formulae"),
+    "motogp": ("motogp", "moto gp"),
+    "wrc": ("wrc", "world rally"),
+}
+
+def _racing_event_key(event):
+    return "|".join(str(event.get(k) or "") for k in
+                    ("series", "race", "session", "start"))
+
+def find_racing_channels(event, xtream_channels, cats, x):
+    """Find dedicated racing or event-named channels already in Xtream.
+
+    Event-name-only hits require a PPV/Play/Event context; dedicated series
+    names such as Sky Sports F1 / WRC are strong enough on their own.
+    """
+    series = str(event.get("series") or "").lower()
+    aliases = tuple(normalise(v) for v in _RACING_CHANNEL_TERMS.get(series, ()))
+    event_words = []
+    ignored = {"grand", "prix", "race", "rally", "weekend", "circuit",
+               "practice", "qualifying", "sprint", "round", "del", "de"}
+    for value in (event.get("race"), event.get("circuit")):
+        for word in _distinctive(normalise(str(value or "")).split()):
+            if word not in ignored and len(word) >= 3 and word not in event_words:
+                event_words.append(word)
+    out = []
+    for ch in xtream_channels:
+        cname = str(ch.get("name") or "")
+        hay = normalise(cname)
+        if not hay:
+            continue
+        category = cats.get(ch.get("category_id"), "")
+        padded = " " + hay + " "
+        series_hit = any((" " + alias + " ") in padded for alias in aliases if alias)
+        event_hits = sum(1 for word in event_words
+                         if re.search(r"(?<![a-z0-9])" + re.escape(word) +
+                                      r"(?![a-z0-9])", hay))
+        # One distinctive place/event word is enough inside an explicit PPV
+        # category (e.g. "Dutch Grand Prix" need not also say Zandvoort).
+        event_hit = event_hits >= 1
+        ppv_context = _is_ppv_category(category) or _is_ppv_category(cname)
+        if not series_hit and not (event_hit and ppv_context):
+            continue
+        out.append({"xtream_name": cname, "stream_id": ch.get("stream_id"),
+                    "category": category, "logo": ch.get("stream_icon", ""),
+                    "quality": quality_tag(cname),
+                    "url": x.stream_url(ch.get("stream_id"))})
+    # Stable unique IDs; a provider can occasionally expose duplicate rows.
+    seen, unique = set(), []
+    for row in out:
+        sid = str(row.get("stream_id"))
+        if sid in seen:
+            continue
+        seen.add(sid); unique.append(row)
+    return unique[:30]
+
 def ppv_categories(xtream_channels, cats):
     """Return [{'category':name,'count':n}] for PPV/Play categories present
     in the user's channel list, so the UI can point the user there."""
@@ -3563,6 +3624,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .racingevent{padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
  .racingevent:hover b{color:var(--acc)}
  .racingevent:first-of-type{border-top:0}
+ .racingeventtop{display:flex;align-items:center;gap:8px}.racingeventtv{margin-left:auto;background:#17351e;border-color:#327443;color:#70d889}.racingeventchannels{margin-top:9px;padding:8px;border:1px solid #294535;border-radius:7px;background:#101814}.racingeventchannels.hide{display:none}.racingeventchannel{display:flex;align-items:center;gap:8px;padding:6px 4px;border-top:1px solid rgba(255,255,255,.055)}.racingeventchannel:first-child{border-top:0}.racingeventchannel .chn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.racingeventchannel .chbtns{flex:0 0 auto}
  @media(max-width:1600px){.racinglayout{grid-template-columns:320px minmax(0,1fr);gap:24px}}
  @media(max-width:1000px){.racinglayout{grid-template-columns:1fr}.racingsidebar{max-width:520px}.racinggrid{grid-template-columns:1fr}.racingdetail{min-height:0}}
  .setupoverlay{position:fixed;inset:0;z-index:3000;background:rgba(5,7,10,.84);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px}
@@ -4177,6 +4239,7 @@ const _I18N={
   "Updating TV guide":"Oppdaterer TV-guide","Finding channels in your favorites...":"Finner kanaler i favorittene dine...",
   "Loading programme information...":"Laster programinformasjon...","TV guide is ready.":"TV-guiden er klar.","with programme data":"med programdata",
   "Retrying this batch one channel at a time...":"Prøver denne gruppen på nytt, én kanal om gangen...","channels could not be refreshed.":"kanaler kunne ikke oppdateres.",
+  "Channels available":"Kanaler tilgjengelig",
   "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...",
   "Update downloaded. Restart now to finish updating?":"Oppdatering lastet ned. Start på nytt for å fullføre?",
   "Restart now":"Start på nytt","Update now":"Oppdater nå","Restarting...":"Starter på nytt...",
@@ -5396,7 +5459,19 @@ function racingDriversHtml(rows,events){
 function racingEventHtml(event){
   const ts=new Date(event.start),locale=_lang==='no'?'nb-NO':undefined;
   const when=event.all_day?(event.date_text||ts.toLocaleDateString(locale,{weekday:'short',day:'numeric',month:'short'})):ts.toLocaleString(locale,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-  return '<div class="racingevent" data-url="'+escAttr(event.url||'')+'"><b>'+esc(event.race||event.circuit||'Race')+'</b><div class="moviemeta">'+esc(when)+(event.session?' · '+esc(event.session):'')+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div></div>';
+  const channels=event.channels||[],tv=channels.length?'<span class="cc racingeventtv">TV</span>':'',details=channels.length?'<div class="racingeventchannels hide">'+channels.map(ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>').join('')+'</div>':'';
+  return '<div class="racingevent'+(channels.length?' haschannels':'')+'" data-url="'+escAttr(event.url||'')+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+tv+'</div><div class="moviemeta">'+esc(when)+(event.session?' · '+esc(event.session):'')+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div>'+details+'</div>';
+}
+function racingAvailabilityKey(event){return [event.series||'',event.race||'',event.session||'',event.start||''].join('|');}
+function applyRacingAvailability(map,events){for(const event of (events||[]))event.channels=(map&&map[racingAvailabilityKey(event)])||[];}
+function renderRacingScheduleCards(){
+  const info=document.getElementById('racingInfo');if(!info)return;const now=Date.now(),groups=new Map();
+  for(const event of _racingEventRows){const ts=new Date(event.start).getTime();if(!Number.isFinite(ts)||ts<now-24*3600000)continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
+  let h='';for(const row of _RACING_SERIES){if(!_racingSelected.has(row[0]))continue;const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">No upcoming events found.</span>')+'</div>';}
+  info.innerHTML=h||'<span class="muted">Choose at least one racing series above.</span>';
+}
+async function loadRacingAvailability(){
+  try{const a=await api('/api/racing_availability');applyRacingAvailability(a.availability||{},_racingEventRows);renderRacingScheduleCards();renderRacingDriverDetail();const drivers=document.getElementById('racingDrivers');if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);}catch(e){}
 }
 async function loadRacing(){
   const toggles=document.getElementById('racingSeries'),info=document.getElementById('racingInfo'),drivers=document.getElementById('racingDrivers');
@@ -5406,11 +5481,7 @@ async function loadRacing(){
     const f1Rows=_racingDriverRows.filter(row=>row.series==='f1'),validKeys=new Set(_racingDriverRows.map(row=>String(row.key||'')));if(_racingSelected.has('f1'))validKeys.add('f1-team');
     if(!_racingDetailKey||!validKeys.has(_racingDetailKey))_racingDetailKey=_racingSelected.has('f1')?'f1-team':String((_racingDriverRows[0]||{}).key||'');
     renderRacingTeamControl();renderRacingDriverDetail();drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);
-    const now=Date.now(),groups=new Map();
-    for(const event of (r.events||[])){const ts=new Date(event.start).getTime();if(!Number.isFinite(ts)||ts<now-24*3600000)continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
-    let h='';
-    for(const row of _RACING_SERIES){if(!_racingSelected.has(row[0]))continue;const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">No upcoming events found.</span>')+'</div>';}
-    info.innerHTML=h||'<span class="muted">Choose at least one racing series above.</span>';
+    renderRacingScheduleCards();loadRacingAvailability();
   }catch(e){drivers.innerHTML='';info.innerHTML='<span class="err">Could not load racing schedules.</span>';}
 }
 async function toggleRacingSeries(key){
@@ -5830,6 +5901,8 @@ async function loadMyListRacing(){
     // Keep the timeline balanced when several championships are enabled:
     // a session-heavy F1 weekend should not crowd WRC/MotoGP/etc. off it.
     _myListF1Moments=Array.from(groups.values()).flatMap(rows=>rows.sort((a,b)=>a.ts-b.ts).slice(0,3)).sort((a,b)=>a.ts-b.ts).slice(0,18);
+    renderMyListTimeline();
+    try{const a=await api('/api/racing_availability');for(const row of _myListF1Moments)row.event.channels=(a.availability||{})[racingAvailabilityKey(row.event)]||[];}catch(e){}
   }catch(e){}
   renderMyListTimeline();
 }
@@ -5945,7 +6018,8 @@ function renderMyListTimeline(){
     }else if(moment.kind==='f1'){
       const row=moment.data,event=row.event,date=new Date(row.ts),when=moment.live?tr('Live now'):timelineUpcomingWhen(row.ts,!!event.all_day);
       const racingUrl=event.url||('https://www.formula1.com/en/racing/'+date.getFullYear()),series=event.series_name||'Formula 1';
-      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent mylisttimelinef1" data-url="'+escAttr(racingUrl)+'"><span class="mylisttimelinekind f1">'+esc(tr('Racing'))+'</span>'+myListRacingArtwork(event)+'<div><b>'+esc(event.race)+'</b><div class="moviemeta">'+esc(series)+' · '+esc(event.session)+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div></div></div></div>';
+      const available=(event.channels||[]).length?'<span class="cc mylisttimelineavail" title="'+escAttr(tr('Channels available'))+'">TV</span>':'';
+      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent mylisttimelinef1'+((event.channels||[]).length?' haschannels':'')+'" data-url="'+escAttr(racingUrl)+'"><span class="mylisttimelinekind f1">'+esc(tr('Racing'))+'</span>'+myListRacingArtwork(event)+'<div><b>'+esc(event.race)+'</b><div class="moviemeta">'+esc(series)+' · '+esc(event.session)+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div></div>'+available+'</div></div>';
     }else if(moment.kind==='movie'){
       const row=moment.data,m=row.movie,cover=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'',when=row.ts<Date.now()?timelineReleasedWhen(row.ts):timelineUpcomingWhen(row.ts,true);
       const action=m.stream_found?'<div class="movieactions"><span class="moviemeta">'+tr('Stream found in playlist')+'</span><button class="btnvlc movievlc" data-sid="'+escAttr(String(m.stream_id))+'" data-ext="'+escAttr(m.extension||'mp4')+'">&#9658; VLC</button></div>':'<div class="movieactions"><button class="ghost" disabled>'+tr('Not available')+'</button></div>';
@@ -6217,9 +6291,9 @@ document.addEventListener('click',function(e){
   const timelineGame=e.target.closest('.mylisttimelinegame');
   if(timelineGame){const url=timelineGame.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
   const timelineF1=e.target.closest('.mylisttimelinef1');
-  if(timelineF1){const url=timelineF1.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
+  if(timelineF1){if(timelineF1.classList.contains('haschannels')){showRacing();return;}const url=timelineF1.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
   const racingEvent=e.target.closest('.racingevent');
-  if(racingEvent){const url=racingEvent.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
+  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc')){if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');return;}const url=racingEvent.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
   const lev=e.target.closest('.latestepisodevlc');
   if(lev){playLatestEpisode(lev.getAttribute('data-id'),lev.getAttribute('data-ext'),lev);return;}
   const myListShow=e.target.closest('.mylistshowcard');
@@ -6420,6 +6494,31 @@ class Handler(BaseHTTPRequestHandler):
                             if key in ("f1", "f2", "f3", "indycar", "wec", "formulae", "motogp", "wrc")]
                 return self._send(200, {"selected": selected,
                                         "events": get_racing_events(selected)})
+
+            if u.path == "/api/racing_availability":
+                cfg = load_config()
+                x = Xtream(cfg)
+                if not x.configured():
+                    return self._send(200, {"availability": {}, "logged_in": False})
+                selected = [key for key in cfg.get("racing_series", ["f1"])
+                            if key in _RACING_CHANNEL_TERMS]
+                events = get_racing_events(selected)
+                try:
+                    channels, cats = get_xtream_channels(cfg)
+                except Exception:
+                    return self._send(200, {"availability": {}, "logged_in": True})
+                now = time.time(); availability = {}
+                for event in events:
+                    try:
+                        ets = datetime.datetime.fromisoformat(str(event.get("start") or "").replace("Z", "+00:00")).timestamp()
+                    except Exception:
+                        continue
+                    if ets < now - 12 * 3600 or ets > now + 45 * 24 * 3600:
+                        continue
+                    hits = find_racing_channels(event, channels, cats, x)
+                    if hits:
+                        availability[_racing_event_key(event)] = hits
+                return self._send(200, {"availability": availability, "logged_in": True})
 
             if u.path == "/api/racing_drivers":
                 return self._send(200, {"drivers": get_racing_drivers()})
