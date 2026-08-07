@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b240"
+VERSION = "0.777.b241"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3210,6 +3210,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mylisttimelineart{width:58px;height:58px;flex:0 0 58px;object-fit:contain;border-radius:7px;background:#0d1014;padding:5px;box-sizing:border-box}
  .mylisttimelineart.driver{height:72px;object-fit:cover;object-position:center top;padding:0}
  .mylisttimelineart.driver.car{object-fit:contain;object-position:center;padding:3px}
+ .mylisttimelinedrivers{width:72px;height:72px;flex:0 0 72px;display:flex;align-items:flex-end;justify-content:center;gap:2px;overflow:hidden;border-radius:7px;background:#0d1014;padding:3px 2px 0;box-sizing:border-box}
+ .mylisttimelinedrivers img{width:34px;height:68px;object-fit:contain;object-position:center bottom;min-width:0}
  .mylisttimelinekind{flex:0 0 50px;width:50px;color:var(--mut);font-size:10px;font-weight:650;letter-spacing:.7px;text-transform:uppercase;text-align:center;padding:8px 0 5px;align-self:center;border-bottom:2px solid transparent}
  .mylisttimelinekind.sport{color:#70c987;border-bottom-color:#38a85d}
  .mylisttimelinekind.show{color:#e5a25f;border-bottom-color:#c8752c}
@@ -3254,6 +3256,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
    .mylisttimelinecontent{gap:15px}
    .mylisttimelineart{width:68px;height:68px;flex-basis:68px}
    .mylisttimelineart.driver{height:84px}
+   .mylisttimelinedrivers{width:84px;height:84px;flex-basis:84px}
+   .mylisttimelinedrivers img{width:40px;height:80px}
    .mylisttimelinekind{flex-basis:58px;width:58px;font-size:11px;padding:9px 0 6px}
  }
  @media(max-width:900px){.mydashchannels{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -5771,7 +5775,7 @@ async function loadFavorites(){
   _favChanSet=new Set((r.channels||[]).map(function(c){return String(c.stream_id);}));
   _myListFavData=r;
   _myListSelectedChannels=(r.mylist_channels||[]).map(String).slice(0,5);
-  _myListTeamMoments=[];_myListF1Moments=[];_myListMovieMoments=[];_myListGameMoments=[];_myListShowMoments=[];
+  _myListTeamMoments=[];_myListF1Moments=[];_myListMovieMoments=[];_myListGameMoments=[];_myListShowMoments=[];_myListRacingDrivers=[];
   renderMyListProfile();
   applyMyListLayout();
   renderMyListChannels();
@@ -5782,7 +5786,7 @@ async function loadFavorites(){
   if(_gamesEnabled)loadMyListGames(r);else{_myListGameMoments=[];scheduleMyListTimelineRender();}
   loadMyListShows();
 }
-let _myListFavData={channels:[],teams:[],f1_teams:[]},_myListSelectedChannels=[],_myListTeamMoments=[],_myListF1Moments=[],_myListMovieMoments=[],_myListGameMoments=[],_myListShowMoments=[];
+let _myListFavData={channels:[],teams:[],f1_teams:[]},_myListSelectedChannels=[],_myListTeamMoments=[],_myListF1Moments=[],_myListMovieMoments=[],_myListGameMoments=[],_myListShowMoments=[],_myListRacingDrivers=[];
 let _myListTimelineRenderPending=false;
 function scheduleMyListTimelineRender(){
   if(_myListTimelineRenderPending)return;
@@ -5898,7 +5902,8 @@ async function loadMyListTeams(favorites,racingDataPromise){
     try{
       const [driverData,racingData]=await racingPromise;
       if(_myListLayout==='timeline'&&(driverData.drivers||[]).length)h+='<div class="mydashsportsubhead racing">Racing</div>';
-      const allDrivers=driverData.drivers||[],f1Drivers=allDrivers.filter(driver=>String(driver.series||'')==='f1');
+      const allDrivers=driverData.drivers||[];_myListRacingDrivers=allDrivers;
+      const f1Drivers=allDrivers.filter(driver=>String(driver.series||'')==='f1');
       if(_myListLayout==='timeline'&&f1Drivers.length){
         const next=nextDriverRace(f1Drivers[0],racingData.events||[],now),countdown=next?racingCountdown(next):'';
         const live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now));
@@ -6017,8 +6022,9 @@ function myListRacingArtwork(event){
   const series=String((event&&event.series)||'').toLowerCase();
   let src='',name='',driver=false,car=false;
   if(series==='f1'){
-    const team=((_myListFavData.f1_teams||[])[0]||{}),id=String(team.id||'');
-    if(id){src=team.logo||('/api/f1_team_logo?id='+encodeURIComponent(id));name=team.name||'Formula 1';}
+    const pair=(_myListRacingDrivers||[]).filter(row=>String(row.series||'').toLowerCase()==='f1').slice(0,2);
+    if(pair.length)return '<span class="mylisttimelinedrivers" title="'+escAttr(pair.map(row=>row.name||'').filter(Boolean).join(' & '))+'">'+pair.map(row=>'<img src="/api/racing_driver_image?id='+encodeURIComponent(String(row.key||''))+'" alt="'+escAttr(row.name||'')+'" loading="lazy" onerror="this.remove()">').join('')+'</span>';
+    return '';
   }else{
     const drivers={wrc:['wrc-oliver-solberg','Oliver Solberg'],indycar:['indycar-dennis-hauger','Dennis Hauger'],f2:['f2-martinius-stenshorne','Martinius Stenshorne']};
     const row=drivers[series];
