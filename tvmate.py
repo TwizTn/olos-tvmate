@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b215"
+VERSION = "0.777.b216"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -718,10 +718,12 @@ def _schedule_launcher_replacement(launcher_exe, downloaded):
     folder = os.path.dirname(launcher_exe)
     old_name = os.path.basename(launcher_exe)
     new_name = os.path.basename(downloaded)
-    # Keep the forced-kill fallback tightly scoped. Support both the current
-    # launcher filename and the legacy filename users already have installed,
-    # but never taskkill an arbitrary renamed executable from the environment.
-    if old_name.lower() not in {"otvm.exe", "olostvmate.exe"}:
+    # Keep the forced-kill fallback tightly scoped. Support the current and
+    # legacy names plus the numeric suffix browsers add for duplicate
+    # downloads (OTVM(2).exe / OTVM (2).exe), but never taskkill an arbitrary
+    # renamed executable from the environment.
+    if not re.fullmatch(r"(?:OTVM|OlosTVMate)(?:\s*\(\d+\))?\.exe", old_name,
+                        flags=re.IGNORECASE):
         return False
     helper = os.path.join(folder, "_tvmate_launcher_update.bat")
     try:
