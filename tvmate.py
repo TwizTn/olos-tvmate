@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b228"
+VERSION = "0.777.b229"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1368,14 +1368,14 @@ def steam_public_profile(steam_id, force=False):
     cache_name = "steam-profile.json"
     if not force:
         cached = _load_timed_data_cache(cache_name, 7 * 24 * 3600)
-        if (isinstance(cached, dict) and cached.get("_v") == 2 and
+        if (isinstance(cached, dict) and cached.get("_v") == 3 and
                 str(cached.get("steam_id") or "") == steam_id):
             local_avatar = _cache_steam_avatar(steam_id, cached.get("avatar"), force=False)
             if local_avatar:
                 cached["avatar_local"] = local_avatar
             return cached
     profile_url = f"https://steamcommunity.com/profiles/{steam_id}/"
-    out = {"_v": 2, "steam_id": steam_id, "profile_url": profile_url}
+    out = {"_v": 3, "steam_id": steam_id, "profile_url": profile_url}
     try:
         import xml.etree.ElementTree as ET
         xml_text = http_get_text(profile_url + "?xml=1", timeout=15)
@@ -1384,7 +1384,8 @@ def steam_public_profile(steam_id, force=False):
             node = root.find(name)
             return str(node.text or "").strip() if node is not None else ""
         out.update({"display_name": xtext("steamID"), "real_name": xtext("realname"),
-                    "location": xtext("location"), "summary": xtext("summary"),
+                    "location": xtext("location"),
+                    "summary": _steam_html_text(xtext("summary"), keep_lines=True),
                     "avatar": xtext("avatarFull") or xtext("avatarMedium"),
                     "member_since": xtext("memberSince")})
         member_since = out.get("member_since") or ""
@@ -1418,6 +1419,10 @@ def steam_public_profile(steam_id, force=False):
         level = re.search(r'friendPlayerLevelNum[^>]*>\s*(\d+)\s*<', page, flags=re.I)
         if level:
             out["level"] = int(level.group(1))
+        service = re.search(r'\b(\d{1,2})\s+Years?\s+of\s+Service\b',
+                            _steam_html_text(page), flags=re.I)
+        if service:
+            out["years_service"] = int(service.group(1))
         if not out.get("display_name"):
             name = re.search(r'actual_persona_name[^>]*>(.*?)<', page, flags=re.I | re.S)
             if name:
@@ -1448,9 +1453,17 @@ def steam_public_profile(steam_id, force=False):
             if summary:
                 out["summary"] = _steam_html_text(summary.group(1), keep_lines=True)
         if not out.get("avatar"):
-            avatar = re.search(
-                r'playerAvatarAutoSizeInner[^>]*>\s*<img[^>]+src=["\']([^"\']+)["\']',
-                page, flags=re.I | re.S)
+            avatar = None
+            # image_src and og:image are Steam's canonical public-profile
+            # portrait metadata and cannot be confused with an animated frame.
+            for pattern in (
+                r'<link[^>]+rel=["\']image_src["\'][^>]+href=["\']([^"\']+)["\']',
+                r'<link[^>]+href=["\']([^"\']+)["\'][^>]+rel=["\']image_src["\']',
+                r'playerAvatarAutoSizeInner[^>]*>[\s\S]{0,500}?<img[^>]+src=["\']([^"\']+)["\']',
+                r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']'):
+                avatar = re.search(pattern, page, flags=re.I | re.S)
+                if avatar:
+                    break
             if avatar:
                 out["avatar"] = html.unescape(avatar.group(1))
     except Exception:
@@ -3356,12 +3369,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .gamefav{position:relative;padding:8px 0 30px;border-bottom:1px solid var(--line)}
  .gamefav img{width:100%;max-width:190px;aspect-ratio:460/215;object-fit:cover;border-radius:6px;display:block;margin-bottom:7px}
  .gamefavname{font-size:13px;font-weight:600;line-height:1.3}
- .gameslayout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:38px;width:100%;max-width:none;margin:0;align-items:start}
- .gamesmain{width:100%;max-width:1180px;min-width:0;margin:0 auto}
- .steamprofile{position:sticky;top:76px;background:linear-gradient(155deg,#151b24,#11161d);border:1px solid #303a48;border-radius:12px;padding:24px;min-height:310px;box-shadow:0 12px 34px rgba(0,0,0,.16)}
+ .gameslayout{display:grid;grid-template-columns:400px minmax(0,1fr);gap:30px;width:100%;max-width:1680px;margin:0 auto;align-items:start}
+ .gamesmain{width:100%;max-width:none;min-width:0;margin:0}
+ .steamprofile{position:sticky;top:76px;background:linear-gradient(155deg,#151b24,#11161d);border:1px solid #303a48;border-radius:12px;padding:24px;min-height:330px;box-shadow:0 12px 34px rgba(0,0,0,.16)}
  .steamprofileempty{color:var(--mut);font-size:12px;line-height:1.5}
  .steamprofilehead{display:flex;align-items:center;gap:16px}
- .steamprofileavatar{width:120px;height:120px;object-fit:cover;border-radius:10px;flex:0 0 120px;background:#202936;border:3px solid #315b7b;box-shadow:0 0 0 1px #0b0e12}
+ .steamprofileavatar{width:142px;height:142px;object-fit:cover;border-radius:10px;flex:0 0 142px;background:#202936;border:3px solid #315b7b;box-shadow:0 0 0 1px #0b0e12}
  .steamprofilename{font-size:23px;font-weight:700;line-height:1.15;color:#e8f2fa}
  .steamprofilereal{font-size:14px;color:#bac4cf;margin-top:6px}
  .steamprofileloc{font-size:12px;color:#8e9baa;margin-top:5px;line-height:1.4}
@@ -5174,7 +5187,8 @@ async function loadSteamProfile(){
     const p=await api('/api/steam_profile');
     if(!p||!p.linked){el.innerHTML='<div class="steamprofileempty">Link a Steam wishlist to show your Steam profile here.</div>';return;}
     if(!p.display_name&&!p.avatar){el.innerHTML='<div class="steamprofileempty">Steam profile is linked, but its public profile details are unavailable.</div>';return;}
-    const avatar=(p.avatar_local||p.avatar)?'<img class="steamprofileavatar" src="'+escAttr(p.avatar_local||p.avatar)+'" alt="" referrerpolicy="no-referrer" onerror="this.remove()">':'';
+    const avatarSrc=p.avatar_local||p.avatar||'',avatarFallback=(p.avatar_local&&p.avatar)?p.avatar:'';
+    const avatar=avatarSrc?'<img class="steamprofileavatar" src="'+escAttr(avatarSrc)+'" data-fallback="'+escAttr(avatarFallback)+'" alt="" referrerpolicy="no-referrer" onerror="if(this.dataset.fallback&&!this.dataset.tried){this.dataset.tried=1;this.src=this.dataset.fallback;}else this.remove()">':'';
     const real=p.real_name?'<div class="steamprofilereal">'+esc(p.real_name)+'</div>':'';
     const loc=p.location?'<div class="steamprofileloc">'+esc(p.location)+'</div>':'';
     const level=(p.level!==undefined&&p.level!==null)?'<span class="steamlevel" title="Steam level">'+esc(p.level)+'</span>':'';
