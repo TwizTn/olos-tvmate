@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b211"
+VERSION = "0.777.b212"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -110,6 +110,8 @@ BANNER = r'''
 '''
 UPDATE_VERSION_URL = "https://raw.githubusercontent.com/TwizTn/olos-tvmate/main/version.txt"
 UPDATE_SCRIPT_URL = "https://raw.githubusercontent.com/TwizTn/olos-tvmate/main/tvmate.py"
+UPDATE_LAUNCHER_URL = "https://github.com/TwizTn/olos-tvmate/releases/download/v0.777.b30/OTVM.exe"
+UPDATE_LAUNCHER_SHA256 = "6a524de87a9e62f896f42addc56d5146a75073f08b5d68a1bb5fcabf8d8438d1"
 
 DEFAULT_CONFIG = {
     "xtream_host": "",
@@ -664,6 +666,102 @@ def download_update():
         return dest
     except Exception:
         return None
+
+def _file_sha256(path):
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest().lower()
+    except Exception:
+        return ""
+
+def _download_launcher_update(launcher_exe):
+    """Download and verify the current Windows launcher next to the old one."""
+    if not sys.platform.startswith("win") or not launcher_exe:
+        return ""
+    launcher_exe = os.path.abspath(launcher_exe)
+    if not os.path.isfile(launcher_exe):
+        return ""
+    if _file_sha256(launcher_exe) == UPDATE_LAUNCHER_SHA256:
+        return ""
+    dest = launcher_exe + ".new"
+    try:
+        req = urllib.request.Request(UPDATE_LAUNCHER_URL,
+                                     headers={"User-Agent": "OlosTVMate-Updater/" + VERSION})
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            raw = resp.read(20 * 1024 * 1024 + 1)
+        if not raw or len(raw) > 20 * 1024 * 1024 or not raw.startswith(b"MZ"):
+            return ""
+        if hashlib.sha256(raw).hexdigest().lower() != UPDATE_LAUNCHER_SHA256:
+            return ""
+        with open(dest, "wb") as f:
+            f.write(raw)
+        return dest
+    except Exception:
+        try:
+            if os.path.exists(dest):
+                os.remove(dest)
+        except OSError:
+            pass
+        return ""
+
+def _schedule_launcher_replacement(launcher_exe, downloaded):
+    """Replace a running Windows launcher after it exits, then relaunch it."""
+    if not sys.platform.startswith("win") or not launcher_exe or not downloaded:
+        return False
+    launcher_exe = os.path.abspath(launcher_exe)
+    downloaded = os.path.abspath(downloaded)
+    if _file_sha256(downloaded) != UPDATE_LAUNCHER_SHA256:
+        return False
+    folder = os.path.dirname(launcher_exe)
+    old_name = os.path.basename(launcher_exe)
+    new_name = os.path.basename(downloaded)
+    helper = os.path.join(folder, "_tvmate_launcher_update.bat")
+    try:
+        # The old Nuitka onefile parent can hold OTVM.exe briefly after the
+        # Python app exits. Retry the move until Windows releases the file.
+        lines = [
+            "@echo off\r\n",
+            'cd /d "%~dp0"\r\n',
+            "setlocal\r\n",
+            "for /l %%I in (1,1,30) do (\r\n",
+            '  move /y "' + new_name + '" "' + old_name + '" >nul 2>&1 && goto replaced\r\n',
+            "  timeout /t 1 /nobreak >nul\r\n",
+            ")\r\n",
+            "exit /b 1\r\n",
+            ":replaced\r\n",
+            'start "" "' + old_name + '"\r\n',
+            'del "%~f0"\r\n',
+        ]
+        with open(helper, "w", encoding="utf-8", newline="") as f:
+            f.writelines(lines)
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        subprocess.Popen(["cmd.exe", "/d", "/c", helper], cwd=folder,
+                         creationflags=flags, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         close_fds=True)
+        return True
+    except Exception:
+        return False
+
+def _launcher_migration_worker():
+    """One-time migration from the old console launcher to the GUI launcher."""
+    if not sys.platform.startswith("win"):
+        return
+    launcher_exe = os.environ.get("TVMATE_EXE", "").strip()
+    if not launcher_exe or not os.path.isfile(launcher_exe):
+        return
+    if _file_sha256(launcher_exe) == UPDATE_LAUNCHER_SHA256:
+        return
+    downloaded = _download_launcher_update(launcher_exe)
+    if downloaded and _schedule_launcher_replacement(launcher_exe, downloaded):
+        # Let the browser request finish, then shut down cleanly. The detached
+        # helper waits until the old launcher is unlocked, swaps it, and starts
+        # the verified GUI launcher.
+        time.sleep(1)
+        _STOP_EVENT.set()
 
 def _find_vlc():
     """Locate the VLC executable across common OS install paths."""
@@ -7864,6 +7962,7 @@ def main():
     # Serve the app in the background so the server is ready before we open.
     threading.Thread(target=server.serve_forever, daemon=True).start()
     threading.Thread(target=_auto_shutdown_watchdog, daemon=True).start()
+    threading.Thread(target=_launcher_migration_worker, daemon=True).start()
     if hide_console:
         # Hidden mode cannot wait for console input: launch the UI immediately.
         try:
