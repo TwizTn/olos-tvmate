@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b219"
+VERSION = "0.777.b220"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2727,7 +2727,8 @@ def ppv_categories(xtream_channels, cats):
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <title>Olo's TVMate</title>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.17/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.1/dist/mpegts.min.js"></script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'%3E%3Crect x='26' y='58' width='150' height='120' rx='16' fill='%233a2c1f' stroke='%23241a12' stroke-width='4'/%3E%3Crect x='38' y='70' width='126' height='96' rx='8' fill='%231b3a6b'/%3E%3Cellipse cx='101' cy='140' rx='44' ry='11' fill='%23e7a94e'/%3E%3Cellipse cx='101' cy='128' rx='42' ry='11' fill='%23f0b95e'/%3E%3Cellipse cx='101' cy='116' rx='40' ry='11' fill='%23f5c56e'/%3E%3Crect x='86' y='86' width='30' height='14' rx='5' fill='%23ffd77a'/%3E%3Ccircle cx='192' cy='86' r='8' fill='%232a2a2a'/%3E%3Ccircle cx='192' cy='112' r='8' fill='%232a2a2a'/%3E%3Crect x='150' y='40' width='4' height='24' fill='%23241a12'/%3E%3Crect x='118' y='40' width='4' height='24' fill='%23241a12' transform='rotate(-28 120 52)'/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
@@ -4761,7 +4762,57 @@ function playbtns(sid,name,url,showCopy){
     +'<button class="btnvlc" data-sid="'+s+'">&#9658; VLC</button>'
     +(showCopy?'<button class="copy" data-url="'+u+'">'+tr('Copy URL')+'</button>':'');
 }
-let _hls=null;
+let _hls=null,_mpegts=null;
+function destroyMpegtsPlayer(p){
+  if(!p)return;
+  try{p.pause();}catch(e){}try{p.unload();}catch(e){}try{p.detachMediaElement();}catch(e){}try{p.destroy();}catch(e){}
+}
+function startSmartStream(video,urls,setStatus,setEngine){
+  let stopped=false,hls=null,tsPlayer=null,mediaRecoveries=0;
+  function status(s){if(!stopped&&setStatus)setStatus(s||'');}
+  function clear(){if(hls){try{hls.destroy();}catch(e){}hls=null;}if(tsPlayer){destroyMpegtsPlayer(tsPlayer);tsPlayer=null;}}
+  function publish(){if(setEngine)setEngine(hls,tsPlayer);}
+  function startTs(reason){
+    clear();publish();
+    if(stopped)return;
+    if(!(window.mpegts&&mpegts.isSupported&&mpegts.isSupported())||!urls.ts){status('Could not play this stream in the browser. Try VLC.');return;}
+    status(reason?'HLS unavailable — trying MPEG-TS...':'Trying MPEG-TS...');
+    try{
+      tsPlayer=mpegts.createPlayer({type:'mpegts',isLive:true,url:'/api/proxy?u='+encodeURIComponent(urls.ts)},
+        {enableWorker:true,lazyLoad:false,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
+      tsPlayer.attachMediaElement(video);publish();
+      let failed=false;
+      tsPlayer.on(mpegts.Events.ERROR,function(){if(failed||stopped)return;failed=true;status('Could not play this stream in the browser. Try VLC.');});
+      tsPlayer.load();
+      const played=tsPlayer.play();if(played&&played.catch)played.catch(()=>{});
+      video.addEventListener('playing',function onTsPlaying(){video.removeEventListener('playing',onTsPlaying);status('');},{once:true});
+    }catch(e){status('Could not play this stream in the browser. Try VLC.');}
+  }
+  function startHls(src,viaProxy){
+    clear();publish();if(stopped)return;
+    if(window.Hls&&Hls.isSupported()){
+      status(viaProxy?'Routing HLS through local relay...':'Loading HLS...');
+      hls=new Hls({manifestLoadingTimeOut:12000,levelLoadingTimeOut:12000,fragLoadingTimeOut:20000,backBufferLength:30,maxBufferLength:45});publish();
+      hls.on(Hls.Events.ERROR,function(ev,data){
+        if(stopped||!data.fatal)return;
+        if(data.type===Hls.ErrorTypes.MEDIA_ERROR&&mediaRecoveries<2){mediaRecoveries++;status('Recovering browser playback...');try{hls.recoverMediaError();return;}catch(e){}}
+        if(!viaProxy){startHls('/api/proxy?u='+encodeURIComponent(urls.hls),true);return;}
+        startTs(true);
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED,function(){status('');const p=video.play();if(p&&p.catch)p.catch(()=>{});});
+      hls.loadSource(src);hls.attachMedia(video);return;
+    }
+    if(video.canPlayType('application/vnd.apple.mpegurl')){
+      status('Loading HLS...');video.src=src;
+      const nativeError=function(){video.removeEventListener('error',nativeError);if(!viaProxy)startHls('/api/proxy?u='+encodeURIComponent(urls.hls),true);else startTs(true);};
+      video.addEventListener('error',nativeError,{once:true});
+      const p=video.play();if(p&&p.catch)p.catch(()=>{});return;
+    }
+    startTs(true);
+  }
+  startHls(urls.hls,false);
+  return {stop:function(){stopped=true;clear();publish();try{video.pause();video.removeAttribute('src');video.load();}catch(e){}}};
+}
 async function playBrowser(sid,name){
   const modal=document.getElementById('playerModal');
   const video=document.getElementById('pVideo');
@@ -4770,32 +4821,18 @@ async function playBrowser(sid,name){
   msg.textContent='Loading...';
   modal.classList.remove('hide');
   // get the hls url
-  let hls;
-  try{const r=await fetch('/api/hls?id='+encodeURIComponent(sid));const j=await r.json();hls=j.hls;}catch(e){msg.textContent='Could not build stream URL.';return;}
-  const proxied='/api/proxy?u='+encodeURIComponent(hls);
-  function start(src,viaProxy){
-    if(_hls){_hls.destroy();_hls=null;}
-    if(window.Hls&&Hls.isSupported()){
-      _hls=new Hls({manifestLoadingTimeOut:12000});
-      let failed=false;
-      _hls.on(Hls.Events.ERROR,function(ev,data){
-        if(data.fatal){
-          if(!viaProxy&&!failed){failed=true;msg.textContent='Direct blocked \u2014 routing through local proxy...';start(proxied,true);}
-          else{msg.textContent='Could not play this stream in the browser. Try VLC.';}
-        }
-      });
-      _hls.on(Hls.Events.MANIFEST_PARSED,function(){msg.textContent='';video.play().catch(()=>{});});
-      _hls.loadSource(src);_hls.attachMedia(video);
-    }else if(video.canPlayType('application/vnd.apple.mpegurl')){
-      video.src=src;msg.textContent='';video.play().catch(()=>{});
-    }else{msg.textContent='Your browser cannot play HLS. Try VLC.';}
-  }
-  start(hls,false);
+  if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
+  if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
+  let urls;
+  try{const r=await fetch('/api/hls?id='+encodeURIComponent(sid));urls=await r.json();if(!r.ok||!urls.hls)throw new Error('stream url');}catch(e){msg.textContent='Could not build stream URL.';return;}
+  const controller=startSmartStream(video,urls,s=>msg.textContent=s,function(h,t){_hls=h;_mpegts=t;});
+  modal._playbackController=controller;
 }
 function closePlayer(){
   const modal=document.getElementById('playerModal');
   const video=document.getElementById('pVideo');
-  if(_hls){_hls.destroy();_hls=null;}
+  if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
+  if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
   video.pause();video.removeAttribute('src');video.load();
   modal.classList.add('hide');
 }
@@ -5835,25 +5872,18 @@ async function tvPlay(sid,name){
   slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><button class="pclose" onclick="tvStop()">&times;</button></div><video id="tvVideo" controls autoplay playsinline></video>';
   renderTvGuide();
   const video=document.getElementById('tvVideo');
-  let hls;
-  try{const r=await fetch('/api/hls?id='+encodeURIComponent(sid));const j=await r.json();hls=j.hls;}catch(e){return;}
-  const proxied='/api/proxy?u='+encodeURIComponent(hls);
-  if(window._tvhls){window._tvhls.destroy();window._tvhls=null;}
-  function start(src,viaProxy){
-    if(window.Hls&&Hls.isSupported()){
-      window._tvhls=new Hls();
-      let failed=false;
-      window._tvhls.on(Hls.Events.ERROR,function(ev,data){
-        if(data.fatal){if(!viaProxy&&!failed){failed=true;start(proxied,true);}}
-      });
-      window._tvhls.loadSource(src);window._tvhls.attachMedia(video);
-    }else if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=src;video.play().catch(()=>{});}
-  }
-  start(hls,false);
+  let urls;
+  try{const r=await fetch('/api/hls?id='+encodeURIComponent(sid));urls=await r.json();if(!r.ok||!urls.hls)throw new Error('stream url');}catch(e){return;}
+  if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
+  window._tvPlaybackController=startSmartStream(video,urls,function(s){
+    const bar=slot.querySelector('.tvplayerbar span');if(bar)bar.title=s||'';
+  },function(h,t){window._tvhls=h;window._tvmpegts=t;});
 }
 function tvStop(){
   _tvPlaying=null;
-  if(window._tvhls){window._tvhls.destroy();window._tvhls=null;}
+  if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
+  if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
+  if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
   const slot=document.getElementById('tvPlayerSlot');
   slot.classList.remove('on');slot.innerHTML='';
   renderTvGuide();
@@ -6314,40 +6344,85 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"hls": x.hls_url(sid), "ts": x.stream_url(sid)})
 
             if u.path == "/api/proxy":
-                # Proxy an HLS playlist or segment through the local server so the
-                # in-browser player works even when the provider blocks CORS.
+                # Lightweight media relay for browser playback.  This never
+                # transcodes: playlists are rewritten and media bytes are streamed
+                # through unchanged so HLS and MPEG-TS can work around CORS.
                 target = q.get("u", [""])[0]
                 if not target:
                     return self._send(400, {"error": "no url"})
+                parsed_target = urllib.parse.urlsplit(target)
+                if parsed_target.scheme not in ("http", "https"):
+                    return self._send(400, {"error": "unsupported url"})
                 try:
-                    req = urllib.request.Request(target, headers={
+                    headers = {
                         "User-Agent": "VLC/3.0 LibVLC/3.0",
-                        "Accept": "*/*"})
-                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        "Accept": "*/*"}
+                    range_header = self.headers.get("Range")
+                    if range_header:
+                        headers["Range"] = range_header
+                    req = urllib.request.Request(target, headers=headers)
+                    with urllib.request.urlopen(req, timeout=20) as resp:
                         ctype = resp.headers.get("Content-Type", "application/octet-stream")
-                        raw = resp.read()
-                    # If it's an m3u8 playlist, rewrite child URLs to go via proxy too
-                    low = target.lower()
-                    if "mpegurl" in ctype.lower() or ".m3u8" in low:
-                        text = raw.decode("utf-8", "replace")
-                        base = target.rsplit("/", 1)[0] + "/"
-                        out_lines = []
-                        for line in text.splitlines():
-                            s = line.strip()
-                            if s and not s.startswith("#"):
-                                seg = s if s.startswith(("http://", "https://")) else base + s
-                                out_lines.append("/api/proxy?u=" + urllib.parse.quote(seg, safe=""))
-                            else:
-                                out_lines.append(line)
-                        raw = ("\n".join(out_lines) + "\n").encode("utf-8")
-                        ctype = "application/vnd.apple.mpegurl"
-                    self.send_response(200)
-                    self.send_header("Content-Type", ctype)
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    self.send_header("Content-Length", str(len(raw)))
-                    self.end_headers()
-                    self.wfile.write(raw)
-                    return
+                        path_low = parsed_target.path.lower()
+                        is_playlist = ("mpegurl" in ctype.lower() or
+                                       path_low.endswith(".m3u8"))
+                        if is_playlist:
+                            # Playlists are tiny.  Rewrite segments plus URI="..."
+                            # attributes used by encryption keys and init maps.
+                            raw = resp.read(4 * 1024 * 1024 + 1)
+                            if len(raw) > 4 * 1024 * 1024:
+                                raise ValueError("playlist too large")
+                            text = raw.decode("utf-8", "replace")
+                            out_lines = []
+
+                            def proxy_url(child):
+                                absolute = urllib.parse.urljoin(target, child)
+                                return "/api/proxy?u=" + urllib.parse.quote(absolute, safe="")
+
+                            for line in text.splitlines():
+                                s = line.strip()
+                                if s and not s.startswith("#"):
+                                    out_lines.append(proxy_url(s))
+                                elif s.startswith("#") and 'URI="' in line:
+                                    line = re.sub(
+                                        r'URI="([^\"]+)"',
+                                        lambda m: 'URI="' + proxy_url(m.group(1)) + '"',
+                                        line)
+                                    out_lines.append(line)
+                                else:
+                                    out_lines.append(line)
+                            raw = ("\n".join(out_lines) + "\n").encode("utf-8")
+                            self.send_response(200)
+                            self.send_header("Content-Type", "application/vnd.apple.mpegurl")
+                            self.send_header("Access-Control-Allow-Origin", "*")
+                            self.send_header("Cache-Control", "no-cache")
+                            self.send_header("Content-Length", str(len(raw)))
+                            self.end_headers()
+                            self.wfile.write(raw)
+                            return
+
+                        # Media is streamed as it arrives instead of resp.read().
+                        # That is essential for live TS and avoids buffering a
+                        # whole video locally.  Bytes are never decoded/re-encoded.
+                        status = getattr(resp, "status", 200) or 200
+                        self.send_response(status)
+                        self.send_header("Content-Type", ctype)
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.send_header("Cache-Control", "no-cache")
+                        for hn in ("Content-Length", "Content-Range", "Accept-Ranges"):
+                            hv = resp.headers.get(hn)
+                            if hv:
+                                self.send_header(hn, hv)
+                        self.end_headers()
+                        try:
+                            while True:
+                                chunk = resp.read(64 * 1024)
+                                if not chunk:
+                                    break
+                                self.wfile.write(chunk)
+                        except (BrokenPipeError, ConnectionResetError):
+                            pass
+                        return
                 except Exception as e:
                     return self._send(502, {"error": str(e)})
 
