@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b262"
+VERSION = "0.777.b263"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3388,8 +3388,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvnowhead:before{content:"";position:absolute;top:4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#e1535c}
  .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
- .tvplayerslot.mini{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:22px;bottom:auto;width:min(560px,calc(100vw - 32px));height:min(350px,46vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
- .tvplayerslot.mini .tvplayerbar{background:#111720}
+ .tvplayerslot.mini{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:22px;bottom:auto;width:min(680px,calc(100vw - 32px));height:min(425px,52vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
+ .tvplayerslot.mini .tvplayerbar{background:#111720}\n .tvplayerslot.sectionmax{position:fixed;top:84px;left:22px;right:22px;bottom:22px;width:auto;height:auto;z-index:150;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 24px 75px rgba(0,0,0,.72)}
  .tvplayeractions{display:flex;align-items:center;gap:6px}
  .tvminbtn{background:#202733;border:1px solid #3a4554;color:#dce5f2;border-radius:6px;padding:3px 8px;font-size:12px;line-height:1.1;cursor:pointer}
  .tvminbtn:hover{border-color:#6d86a8;filter:none}
@@ -6502,15 +6502,21 @@ function tvPlayerGuide(){
 function tvSetMini(mini){
   const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
   if(!slot||!slot.classList.contains('on'))return;
+  const inLiveTv=!mytvView.classList.contains('hide');
   if(mini){
     if(slot.parentElement!==document.body)document.body.appendChild(slot);
+    slot.classList.remove('sectionmax');
     slot.classList.add('mini');
-  }else{
-    slot.classList.remove('mini');
+  }else if(inLiveTv){
+    slot.classList.remove('mini','sectionmax');
     if(guide&&slot.parentElement!==guide)guide.appendChild(slot);
+  }else{
+    if(slot.parentElement!==document.body)document.body.appendChild(slot);
+    slot.classList.remove('mini');
+    slot.classList.add('sectionmax');
   }
   const btn=slot.querySelector('.tvminbtn'),hit=slot.querySelector('.tvvideohit');
-  const label=mini?'Restore player':'Minimize player';
+  const label=mini?'Maximize player':'Minimize player';
   if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=mini?'\u2196':'\u2198';}
   if(hit)hit.setAttribute('aria-label',label);
 }
@@ -6542,7 +6548,7 @@ function tvStop(){
   if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
   if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
   const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
-  slot.classList.remove('on','mini');
+  slot.classList.remove('on','mini','sectionmax');
   if(guide&&slot.parentElement!==guide)guide.appendChild(slot);
   slot.innerHTML='';
   renderTvGuide();
