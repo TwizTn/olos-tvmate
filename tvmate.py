@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b274"
+VERSION = "0.777.b275"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5388,17 +5388,42 @@ async function playBrowser(sid,name){
   const controller=startSmartStream(video,urls,s=>msg.textContent=s,function(h,t){_hls=h;_mpegts=t;});
   modal._playbackController=controller;
 }
+function playerFullscreenElement(){
+  return document.fullscreenElement||document.webkitFullscreenElement||null;
+}
+function requestPlayerFullscreen(el){
+  if(!el)return false;
+  const fn=el.requestFullscreen||el.webkitRequestFullscreen;
+  if(!fn)return false;
+  try{const p=fn.call(el);if(p&&p.catch)p.catch(()=>{});return true;}catch(e){return false;}
+}
+function exitPlayerFullscreen(){
+  const fn=document.exitFullscreen||document.webkitExitFullscreen;
+  if(!fn)return false;
+  try{const p=fn.call(document);if(p&&p.catch)p.catch(()=>{});return true;}catch(e){return false;}
+}
 function setPopupPlayerMax(maximized){
   const modal=document.getElementById('playerModal'),btn=document.getElementById('pMinBtn'),hit=document.getElementById('pVideoHit');
   modal.classList.toggle('sectionmax',!!maximized);
-  const label=maximized?'Minimize player':'Maximize player';
+  const label=maximized?'Exit fullscreen':'Fullscreen player';
   if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=maximized?'\u2198':'\u2196';}
   if(hit)hit.setAttribute('aria-label',label);
 }
 function togglePopupPlayerSize(){
   const modal=document.getElementById('playerModal');
-  setPopupPlayerMax(!modal.classList.contains('sectionmax'));
+  if(playerFullscreenElement()===modal){setPopupPlayerMax(false);exitPlayerFullscreen();return;}
+  setPopupPlayerMax(true);
+  requestPlayerFullscreen(modal);
 }
+function syncPlayerFullscreenExit(){
+  if(playerFullscreenElement())return;
+  const modal=document.getElementById('playerModal');
+  if(modal&&modal.classList.contains('sectionmax'))setPopupPlayerMax(false);
+  const slot=document.getElementById('tvPlayerSlot');
+  if(slot&&slot.classList.contains('sectionmax')&&mytvView.classList.contains('hide'))tvSetMini(true);
+}
+document.addEventListener('fullscreenchange',syncPlayerFullscreenExit);
+document.addEventListener('webkitfullscreenchange',syncPlayerFullscreenExit);
 function closePlayer(){
   const modal=document.getElementById('playerModal');
   const video=document.getElementById('pVideo');
@@ -6528,7 +6553,7 @@ function tvSetMini(mini){
     slot.classList.add('sectionmax');
   }
   const btn=slot.querySelector('.tvminbtn'),hit=slot.querySelector('.tvvideohit');
-  const label=mini?'Maximize player':'Minimize player';
+  const label=mini?'Fullscreen player':'Minimize player';
   if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=mini?'\u2196':'\u2198';}
   if(hit)hit.setAttribute('aria-label',label);
 }
@@ -6552,7 +6577,15 @@ async function tvPlay(sid,name){
 function tvToggleMini(){
   const slot=document.getElementById('tvPlayerSlot');
   if(!slot||!slot.classList.contains('on'))return;
-  tvSetMini(!slot.classList.contains('mini'));
+  const inLiveTv=!mytvView.classList.contains('hide');
+  if(slot.classList.contains('mini')){
+    if(inLiveTv){tvSetMini(false);return;}
+    tvSetMini(false);
+    requestPlayerFullscreen(slot);
+    return;
+  }
+  if(playerFullscreenElement()===slot)exitPlayerFullscreen();
+  tvSetMini(true);
 }
 function tvStop(){
   _tvPlaying=null;\n  document.body.classList.remove('tvsectionplay');
