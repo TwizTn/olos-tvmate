@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b280"
+VERSION = "0.777.b281"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6166,9 +6166,11 @@ async function loadMyListTeams(favorites,racingDataPromise){
         const name=String(typeof team==='string'?team:team.name||''),key=name.toLowerCase();
         const mine=fixtures.filter(f=>(f.favorite_teams||[]).some(owner=>String(owner).toLowerCase()===key));
         const live=mine.filter(f=>f.is_live).sort((a,b)=>String(a.start).localeCompare(String(b.start)))[0];
-        const next=mine.filter(f=>{const ts=f.start?new Date(f.start).getTime():0;return ts>now;}).sort((a,b)=>new Date(a.start)-new Date(b.start))[0];
+        const upcoming=mine.filter(f=>{const ts=f.start?new Date(f.start).getTime():0;return ts>now;}).sort((a,b)=>new Date(a.start)-new Date(b.start));
+        const next=upcoming[0];
         const fixture=live||next,id=typeof team==='string'?'':String(team.team_id||''),logo=typeof team==='string'?'':(team.logo||''),src=logo||(id?'/api/team_logo?id='+encodeURIComponent(id):'');
-        if(fixture)_myListTeamMoments.push({team:name,fixture:fixture,live:!!live,logo:src,ts:live?Date.now():(fixture.start?new Date(fixture.start).getTime():Date.now())});
+        if(live)_myListTeamMoments.push({team:name,fixture:live,live:true,logo:src,ts:Date.now()});
+        for(const future of upcoming.slice(0,4)){const ts=future.start?new Date(future.start).getTime():0;if(ts)_myListTeamMoments.push({team:name,fixture:future,live:false,logo:src,ts:ts});}
         if(_myListLayout==='timeline'){
           const fixtureText=fixture?((fixture.home||'')+' v '+(fixture.away||'')):tr('No upcoming fixture found.');
           const countdown=fixture?(live?'LIVE':racingCountdown({start:fixture.start})):'';
@@ -6280,12 +6282,12 @@ async function loadMyListShows(){
   const el=document.getElementById('myListShows');
   _myListShowMoments=[];
   try{
-    const r=await api('/api/latest_episodes?limit=36'),windowMs=2*24*3600000,candidates=[];
-    for(const ep of (r.episodes||[])){const ts=Number(ep.air_ts||ep.added||0)*1000;if(ts)candidates.push({ep:ep,ts:ts,upcoming:false});}
+    const r=await api('/api/latest_episodes?limit=36'),now=Date.now(),recentWindow=2*24*3600000,upcomingWindow=7*24*3600000,candidates=[];
+    for(const ep of (r.episodes||[])){const aired=Number(ep.air_ts||0)*1000,added=Number(ep.added||0)*1000;const ts=(aired>0&&aired<=now&&now-aired<=recentWindow)?aired:(added||aired);if(ts)candidates.push({ep:ep,ts:ts,upcoming:false});}
     for(const ep of (r.upcoming||[])){const ts=Number(ep.air_ts||0)*1000||(ep.airstamp?new Date(ep.airstamp).getTime():0);if(ts)candidates.push({ep:ep,ts:ts,upcoming:true});}
     const nearest=new Map();
-    for(const row of candidates){if(Math.abs(row.ts-Date.now())>windowMs)continue;const key=String(row.ep.show_name||'').toLowerCase();const old=nearest.get(key);if(!old||Math.abs(row.ts-Date.now())<Math.abs(old.ts-Date.now()))nearest.set(key,row);}
-    const rows=Array.from(nearest.values()).sort((a,b)=>Math.abs(a.ts-Date.now())-Math.abs(b.ts-Date.now())).slice(0,5);
+    for(const row of candidates){const delta=row.ts-now;if(row.upcoming){if(delta<0||delta>upcomingWindow)continue;}else if(delta>0||Math.abs(delta)>recentWindow)continue;const key=String(row.ep.show_name||'').toLowerCase()+'|'+(row.upcoming?'upcoming':'recent');const old=nearest.get(key);if(!old||Math.abs(delta)<Math.abs(old.ts-now))nearest.set(key,row);}
+    const rows=Array.from(nearest.values()).sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)).slice(0,12);
     _myListShowMoments=rows;
     if(!rows.length){el.innerHTML='<span class="muted">'+tr('Nothing airing close to now from your favorite shows.')+'</span>';scheduleMyListTimelineRender();return;}
     el.innerHTML=rows.map(row=>{const ep=row.ep,cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';let action='';
