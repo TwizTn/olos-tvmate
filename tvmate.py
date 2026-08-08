@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b273"
+VERSION = "0.777.b274"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3137,7 +3137,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .updatebanner{position:fixed;top:0;left:0;right:0;background:#16233d;border-bottom:1px solid var(--acc);padding:10px 18px;display:flex;align-items:center;gap:12px;justify-content:center;z-index:300;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
  .updatebanner button{font-size:13px;padding:5px 14px}
  .pmodal{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);background:transparent;display:block;z-index:400}
- .pmodal.hide{display:none}\n .pmodal.sectionmax{top:84px;left:8px;right:8px;bottom:8px;width:auto;height:auto}
+ .pmodal.hide{display:none}\n .pmodal.sectionmax{top:0;left:0;right:0;bottom:0;width:100vw;height:100vh} .pmodal.sectionmax .pbox{border:0;border-radius:0;box-shadow:none}
  .pbox{position:relative;background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
  .teamtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
  .teamtab{background:var(--card);border:1px solid var(--line);color:var(--mut);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
@@ -3389,7 +3389,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
  .tvplayerslot.mini{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
- .tvplayerslot.mini .tvplayerbar{background:#111720}\n .tvplayerslot.sectionmax{position:fixed;top:84px;left:22px;right:22px;bottom:22px;width:auto;height:auto;z-index:150;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 24px 75px rgba(0,0,0,.72)}
+ .tvplayerslot.mini .tvplayerbar{background:#111720}\n .tvplayerslot.sectionmax{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:500;border:0;border-radius:0;overflow:hidden;box-shadow:none}
  .tvplayeractions{display:flex;align-items:center;gap:6px}
  .tvminbtn{background:#202733;border:1px solid #3a4554;color:#dce5f2;border-radius:6px;padding:3px 8px;font-size:12px;line-height:1.1;cursor:pointer}
  .tvminbtn:hover{border-color:#6d86a8;filter:none}
