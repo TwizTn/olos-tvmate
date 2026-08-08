@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b272"
+VERSION = "0.777.b273"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4464,7 +4464,7 @@ function setLang(l){
 function hideAll(keepMytv){
   // Live TV playback persists across sections. On wide screens, reserve a
   // right-hand watching column so destination content reflows beside it.
-  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);\n  if(!keepMytv&&hasTvPlayback){\n    if(!mytvView.classList.contains('hide'))tvSetMini(true);\n    document.body.classList.add('tvsectionplay');\n  }else if(keepMytv){\n    document.body.classList.remove('tvsectionplay');\n  }
+  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);\n  const popupPlayer=document.getElementById('playerModal');\n  const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));\n  const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);\n  if(!keepMytv&&hasPlayback){\n    if(hasTvPlayback&&!mytvView.classList.contains('hide'))tvSetMini(true);\n    document.body.classList.add('tvsectionplay');\n  }else{\n    document.body.classList.remove('tvsectionplay');\n  }
   settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
 }
 let _historyReady=false,_historyRestoring=false,_historySection='';
