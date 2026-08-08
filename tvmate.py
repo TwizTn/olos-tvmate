@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b270"
+VERSION = "0.777.b271"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3434,7 +3434,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .favcat .chname{flex:1;min-width:0}
  .favcat .chev{color:var(--acc);font-size:12px;flex-shrink:0}
  main{max-width:960px;margin:0 auto;padding:26px 22px 42px;position:relative;z-index:1}
- main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}\n @media(min-width:1800px){body.tvsectionplay main.wide{padding-right:1110px}}
+ main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}\n @media(min-width:1800px){body.tvsectionplay:not(.tvprofilefull) main.wide{padding-right:1110px}}
  input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px;cursor:pointer}
  .row{display:flex;gap:8px}
  input,select,button{font:inherit}
@@ -4462,6 +4462,7 @@ function setLang(l){
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
 function hideAll(keepMytv){
+  document.body.classList.remove('tvprofilefull');
   // Live TV playback persists across sections. On wide screens, reserve a
   // right-hand watching column so destination content reflows beside it.
   const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);\n  if(!keepMytv&&hasTvPlayback){\n    if(!mytvView.classList.contains('hide'))tvSetMini(true);\n    document.body.classList.add('tvsectionplay');\n  }else if(keepMytv){\n    document.body.classList.remove('tvsectionplay');\n  }
@@ -4480,7 +4481,7 @@ function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
 function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();loadMyTeams();if(target)setTimeout(()=>openMyTeamsFixture(target),0);}
-function showMylist(){rememberLocation('mylist');hideAll();document.body.classList.remove('tvsectionplay');mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
+function showMylist(){rememberLocation('mylist');hideAll();document.body.classList.add('tvprofilefull');mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
 // Backward compatibility for old bookmarks/configs that still point at Search.
 // Search now lives inside Playlists.
