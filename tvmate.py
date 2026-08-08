@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b279"
+VERSION = "0.777.b280"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4638,12 +4638,18 @@ function applyMyListLayout(){
   renderMyListTimeline();
 }
 function applyProfileConfig(c){
+  const prevFootball=_footballEnabled,prevRacing=_f1Enabled,prevGames=_gamesEnabled;
   _profileConfig=Object.assign({},_profileConfig,c||{});
   _selectedEmblem=_PROFILE_EMBLEMS[_profileConfig.profile_emblem]?_profileConfig.profile_emblem:'tvstack';
   _myListLayout=['balanced','spotlight','timeline','hub'].includes(_profileConfig.mylist_layout)?_profileConfig.mylist_layout:'timeline';
   _footballEnabled=_profileConfig.football_enabled!==false;
   _f1Enabled=_profileConfig.f1_enabled!==false;
   _gamesEnabled=_profileConfig.games_enabled!==false;
+  const featureChanged=prevFootball!==_footballEnabled||prevRacing!==_f1Enabled||prevGames!==_gamesEnabled;
+  if(featureChanged)_myListLoaded=false;
+  if(!_footballEnabled)_myListTeamMoments=[];
+  if(!_f1Enabled){_myListF1Moments=[];_myListRacingDrivers=[];}
+  if(!_gamesEnabled)_myListGameMoments=[];
   const nav=document.getElementById('navTeams'),teamBlock=document.getElementById('myListTeamsBlock'),sportHeading=document.getElementById('myListSportHeading'),gamesNav=document.getElementById('navGames'),gamesStart=document.getElementById('startGamesOption'),racingNav=document.getElementById('navRacing'),racingStart=document.getElementById('startRacingOption');
   if(nav)nav.classList.toggle('hide',!_footballEnabled);
   if(teamBlock)teamBlock.classList.toggle('hide',!(_footballEnabled||_f1Enabled));
@@ -4652,7 +4658,7 @@ function applyProfileConfig(c){
   if(gamesStart)gamesStart.classList.toggle('hide',!_gamesEnabled);
   if(racingNav)racingNav.classList.toggle('hide',!_f1Enabled);
   if(racingStart)racingStart.classList.toggle('hide',!_f1Enabled);
-  if(!_gamesEnabled)_myListGameMoments=[];
+
   document.querySelectorAll('.f1Feature').forEach(el=>el.classList.toggle('hide',!_f1Enabled));
   updateProfileName(_profileConfig.profile_name);
   applyBackgroundStyle(_profileConfig.background_style||(_profileConfig.decorations_enabled===false?'off':'float'));
