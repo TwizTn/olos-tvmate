@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b284"
+VERSION = "0.777.b285"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -620,7 +620,9 @@ _TVMAZE_CACHE = {}  # normalized title/year -> {"ts": epoch, "covers": {season:u
 _XT_TTL = 24 * 3600       # catalogs stay local for the session/day; manual refresh overrides
 _SHOW_INFO_TTL = 24 * 3600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
-_EPG_TTL = 8 * 3600       # persist an evening's guide; manual EPG refresh overrides
+_EPG_REFRESH_TTL = 12 * 3600       # freshness threshold; manual EPG refresh always overrides
+_EPG_DISK_RETENTION = 7 * 24 * 3600  # stale-while-offline fallback for multi-day guide use
+_EPG_LISTING_LIMIT = 168              # ask Xtream for several days where the provider supports it
 _EPG_DISK_PROVIDER = None
 
 def _clear_provider_caches():
@@ -646,14 +648,14 @@ def _load_epg_disk_cache(x):
     if _EPG_DISK_PROVIDER == provider:
         return
     _EPG_CACHE.clear()
-    cached = _load_timed_data_cache("epg-cache.json", _EPG_TTL)
+    cached = _load_timed_data_cache("epg-cache.json", _EPG_DISK_RETENTION)
     if isinstance(cached, dict) and cached.get("provider") == provider:
         entries = cached.get("entries") or {}
         if isinstance(entries, dict):
             now = time.time()
             for sid, row in entries.items():
                 if (isinstance(row, dict) and isinstance(row.get("programmes"), list)
-                        and now - float(row.get("ts") or 0) < _EPG_TTL):
+                        and now - float(row.get("ts") or 0) < _EPG_DISK_RETENTION):
                     _EPG_CACHE[str(sid)] = row
     _EPG_DISK_PROVIDER = provider
 
@@ -3137,7 +3139,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .updatebanner{position:fixed;top:0;left:0;right:0;background:#16233d;border-bottom:1px solid var(--acc);padding:10px 18px;display:flex;align-items:center;gap:12px;justify-content:center;z-index:300;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
  .updatebanner button{font-size:13px;padding:5px 14px}
  .pmodal{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);background:transparent;display:block;z-index:400}
- .pmodal.hide{display:none}\n .pmodal.sectionmax{top:0;left:0;right:0;bottom:0;width:100vw;height:100vh} .pmodal.sectionmax .pbox{border:0;border-radius:0;box-shadow:none}\n @media(min-width:1800px) and (max-width:2199px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,38vw);height:min(650px,23.75vw,68vh)}}\n @media(min-width:2200px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
+ .pmodal.hide{display:none}
+ .pmodal.sectionmax{top:0;left:0;right:0;bottom:0;width:100vw;height:100vh} .pmodal.sectionmax .pbox{border:0;border-radius:0;box-shadow:none}
+ @media(min-width:1800px) and (max-width:2199px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,38vw);height:min(650px,23.75vw,68vh)}}
+ @media(min-width:2200px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
  .pbox{position:relative;background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
  .teamtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
  .teamtab{background:var(--card);border:1px solid var(--line);color:var(--mut);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
@@ -3249,7 +3254,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mydash.layout-hub #myListTeamsBlock,.mydash.layout-hub #myListShowsBlock,.mydash.layout-hub #myListChannelsBlock{grid-column:2}
  .mydash.layout-hub .mydashgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .mydash.layout-hub .mydashepisodes{grid-template-columns:repeat(3,minmax(0,1fr))}
- .mydash.layout-timeline{display:grid;width:min(2200px,calc(100vw - 32px));max-width:none;grid-template-columns:clamp(460px,31vw,650px) minmax(0,1fr);grid-template-rows:auto auto 1fr;gap:0 30px;align-items:start}
+ .mydash.layout-timeline{display:grid;width:100%;max-width:2200px;grid-template-columns:clamp(460px,31vw,650px) minmax(0,1fr);grid-template-rows:auto auto 1fr;gap:0 30px;align-items:start}
  .mydash.layout-timeline #myListProfile{grid-column:1;grid-row:1;flex-direction:row;align-items:center;gap:12px;margin:0 0 20px;padding:4px 0 18px}
  .mydash.layout-timeline #myListProfile .mylistprofileemblem{width:52px;height:52px;flex-basis:52px}
  .mydash.layout-timeline #myListProfile .mylistprofileemblem svg{width:52px;height:52px}
@@ -3453,7 +3458,22 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .favcat .chname{flex:1;min-width:0}
  .favcat .chev{color:var(--acc);font-size:12px;flex-shrink:0}
  main{max-width:960px;margin:0 auto;padding:26px 22px 42px;position:relative;z-index:1}
- main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}\n @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,38vw) + 70px)}}\n @media(min-width:2200px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,40vw) + 70px)}}
+ main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}
+ @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,38vw) + 70px)}}
+ @media(min-width:2200px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,40vw) + 70px)}}
+ @media(min-width:1800px) and (max-width:2199px){
+   .tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,38vw);height:min(650px,23.75vw,68vh)}
+   body.tvsectionplay .mydash.layout-timeline{grid-template-columns:minmax(330px,40%) minmax(0,1fr);gap:0 20px}
+   body.tvsectionplay .mydashsportsingletop{grid-template-columns:minmax(100px,1fr) minmax(150px,1fr);gap:10px}
+   body.tvsectionplay .movieswrap,body.tvsectionplay .showswrap{grid-template-columns:190px minmax(0,1fr);gap:18px}
+   body.tvsectionplay .gameslayout{grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:18px}
+   body.tvsectionplay .teamswrap,body.tvsectionplay .racinglayout{grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:18px;padding-left:0;padding-right:0}
+   body.tvsectionplay .moviegrid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+   body.tvsectionplay .showgrid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+   body.tvsectionplay .gamegrid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+   body.tvsectionplay .racinggrid{grid-template-columns:1fr}
+ }
+ @media(min-width:2200px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
  input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px;cursor:pointer}
  .row{display:flex;gap:8px}
  input,select,button{font:inherit}
@@ -7186,7 +7206,11 @@ class Handler(BaseHTTPRequestHandler):
                 stats = {"updated": 0, "no_data": 0, "failed": 0}
                 for sid in ids:
                     cached = _EPG_CACHE.get(sid)
-                    if cached and not force and (now - cached["ts"] < _EPG_TTL):
+                    if cached and cached_only:
+                        # Cached-only navigation never contacts the provider. Retained
+                        # guide data remains useful as an offline/stale fallback.
+                        result[sid] = cached["programmes"]
+                    elif cached and not force and (now - cached["ts"] < _EPG_REFRESH_TTL):
                         result[sid] = cached["programmes"]
                     elif not cached_only:
                         to_fetch.append(sid)
@@ -7198,10 +7222,10 @@ class Handler(BaseHTTPRequestHandler):
                     stats["safe_mode"] = True
                     for i, sid in enumerate(to_fetch):
                         try:
-                            # Twelve listings gives the grid enough context for
-                            # long/short mixed schedules and providers that return
-                            # a few preceding entries around the current programme.
-                            progs = x.short_epg(sid, 12)
+                            # Request a multi-day listing window. Providers may cap this,
+                            # but retaining everything they return makes guide refreshes
+                            # useful for days rather than just the current evening.
+                            progs = x.short_epg(sid, _EPG_LISTING_LIMIT)
                         except Exception:
                             progs = None
                         old = _EPG_CACHE.get(sid)
