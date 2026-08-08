@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b278"
+VERSION = "0.777.b279"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3137,7 +3137,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .updatebanner{position:fixed;top:0;left:0;right:0;background:#16233d;border-bottom:1px solid var(--acc);padding:10px 18px;display:flex;align-items:center;gap:12px;justify-content:center;z-index:300;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
  .updatebanner button{font-size:13px;padding:5px 14px}
  .pmodal{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);background:transparent;display:block;z-index:400}
- .pmodal.hide{display:none}\n .pmodal.sectionmax{top:0;left:0;right:0;bottom:0;width:100vw;height:100vh} .pmodal.sectionmax .pbox{border:0;border-radius:0;box-shadow:none}\n @media(min-width:1800px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
+ .pmodal.hide{display:none}\n .pmodal.sectionmax{top:0;left:0;right:0;bottom:0;width:100vw;height:100vh} .pmodal.sectionmax .pbox{border:0;border-radius:0;box-shadow:none}\n @media(min-width:1800px) and (max-width:2199px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,38vw);height:min(650px,23.75vw,68vh)}}\n @media(min-width:2200px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
  .pbox{position:relative;background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
  .teamtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
  .teamtab{background:var(--card);border:1px solid var(--line);color:var(--mut);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
@@ -3434,7 +3434,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .favcat .chname{flex:1;min-width:0}
  .favcat .chev{color:var(--acc);font-size:12px;flex-shrink:0}
  main{max-width:960px;margin:0 auto;padding:26px 22px 42px;position:relative;z-index:1}
- main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}\n @media(min-width:1800px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,40vw) + 70px)}}
+ main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}\n @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,38vw) + 70px)}}\n @media(min-width:2200px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,40vw) + 70px)}}
  input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px;cursor:pointer}
  .row{display:flex;gap:8px}
  input,select,button{font:inherit}
@@ -4462,10 +4462,11 @@ function setLang(l){
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
 function hideAll(keepMytv){
-  // Live TV playback persists across sections. On wide screens, reserve a
-  // right-hand watching column so destination content reflows beside it.
-  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);\n  const popupPlayer=document.getElementById('playerModal');\n  const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));\n  const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);\n  if(!keepMytv&&hasPlayback){\n    if(hasTvPlayback&&!mytvView.classList.contains('hide'))tvSetMini(true);\n    document.body.classList.add('tvsectionplay');\n  }else{\n    document.body.classList.remove('tvsectionplay');\n  }
+  // Live TV playback persists across sections. Capture the source state first,
+  // then move the player only after the Live TV view has been hidden.
+  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);\n  const popupPlayer=document.getElementById('playerModal');\n  const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));\n  const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);\n  const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
   settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
+  if(!keepMytv&&hasPlayback){\n    if(leavingLiveTv)tvSetMini(true);\n    document.body.classList.add('tvsectionplay');\n  }else{\n    document.body.classList.remove('tvsectionplay');\n  }
 }
 let _historyReady=false,_historyRestoring=false,_historySection='';
 function rememberLocation(section,extra){
