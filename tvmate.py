@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b259"
+VERSION = "0.777.b260"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3390,7 +3390,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvplayerslot.on{display:block}
  .tvplayerslot.mini{position:fixed;top:auto;left:auto;right:22px;bottom:22px;width:min(420px,calc(100vw - 32px));height:min(270px,38vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
  .tvplayerslot.mini .tvplayerbar{background:#111720}
- .tvplayerslot.mini #tvVideo{cursor:zoom-in}
+ .tvplayeractions{display:flex;align-items:center;gap:6px}
+ .tvminbtn{background:#202733;border:1px solid #3a4554;color:#dce5f2;border-radius:6px;padding:3px 8px;font-size:12px;line-height:1.1;cursor:pointer}
+ .tvminbtn:hover{border-color:#6d86a8;filter:none}
+ .tvvideohit{position:absolute;left:0;right:0;top:34px;bottom:46px;z-index:2;border:0;border-radius:0;padding:0;background:transparent;cursor:zoom-out}
+ .tvvideohit:hover,.tvvideohit:active{background:transparent;filter:none;transform:none}
+ .tvplayerslot.mini .tvvideohit{cursor:zoom-in}
  .tvguidebody{flex:1;overflow-y:auto;position:relative;scrollbar-gutter:stable}
  .tvchan{width:286px;flex-shrink:0;border-right:1px solid #303642;display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;font-size:12px;transition:background .1s;background:#11151b}
  .tvchan:hover{background:var(--card2)}
@@ -6491,14 +6496,32 @@ function epgCellHtml(sid,winStart,winEnd){
     return '<span class="'+cls+'" style="left:'+left.toFixed(3)+'%;width:calc('+width.toFixed(3)+'% - 2px)" title="'+escAttr(tm+' '+p.title)+'"><span class="epgt">'+tm+'</span><span class="epgtitle">'+esc(p.title)+'</span></span>';
   }).join('');
 }
+function tvPlayerGuide(){
+  return document.querySelector('#mytvView .tvguide');
+}
+function tvSetMini(mini){
+  const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
+  if(!slot||!slot.classList.contains('on'))return;
+  if(mini){
+    if(slot.parentElement!==document.body)document.body.appendChild(slot);
+    slot.classList.add('mini');
+  }else{
+    slot.classList.remove('mini');
+    if(guide&&slot.parentElement!==guide)guide.appendChild(slot);
+  }
+  const btn=slot.querySelector('.tvminbtn'),hit=slot.querySelector('.tvvideohit');
+  const label=mini?'Restore player':'Minimize player';
+  if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=mini?'\u2196':'\u2198';}
+  if(hit)hit.setAttribute('aria-label',label);
+}
 async function tvPlay(sid,name){
   _tvPlaying=sid;
-  const slot=document.getElementById('tvPlayerSlot');
+  const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
+  if(guide&&slot.parentElement!==guide)guide.appendChild(slot);
   slot.classList.remove('mini');slot.classList.add('on');
-  slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><button class="pclose" onclick="tvStop()">&times;</button></div><video id="tvVideo" controls autoplay playsinline></video>';
+  slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline></video><button type="button" class="tvvideohit" aria-label="Minimize player" onclick="tvToggleMini()"></button>';
   renderTvGuide();
   const video=document.getElementById('tvVideo');
-  video.addEventListener('click',function(){tvToggleMini();});
   let urls;
   try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){return;}
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
@@ -6509,15 +6532,17 @@ async function tvPlay(sid,name){
 function tvToggleMini(){
   const slot=document.getElementById('tvPlayerSlot');
   if(!slot||!slot.classList.contains('on'))return;
-  slot.classList.toggle('mini');
+  tvSetMini(!slot.classList.contains('mini'));
 }
 function tvStop(){
   _tvPlaying=null;
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
   if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
   if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
-  const slot=document.getElementById('tvPlayerSlot');
-  slot.classList.remove('on','mini');slot.innerHTML='';
+  const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
+  slot.classList.remove('on','mini');
+  if(guide&&slot.parentElement!==guide)guide.appendChild(slot);
+  slot.innerHTML='';
   renderTvGuide();
 }
 async function epgRefresh(){
