@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b260"
+VERSION = "0.777.b261"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3388,7 +3388,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvnowhead:before{content:"";position:absolute;top:4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#e1535c}
  .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
- .tvplayerslot.mini{position:fixed;top:auto;left:auto;right:22px;bottom:22px;width:min(420px,calc(100vw - 32px));height:min(270px,38vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
+ .tvplayerslot.mini{position:fixed;top:auto;left:auto;right:22px;bottom:22px;width:min(560px,calc(100vw - 32px));height:min(350px,46vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
  .tvplayerslot.mini .tvplayerbar{background:#111720}
  .tvplayeractions{display:flex;align-items:center;gap:6px}
  .tvminbtn{background:#202733;border:1px solid #3a4554;color:#dce5f2;border-radius:6px;padding:3px 8px;font-size:12px;line-height:1.1;cursor:pointer}
@@ -6515,11 +6515,13 @@ function tvSetMini(mini){
   if(hit)hit.setAttribute('aria-label',label);
 }
 async function tvPlay(sid,name){
-  _tvPlaying=sid;
   const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
-  if(guide&&slot.parentElement!==guide)guide.appendChild(slot);
-  slot.classList.remove('mini');slot.classList.add('on');
+  const wasMini=slot.classList.contains('mini');
+  _tvPlaying=sid;
+  slot.classList.add('on');
+  if(!wasMini&&guide&&slot.parentElement!==guide)guide.appendChild(slot);
   slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline></video><button type="button" class="tvvideohit" aria-label="Minimize player" onclick="tvToggleMini()"></button>';
+  tvSetMini(wasMini);
   renderTvGuide();
   const video=document.getElementById('tvVideo');
   let urls;
