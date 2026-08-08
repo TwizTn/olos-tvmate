@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b283"
+VERSION = "0.777.b284"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3298,6 +3298,25 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mydash.layout-timeline .mydashchannelname{grid-column:2;grid-row:1;font-size:12px;line-height:1.3;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
  .mydash.layout-timeline .mydashchannel .btnvlc{grid-column:3;grid-row:1;justify-self:end;padding:5px 9px;font-size:11px;margin:0}
  .mydash.layout-timeline .mydashchannel.muted{display:flex;align-items:center;justify-content:center;text-align:center;font-size:10px}
+ .mytimelinecontrols{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:26px;margin:-30px 0 14px;padding-right:2px}
+ .mytimelinefilter{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--mut);padding:4px 1px 5px;font:inherit;font-size:11px;font-weight:650;cursor:pointer}
+ .mytimelinefilter:hover{color:var(--fg)}
+ .mytimelinefilter.on.all{color:var(--fg);border-bottom-color:var(--acc)}
+ .mytimelinefilter.on.show{color:#e5a25f;border-bottom-color:#c8752c}
+ .mytimelinefilter.on.movie{color:#72aee8;border-bottom-color:#3e82c5}
+ .mytimelinefilter.on.game{color:#b695e8;border-bottom-color:#7651b7}
+ .mytimelinefilter.on.sport{color:#70c987;border-bottom-color:#38a85d}
+ .mytimelinefilter.on.f1{color:#ef7777;border-bottom-color:#d83a3a}
+ .mytimelinefilter.settings{margin-left:18px;color:var(--mut)}
+ .mytimelinefilter.settings.changed{color:var(--fg);border-bottom-color:var(--acc)}
+ .mytimelinefilterpanel{position:absolute;z-index:30;right:0;top:32px;width:270px;background:var(--card2);border:1px solid var(--line2);border-radius:9px;padding:12px 14px;box-shadow:0 14px 38px #0009}
+ .mytimelinefilterpanel h4{margin:0 0 10px;font-size:12px;color:var(--fg)}
+ .mytimelinefilterpanel label{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--mut);font-size:11px;padding:5px 0}
+ .mytimelinefilterpanel .timelinechecks{display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:6px}
+ .mytimelinefilterpanel .timelinechecks label{justify-content:flex-start;gap:5px;padding:2px 0}
+ .mytimelinefilterpanel select{min-width:112px;background:var(--bg);color:var(--fg);border:1px solid var(--line2);border-radius:6px;padding:5px 7px}
+ .timelinefilterreset{width:100%;margin-top:8px;background:transparent;border:1px solid var(--line2);color:var(--mut);border-radius:6px;padding:6px;cursor:pointer}
+ @media(max-width:900px){.mytimelinecontrols{margin:0 0 14px;justify-content:flex-start;gap:10px;flex-wrap:wrap}.mytimelinefilter.settings{margin-left:0}.mytimelinefilterpanel{left:0;right:auto}}
  .mylisttimeline{border-left:1px solid var(--line2);margin-left:9px;padding-left:22px;display:flex;flex-direction:column;gap:0}
  .mylisttimelinesection{position:relative;margin:2px 0 11px;font-size:10px;font-weight:750;letter-spacing:.8px;text-transform:uppercase;color:var(--mut)}
  .mylisttimelinesection:before{content:"";position:absolute;left:-27px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--line2);box-shadow:0 0 0 3px var(--bg)}
@@ -6068,6 +6087,7 @@ async function loadFavorites(){
   loadMyListShows();
 }
 let _myListLoaded=false,_myListFavData={channels:[],teams:[],f1_teams:[]},_myListSelectedChannels=[],_myListTeamMoments=[],_myListF1Moments=[],_myListMovieMoments=[],_myListGameMoments=[],_myListShowMoments=[],_myListRacingDrivers=[];
+let _myTimelineFilter='all',_myTimelineSettings={recent:true,live:true,upcoming:true,maxPerCategory:0},_myTimelinePrefsLoaded=false;
 let _myListTimelineRenderPending=false;
 function scheduleMyListTimelineRender(){
   if(_myListTimelineRenderPending)return;
@@ -6327,6 +6347,33 @@ function setupDemoCover(label,color){
   const svg='<svg xmlns="http://www.w3.org/2000/svg" width="180" height="260"><rect width="180" height="260" rx="12" fill="'+color+'"/><circle cx="90" cy="92" r="42" fill="#ffffff18"/><text x="90" y="105" text-anchor="middle" font-size="50">📺</text><text x="90" y="190" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#fff">'+label+'</text><text x="90" y="216" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#ffffffaa">TVMate demo</text></svg>';
   return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
+function timelineLoadPrefs(){
+  if(_myTimelinePrefsLoaded)return;_myTimelinePrefsLoaded=true;
+  try{
+    const kind=localStorage.getItem('tvmateTimelineFilter');if(['all','show','movie','game','sport','f1'].includes(kind))_myTimelineFilter=kind;
+    const saved=JSON.parse(localStorage.getItem('tvmateTimelineSettings')||'{}');
+    _myTimelineSettings=Object.assign({},_myTimelineSettings,saved||{});
+  }catch(e){}
+}
+function timelineSavePrefs(){try{localStorage.setItem('tvmateTimelineFilter',_myTimelineFilter);localStorage.setItem('tvmateTimelineSettings',JSON.stringify(_myTimelineSettings));}catch(e){}}
+function timelineFilterGroup(kind){return kind==='team'?'sport':(kind==='f1'?'f1':kind);}
+function timelineSettingsChanged(){const x=_myTimelineSettings;return x.recent!==true||x.live!==true||x.upcoming!==true||Number(x.maxPerCategory||0)!==0;}
+function timelineControlsHtml(){
+  const kinds=[['all','All'],['show','Shows'],['movie','Movies'],['game','Games'],['sport','Sports'],['f1','Racing']];let h='<div class="mytimelinecontrols">';
+  for(const k of kinds)h+='<button class="mytimelinefilter '+k[0]+(_myTimelineFilter===k[0]?' on':'')+'" data-kind="'+k[0]+'" onclick="setTimelineFilter(this.dataset.kind)">'+esc(tr(k[1]))+'</button>';
+  h+='<button class="mytimelinefilter settings'+(timelineSettingsChanged()?' changed':'')+'" onclick="toggleTimelineSettings(this)">&#9881; '+esc(tr('Filter'))+'</button>';
+  h+='<div class="mytimelinefilterpanel hide"><h4>'+esc(tr('Timeline settings'))+'</h4><div class="timelinechecks">'
+    +'<label><input type="checkbox" data-setting="recent" '+(_myTimelineSettings.recent?'checked':'')+' onchange="setTimelineSetting(this)"> '+esc(tr('Recently'))+'</label>'
+    +'<label><input type="checkbox" data-setting="live" '+(_myTimelineSettings.live?'checked':'')+' onchange="setTimelineSetting(this)"> '+esc(tr('Live now'))+'</label>'
+    +'<label><input type="checkbox" data-setting="upcoming" '+(_myTimelineSettings.upcoming?'checked':'')+' onchange="setTimelineSetting(this)"> '+esc(tr('Upcoming'))+'</label></div>'
+    +'<label><span>'+esc(tr('Maximum per category'))+'</span><select data-setting="maxPerCategory" onchange="setTimelineSetting(this)">'
+    +[[0,'App default'],[2,'2'],[4,'4'],[6,'6'],[8,'8'],[12,'12']].map(x=>'<option value="'+x[0]+'"'+(Number(_myTimelineSettings.maxPerCategory||0)===x[0]?' selected':'')+'>'+esc(tr(x[1]))+'</option>').join('')+'</select></label>'
+    +'<button class="timelinefilterreset" onclick="resetTimelineSettings()">'+esc(tr('Reset to default'))+'</button></div></div>';return h;
+}
+function setTimelineFilter(kind){_myTimelineFilter=['all','show','movie','game','sport','f1'].includes(kind)?kind:'all';timelineSavePrefs();renderMyListTimeline();}
+function toggleTimelineSettings(btn){const wrap=btn.closest('.mytimelinecontrols'),panel=wrap?wrap.querySelector('.mytimelinefilterpanel'):null;if(panel)panel.classList.toggle('hide');}
+function setTimelineSetting(input){const key=input.dataset.setting;if(key==='maxPerCategory')_myTimelineSettings[key]=Math.max(0,Number(input.value||0));else _myTimelineSettings[key]=!!input.checked;timelineSavePrefs();renderMyListTimeline();}
+function resetTimelineSettings(){_myTimelineSettings={recent:true,live:true,upcoming:true,maxPerCategory:0};timelineSavePrefs();renderMyListTimeline();}
 function renderMyListTimeline(){
   const el=document.getElementById('myListTimeline'),standalone=document.getElementById('myTimelineStandalone');if(!el&&!standalone)return;
   const now=Date.now(),moments=[];
@@ -6340,12 +6387,25 @@ function renderMyListTimeline(){
     moments.push({kind:'show',ts:now-6*3600000,live:false,data:{upcoming:false,ep:{show_name:'Example Show',season:1,episode_num:1,title:'Welcome to TVMate',cover:setupDemoCover('EXAMPLE SHOW','#7a3d12'),available:false,series_id:'',catalog_id:''}}});
     moments.push({kind:'movie',ts:now+36*3600000,live:false,data:{movie:{name:'Example Movie',year:new Date().getFullYear(),cover:setupDemoCover('EXAMPLE MOVIE','#164a72'),stream_found:false}}});
   }
-  if(!moments.length){const empty='<span class="muted">'+tr('Nothing happening around now.')+'</span>';if(el)el.innerHTML=empty;if(standalone)standalone.innerHTML=empty;return;}
-  const recent=moments.filter(m=>!m.live&&m.ts<now).sort((a,b)=>a.ts-b.ts).map(m=>Object.assign({section:'recent'},m));
-  const live=moments.filter(m=>m.live).sort((a,b)=>a.ts-b.ts).map(m=>Object.assign({section:'live'},m));
-  const upcoming=moments.filter(m=>!m.live&&m.ts>=now).sort((a,b)=>a.ts-b.ts).map(m=>Object.assign({section:'upcoming'},m));
+  timelineLoadPrefs();
+  const controls=timelineControlsHtml();
+  let filtered=moments.filter(m=>_myTimelineFilter==='all'||timelineFilterGroup(m.kind)===_myTimelineFilter);
+  if(!_myTimelineSettings.recent)filtered=filtered.filter(m=>m.live||m.ts>=now);
+  if(!_myTimelineSettings.live)filtered=filtered.filter(m=>!m.live);
+  if(!_myTimelineSettings.upcoming)filtered=filtered.filter(m=>m.live||m.ts<now);
+  const maxPerCategory=Math.max(0,Number(_myTimelineSettings.maxPerCategory||0));
+  if(maxPerCategory){
+    const keep=new Set(),groups=new Map();
+    for(const m of filtered){const key=timelineFilterGroup(m.kind);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(m);}
+    for(const rows of groups.values())for(const m of rows.sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)).slice(0,maxPerCategory))keep.add(m);
+    filtered=filtered.filter(m=>keep.has(m));
+  }
+  if(!filtered.length){const empty=controls+'<div class="muted" style="padding:12px 0">'+tr('Nothing happening around now.')+'</div>';if(el)el.innerHTML=empty;if(standalone)standalone.innerHTML=empty;return;}
+  const recent=filtered.filter(m=>!m.live&&m.ts<now).sort((a,b)=>a.ts-b.ts).map(m=>Object.assign({section:'recent'},m));
+  const live=filtered.filter(m=>m.live).sort((a,b)=>a.ts-b.ts).map(m=>Object.assign({section:'live'},m));
+  const upcoming=filtered.filter(m=>!m.live&&m.ts>=now).sort((a,b)=>a.ts-b.ts).map(m=>Object.assign({section:'upcoming'},m));
   const ordered=recent.concat(live,upcoming);
-  let h='<div class="mylisttimeline">';
+  let h=controls+'<div class="mylisttimeline">';
   let section='';
   for(const moment of ordered){
     if(moment.section!==section){section=moment.section;const label=section==='recent'?tr('Recently'):(section==='live'?tr('Live now'):tr('Upcoming'));h+='<div class="mylisttimelinesection '+section+'">'+esc(label)+'</div>';}
