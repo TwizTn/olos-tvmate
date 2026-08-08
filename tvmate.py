@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b276"
+VERSION = "0.777.b277"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3931,12 +3931,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <section id="channelsView" class="hide">
     <div class="playlistsearch">
       <div class="col">
-        <div class="colh" data-i18n="Find Channels">Find Channels</div>
+        <div class="colh"><span data-i18n="Find Channels">Find Channels</span><button type="button" class="clrbtn" onclick="resetPlaylistSearch()" data-i18n="Reset">Reset</button></div>
         <div class="row"><input id="cq" type="text" placeholder="Find a channel, e.g. tv2 play" data-i18n-ph="Find a channel, e.g. tv2 play" onkeydown="if(event.key==='Enter')doChannelSearch('cq','cresults')"><button onclick="doChannelSearch('cq','cresults')" data-i18n="Search">Find</button></div>
         <div id="cresults"></div>
       </div>
       <div class="col">
-        <div class="colh" data-i18n="Find Categories">Find Categories</div>
+        <div class="colh"><span data-i18n="Find Categories">Find Categories</span><button type="button" class="clrbtn" onclick="resetPlaylistSearch()" data-i18n="Reset">Reset</button></div>
         <div class="row"><input id="catq" type="text" placeholder="Search a category, e.g. Norway" data-i18n-ph="Search a category, e.g. Norway" onkeydown="if(event.key==='Enter')doCategorySearch()"><button onclick="doCategorySearch()" data-i18n="Search">Find</button></div>
         <div id="catresults"></div>
       </div>
@@ -4378,7 +4378,7 @@ const _I18N={
   "Favorite Channels":"Favorittkanaler","EPG Refresh":"Oppdater EPG","Channels":"Kanaler",
   "All Categories":"Alle kategorier","Selected categories":"Valgte kategorier","Filter Channels":"Kanaler","Playlist":"Spilleliste",
   "Add to Favorites":"Legg til favoritter","Tick all":"Velg alle","Untick all":"Fjern alle","Add ticked":"Legg til valgte",
-  "Make Playlist (Categories)":"Lag spilleliste (kategorier)","Make Playlist (Channels)":"Lag spilleliste (kanaler)","Clear":"Fjern",
+  "Make Playlist (Categories)":"Lag spilleliste (kategorier)","Make Playlist (Channels)":"Lag spilleliste (kanaler)","Clear":"Fjern","Reset":"Nullstill",
   "Ticked channels land here.":"Valgte kanaler vises her.",
   "Click a selected category to see its channels.":"Trykk på en kategori for å vise kanaler",
   "Tick categories on the left.":"Velg kategorier på venstre side.",
@@ -4970,6 +4970,15 @@ async function buildPlaylistM3U(){
   const a=document.createElement('a');
   a.href=url;a.download='playlist.m3u';document.body.appendChild(a);a.click();
   setTimeout(function(){URL.revokeObjectURL(url);a.remove();},500);
+}
+
+// Reset only the temporary Playlist searches; keep the user's builder selections intact.
+function resetPlaylistSearch(){
+  const cq=document.getElementById('cq'),catq=document.getElementById('catq');
+  const cr=document.getElementById('cresults'),ctr=document.getElementById('catresults');
+  if(cq)cq.value='';if(catq)catq.value='';if(cr)cr.innerHTML='';if(ctr)ctr.innerHTML='';
+  const builder=document.querySelector('#channelsView .ch4');
+  if(builder)builder.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 // Right-column channel search on the Search page (simple version)
