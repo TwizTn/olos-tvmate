@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b263"
+VERSION = "0.777.b264"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3434,7 +3434,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .favcat .chname{flex:1;min-width:0}
  .favcat .chev{color:var(--acc);font-size:12px;flex-shrink:0}
  main{max-width:960px;margin:0 auto;padding:26px 22px 42px;position:relative;z-index:1}
- main.wide{max-width:none;padding:26px 30px 44px}
+ main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}\n @media(min-width:1500px){body.tvsectionplay main.wide{padding-right:750px}}
  input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px;cursor:pointer}
  .row{display:flex;gap:8px}
  input,select,button{font:inherit}
@@ -4462,9 +4462,9 @@ function setLang(l){
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
 function hideAll(keepMytv){
-  // Live TV playback persists across sections. Leaving the guide floats the
-  // existing player above the destination section without restarting it.
-  if(!keepMytv&&!mytvView.classList.contains('hide')&&(_tvPlaying!==null||window._tvPlaybackController))tvSetMini(true);
+  // Live TV playback persists across sections. On wide screens, reserve a
+  // right-hand watching column so destination content reflows beside it.
+  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);\n  if(!keepMytv&&hasTvPlayback){\n    if(!mytvView.classList.contains('hide'))tvSetMini(true);\n    document.body.classList.add('tvsectionplay');\n  }else if(keepMytv){\n    document.body.classList.remove('tvsectionplay');\n  }
   settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
 }
 let _historyReady=false,_historyRestoring=false,_historySection='';
@@ -6543,7 +6543,7 @@ function tvToggleMini(){
   tvSetMini(!slot.classList.contains('mini'));
 }
 function tvStop(){
-  _tvPlaying=null;
+  _tvPlaying=null;\n  document.body.classList.remove('tvsectionplay');
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
   if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
   if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
