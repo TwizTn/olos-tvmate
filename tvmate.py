@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b261"
+VERSION = "0.777.b262"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3388,7 +3388,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvnowhead:before{content:"";position:absolute;top:4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#e1535c}
  .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
- .tvplayerslot.mini{position:fixed;top:auto;left:auto;right:22px;bottom:22px;width:min(560px,calc(100vw - 32px));height:min(350px,46vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
+ .tvplayerslot.mini{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:22px;bottom:auto;width:min(560px,calc(100vw - 32px));height:min(350px,46vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
  .tvplayerslot.mini .tvplayerbar{background:#111720}
  .tvplayeractions{display:flex;align-items:center;gap:6px}
  .tvminbtn{background:#202733;border:1px solid #3a4554;color:#dce5f2;border-radius:6px;padding:3px 8px;font-size:12px;line-height:1.1;cursor:pointer}
@@ -4462,9 +4462,9 @@ function setLang(l){
   try{localStorage.setItem('tvmate_lang',l);}catch(e){}
 }
 function hideAll(keepMytv){
-  // Leaving Live TV must also stop the stream. Hiding the section alone left
-  // browser playback running invisibly in the background.
-  if(!keepMytv&&!mytvView.classList.contains('hide')&&(_tvPlaying!==null||window._tvPlaybackController))tvStop();
+  // Live TV playback persists across sections. Leaving the guide floats the
+  // existing player above the destination section without restarting it.
+  if(!keepMytv&&!mytvView.classList.contains('hide')&&(_tvPlaying!==null||window._tvPlaybackController))tvSetMini(true);
   settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
 }
 let _historyReady=false,_historyRestoring=false,_historySection='';
