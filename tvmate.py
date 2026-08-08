@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b265"
+VERSION = "0.777.b266"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3136,9 +3136,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:1100px){header{overflow-x:auto;scrollbar-width:none}header::-webkit-scrollbar{display:none}.slogan{display:none}.langsel{margin-left:auto}}
  .updatebanner{position:fixed;top:0;left:0;right:0;background:#16233d;border-bottom:1px solid var(--acc);padding:10px 18px;display:flex;align-items:center;gap:12px;justify-content:center;z-index:300;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
  .updatebanner button{font-size:13px;padding:5px 14px}
- .pmodal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:400}
- .pmodal.hide{display:none}
- .pbox{background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:min(880px,92vw);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+ .pmodal{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:8px;bottom:auto;width:min(800px,calc(100vw - 16px));height:min(500px,58vh);background:transparent;display:block;z-index:400}
+ .pmodal.hide{display:none}\n .pmodal.sectionmax{top:84px;left:8px;right:8px;bottom:8px;width:auto;height:auto}
+ .pbox{position:relative;background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
  .teamtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
  .teamtab{background:var(--card);border:1px solid var(--line);color:var(--mut);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
  .teamtab.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:600}
@@ -3174,7 +3174,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
  .pclose{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
  .pclose:hover{color:var(--fg);filter:none}
- #pVideo{width:100%;max-height:70vh;background:#000;display:block}
+ #pVideo{width:100%;height:auto;max-height:none;flex:1;min-height:0;background:#000;display:block;object-fit:contain}
  .btnplay{background:var(--acc);border:0;color:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;margin-right:5px}
  .btnvlc{background:#e8701a;border:0;color:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;margin-right:5px}
  .btnplay:hover,.btnvlc:hover{filter:brightness(1.1)}
@@ -4280,8 +4280,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 </div>
 <div id="playerModal" class="pmodal hide" onclick="if(event.target===this)closePlayer()">
   <div class="pbox">
-    <div class="pbar"><span id="pTitle" data-i18n="Player">Player</span><button class="pclose" onclick="closePlayer()">&times;</button></div>
-    <video id="pVideo" controls autoplay playsinline></video>
+    <div class="pbar"><span id="pTitle" data-i18n="Player">Player</span><div class="tvplayeractions"><button type="button" class="tvminbtn" id="pMinBtn" title="Maximize player" aria-label="Maximize player" onclick="togglePopupPlayerSize()">&#8598;</button><button class="pclose" onclick="closePlayer()">&times;</button></div></div>
+    <video id="pVideo" controls autoplay playsinline></video>\n    <button type="button" class="tvvideohit" id="pVideoHit" aria-label="Maximize player" onclick="togglePopupPlayerSize()"></button>
     <div id="pMsg" class="muted" style="padding:8px 12px"></div>
   </div>
 </div>
@@ -5379,7 +5379,7 @@ async function playBrowser(sid,name){
   const msg=document.getElementById('pMsg');
   document.getElementById('pTitle').textContent=name||'Player';
   msg.textContent='Loading...';
-  modal.classList.remove('hide');
+  modal.classList.remove('hide');\n  setPopupPlayerMax(false);\n  document.body.classList.add('tvsectionplay');
   // get the hls url
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
   if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
@@ -5388,13 +5388,24 @@ async function playBrowser(sid,name){
   const controller=startSmartStream(video,urls,s=>msg.textContent=s,function(h,t){_hls=h;_mpegts=t;});
   modal._playbackController=controller;
 }
+function setPopupPlayerMax(maximized){
+  const modal=document.getElementById('playerModal'),btn=document.getElementById('pMinBtn'),hit=document.getElementById('pVideoHit');
+  modal.classList.toggle('sectionmax',!!maximized);
+  const label=maximized?'Minimize player':'Maximize player';
+  if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=maximized?'\u2198':'\u2196';}
+  if(hit)hit.setAttribute('aria-label',label);
+}
+function togglePopupPlayerSize(){
+  const modal=document.getElementById('playerModal');
+  setPopupPlayerMax(!modal.classList.contains('sectionmax'));
+}
 function closePlayer(){
   const modal=document.getElementById('playerModal');
   const video=document.getElementById('pVideo');
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
   if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
   video.pause();video.removeAttribute('src');video.load();
-  modal.classList.add('hide');
+  modal.classList.add('hide');\n  modal.classList.remove('sectionmax');\n  const liveAway=(_tvPlaying!==null||window._tvPlaybackController)&&mytvView.classList.contains('hide');\n  if(!liveAway)document.body.classList.remove('tvsectionplay');
 }
 async function playVLC(sid,btn){
   const old=btn?btn.textContent:'';
