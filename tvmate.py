@@ -42,10 +42,6 @@ import webbrowser
 import hashlib
 import shutil
 import datetime
-import gzip
-import tempfile
-import zlib
-import xml.etree.ElementTree as ET
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -91,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b291"
+VERSION = "0.777.b292"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -786,23 +782,25 @@ def _xmltv_parse_ts(val):
 
 def fetch_xmltv_epg(x, wanted_epg_ids, timeout=90):
     """Download and parse bulk XMLTV while keeping large payloads off RAM."""
+    import xml.etree.ElementTree as _ET
+    import gzip as _gzip, tempfile as _tempfile, zlib as _zlib
     wanted = set(str(w) for w in wanted_epg_ids if w)
     if not wanted:
         return {}
     req = urllib.request.Request(x.xmltv_url(), headers={
         "User-Agent": UA, "Accept-Encoding": "gzip, deflate"})
-    with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as xml_file:
+    with _tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as xml_file:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             encoding = (resp.headers.get("Content-Encoding") or "").lower()
             if "gzip" in encoding:
-                source = gzip.GzipFile(fileobj=resp)
+                source = _gzip.GzipFile(fileobj=resp)
                 while True:
                     chunk = source.read(1024 * 1024)
                     if not chunk:
                         break
                     xml_file.write(chunk)
             elif "deflate" in encoding:
-                decoder = zlib.decompressobj()
+                decoder = _zlib.decompressobj()
                 while True:
                     chunk = resp.read(1024 * 1024)
                     if not chunk:
@@ -821,7 +819,7 @@ def fetch_xmltv_epg(x, wanted_epg_ids, timeout=90):
             raise ValueError("xmltv.php returned HTML, not XML (blocked/redirect)")
         xml_file.seek(0)
         out = {}
-        for _event, elem in ET.iterparse(xml_file, events=("end",)):
+        for _event, elem in _ET.iterparse(xml_file, events=("end",)):
             tag = elem.tag.lower()
             if tag == "programme":
                 ch = elem.get("channel", "")
