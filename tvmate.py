@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b289"
+VERSION = "0.777.b290"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5654,6 +5654,7 @@ async function playBrowser(sid,name){
   document.getElementById('pTitle').textContent=name||'Player';
   msg.textContent='Loading...';
   modal.classList.remove('hide');\n  setPopupPlayerMax(false);\n  document.body.classList.add('tvsectionplay');
+  syncSectionPlayerLayout();
   // get the hls url
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
   if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
@@ -5664,6 +5665,20 @@ async function playBrowser(sid,name){
 }
 function playerFullscreenElement(){
   return document.fullscreenElement||document.webkitFullscreenElement||null;
+}
+function syncSectionPlayerLayout(){
+  // Force the already-open section to adopt its constrained player layout on
+  // the first frame. Previously this happened reliably only after navigating
+  // away and back, especially at 1920x1080.
+  void document.body.offsetWidth;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    if(!racingView.classList.contains('hide')){
+      const drivers=document.getElementById('racingDrivers');
+      if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);
+      renderRacingScheduleCards();
+    }
+    window.dispatchEvent(new Event('resize'));
+  }));
 }
 function requestPlayerFullscreen(el){
   if(!el)return false;
@@ -6025,10 +6040,11 @@ function racingF1PairHtml(pair,events){
 }
 function racingDriversHtml(rows,events){
   const list=rows||[],f1=list.filter(driver=>driver.series==='f1'),other=list.filter(driver=>driver.series!=='f1'),parts=[];
-  if(f1.length>=2)parts.push(racingF1PairHtml(f1.slice(0,2),events));
-  else for(const driver of f1)parts.push(racingDriverHtml(driver,events));
-  for(const driver of other)parts.push(racingDriverHtml(driver,events));
-  return parts.join('');
+  if(f1.length>=2)parts.push({key:'f1-team',html:racingF1PairHtml(f1.slice(0,2),events)});
+  else for(const driver of f1)parts.push({key:String(driver.key||''),html:racingDriverHtml(driver,events)});
+  for(const driver of other)parts.push({key:String(driver.key||''),html:racingDriverHtml(driver,events)});
+  parts.sort((a,b)=>(a.key===String(_racingDetailKey||'')?-1:0)-(b.key===String(_racingDetailKey||'')?-1:0));
+  return parts.map(part=>part.html).join('');
 }
 function racingEventHtml(event){
   const ts=new Date(event.start),locale=_lang==='no'?'nb-NO':undefined;
@@ -6043,7 +6059,8 @@ function renderRacingScheduleCards(){
   const selectedDriver=_racingDriverRows.find(row=>String(row.key||'')===String(_racingDetailKey||''));
   const selectedSeries=_racingDetailKey==='f1-team'?'f1':String((selectedDriver&&selectedDriver.series)||'');
   for(const event of _racingEventRows){const ts=new Date(event.start).getTime();if(!Number.isFinite(ts)||ts<now-24*3600000)continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
-  let h='';for(const row of _RACING_SERIES){if(!_racingSelected.has(row[0]))continue;const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard series-'+escAttr(row[0])+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
+  let h='';const orderedSeries=_RACING_SERIES.filter(row=>_racingSelected.has(row[0])).sort((a,b)=>(a[0]===selectedSeries?-1:0)-(b[0]===selectedSeries?-1:0));
+  for(const row of orderedSeries){const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard series-'+escAttr(row[0])+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
   info.innerHTML=h||'<span class="muted">'+esc(tr('Choose at least one racing series above.'))+'</span>';
 }
 async function loadRacingAvailability(){
