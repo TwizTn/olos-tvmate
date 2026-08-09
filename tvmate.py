@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b304"
+VERSION = "0.777.b305"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -753,6 +753,31 @@ def _load_epg_disk_cache(x):
 def _save_epg_disk_cache(x):
     _save_timed_data_cache("epg-cache.json", {
         "provider": _vod_cache_key(x), "entries": _EPG_CACHE})
+
+def _epg_cache_has_coverage(row, now=None):
+    """True when cached guide rows still contain a current or future item.
+
+    Cache age alone is insufficient: some Xtream short-EPG responses contain
+    only a few hours, so a recently downloaded row may already be exhausted.
+    """
+    now = float(now or time.time())
+    programmes = row.get("programmes") if isinstance(row, dict) else None
+    if not isinstance(programmes, list) or not programmes:
+        return False
+    for programme in programmes:
+        if not isinstance(programme, dict):
+            continue
+        try:
+            start = float(programme.get("start_ts") or 0)
+        except (TypeError, ValueError):
+            start = 0
+        try:
+            stop = float(programme.get("stop_ts") or 0)
+        except (TypeError, ValueError):
+            stop = 0
+        if stop > now or start >= now:
+            return True
+    return False
 
 # --- Bulk XMLTV EPG (one download for all channels) ------------------------
 # Many Xtream providers expose xmltv.php which returns the full guide in a
@@ -6945,7 +6970,9 @@ function epgCellHtml(sid,winStart,winEnd){
     return stop>ws&&start<we;
   }).sort(function(a,b){return epgWallClockTs(a.start,a.start_ts)-epgWallClockTs(b.start,b.start_ts);});
   if(!timed.length){
-    const next=progs.filter(p=>p.title&&epgWallClockTs(p.start,p.start_ts)>=ws).sort((a,b)=>epgWallClockTs(a.start,a.start_ts)-epgWallClockTs(b.start,b.start_ts))[0]||progs.find(p=>p.title);
+    // Never pin an expired programme to the left edge of the current grid.
+    // Only a genuinely upcoming item may use the compact fallback display.
+    const next=progs.filter(p=>p.title&&epgWallClockTs(p.start,p.start_ts)>=ws).sort((a,b)=>epgWallClockTs(a.start,a.start_ts)-epgWallClockTs(b.start,b.start_ts))[0];
     if(!next)return '<span class="epgnone muted">'+tr('No program info')+'</span>';
     const nextStart=epgWallClockTs(next.start,next.start_ts);if(nextStart>=we)return '<span class="epgnone muted">'+tr('No program info')+'</span>';
     let tm='';if(nextStart){const t=new Date(nextStart*1000);tm=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);}
@@ -7576,7 +7603,8 @@ class Handler(BaseHTTPRequestHandler):
                         # Cached-only navigation never contacts the provider. Retained
                         # guide data remains useful as an offline/stale fallback.
                         result[sid] = cached["programmes"]
-                    elif cached and not force and (now - cached["ts"] < _EPG_REFRESH_TTL):
+                    elif (cached and not force and (now - cached["ts"] < _EPG_REFRESH_TTL)
+                          and (not cached.get("programmes") or _epg_cache_has_coverage(cached, now))):
                         result[sid] = cached["programmes"]
                     elif not cached_only:
                         to_fetch.append(sid)
