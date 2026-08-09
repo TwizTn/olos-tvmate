@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b303"
+VERSION = "0.777.b304"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4047,7 +4047,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:440px){.racingdetailnextgrid{grid-template-columns:1fr}.racingeventvisual{align-items:flex-start}}
  .driverlive{display:inline-block;background:#102c19;border:1px solid #2f7e48;color:#70d18a;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:7px;vertical-align:1px}
  .mydashdriverlive{margin-left:auto}
- .mydashteamonly:has(.mydashdriverlive) .mydashsportcount{display:none}
  .racingcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
  .racingcard h3{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:10px}
  .racingcard h3>span{position:relative;padding-bottom:6px}
@@ -4664,7 +4663,7 @@ const _I18N={
   "Airs in":"Sendes om","Released":"Utgitt","Releases":"Lanseres","Just released":"Nettopp utgitt","ago":"siden","Stream found in playlist":"Strøm funnet i spillelisten",
   "Live now":"Direkte nå","Next match":"Neste kamp","Next race":"Neste løp","No upcoming race found.":"Ingen kommende løp funnet.",
   "Choose a driver to see details.":"Velg en fører for å se detaljer.","Driver profile":"Førerprofil","Loading drivers and next race...":"Laster førere og neste løp...","Loading fixture...":"Laster kamp...","Loading next race...":"Laster neste løp...","Nothing happening around now.":"Ingenting skjer rundt nå.","Play":"Spill av","No upcoming events found.":"Ingen kommende arrangementer funnet.","Choose at least one racing series above.":"Velg minst én racingserie ovenfor.","Could not load racing schedules.":"Kunne ikke laste racingterminlistene.",
-  "Recently":"Nylig","Upcoming":"Kommende",
+  "Recently":"Nylig","Upcoming":"Kommende","Right now":"Akkurat nå",
   "Favorite Channels":"Favorittkanaler","EPG Refresh":"Oppdater EPG","Channels":"Kanaler",
   "All Categories":"Alle kategorier","Selected categories":"Valgte kategorier","Filter Channels":"Kanaler","Playlist":"Spilleliste",
   "Add to Favorites":"Legg til favoritter","Tick all":"Velg alle","Untick all":"Fjern alle","Add ticked":"Legg til valgte",
@@ -6560,16 +6559,16 @@ async function loadMyListTeams(favorites,racingDataPromise){
             const drivers=card.drivers,live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now)),team=drivers[0].team||'';
             const photos=drivers.slice(0,2).map(driver=>'<img class="driver" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()">').join('');
             const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),race=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.');
-            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(race)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div>'+(live?'<span class="driverlive mydashdriverlive">LIVE</span>':'')+'</div>';
+            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(race)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div></div>';
           }else{
             const driver=card.driver,live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
-            const liveTag=live?'<span class="driverlive mydashdriverlive">LIVE</span>':'',meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × '),nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
-            h+='<div class="mydashteamonly" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(countdown||'')+'</span></div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div>'+liveTag+'</div>';
+            const meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × '),nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
+            h+='<div class="mydashteamonly" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div></div>';
           }
         }
       }else for(const driver of allDrivers){
-        const live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||'')),liveTag=live?'<span class="driverlive mydashdriverlive">LIVE</span>':'';
-        h+='<div class="mydashfixture" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)" style="cursor:pointer"><div class="mydashteam"><img src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><span>'+esc(driver.name||'')+'</span>'+liveTag+'</div><span class="muted">'+esc(driver.series_name||'Racing')+(driver.team?' · '+esc(driver.team):'')+'</span></div>';
+        const live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
+        h+='<div class="mydashfixture" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)" style="cursor:pointer"><div class="mydashteam"><img src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><span>'+esc(driver.name||'')+'</span></div><span class="muted">'+esc(driver.series_name||'Racing')+(driver.team?' · '+esc(driver.team):'')+'</span>'+(live?'<span class="mydashsportcount">'+esc(tr('Right now'))+'</span>':'')+'</div>';
       }
     }catch(e){}
   }
