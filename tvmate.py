@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b285"
+VERSION = "0.777.b288"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -423,17 +423,101 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
       "AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/124.0 Safari/537.36")
 
+def _source_key_for_url(url):
+    """Map a URL's domain to a known source key (or None if untracked)."""
+    u = (url or "").lower()
+    if "fotmob.com" in u or "images.fotmob.com" in u: return "fotmob"
+    if "tvmaze.com" in u: return "tvmaze"
+    if "strem.io" in u or "cinemeta" in u: return "cinemeta"
+    if "steam" in u: return "steam"
+    if "formula1.com" in u or "ergast" in u or "jolpi" in u: return "f1"
+    if "indycar.com" in u: return "indycar"
+    if "wrc.com" in u or ("wikipedia.org" in u and "rally" in u): return "wrc"
+    if "fiaformulae.com" in u: return "formulae"
+    if "fiawec.com" in u: return "wec"
+    if "motogp.com" in u: return "motogp"
+    return None
+
 def http_get_text(url, timeout=20):
     req = urllib.request.Request(url, headers={
         "User-Agent": UA, "Accept-Language": "en-GB,en;q=0.9"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read().decode("utf-8", "replace")
+    key = _source_key_for_url(url)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            text = r.read().decode("utf-8", "replace")
+        if key:
+            _record_source(key, True)
+        return text
+    except Exception as e:
+        if key:
+            _record_source(key, False, error=e)
+        raise
 
 def http_get_json(url, timeout=20):
     req = urllib.request.Request(url, headers={
         "User-Agent": UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8", "replace"))
+    key = _source_key_for_url(url)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.loads(r.read().decode("utf-8", "replace"))
+        if key:
+            _record_source(key, True)
+        return data
+    except Exception as e:
+        if key:
+            _record_source(key, False, error=e)
+        raise
+
+# --------------------------------------------------------------------------
+# Source health: remembers the outcome of the last fetch for each external
+# source, so Settings can show a green/red panel. Purely passive (updated as
+# the app naturally uses each source) plus an optional "test all" trigger.
+# --------------------------------------------------------------------------
+_SOURCE_HEALTH = {}          # key -> {label, ok, count, error, ts}
+_SOURCE_HEALTH_LOCK = threading.Lock()
+# Friendly labels + display order for known sources.
+_SOURCE_LABELS = [
+    ("xtream",   "IPTV provider (Xtream)"),
+    ("fotmob",   "Football (Fotmob)"),
+    ("epg_xmltv","TV guide / EPG (XMLTV)"),
+    ("tvmaze",   "TV shows (TVMaze)"),
+    ("cinemeta", "Movie/series info (Cinemeta)"),
+    ("steam",    "Steam profile / wishlist"),
+    ("f1",       "Formula 1"),
+    ("indycar",  "IndyCar"),
+    ("wrc",      "WRC (rally)"),
+    ("formulae", "Formula E"),
+    ("wec",      "WEC (endurance)"),
+    ("motogp",   "MotoGP"),
+]
+_SOURCE_LABEL_MAP = dict(_SOURCE_LABELS)
+
+def _record_source(key, ok, count=None, error=""):
+    """Record the outcome of a source fetch. Safe to call from anywhere."""
+    try:
+        with _SOURCE_HEALTH_LOCK:
+            _SOURCE_HEALTH[key] = {
+                "label": _SOURCE_LABEL_MAP.get(key, key),
+                "ok": bool(ok),
+                "count": count,
+                "error": ("" if ok else str(error)[:200]),
+                "ts": time.time(),
+            }
+    except Exception:
+        pass
+
+def source_health_snapshot():
+    """Return the current health of all known sources, in display order."""
+    out = []
+    with _SOURCE_HEALTH_LOCK:
+        for key, label in _SOURCE_LABELS:
+            rec = _SOURCE_HEALTH.get(key)
+            if rec:
+                out.append(dict(rec, key=key))
+            else:
+                out.append({"key": key, "label": label, "ok": None,
+                            "count": None, "error": "", "ts": 0})
+    return out
 
 # --------------------------------------------------------------------------
 # Xtream client ("login" = authenticated GET; no session/cookies)
@@ -487,6 +571,11 @@ class Xtream:
             q["action"] = action
         return f"{self.base}/player_api.php?" + urllib.parse.urlencode(q)
 
+    def xmltv_url(self):
+        """Bulk XMLTV EPG file URL for this provider."""
+        q = {"username": self.user, "password": self.password}
+        return f"{self.base}/xmltv.php?" + urllib.parse.urlencode(q)
+
     def login(self):
         try:
             info = http_get_json(self._api())
@@ -508,6 +597,7 @@ class Xtream:
             out.append({"stream_id": s.get("stream_id"),
                         "name": name,
                         "category_id": str(s.get("category_id", "")),
+                        "epg_channel_id": str(s.get("epg_channel_id") or "").strip(),
                         "stream_icon": str(s.get("stream_icon") or "").strip()})
         return out
 
@@ -662,6 +752,113 @@ def _load_epg_disk_cache(x):
 def _save_epg_disk_cache(x):
     _save_timed_data_cache("epg-cache.json", {
         "provider": _vod_cache_key(x), "entries": _EPG_CACHE})
+
+# --- Bulk XMLTV EPG (one download for all channels) ------------------------
+# Many Xtream providers expose xmltv.php which returns the full guide in a
+# single ~50MB file. This is dramatically faster and more reliable than making
+# one get_short_epg request per channel. We stream-parse it and keep only the
+# channels the caller asks for (mapped by the channel's epg_channel_id).
+_XMLTV_TS_RE = None
+
+def _xmltv_parse_ts(val):
+    """Parse an XMLTV time like '20260808170000 +0000' -> unix seconds."""
+    if not val:
+        return None
+    import calendar
+    try:
+        s = val.strip()
+        # format: YYYYMMDDHHMMSS optionally followed by ' +ZZZZ'
+        base = s[:14]
+        dt = datetime.datetime.strptime(base, "%Y%m%d%H%M%S")
+        offset = 0
+        rest = s[14:].strip()
+        if rest and (rest[0] in "+-") and len(rest) >= 5:
+            sign = 1 if rest[0] == "+" else -1
+            hh = int(rest[1:3]); mm = int(rest[3:5])
+            offset = sign * (hh * 3600 + mm * 60)
+        return calendar.timegm(dt.timetuple()) - offset
+    except Exception:
+        return None
+
+def fetch_xmltv_epg(x, wanted_epg_ids, timeout=90):
+    """Download and parse bulk XMLTV while keeping large payloads off RAM."""
+    import xml.etree.ElementTree as _ET
+    import gzip as _gzip, tempfile as _tempfile, zlib as _zlib
+    wanted = set(str(w) for w in wanted_epg_ids if w)
+    if not wanted:
+        return {}
+    req = urllib.request.Request(x.xmltv_url(), headers={
+        "User-Agent": UA, "Accept-Encoding": "gzip, deflate"})
+    with _tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as xml_file:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            encoding = (resp.headers.get("Content-Encoding") or "").lower()
+            if "gzip" in encoding:
+                source = _gzip.GzipFile(fileobj=resp)
+                while True:
+                    chunk = source.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    xml_file.write(chunk)
+            elif "deflate" in encoding:
+                decoder = _zlib.decompressobj()
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    xml_file.write(decoder.decompress(chunk))
+                xml_file.write(decoder.flush())
+            else:
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    xml_file.write(chunk)
+        xml_file.seek(0)
+        head = xml_file.read(160).lower()
+        if b"<html" in head or b"<!doctype" in head:
+            raise ValueError("xmltv.php returned HTML, not XML (blocked/redirect)")
+        xml_file.seek(0)
+        out = {}
+        for _event, elem in _ET.iterparse(xml_file, events=("end",)):
+            tag = elem.tag.lower()
+            if tag == "programme":
+                ch = elem.get("channel", "")
+                if ch in wanted:
+                    title_el = elem.find("title")
+                    desc_el = elem.find("desc")
+                    out.setdefault(ch, []).append({
+                        "title": (title_el.text if title_el is not None else "") or "",
+                        "desc": (desc_el.text if desc_el is not None else "") or "",
+                        "start": elem.get("start", ""),
+                        "end": elem.get("stop", ""),
+                        "start_ts": _xmltv_parse_ts(elem.get("start")),
+                        "stop_ts": _xmltv_parse_ts(elem.get("stop")),
+                    })
+                elem.clear()
+            elif tag == "channel":
+                elem.clear()
+    for ch in out:
+        out[ch].sort(key=lambda p: p.get("start_ts") or 0)
+    return out
+
+def probe_xmltv(x, timeout=20):
+    """Cheaply verify that the configured XMLTV endpoint starts as XML."""
+    import gzip as _gzip, zlib as _zlib
+    req = urllib.request.Request(x.xmltv_url(), headers={
+        "User-Agent": UA, "Accept-Encoding": "gzip, deflate"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        encoding = (resp.headers.get("Content-Encoding") or "").lower()
+        if "gzip" in encoding:
+            head = _gzip.GzipFile(fileobj=resp).read(4096)
+        elif "deflate" in encoding:
+            head = _zlib.decompressobj().decompress(resp.read(8192), 4096)
+        else:
+            head = resp.read(4096)
+    low = head.lstrip().lower()
+    if not (low.startswith(b"<?xml") or low.startswith(b"<tv")):
+        raise ValueError("xmltv.php did not return an XMLTV document")
+    return True
+
 
 def _fetch_text(url, timeout=8):
     """Fetch a URL as text, or None on any failure (offline, 404, etc.)."""
@@ -3511,6 +3708,14 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .playlistsearch{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:0 0 18px;padding:15px 18px;border:1px solid var(--line);border-radius:10px;background:rgba(18,22,28,.72)}
  .playlistsearch .col{min-width:0}.playlistsearch .col+.col{border-left:1px solid var(--line);padding-left:22px}.playlistsearch .row{margin-bottom:7px}
  .colh{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 10px;font-weight:600}
+ .srchealth{display:flex;flex-direction:column;gap:4px}
+ .srcrow{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px}
+ .srcdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+ .dot-ok{background:#3fb950}
+ .dot-bad{background:#f85149}
+ .dot-unknown{background:#6e7681}
+ .srcname{min-width:180px}
+ .srcstat{font-size:12px}
  .sectionsearch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.sectionsearch input{min-height:42px}.sectionsearch button{min-width:82px}
  *{scrollbar-color:#4e5868 #171b22;scrollbar-width:thin}
  *::-webkit-scrollbar{width:10px;height:10px}*::-webkit-scrollbar-track{background:#171b22;border-radius:8px}*::-webkit-scrollbar-thumb{background:#4e5868;border:2px solid #171b22;border-radius:8px}*::-webkit-scrollbar-thumb:hover{background:#69778b}
@@ -4297,6 +4502,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize" data-i18n="Checking...">Checking...</b></div>
       <div class="row" style="margin-top:14px"><button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button><button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button></div>
       <div id="s_msg" class="muted" style="margin-top:10px"></div>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+        <div class="colh" data-i18n="Source health">Source health</div>
+        <div class="muted" style="margin-bottom:8px" data-i18n="Shows whether the external data sources responded last time they were used.">Shows whether the external data sources responded last time they were used.</div>
+        <div id="sourceHealth" class="srchealth"></div>
+        <div class="row" style="margin-top:10px"><button class="ghost" onclick="testSources(this)" id="testSrcBtn" data-i18n="Test all sources">Test all sources</button></div>
+      </div>
       <div id="devSettings" class="hide" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
         <div class="colh" data-i18n="Developer tools">Developer tools</div>
         <div class="muted" data-i18n="Testing controls that clear temporary performance data.">Testing controls that clear temporary performance data.</div>
@@ -4471,6 +4682,10 @@ const _I18N={
   "You are on the latest version":"Du har den nyeste versjonen",
   "Could not check for updates. Check your internet connection.":"Kunne ikke sjekke for oppdateringer. Sjekk internettforbindelsen.",
   "Open config folder":"Åpne konfigurasjonsmappe","Could not open folder.":"Kunne ikke åpne mappen.",
+  "Source health":"Kildestatus","Test all sources":"Test alle kilder","Testing sources...":"Tester kilder...",
+  "Shows whether the external data sources responded last time they were used.":"Viser om de eksterne datakildene svarte sist de ble brukt.",
+  "not checked yet":"ikke sjekket enda","just now":"akkurat nå","min ago":"min siden","h ago":"t siden","d ago":"d siden",
+  "working":"fungerer","failed":"feilet","items":"elementer","No sources.":"Ingen kilder.","Could not test sources.":"Kunne ikke teste kilder.",
   "Host (e.g. http://example.com:8080)":"Vert (f.eks. http://example.com:777)",
   "Username":"Brukernavn","Password":"Passord","Stream extension":"Strøm-format",
   "Default start section":"Standard oppstartseksjon","Search a team, e.g. Leeds":"Søk etter lag, f.eks. Leeds",
@@ -4526,7 +4741,7 @@ function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineVie
 // Search now lives inside Playlists.
 function showSearch(){showChannels();}
 function showChannels(){rememberLocation('channels');hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
-function showSettings(){rememberLocation('settings');loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');}
+function showSettings(){rememberLocation('settings');loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');loadSourceHealth();}
 function updateProfileName(name){
   // Profile identity lives inside My Profile now. The permanent top-right
   // action is Stop TVMate, so profile names no longer occupy header space.
@@ -4883,7 +5098,7 @@ function _countryFlag(code){
   return String.fromCodePoint(...code.split('').map(c=>0x1f1e6+c.charCodeAt(0)-65));
 }
 function _flagFor(name){
-  const m=(name||'').match(/^\s*([a-z0-9-]{1,5})\s*\|/i);
+  const m=(name||'').match(/^\\s*([a-z0-9-]{1,5})\\s*\\|/i);
   if(!m)return String.fromCodePoint(0x1f310);
   const key=m[1].toLowerCase();
   if(_COUNTRY_CODES[key])return _countryFlag(_COUNTRY_CODES[key]);
@@ -6716,29 +6931,15 @@ async function epgRefresh(){
     // currently open category wait behind hundreds of unrelated channels.
     const visibleIds=_tvChannels.map(c=>String(c.stream_id||'')).filter(Boolean),visibleSet=new Set(visibleIds);
     const planned=(plan.ids||[]).map(String),ids=visibleIds.filter(id=>planned.includes(id)).concat(planned.filter(id=>!visibleSet.has(id)));
-    const total=ids.length,batchSize=20;let done=0,updated=0,noEpg=0,failed=0,safeMode=false;
+    const total=ids.length;let updated=0,noEpg=0,failed=0,safeMode=false;
     count.textContent='0 / '+total;
-    for(let i=0;i<ids.length;i+=batchSize){
-      const batch=ids.slice(i,i+batchSize);
-      stage.textContent=safeMode?tr('Compatibility mode: loading one channel at a time...'):tr('Loading programme information...');
-      let epg={};
-      try{
-        const j=await api('/api/epg?force=1&ids='+encodeURIComponent(batch.join(',')));
-        if(j.error)throw new Error(j.error||'EPG batch failed');epg=j.epg||{};
-        const s=j.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;safeMode=safeMode||!!s.safe_mode;
-      }catch(batchError){
-        // A provider/proxy may dislike concurrent batches.  Retry this batch
-        // channel-by-channel so one bad request cannot abort the entire guide.
-        stage.textContent=tr('Retrying this batch one channel at a time...');
-        for(const sid of batch){
-          try{const jj=await api('/api/epg?force=1&ids='+encodeURIComponent(sid));if(jj.error)throw new Error(jj.error||'EPG channel failed');Object.assign(epg,jj.epg||{});const s=jj.stats||{};updated+=Number(s.updated)||0;noEpg+=Number(s.no_data)||0;failed+=Number(s.failed)||0;safeMode=safeMode||!!s.safe_mode;}catch(e){failed++;}
-        }
-      }
-      _tvEpg=Object.assign({},_tvEpg,epg);
-      done+=batch.length;count.textContent=done+' / '+total;found.textContent=tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed;bar.style.width=(total?Math.max(3,done/total*100):100)+'%';
-      renderTvGuide();
-      await new Promise(resolve=>setTimeout(resolve,0));
-    }
+    stage.textContent=tr('Loading programme information...');bar.style.width='18%';
+    const j=await api('/api/epg?force=1&favorites=1');
+    if(j.error)throw new Error(j.error||'EPG failed');
+    _tvEpg=Object.assign({},_tvEpg,j.epg||{});
+    const s=j.stats||{};updated=Number(s.updated)||0;noEpg=Number(s.no_data)||0;failed=Number(s.failed)||0;safeMode=!!s.safe_mode;
+    count.textContent=total+' / '+total;found.textContent=tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed;bar.style.width='100%';
+    renderTvGuide();
     stage.textContent=tr('TV guide is ready.')+' '+tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed;bar.style.width='100%';
     if(!total){toast(tr('No favorites to load EPG for.'));}
     else toast(tr('EPG loaded')+': '+tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed,7000);
@@ -6873,6 +7074,41 @@ async function openConfigFolder(){
     const j=await api('/api/open_folder',{method:'POST'});
     if(!j.ok)toast(tr('Could not open folder.')+(j.path?(' '+j.path):''));
   }catch(e){toast(tr('Could not open folder.'));}
+}
+function _healthAgo(ts,now){
+  if(!ts)return tr('not checked yet');
+  const s=Math.max(0,Math.floor((now-ts)));
+  if(s<90)return tr('just now');
+  const m=Math.floor(s/60);
+  if(m<90)return m+' '+tr('min ago');
+  const h=Math.floor(m/60);
+  if(h<48)return h+' '+tr('h ago');
+  return Math.floor(h/24)+' '+tr('d ago');
+}
+function renderSourceHealth(data){
+  const el=document.getElementById('sourceHealth');
+  if(!el)return;
+  const now=data.now||(Date.now()/1000);
+  let h='';
+  (data.sources||[]).forEach(function(s){
+    let dot='dot-unknown',label=tr('not checked yet');
+    if(s.ok===true){dot='dot-ok';label=tr('working')+(s.count!=null?(' \u00b7 '+s.count+' '+tr('items')):'')+' \u00b7 '+_healthAgo(s.ts,now);}
+    else if(s.ok===false){dot='dot-bad';label=(s.error?s.error:tr('failed'))+' \u00b7 '+_healthAgo(s.ts,now);}
+    h+='<div class="srcrow"><span class="srcdot '+dot+'"></span><span class="srcname">'+esc(s.label)+'</span><span class="srcstat muted">'+esc(label)+'</span></div>';
+  });
+  el.innerHTML=h||('<span class="muted">'+tr('No sources.')+'</span>');
+}
+async function loadSourceHealth(){
+  try{const j=await api('/api/source_health');renderSourceHealth(j);}catch(e){}
+}
+async function testSources(btn){
+  if(btn){btn.disabled=true;btn.textContent=tr('Testing sources...');}
+  try{
+    const j=await api('/api/test_sources',{method:'POST'});
+    if(j&&j.sources)renderSourceHealth({sources:j.sources,now:Date.now()/1000});
+    else await loadSourceHealth();
+  }catch(e){toast(tr('Could not test sources.'));}
+  if(btn){btn.disabled=false;btn.textContent=tr('Test all sources');}
 }
 async function checkForUpdate(manual){
   const btn=document.getElementById('checkUpdateBtn');
@@ -7118,6 +7354,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"configured": x.configured(), "channel_count": count,
                                         "match_threshold": cfg.get("match_threshold", 0.62)})
 
+            if u.path == "/api/source_health":
+                return self._send(200, {"sources": source_health_snapshot(),
+                                        "now": time.time()})
+
             if u.path == "/api/favorites":
                 fav = load_favorites()
                 # enrich channel favorites with a fresh stream URL
@@ -7204,6 +7444,7 @@ class Handler(BaseHTTPRequestHandler):
                 result = {}
                 to_fetch = []
                 stats = {"updated": 0, "no_data": 0, "failed": 0}
+                cache_changed = False
                 for sid in ids:
                     cached = _EPG_CACHE.get(sid)
                     if cached and cached_only:
@@ -7214,10 +7455,45 @@ class Handler(BaseHTTPRequestHandler):
                         result[sid] = cached["programmes"]
                     elif not cached_only:
                         to_fetch.append(sid)
-                # Xtream's short EPG endpoint is one request per channel.
-                # Restore the proven pre-b228 request pattern: strictly one at
-                # a time, with a small pause after every four channels. Several
-                # providers reject or silently throttle overlapping requests.
+                # PRIMARY SOURCE: one bulk XMLTV download covers every channel at
+                # once. Map each wanted stream_id to its epg_channel_id, fetch the
+                # whole guide, and fill results. Anything the XMLTV lacks falls
+                # through to the per-channel API below.
+                if to_fetch and not cached_only:
+                    try:
+                        channels, _cats = get_xtream_channels(cfg)
+                        sid_to_epg = {}
+                        for ch in channels:
+                            csid = str(ch.get("stream_id"))
+                            eid = str(ch.get("epg_channel_id") or "").strip()
+                            if csid and eid:
+                                sid_to_epg[csid] = eid
+                        wanted_epg = {sid_to_epg[s] for s in to_fetch if s in sid_to_epg}
+                        if wanted_epg:
+                            epg_by_channel = fetch_xmltv_epg(x, wanted_epg)
+                            _record_source("epg_xmltv", True, count=len(epg_by_channel))
+                            filled = []
+                            for sid in to_fetch:
+                                eid = sid_to_epg.get(sid)
+                                if eid and eid in epg_by_channel:
+                                    progs = epg_by_channel[eid]
+                                    _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
+                                    cache_changed = True
+                                    result[sid] = progs
+                                    stats["updated"] += 1
+                                    filled.append(sid)
+                            # Only channels NOT covered by XMLTV need the slow path.
+                            to_fetch = [s for s in to_fetch if s not in filled]
+                            stats["xmltv_filled"] = len(filled)
+                    except Exception as e:
+                        # XMLTV unavailable (offline, blocked, parse error): fall
+                        # back entirely to the per-channel API below.
+                        _record_source("epg_xmltv", False, error=e)
+                        stats["xmltv_error"] = str(e)[:120]
+                # FALLBACK: Xtream's short EPG endpoint is one request per channel.
+                # Only used for channels the bulk XMLTV did not cover.
+                # Strictly one at a time with a small pause every four channels;
+                # several providers reject or silently throttle overlapping requests.
                 if to_fetch:
                     stats["safe_mode"] = True
                     for i, sid in enumerate(to_fetch):
@@ -7239,14 +7515,16 @@ class Handler(BaseHTTPRequestHandler):
                                 result[sid] = old["programmes"]
                             else:
                                 _EPG_CACHE[sid] = {"ts": now, "programmes": []}
+                                cache_changed = True
                                 result[sid] = []
                         else:
                             stats["updated"] += 1
                             _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
+                            cache_changed = True
                             result[sid] = progs
                         if (i + 1) % 4 == 0:
                             time.sleep(0.35)
-                if to_fetch:
+                if cache_changed:
                     _save_epg_disk_cache(x)
                 return self._send(200, {"epg": result, "total": len(ids), "stats": stats})
 
@@ -8514,6 +8792,46 @@ class Handler(BaseHTTPRequestHandler):
                     "shows": len(shows), "f1_refreshed": bool(cfg.get("f1_enabled", True))}, **episode_result))
             except Exception as e:
                 return self._send(502, {"error": str(e)})
+
+        if u.path == "/api/test_sources":
+            # Gently probe each external source in turn (small delay between
+            # each) so we get a fresh health snapshot without hammering sites.
+            def _probe(fn):
+                try:
+                    fn()
+                except Exception:
+                    pass   # failure is already recorded by the http layer
+            probes = [
+                lambda: fetch_fotmob_daily_matches(),
+                lambda: _tvmaze_episode_schedule("Breaking Bad"),
+                lambda: cinemeta_search("movie", "matrix"),
+                lambda: get_f1_schedule(force=True),
+                lambda: get_indycar_schedule(force=True),
+                lambda: get_wrc_schedule(force=True),
+                lambda: get_formulae_schedule(force=True),
+                lambda: get_wec_schedule(force=True),
+                lambda: get_motogp_schedule(force=True),
+            ]
+            cfg = load_config()
+            x = Xtream(cfg)
+            if x.configured():
+                try:
+                    ok, detail = x.login()
+                    _record_source("xtream", ok, error="" if ok else detail)
+                except Exception as e:
+                    _record_source("xtream", False, error=e)
+                try:
+                    probe_xmltv(x)
+                    _record_source("epg_xmltv", True)
+                except Exception as e:
+                    _record_source("epg_xmltv", False, error=e)
+            sid = (cfg.get("steam_wishlist_id") or "").strip()
+            if sid:
+                probes.append(lambda: steam_public_profile(sid, force=True))
+            for p in probes:
+                _probe(p)
+                time.sleep(0.4)   # gentle spacing
+            return self._send(200, {"ok": True, "sources": source_health_snapshot()})
 
         if u.path == "/api/favorites":
             # actions: category/channel/movie favorite management and reordering
