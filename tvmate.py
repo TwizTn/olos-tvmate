@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b288"
+VERSION = "0.777.b289"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4663,6 +4663,10 @@ const _I18N={
   "Match strictness (0.40–0.80)":"Treffnøyaktighet (0.40–0.80)",
   "Listings countries (comma separated: no, uk, us)":"Land for TV-guide (kommaseparert: no, uk, us)",
   "No channels here.":"Ingen kanaler her.","No program info":"Ingen programinfo",
+  "channels":"kanaler","channels checked":"kanaler kontrollert","channels updated.":"kanaler oppdatert.",
+  "One bulk guide download":"Én samlet guide-nedlasting","Downloading and processing the provider TV guide...":"Laster ned og behandler leverandørens TV-guide...",
+  "Parsing programme information...":"Behandler programinformasjon...","Matching guide data to favorite channels...":"Kobler guidedata til favorittkanaler...",
+  "Large provider guides may take a little while...":"Store guider fra leverandøren kan ta litt tid...","Fallback":"Reserveløsning",
   "Loading EPG...":"Laster EPG...","EPG loaded":"EPG lastet","EPG failed":"EPG feilet","Loading...":"Laster...",
   "Updated":"Oppdatert","No EPG":"Ingen EPG","Failed":"Feilet",
   "No favorites to load EPG for.":"Ingen favoritter å laste EPG for.",
@@ -6932,15 +6936,22 @@ async function epgRefresh(){
     const visibleIds=_tvChannels.map(c=>String(c.stream_id||'')).filter(Boolean),visibleSet=new Set(visibleIds);
     const planned=(plan.ids||[]).map(String),ids=visibleIds.filter(id=>planned.includes(id)).concat(planned.filter(id=>!visibleSet.has(id)));
     const total=ids.length;let updated=0,noEpg=0,failed=0,safeMode=false;
-    count.textContent='0 / '+total;
-    stage.textContent=tr('Loading programme information...');bar.style.width='18%';
-    const j=await api('/api/epg?force=1&favorites=1');
+    count.textContent=total+' '+tr('channels');
+    found.textContent=tr('One bulk guide download');
+    stage.textContent=tr('Downloading and processing the provider TV guide...');bar.style.width='18%';
+    let waitStep=0;
+    const waitMessages=[tr('Parsing programme information...'),tr('Matching guide data to favorite channels...'),tr('Large provider guides may take a little while...')];
+    const waitTimer=setInterval(()=>{stage.textContent=waitMessages[Math.min(waitStep++,waitMessages.length-1)];bar.style.width=Math.min(82,28+waitStep*14)+'%';},2200);
+    let j;
+    try{j=await api('/api/epg?force=1&favorites=1');}finally{clearInterval(waitTimer);}
     if(j.error)throw new Error(j.error||'EPG failed');
     _tvEpg=Object.assign({},_tvEpg,j.epg||{});
     const s=j.stats||{};updated=Number(s.updated)||0;noEpg=Number(s.no_data)||0;failed=Number(s.failed)||0;safeMode=!!s.safe_mode;
-    count.textContent=total+' / '+total;found.textContent=tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed;bar.style.width='100%';
+    const bulk=Number(s.xmltv_filled)||0,fallback=Number(s.fallback_updated)||0;
+    count.textContent=total+' '+tr('channels checked');
+    found.textContent=tr('XMLTV')+' '+bulk+(fallback?(' · '+tr('Fallback')+' '+fallback):'')+' · '+tr('No EPG')+' '+noEpg+(failed?(' · '+tr('Failed')+' '+failed):'');bar.style.width='100%';
     renderTvGuide();
-    stage.textContent=tr('TV guide is ready.')+' '+tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed;bar.style.width='100%';
+    stage.textContent=tr('TV guide is ready.')+' '+updated+' '+tr('channels updated.');bar.style.width='100%';
     if(!total){toast(tr('No favorites to load EPG for.'));}
     else toast(tr('EPG loaded')+': '+tr('Updated')+' '+updated+' · '+tr('No EPG')+' '+noEpg+' · '+tr('Failed')+' '+failed,7000);
   }catch(e){stage.textContent=tr('EPG failed')+': '+String(e&&e.message||e);bar.style.background='#8f2d35';toast(tr('EPG failed'));await new Promise(resolve=>setTimeout(resolve,2800));}
@@ -7443,7 +7454,8 @@ class Handler(BaseHTTPRequestHandler):
                 now = time.time()
                 result = {}
                 to_fetch = []
-                stats = {"updated": 0, "no_data": 0, "failed": 0}
+                stats = {"updated": 0, "xmltv_filled": 0, "fallback_updated": 0,
+                         "no_data": 0, "failed": 0}
                 cache_changed = False
                 for sid in ids:
                     cached = _EPG_CACHE.get(sid)
@@ -7519,6 +7531,7 @@ class Handler(BaseHTTPRequestHandler):
                                 result[sid] = []
                         else:
                             stats["updated"] += 1
+                            stats["fallback_updated"] += 1
                             _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
                             cache_changed = True
                             result[sid] = progs
