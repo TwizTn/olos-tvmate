@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b293"
+VERSION = "0.777.b294"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3788,8 +3788,13 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .settingswrap .brandblock .btag{grid-column:2;align-self:start}
  .settingswrap .brandblock .btag:last-child{grid-column:3;grid-row:1/3;align-self:center;margin:0!important;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--bg)}
  .settingswrap .settingscard{width:100%;max-width:none;min-width:0;background:none;border:0;padding:0;margin:0}
+ .settingstabs{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:16px;padding:0 0 9px;border-bottom:1px solid var(--line)}
+ .settingstab{border:0;border-radius:6px 6px 0 0;background:transparent;color:var(--mut);padding:9px 13px;box-shadow:none}
+ .settingstab:hover{background:var(--card2);color:var(--fg)}
+ .settingstab.on{color:var(--fg);background:var(--card);box-shadow:inset 0 -2px var(--acc)}
  .settingspanels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
- .settingspanel{border:0;border-radius:0;background:transparent;padding:0;min-width:0;display:flex;flex-direction:column;gap:12px}
+ .settingspanel{display:contents}
+ .settingsgroup[data-settings-panel="playback"],.settingsgroup[data-settings-panel="health"]{grid-column:1/-1}
  .settingspanel input[type=text],.settingspanel input[type=password]{width:100%}
  #settingsProfile .grid2{grid-template-columns:1fr 1fr}
  #settingsProfile select{width:100%}
@@ -3805,9 +3810,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .emblemchoice svg{width:100%;height:100%;display:block}
  #settingsSetup .row{flex-wrap:wrap}
  .settingshealthgroup{grid-column:1/-1}.settingshealthgroup>.row{justify-content:flex-end}
- @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay #settingsView .settingswrap{padding-left:8px;padding-right:8px}body.tvsectionplay #settingsView .settingsgroup .grid2{grid-template-columns:1fr}body.tvsectionplay #settingsView .srcrow{grid-template-columns:9px minmax(110px,.8fr) minmax(0,1.2fr)}}
+ .settingsgroup[hidden]{display:none!important}
+ @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay #settingsView .settingswrap{padding-left:8px;padding-right:8px}body.tvsectionplay #settingsView .settingspanels{grid-template-columns:1fr}body.tvsectionplay #settingsView .settingsgroup .grid2{grid-template-columns:1fr 1fr}body.tvsectionplay #settingsView .srcrow{grid-template-columns:9px minmax(110px,.8fr) minmax(0,1.2fr)}}
  @media(max-width:1150px){.settingswrap{max-width:900px}.settingspanels{grid-template-columns:1fr}.srchealth{grid-template-columns:1fr}}
- @media(max-width:650px){#settingsProfile .grid2{grid-template-columns:1fr}.settingswrap{padding:8px}.settingsgroup{padding:13px}.settingswrap .brandblock{grid-template-columns:48px 1fr}.settingswrap .brandblock svg{width:48px;height:48px}.settingswrap .brandblock .btag:last-child{display:none}.settingsactions .muted{display:none}}
+ @media(max-width:650px){#settingsProfile .grid2{grid-template-columns:1fr}.settingswrap{padding:8px}.settingsgroup{padding:13px}.settingswrap .brandblock{grid-template-columns:48px 1fr}.settingswrap .brandblock svg{width:48px;height:48px}.settingswrap .brandblock .btag:last-child{display:none}.settingsactions .muted{display:none}.settingstabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.settingstab{text-align:left}}
  /* playlist builder logo */
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
  .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
@@ -4431,9 +4437,17 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="btag" style="opacity:.6;font-size:11px;margin-top:4px">v__VERSION__</div>
     </div>
     <div class="card settingscard">
+      <nav class="settingstabs" aria-label="Settings categories">
+        <button type="button" class="settingstab on" data-settings-tab="general" onclick="setSettingsTab('general')" data-i18n="General">General</button>
+        <button type="button" class="settingstab" data-settings-tab="iptv" onclick="setSettingsTab('iptv')" data-i18n="IPTV & EPG">IPTV &amp; EPG</button>
+        <button type="button" class="settingstab" data-settings-tab="content" onclick="setSettingsTab('content')" data-i18n="Content">Content</button>
+        <button type="button" class="settingstab" data-settings-tab="playback" onclick="setSettingsTab('playback')" data-i18n="Playback">Playback</button>
+        <button type="button" class="settingstab" data-settings-tab="maintenance" onclick="setSettingsTab('maintenance')" data-i18n="Maintenance">Maintenance</button>
+        <button type="button" class="settingstab" data-settings-tab="health" onclick="setSettingsTab('health')" data-i18n="Health">Health</button>
+      </nav>
       <div class="settingspanels">
       <div id="settingsProfile" class="settingspanel">
-       <div class="settingsgroup">
+       <div class="settingsgroup" data-settings-panel="general">
         <div class="colh" data-i18n="Profile">Profile</div>
         <div class="grid2">
           <div><label data-i18n="Profile name">Profile name</label><input id="s_profile" type="text" maxlength="40"></div>
@@ -4446,7 +4460,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
             <select id="s_start"><option value="mylist">Profile</option><option id="startTimelineOption" value="mytimeline">Timeline</option><option value="channels">Playlists</option><option value="mytv">Live TV</option><option value="movies">Movies</option><option value="shows">Shows</option><option id="startGamesOption" value="games">Games</option><option id="startRacingOption" value="racing">Racing</option><option value="teams">Sports</option></select></div>
         </div>
        </div>
-       <div class="settingsgroup">
+       <div class="settingsgroup" data-settings-panel="general">
         <div class="colh" data-i18n="Startup">Startup</div>
         <div class="settingschecks">
         <label class="settingscheck">
@@ -4456,7 +4470,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div><label data-i18n="Startup refresh">Startup refresh</label><select id="s_refreshstartup"><option value="off" data-i18n="Off">Off</option><option value="iptv" data-i18n="IPTV & EPG">IPTV &amp; EPG</option><option value="other" data-i18n="Other content">Other content</option><option value="all" data-i18n="Everything">Everything</option></select></div>
         </div>
        </div>
-       <div class="settingsgroup">
+       <div class="settingsgroup" data-settings-panel="content" hidden>
         <div class="colh" data-i18n="Features & Display">Features &amp; Display</div>
         <div class="settingschecks">
         <label class="settingscheck">
@@ -4476,7 +4490,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
        </div>
       </div>
       <div id="settingsSetup" class="settingspanel">
-      <div class="settingsgroup">
+      <div class="settingsgroup" data-settings-panel="iptv" hidden>
       <div class="colh" data-i18n="Connection">Connection</div>
       <div class="muted" data-i18n="Your Xtream login stays in your local config.json and is only sent to your own provider.">Your Xtream login stays in your local config.json and is only sent to your own provider.</div>
       <div class="grid2">
@@ -4486,7 +4500,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button></div>
       </div>
       </div>
-      <div class="settingsgroup">
+      <div class="settingsgroup" data-settings-panel="iptv" hidden>
       <div class="colh" data-i18n="Data & Refresh">Data &amp; Refresh</div>
       <div class="muted" data-i18n="Choose exactly which TVMate data should be updated.">Choose exactly which TVMate data should be updated.</div>
       <div class="row settingsrefreshbuttons" style="margin-top:13px">
@@ -4496,7 +4510,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       <div id="s_refreshmsg" class="muted" style="margin-top:10px"></div>
       </div>
-      <div class="settingsgroup">
+      <div class="settingsgroup" data-settings-panel="content" hidden>
       <div class="colh" data-i18n="Search Options">Search Options</div>
       <div class="grid2">
         <div><label data-i18n="Match strictness (0.40–0.80)">Match strictness (0.40&ndash;0.80)</label><input id="s_thr" type="text"></div>
@@ -4504,24 +4518,28 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <label data-i18n="Listings countries (comma separated: no, uk, us)">Listings countries (comma separated: no, uk, us)</label>
       <input id="s_cc" type="text">
       </div>
-      <div class="settingsgroup">
+      <div class="settingsgroup" data-settings-panel="playback" hidden>
       <div class="colh" data-i18n="Maintenance & Playback">Maintenance &amp; Playback</div>
       <div class="grid2">
         <div><label data-i18n="Stream extension">Stream extension</label>
           <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
       </div>
       <div style="margin-top:12px"><label><span data-i18n="Auto shutdown when inactive">Auto shutdown when inactive</span> <select id="s_autoshutdown" style="width:auto;margin-left:7px"><option value="0" data-i18n="Keep running — uses approximately three crumbs and your calculator works harder">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label></div>
+      </div>
+      <div class="settingsgroup" data-settings-panel="maintenance" hidden>
+      <div class="colh" data-i18n="Maintenance">Maintenance</div>
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize" data-i18n="Checking...">Checking...</b></div>
       <div class="row" style="margin-top:14px"><button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button><button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button></div>
+      <div class="row" style="margin-top:10px"><button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button></div>
       <div id="s_msg" class="muted" style="margin-top:10px"></div>
       </div>
-      <div class="settingsgroup settingshealthgroup">
+      <div class="settingsgroup settingshealthgroup" data-settings-panel="health" hidden>
         <div class="colh" data-i18n="Source health">Source health</div>
         <div class="muted" style="margin-bottom:8px" data-i18n="Shows whether the external data sources responded last time they were used.">Shows whether the external data sources responded last time they were used.</div>
         <div id="sourceHealth" class="srchealth"></div>
         <div class="row" style="margin-top:10px"><button class="ghost" onclick="testSources(this)" id="testSrcBtn" data-i18n="Test all sources">Test all sources</button></div>
       </div>
-      <div id="devSettings" class="hide" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+      <div id="devSettings" class="settingsgroup hide" data-settings-panel="maintenance" hidden>
         <div class="colh" data-i18n="Developer tools">Developer tools</div>
         <div class="muted" data-i18n="Testing controls that clear temporary performance data.">Testing controls that clear temporary performance data.</div>
         <div class="row" style="margin-top:10px">
@@ -4530,7 +4548,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       </div>
       </div>
-      <div class="settingsactions"><button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button><span class="muted" data-i18n="Changes are kept locally on this device.">Changes are kept locally on this device.</span><button class="push" onclick="saveSettings()" data-i18n="Save">Save changes</button></div>
+      <div class="settingsactions"><span class="muted" data-i18n="Changes are kept locally on this device.">Changes are kept locally on this device.</span><button class="push" onclick="saveSettings()" data-i18n="Save">Save changes</button></div>
     </div>
     </div>
   </section>
@@ -4648,7 +4666,7 @@ const _I18N={
   "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
   "Match strictness":"Treffnøyaktighet",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
-  "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer",
+  "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status",
   "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem",
   "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
   "Features & Display":"Funksjoner og visning","Show football features":"Vis fotballfunksjoner","Show Formula 1 features":"Vis Formel 1-funksjoner","Show racing features":"Vis racingfunksjoner","Show game features":"Vis spillfunksjoner","Animated background decorations":"Animerte bakgrunnsdekorasjoner","Choose the racing series you want to follow.":"Velg racingseriene du vil følge.",
@@ -4760,7 +4778,16 @@ function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineVie
 // Search now lives inside Playlists.
 function showSearch(){showChannels();}
 function showChannels(){rememberLocation('channels');hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
-function showSettings(){rememberLocation('settings');loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');loadSourceHealth();}
+let _settingsTab='general';
+function setSettingsTab(tab){
+  const allowed=['general','iptv','content','playback','maintenance','health'];
+  _settingsTab=allowed.includes(tab)?tab:'general';
+  document.querySelectorAll('#settingsView [data-settings-panel]').forEach(function(panel){panel.hidden=panel.dataset.settingsPanel!==_settingsTab||panel.classList.contains('hide');});
+  document.querySelectorAll('#settingsView [data-settings-tab]').forEach(function(button){const active=button.dataset.settingsTab===_settingsTab;button.classList.toggle('on',active);button.setAttribute('aria-selected',String(active));});
+  try{localStorage.setItem('tvmateSettingsTab',_settingsTab);}catch(e){}
+  if(_settingsTab==='health')loadSourceHealth();
+}
+function showSettings(){rememberLocation('settings');loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');let saved='general';try{saved=localStorage.getItem('tvmateSettingsTab')||'general';}catch(e){}setSettingsTab(saved);}
 function updateProfileName(name){
   // Profile identity lives inside My Profile now. The permanent top-right
   // action is Stop TVMate, so profile names no longer occupy header space.
@@ -5416,7 +5443,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='7')_devSequence=(_devSequence+'7').slice(-3);else _devSequence='';
   if(_devSequence==='777'){
     document.getElementById('devSettings').classList.remove('hide');
-    _devSequence='';toast('Developer tools unlocked.');
+    _devSequence='';setSettingsTab('maintenance');toast('Developer tools unlocked.');
   }
 });
 async function testLogin(){s_msg.textContent='Testing...';
