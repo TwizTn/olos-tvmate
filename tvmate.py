@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b302"
+VERSION = "0.777.b303"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6582,8 +6582,8 @@ async function loadMyListRacing(racingDataPromise){
     const r=await (racingDataPromise||api('/api/racing')),now=Date.now();
     const groups=new Map();
     for(const event of (r.events||[])){
-      const row={event:event,ts:new Date(event.start).getTime()};
-      if(!Number.isFinite(row.ts)||row.ts<=now-2*3600000)continue;
+      const row={event:event,ts:new Date(event.start).getTime()},live=racingEventIsLive(event,now);
+      if(!Number.isFinite(row.ts)||(!live&&row.ts<=now-2*3600000))continue;
       const key=String(event.series||'racing');
       if(!groups.has(key))groups.set(key,[]);
       groups.get(key).push(row);
