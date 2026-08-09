@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b292"
+VERSION = "0.777.b293"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -123,6 +123,7 @@ DEFAULT_CONFIG = {
     "countries": ["no", "gb", "us", "es", "de", "it", "fr"],  # NO/UK/US + big-5 league homes
     "check_shows_on_startup": False,
     "refresh_all_on_startup": False,
+    "startup_refresh_mode": "off",   # off, iptv, other, all
     "profile_name": "",
     "preferred_language": "en",
     "profile_emblem": "tvstack",
@@ -4169,7 +4170,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="Profile">Profile</option><option value="mytimeline" data-i18n="Timeline">Timeline</option><option value="channels" data-i18n="Playlists">Playlists</option><option value="mytv" data-i18n="Live TV">Live TV</option><option value="movies" data-i18n="Movies">Movies</option><option value="shows" data-i18n="Shows">Shows</option><option value="games" data-i18n="Games">Games</option><option value="racing" data-i18n="Racing">Racing</option><option value="teams" data-i18n="Sports">Sports</option></select></div>
       <div><label data-i18n="Profile layout">Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
       <label class="setupfeature full"><input id="ep_checkshows" type="checkbox"><span><b data-i18n="Check favorite shows on startup">Check favorite shows on startup</b><small data-i18n="Look for newly available episodes when TVMate starts.">Look for newly available episodes when TVMate starts.</small></span></label>
-      <label class="setupfeature full"><input id="ep_refreshstartup" type="checkbox"><span><b data-i18n="Refresh all content on startup">Refresh all content on startup</b><small data-i18n="Refresh channels, movies, shows and episode data when TVMate starts.">Refresh channels, movies, shows and episode data when TVMate starts.</small></span></label>
+      <div class="full"><label data-i18n="Startup refresh">Startup refresh</label><select id="ep_refreshstartup"><option value="off" data-i18n="Off">Off</option><option value="iptv" data-i18n="IPTV & EPG">IPTV &amp; EPG</option><option value="other" data-i18n="Other content">Other content</option><option value="all" data-i18n="Everything">Everything</option></select></div>
       <div class="full"><label data-i18n="Background style">Background style</label><select id="ep_background"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div>
     </div>
     <div class="editprofileactions"><button type="button" class="ghost" onclick="runSetupGuideFromProfile()" data-i18n="Run setup guide">Run setup guide</button><div class="spacer"></div><button type="button" class="ghost" onclick="closeEditProfile()" data-i18n="Cancel">Cancel</button><button type="button" onclick="saveEditProfile(this)" data-i18n="Save">Save</button></div>
@@ -4452,10 +4453,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
         </label>
-        <label class="settingscheck">
-          <input id="s_refreshstartup" type="checkbox" style="width:auto;margin:0">
-          <span data-i18n="Refresh all content on startup">Refresh all content on startup</span>
-        </label>
+        <div><label data-i18n="Startup refresh">Startup refresh</label><select id="s_refreshstartup"><option value="off" data-i18n="Off">Off</option><option value="iptv" data-i18n="IPTV & EPG">IPTV &amp; EPG</option><option value="other" data-i18n="Other content">Other content</option><option value="all" data-i18n="Everything">Everything</option></select></div>
         </div>
        </div>
        <div class="settingsgroup">
@@ -4485,8 +4483,18 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div><label data-i18n="Username">Username</label><input id="s_user" type="text"></div>
         <div><label data-i18n="Password">Password</label><input id="s_pass" type="password"></div>
         <div><label data-i18n="Host (e.g. http://example.com:8080)">Host (e.g. http://example.com:8080)</label><input id="s_host" type="text"></div>
-        <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button><button class="ghost" onclick="refreshAllContent(this)" data-i18n="Refresh all content">Refresh all content</button></div>
+        <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button></div>
       </div>
+      </div>
+      <div class="settingsgroup">
+      <div class="colh" data-i18n="Data & Refresh">Data &amp; Refresh</div>
+      <div class="muted" data-i18n="Choose exactly which TVMate data should be updated.">Choose exactly which TVMate data should be updated.</div>
+      <div class="row settingsrefreshbuttons" style="margin-top:13px">
+        <button class="ghost" onclick="refreshIptvContent(this).catch(()=>{})" data-i18n="Refresh IPTV & EPG">Refresh IPTV &amp; EPG</button>
+        <button class="ghost" onclick="refreshOtherContent(this).catch(()=>{})" data-i18n="Refresh other content">Refresh other content</button>
+        <button onclick="refreshEverything(this).catch(()=>{})" data-i18n="Refresh everything">Refresh everything</button>
+      </div>
+      <div id="s_refreshmsg" class="muted" style="margin-top:10px"></div>
       </div>
       <div class="settingsgroup">
       <div class="colh" data-i18n="Search Options">Search Options</div>
@@ -4657,6 +4665,9 @@ const _I18N={
   "hour":"time","hours":"timer","minute":"minutt","minutes":"minutter",
   "Not available":"Ikke tilgjengelig",
   "Maintenance & Playback":"Vedlikehold og avspilling","Refresh all content":"Oppdater alt innhold",
+  "Data & Refresh":"Data og oppdatering","Choose exactly which TVMate data should be updated.":"Velg nøyaktig hvilke TVMate-data som skal oppdateres.",
+  "Refresh IPTV & EPG":"Oppdater IPTV og EPG","Refresh other content":"Oppdater annet innhold","Refresh everything":"Oppdater alt",
+  "Startup refresh":"Oppdatering ved oppstart","IPTV & EPG":"IPTV og EPG","Other content":"Annet innhold","Everything":"Alt",
   "Check favorite shows on startup":"Se etter nye episoder i favorittserier ved oppstart",
   "Refresh all content on startup":"Oppdater alt innhold ved oppstart",
   "Artwork cache":"Mellomlagret omslagskunst","Clear artwork cache":"Tøm omslagskunst",
@@ -4871,13 +4882,13 @@ function selectEditProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_editProf
 async function openEditProfile(){
   let c={};try{c=await api('/api/config');}catch(e){c=_profileConfig||{};}
   ep_name.value=c.profile_name||'';ep_lang.value=c.preferred_language||'en';_editProfileEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEditProfileEmblems();
-  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshstartup.checked=!!c.refresh_all_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
+  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshstartup.value=['iptv','other','all'].includes(c.startup_refresh_mode)?c.startup_refresh_mode:(c.refresh_all_on_startup?'all':'off');ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   editProfileOverlay.classList.remove('hide');setTimeout(()=>ep_name.focus(),30);
 }
 function closeEditProfile(){editProfileOverlay.classList.add('hide');}
 function runSetupGuideFromProfile(){closeEditProfile();openProfileSetup(false);}
 async function saveEditProfile(btn){
-  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,refresh_all_on_startup:ep_refreshstartup.checked,background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
+  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,startup_refresh_mode:ep_refreshstartup.value,refresh_all_on_startup:ep_refreshstartup.value==='all',background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
   if(!body.profile_name){ep_name.focus();toast(tr('Enter a profile name.'));return;}if(body.mylist_layout==='timeline'&&body.start_section==='mytimeline')body.start_section='mylist';if(!_gamesEnabled&&body.start_section==='games')body.start_section='mylist';if(!_f1Enabled&&body.start_section==='racing')body.start_section='mylist';if(!_footballEnabled&&body.start_section==='teams')body.start_section='mylist';
   const old=btn.textContent;btn.disabled=true;btn.textContent='Saving...';
   try{const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('save failed');setLang(body.preferred_language);applyProfileConfig(body);closeEditProfile();toast(tr('Profile saved.'));}catch(e){toast(tr('Could not save profile.'));}
@@ -5326,7 +5337,7 @@ async function loadSettings(){
   s_cc.value=(c.countries||['no','uk','us']).join(', ');
   s_start.value=c.start_section||'mylist';
   s_checkshows.checked=!!c.check_shows_on_startup;
-  s_refreshstartup.checked=!!c.refresh_all_on_startup;
+  s_refreshstartup.value=['iptv','other','all'].includes(c.startup_refresh_mode)?c.startup_refresh_mode:(c.refresh_all_on_startup?'all':'off');
   s_profile.value=c.profile_name||'';
   s_lang.value=c.preferred_language||'en';
   _selectedEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEmblemPicker();
@@ -5343,7 +5354,7 @@ async function saveSettings(){
     xtream_pass:s_pass.value,stream_ext:s_ext.value,match_threshold:parseFloat(s_thr.value)||0.55,
     countries:s_cc.value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),
     start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
-    refresh_all_on_startup:s_refreshstartup.checked,
+    startup_refresh_mode:s_refreshstartup.value,refresh_all_on_startup:s_refreshstartup.value==='all',
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
     profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
     f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0)};
@@ -5411,18 +5422,39 @@ document.addEventListener('keydown',function(e){
 async function testLogin(){s_msg.textContent='Testing...';
   const r=await api('/api/test');
   s_msg.innerHTML=r.ok?('OK &mdash; '+JSON.stringify(r.info)):('<span class="err">'+r.error+'</span>');}
-async function refreshAllContent(btn){
-  const old=btn.textContent;btn.disabled=true;btn.textContent='Refreshing...';s_msg.textContent='Refreshing channels, movies, shows and episodes...';
-  try{
-    const r=await api('/api/refresh_all',{method:'POST'});
-    if(!r.ok)throw new Error(r.error||'refresh failed');
-    s_msg.textContent='Refreshed '+r.channels+' channels, '+r.movies+' movies and '+r.shows+' shows.';
-    if(r.new_episodes>0)toast('Found '+r.new_episodes+' new episode'+(r.new_episodes===1?'':'s')+' for your shows',7000);
-    else toast('Successfully refreshed all content, no new episodes found',7000);
-    _latestEpisodesLoaded=false;
-    refreshStatus();
-  }catch(e){s_msg.textContent='Error: '+e.message;toast('Could not refresh all content.',7000);}
-  btn.disabled=false;btn.textContent=old;
+function refreshMessage(text){const el=document.getElementById('s_refreshmsg');if(el)el.textContent=text;}
+async function withRefreshButton(btn,label,work){
+  const old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent=label;}
+  try{return await work();}catch(e){if(btn){const message='Refresh failed: '+String(e&&e.message||e);refreshMessage(message);toast(message,7000);}throw e;}finally{if(btn){btn.disabled=false;btn.textContent=old;applyLang();}}
+}
+async function refreshIptvContent(btn,quiet){
+  return withRefreshButton(btn,'Refreshing IPTV...',async function(){
+    refreshMessage('Refreshing Xtream channels, movies, shows and episodes...');
+    const catalog=await api('/api/refresh_xtream',{method:'POST'});if(catalog.error||!catalog.ok)throw new Error(catalog.error||'IPTV refresh failed');
+    refreshMessage('IPTV catalogues ready. Updating EPG...');
+    const epg=await api('/api/epg?force=1&favorites=1');if(epg.error)throw new Error(epg.error||'EPG refresh failed');
+    _tvEpg=Object.assign({},_tvEpg,epg.epg||{});_latestEpisodesLoaded=false;refreshStatus();
+    if(!mytvView.classList.contains('hide'))renderTvGuide();
+    const stats=epg.stats||{},summary='IPTV: '+catalog.channels+' channels, '+catalog.movies+' movies, '+catalog.shows+' shows · EPG: '+(stats.updated||0)+' channels';
+    refreshMessage(summary);if(!quiet)toast(summary,7000);return {catalog:catalog,epg:epg,summary:summary};
+  });
+}
+async function refreshOtherContent(btn,quiet){
+  return withRefreshButton(btn,'Refreshing content...',async function(){
+    const c=await api('/api/config'),parts=[];refreshMessage('Refreshing sports, racing and linked services...');
+    if(c.football_enabled!==false){const teams=await api('/api/check_team_fixtures',{method:'POST'});if(!teams.error)parts.push((teams.teams||0)+' sports teams');}
+    if(c.f1_enabled!==false){const racing=await api('/api/refresh_racing',{method:'POST'});if(!racing.error)parts.push((racing.series||0)+' racing series');}
+    if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
+      const steam=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(!steam.error)parts.push((steam.imported||0)+' Steam games');
+    }
+    _latestEpisodesLoaded=false;const summary='Other content: '+(parts.length?parts.join(' · '):'sources checked');refreshMessage(summary);if(!quiet)toast(summary,7000);return {summary:summary};
+  });
+}
+async function refreshEverything(btn,quiet){
+  return withRefreshButton(btn,'Refreshing everything...',async function(){
+    const iptv=await refreshIptvContent(null,true);const other=await refreshOtherContent(null,true);
+    const summary=iptv.summary+' · '+other.summary;refreshMessage(summary);if(!quiet)toast('Everything refreshed successfully.',7000);return {summary:summary};
+  });
 }
 let _searchData=null;   // {fixtures, logged_in, ppv_categories}
 let _teamGroups=[];      // [{team, fixtures:[...]}]
@@ -6302,15 +6334,14 @@ async function checkShowsOnStartup(){
     else toast('Successfully refreshed playlists, no new episodes found',7000);
   }catch(e){toast('Could not refresh show playlists.',7000);}
 }
-async function refreshAllOnStartup(){
+async function refreshOnStartup(mode){
   try{
-    const j=await api('/api/refresh_all',{method:'POST'});
-    if(j.error)throw new Error(j.error||'refresh failed');
-    _latestEpisodesLoaded=false;
-    if(j.new_episodes>0)toast('Refreshed all content. Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
-    else toast('Successfully refreshed all content, no new episodes found',7000);
-    refreshStatus();
-  }catch(e){toast('Could not refresh all content.',7000);}
+    if(mode==='iptv')await refreshIptvContent(null,true);
+    else if(mode==='other')await refreshOtherContent(null,true);
+    else if(mode==='all')await refreshEverything(null,true);
+    else return;
+    toast('Startup refresh finished.',5000);
+  }catch(e){toast('Startup refresh failed: '+String(e&&e.message||e),7000);}
 }
 async function playEpisodeQueue(season,episodeNum,source,btn){
   const episodes=((_showSeasons[String(season)]||{})[source]||[]).filter(ep=>Number(ep.episode_num)>=Number(episodeNum)), old=btn.textContent;btn.textContent='Opening...';
@@ -6733,7 +6764,7 @@ let _tvChannels=[];
 let _tvPlaying=null;
 async function initMytv(){
   await buildTvRail();
-  loadTvSource('__fav__');
+  await loadTvSource('__fav__');
 }
 async function buildTvRail(){
   const r=await api('/api/favorites');
@@ -6763,12 +6794,23 @@ async function loadTvSource(src){
     try{const j=await api('/api/epg?cached=1&ids='+encodeURIComponent(epgIds.join(',')));if(!j.error)_tvEpg=Object.assign({},_tvEpg,j.epg||{});}catch(e){}
   }
   renderTvGuide();
+  maybeAutoRefreshEpg();
 }
 let _tvEpg={};   // stream_id -> [{title,start_ts,stop_ts},...]
+let _tvAutoEpgCheckAt=0,_tvAutoEpgBusy=false;
+async function maybeAutoRefreshEpg(){
+  const now=Date.now();if(_tvAutoEpgBusy||now-_tvAutoEpgCheckAt<15*60*1000)return;
+  _tvAutoEpgCheckAt=now;_tvAutoEpgBusy=true;
+  try{
+    // The server contacts the provider only for missing or >12-hour-old rows.
+    const j=await api('/api/epg?favorites=1');
+    if(!j.error){_tvEpg=Object.assign({},_tvEpg,j.epg||{});if(!mytvView.classList.contains('hide'))renderTvGuide();}
+  }catch(e){}finally{_tvAutoEpgBusy=false;}
+}
 // Keep the guide clock moving even when Live TV is left open. This only
 // re-renders already cached data; it never refreshes EPG over the network.
 setInterval(function(){
-  if(!mytvView.classList.contains('hide')&&_tvChannels.length&&_tvPlaying===null)renderTvGuide();
+  if(!mytvView.classList.contains('hide')&&_tvChannels.length)renderTvGuide();
 },60*1000);
 function renderTvGuide(){
   const head=document.getElementById('tvTimeHead');
@@ -7072,8 +7114,8 @@ document.addEventListener('click',function(e){
 try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else applyLang();}catch(e){applyLang();}
 // open the user's default start section
 (async function(){
-  let start='mylist',checkShows=false,refreshStartup=false,startupConfig=null;
-  try{const c=await api('/api/config');startupConfig=c;start=c.start_section||'mylist';checkShows=!!c.check_shows_on_startup;refreshStartup=!!c.refresh_all_on_startup;setLang(c.preferred_language||'en');applyProfileConfig(c);if(start==='teams'&&!_footballEnabled)start='mylist';if(start==='games'&&!_gamesEnabled)start='mylist';if(start==='racing'&&!_f1Enabled)start='mylist';}catch(e){}
+  let start='mylist',checkShows=false,refreshStartup='off',startupConfig=null;
+  try{const c=await api('/api/config');startupConfig=c;start=c.start_section||'mylist';checkShows=!!c.check_shows_on_startup;refreshStartup=['iptv','other','all'].includes(c.startup_refresh_mode)?c.startup_refresh_mode:(c.refresh_all_on_startup?'all':'off');setLang(c.preferred_language||'en');applyProfileConfig(c);if(start==='teams'&&!_footballEnabled)start='mylist';if(start==='games'&&!_gamesEnabled)start='mylist';if(start==='racing'&&!_f1Enabled)start='mylist';}catch(e){}
   if(start==='search')start='channels'; // migrate the removed Search section
   if(start==='mytimeline'&&_myListLayout==='timeline')start='mylist';
   const map={channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline};
@@ -7083,7 +7125,7 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
   const setupDone=!!(startupConfig&&startupConfig.setup_complete===true);
   if(startupConfig&&!setupDone)setTimeout(()=>openProfileSetup(true,startupConfig),120);
   if(startupConfig&&setupDone)setTimeout(()=>maybeAutoRefreshSteamWishlist(startupConfig),900);
-  if(setupDone&&refreshStartup)setTimeout(refreshAllOnStartup,500);
+  if(setupDone&&refreshStartup!=='off')setTimeout(()=>refreshOnStartup(refreshStartup),500);
   else if(setupDone&&checkShows)setTimeout(checkShowsOnStartup,500);
 })();
 window.addEventListener('popstate',function(ev){
@@ -8673,7 +8715,7 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
-                      "check_shows_on_startup", "refresh_all_on_startup", "profile_name",
+                      "check_shows_on_startup", "refresh_all_on_startup", "startup_refresh_mode", "profile_name",
                       "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
                       "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes"):
                 if k in payload:
@@ -8688,6 +8730,8 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["auto_shutdown_minutes"] = max(0, int(cfg.get("auto_shutdown_minutes") or 0))
             except (TypeError, ValueError):
                 cfg["auto_shutdown_minutes"] = 0
+            if cfg.get("startup_refresh_mode") not in ("off", "iptv", "other", "all"):
+                cfg["startup_refresh_mode"] = "all" if cfg.get("refresh_all_on_startup") else "off"
             save_config(cfg)
             _clear_provider_caches()
             return self._send(200, {"ok": True})
@@ -8801,6 +8845,36 @@ class Handler(BaseHTTPRequestHandler):
                 new_movies = len(fresh_ids - previous_ids) if previous_ids else 0
                 return self._send(200, {"ok": True, "movies": len(movies),
                                         "new_movies": new_movies})
+            except Exception as e:
+                return self._send(502, {"error": str(e)})
+
+        if u.path == "/api/refresh_xtream":
+            cfg = load_config()
+            x = Xtream(cfg)
+            if not x.configured():
+                return self._send(400, {"error": "Xtream is not configured"})
+            try:
+                channels, _cats = get_xtream_channels(cfg, force=True)
+                movies = get_xtream_movies(cfg, force=True)
+                shows = get_xtream_series(cfg, force=True)
+                episode_result = refresh_favorite_show_episodes(cfg)
+                return self._send(200, dict({"ok": True,
+                    "channels": len(channels), "movies": len(movies),
+                    "shows": len(shows)}, **episode_result))
+            except Exception as e:
+                return self._send(502, {"error": str(e)})
+
+        if u.path == "/api/refresh_racing":
+            cfg = load_config()
+            try:
+                selected = cfg.get("racing_series", ["f1"])
+                _clear_racing_availability_cache()
+                events = get_racing_events(selected, force=True)
+                if "f1" in selected:
+                    get_f1_teams(force=True)
+                get_racing_drivers(force=True)
+                return self._send(200, {"ok": True, "series": len(selected),
+                                        "events": len(events)})
             except Exception as e:
                 return self._send(502, {"error": str(e)})
 
