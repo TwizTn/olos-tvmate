@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b301"
+VERSION = "0.777.b302"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4047,6 +4047,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:440px){.racingdetailnextgrid{grid-template-columns:1fr}.racingeventvisual{align-items:flex-start}}
  .driverlive{display:inline-block;background:#102c19;border:1px solid #2f7e48;color:#70d18a;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:7px;vertical-align:1px}
  .mydashdriverlive{margin-left:auto}
+ .mydashteamonly:has(.mydashdriverlive) .mydashsportcount{display:none}
  .racingcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
  .racingcard h3{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:10px}
  .racingcard h3>span{position:relative;padding-bottom:6px}
@@ -6515,7 +6516,7 @@ function renderMyListSportShells(favorites){
 }
 async function loadMyListTeams(favorites,racingDataPromise){
   const el=document.getElementById('myListTeams'),teams=(favorites.teams||[]),now=Date.now();
-  _myListTeamMoments=[];_myListF1Moments=[];let h='';
+  _myListTeamMoments=[];let h='';
   renderMyListSportShells(favorites);
   const racingPromise=_f1Enabled?Promise.all([api('/api/racing_drivers'),racingDataPromise||api('/api/racing')]):null;
   if(_footballEnabled&&teams.length){
