@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b294"
+VERSION = "0.777.b295"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3794,7 +3794,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .settingstab.on{color:var(--fg);background:var(--card);box-shadow:inset 0 -2px var(--acc)}
  .settingspanels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
  .settingspanel{display:contents}
- .settingsgroup[data-settings-panel="playback"],.settingsgroup[data-settings-panel="health"]{grid-column:1/-1}
+ .settingsgroup[data-settings-panel="general"],.settingsgroup[data-settings-panel="playback"],.settingsgroup[data-settings-panel="maintenance"],.settingsgroup[data-settings-panel="health"]{grid-column:1/-1}
  .settingspanel input[type=text],.settingspanel input[type=password]{width:100%}
  #settingsProfile .grid2{grid-template-columns:1fr 1fr}
  #settingsProfile select{width:100%}
@@ -4458,16 +4458,16 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
             <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
           <div><label data-i18n="Default start section">Default start section</label>
             <select id="s_start"><option value="mylist">Profile</option><option id="startTimelineOption" value="mytimeline">Timeline</option><option value="channels">Playlists</option><option value="mytv">Live TV</option><option value="movies">Movies</option><option value="shows">Shows</option><option id="startGamesOption" value="games">Games</option><option id="startRacingOption" value="racing">Racing</option><option value="teams">Sports</option></select></div>
+          <div><label data-i18n="Background style">Background style</label><select id="s_background"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div>
         </div>
        </div>
-       <div class="settingsgroup" data-settings-panel="general">
-        <div class="colh" data-i18n="Startup">Startup</div>
+       <div class="settingsgroup" data-settings-panel="content" hidden>
+        <div class="colh" data-i18n="Content startup">Content startup</div>
         <div class="settingschecks">
         <label class="settingscheck">
           <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
         </label>
-        <div><label data-i18n="Startup refresh">Startup refresh</label><select id="s_refreshstartup"><option value="off" data-i18n="Off">Off</option><option value="iptv" data-i18n="IPTV & EPG">IPTV &amp; EPG</option><option value="other" data-i18n="Other content">Other content</option><option value="all" data-i18n="Everything">Everything</option></select></div>
         </div>
        </div>
        <div class="settingsgroup" data-settings-panel="content" hidden>
@@ -4486,7 +4486,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <span data-i18n="Show game features">Show game features</span>
         </label>
         </div>
-        <div class="settingsdisplay"><div><label data-i18n="Background style">Background style</label><select id="s_background"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div></div>
        </div>
       </div>
       <div id="settingsSetup" class="settingspanel">
@@ -4498,6 +4497,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div><label data-i18n="Password">Password</label><input id="s_pass" type="password"></div>
         <div><label data-i18n="Host (e.g. http://example.com:8080)">Host (e.g. http://example.com:8080)</label><input id="s_host" type="text"></div>
         <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button></div>
+        <div><label data-i18n="Stream extension">Stream extension</label><select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
       </div>
       </div>
       <div class="settingsgroup" data-settings-panel="iptv" hidden>
@@ -4505,29 +4505,25 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="muted" data-i18n="Choose exactly which TVMate data should be updated.">Choose exactly which TVMate data should be updated.</div>
       <div class="row settingsrefreshbuttons" style="margin-top:13px">
         <button class="ghost" onclick="refreshIptvContent(this).catch(()=>{})" data-i18n="Refresh IPTV & EPG">Refresh IPTV &amp; EPG</button>
-        <button class="ghost" onclick="refreshOtherContent(this).catch(()=>{})" data-i18n="Refresh other content">Refresh other content</button>
-        <button onclick="refreshEverything(this).catch(()=>{})" data-i18n="Refresh everything">Refresh everything</button>
       </div>
-      <div id="s_refreshmsg" class="muted" style="margin-top:10px"></div>
       </div>
       <div class="settingsgroup" data-settings-panel="content" hidden>
-      <div class="colh" data-i18n="Search Options">Search Options</div>
+      <div class="colh" data-i18n="Matching & external content">Matching &amp; external content</div>
       <div class="grid2">
         <div><label data-i18n="Match strictness (0.40–0.80)">Match strictness (0.40&ndash;0.80)</label><input id="s_thr" type="text"></div>
       </div>
       <label data-i18n="Listings countries (comma separated: no, uk, us)">Listings countries (comma separated: no, uk, us)</label>
       <input id="s_cc" type="text">
+      <div class="row settingsrefreshbuttons" style="margin-top:13px"><button class="ghost" onclick="refreshOtherContent(this).catch(()=>{})" data-i18n="Refresh other content">Refresh other content</button></div>
       </div>
       <div class="settingsgroup" data-settings-panel="playback" hidden>
-      <div class="colh" data-i18n="Maintenance & Playback">Maintenance &amp; Playback</div>
-      <div class="grid2">
-        <div><label data-i18n="Stream extension">Stream extension</label>
-          <select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
-      </div>
-      <div style="margin-top:12px"><label><span data-i18n="Auto shutdown when inactive">Auto shutdown when inactive</span> <select id="s_autoshutdown" style="width:auto;margin-left:7px"><option value="0" data-i18n="Keep running — uses approximately three crumbs and your calculator works harder">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label></div>
+      <div class="colh" data-i18n="Playback">Playback</div>
+      <div><label data-i18n="Auto shutdown when inactive">Auto shutdown when inactive</label><select id="s_autoshutdown"><option value="0" data-i18n="Keep running — uses approximately three crumbs and your calculator works harder">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></div>
       </div>
       <div class="settingsgroup" data-settings-panel="maintenance" hidden>
       <div class="colh" data-i18n="Maintenance">Maintenance</div>
+      <div><label data-i18n="Startup refresh">Startup refresh</label><select id="s_refreshstartup"><option value="off" data-i18n="Off">Off</option><option value="iptv" data-i18n="IPTV & EPG">IPTV &amp; EPG</option><option value="other" data-i18n="Other content">Other content</option><option value="all" data-i18n="Everything">Everything</option></select></div>
+      <div class="row settingsrefreshbuttons" style="margin-top:14px"><button onclick="refreshEverything(this).catch(()=>{})" data-i18n="Refresh everything">Refresh everything</button></div>
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize" data-i18n="Checking...">Checking...</b></div>
       <div class="row" style="margin-top:14px"><button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button><button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button></div>
       <div class="row" style="margin-top:10px"><button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button></div>
@@ -4548,7 +4544,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       </div>
       </div>
-      <div class="settingsactions"><span class="muted" data-i18n="Changes are kept locally on this device.">Changes are kept locally on this device.</span><button class="push" onclick="saveSettings()" data-i18n="Save">Save changes</button></div>
+      <div class="settingsactions"><span id="s_refreshmsg" class="muted"></span><span class="muted" data-i18n="Changes are kept locally on this device.">Changes are kept locally on this device.</span><button class="push" onclick="saveSettings()" data-i18n="Save">Save changes</button></div>
     </div>
     </div>
   </section>
@@ -4666,7 +4662,7 @@ const _I18N={
   "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
   "Match strictness":"Treffnøyaktighet",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
-  "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status",
+  "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status","Content startup":"Innhold ved oppstart","Matching & external content":"Matching og eksternt innhold",
   "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem",
   "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
   "Features & Display":"Funksjoner og visning","Show football features":"Vis fotballfunksjoner","Show Formula 1 features":"Vis Formel 1-funksjoner","Show racing features":"Vis racingfunksjoner","Show game features":"Vis spillfunksjoner","Animated background decorations":"Animerte bakgrunnsdekorasjoner","Choose the racing series you want to follow.":"Velg racingseriene du vil følge.",
