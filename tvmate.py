@@ -42,6 +42,10 @@ import webbrowser
 import hashlib
 import shutil
 import datetime
+import gzip
+import tempfile
+import zlib
+import xml.etree.ElementTree as ET
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -87,7 +91,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b290"
+VERSION = "0.777.b291"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -782,25 +786,23 @@ def _xmltv_parse_ts(val):
 
 def fetch_xmltv_epg(x, wanted_epg_ids, timeout=90):
     """Download and parse bulk XMLTV while keeping large payloads off RAM."""
-    import xml.etree.ElementTree as _ET
-    import gzip as _gzip, tempfile as _tempfile, zlib as _zlib
     wanted = set(str(w) for w in wanted_epg_ids if w)
     if not wanted:
         return {}
     req = urllib.request.Request(x.xmltv_url(), headers={
         "User-Agent": UA, "Accept-Encoding": "gzip, deflate"})
-    with _tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as xml_file:
+    with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as xml_file:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             encoding = (resp.headers.get("Content-Encoding") or "").lower()
             if "gzip" in encoding:
-                source = _gzip.GzipFile(fileobj=resp)
+                source = gzip.GzipFile(fileobj=resp)
                 while True:
                     chunk = source.read(1024 * 1024)
                     if not chunk:
                         break
                     xml_file.write(chunk)
             elif "deflate" in encoding:
-                decoder = _zlib.decompressobj()
+                decoder = zlib.decompressobj()
                 while True:
                     chunk = resp.read(1024 * 1024)
                     if not chunk:
@@ -819,7 +821,7 @@ def fetch_xmltv_epg(x, wanted_epg_ids, timeout=90):
             raise ValueError("xmltv.php returned HTML, not XML (blocked/redirect)")
         xml_file.seek(0)
         out = {}
-        for _event, elem in _ET.iterparse(xml_file, events=("end",)):
+        for _event, elem in ET.iterparse(xml_file, events=("end",)):
             tag = elem.tag.lower()
             if tag == "programme":
                 ch = elem.get("channel", "")
@@ -3708,14 +3710,14 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .playlistsearch{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:0 0 18px;padding:15px 18px;border:1px solid var(--line);border-radius:10px;background:rgba(18,22,28,.72)}
  .playlistsearch .col{min-width:0}.playlistsearch .col+.col{border-left:1px solid var(--line);padding-left:22px}.playlistsearch .row{margin-bottom:7px}
  .colh{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 10px;font-weight:600}
- .srchealth{display:flex;flex-direction:column;gap:4px}
- .srcrow{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px}
+ .srchealth{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .srcrow{display:grid;grid-template-columns:9px minmax(130px,.8fr) minmax(0,1.2fr);align-items:center;gap:9px;padding:10px 11px;font-size:13px;border:1px solid rgba(255,255,255,.055);border-radius:8px;background:rgba(255,255,255,.018)}
  .srcdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
  .dot-ok{background:#3fb950}
  .dot-bad{background:#f85149}
  .dot-unknown{background:#6e7681}
- .srcname{min-width:180px}
- .srcstat{font-size:12px}
+ .srcname{min-width:0;font-weight:500}
+ .srcstat{font-size:12px;overflow-wrap:anywhere;line-height:1.35}
  .sectionsearch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.sectionsearch input{min-height:42px}.sectionsearch button{min-width:82px}
  *{scrollbar-color:#4e5868 #171b22;scrollbar-width:thin}
  *::-webkit-scrollbar{width:10px;height:10px}*::-webkit-scrollbar-track{background:#171b22;border-radius:8px}*::-webkit-scrollbar-thumb{background:#4e5868;border:2px solid #171b22;border-radius:8px}*::-webkit-scrollbar-thumb:hover{background:#69778b}
@@ -3780,29 +3782,33 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .brandblock{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;width:220px;flex-shrink:0}
  .brandblock .bname{font-size:22px;font-weight:600;color:var(--fg)}
  .brandblock .btag{font-size:13px;color:var(--mut)}
- .settingswrap{display:grid;grid-template-columns:205px minmax(0,1080px);gap:22px;align-items:start;justify-content:center;max-width:1340px;margin:0 auto;padding:18px 12px 34px}
- .settingswrap .brandblock{width:auto;gap:6px;position:sticky;top:86px;padding:22px 12px 18px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(160deg,rgba(24,30,39,.94),rgba(15,18,23,.86))}
- .settingswrap .brandblock svg{width:78px;height:78px}
- .settingswrap .brandblock .bname{font-size:17px}
+ .settingswrap{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start;max-width:1580px;margin:0 auto;padding:18px 20px 42px}
+ .settingswrap .brandblock{width:auto;display:grid;grid-template-columns:58px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:14px;row-gap:2px;align-items:center;justify-content:stretch;text-align:left;padding:13px 18px;border:1px solid var(--line2);border-radius:12px;background:linear-gradient(100deg,rgba(24,30,39,.96),rgba(15,18,23,.84))}
+ .settingswrap .brandblock svg{width:58px;height:58px;grid-row:1/3}
+ .settingswrap .brandblock .bname{font-size:18px;grid-column:2;align-self:end}
+ .settingswrap .brandblock .btag{grid-column:2;align-self:start}
+ .settingswrap .brandblock .btag:last-child{grid-column:3;grid-row:1/3;align-self:center;margin:0!important;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--bg)}
  .settingswrap .settingscard{width:100%;max-width:none;min-width:0;background:none;border:0;padding:0;margin:0}
- .settingspanels{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:14px;align-items:start}
+ .settingspanels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
  .settingspanel{border:0;border-radius:0;background:transparent;padding:0;min-width:0;display:flex;flex-direction:column;gap:12px}
  .settingspanel input[type=text],.settingspanel input[type=password]{width:100%}
  #settingsProfile .grid2{grid-template-columns:1fr 1fr}
  #settingsProfile select{width:100%}
- .settingsgroup{border:1px solid var(--line2);border-radius:12px;background:linear-gradient(180deg,var(--card),#11151b);padding:16px}
- .settingsgroup .colh{margin-bottom:12px}.settingsgroup .colh+.muted{margin-top:-4px;margin-bottom:14px;line-height:1.45}
+ .settingsgroup{border:1px solid var(--line2);border-radius:12px;background:linear-gradient(180deg,var(--card),#11151b);padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+ .settingsgroup .colh{margin:0 -2px 13px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.07);color:#aeb9c9}.settingsgroup .colh+.muted{margin-top:-5px;margin-bottom:14px;line-height:1.45}
  .settingschecks{display:grid;gap:9px}.settingscheck{display:flex;align-items:flex-start;gap:9px;padding:8px 9px;border-radius:8px;background:rgba(255,255,255,.018)}.settingscheck input{width:auto;margin:2px 0 0}.settingscheck span{line-height:1.35}
  .settingsdisplay{display:grid;grid-template-columns:1fr;gap:12px;margin-top:13px}
- .settingsactions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 2px}.settingsactions .push{margin-left:auto}
+ .settingsactions{position:sticky;bottom:10px;z-index:4;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding:11px 13px;border:1px solid var(--line2);border-radius:11px;background:rgba(17,21,27,.96);box-shadow:0 12px 30px rgba(0,0,0,.3);backdrop-filter:blur(10px)}.settingsactions .push{margin-left:auto}
  .emblempicker{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px}
  .emblemchoice{width:48px;height:48px;padding:5px;border:1px solid var(--line2);border-radius:9px;background:var(--bg);opacity:.65}
  .emblemchoice:hover{opacity:1;border-color:var(--acc)}
  .emblemchoice.on{opacity:1;border:2px solid var(--acc);background:#16233d}
  .emblemchoice svg{width:100%;height:100%;display:block}
  #settingsSetup .row{flex-wrap:wrap}
- @media(max-width:1150px){.settingswrap{grid-template-columns:1fr;max-width:900px}.settingswrap .brandblock{position:static;flex-direction:row;text-align:left;justify-content:flex-start;padding:11px 16px}.settingswrap .brandblock svg{width:54px;height:54px}.settingswrap .brandblock .btag{display:none}.settingspanels{grid-template-columns:1fr}}
- @media(max-width:650px){#settingsProfile .grid2{grid-template-columns:1fr}.settingswrap{padding:8px}.settingsgroup{padding:13px}}
+ .settingshealthgroup{grid-column:1/-1}.settingshealthgroup>.row{justify-content:flex-end}
+ @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay #settingsView .settingswrap{padding-left:8px;padding-right:8px}body.tvsectionplay #settingsView .settingsgroup .grid2{grid-template-columns:1fr}body.tvsectionplay #settingsView .srcrow{grid-template-columns:9px minmax(110px,.8fr) minmax(0,1.2fr)}}
+ @media(max-width:1150px){.settingswrap{max-width:900px}.settingspanels{grid-template-columns:1fr}.srchealth{grid-template-columns:1fr}}
+ @media(max-width:650px){#settingsProfile .grid2{grid-template-columns:1fr}.settingswrap{padding:8px}.settingsgroup{padding:13px}.settingswrap .brandblock{grid-template-columns:48px 1fr}.settingswrap .brandblock svg{width:48px;height:48px}.settingswrap .brandblock .btag:last-child{display:none}.settingsactions .muted{display:none}}
  /* playlist builder logo */
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
  .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
@@ -4502,7 +4508,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize" data-i18n="Checking...">Checking...</b></div>
       <div class="row" style="margin-top:14px"><button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button><button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button></div>
       <div id="s_msg" class="muted" style="margin-top:10px"></div>
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+      </div>
+      <div class="settingsgroup settingshealthgroup">
         <div class="colh" data-i18n="Source health">Source health</div>
         <div class="muted" style="margin-bottom:8px" data-i18n="Shows whether the external data sources responded last time they were used.">Shows whether the external data sources responded last time they were used.</div>
         <div id="sourceHealth" class="srchealth"></div>
@@ -4514,7 +4521,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div class="row" style="margin-top:10px">
           <button class="ghost" onclick="resetColdStart(this)" data-i18n="Reset for cold-start test">Reset for cold-start test</button>
         </div>
-      </div>
       </div>
       </div>
       </div>
