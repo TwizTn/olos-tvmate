@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b295"
+VERSION = "0.777.b296"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4449,11 +4449,13 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div id="settingsProfile" class="settingspanel">
        <div class="settingsgroup" data-settings-panel="general">
         <div class="colh" data-i18n="Profile">Profile</div>
+        <div class="muted" data-i18n="Personalize TVMate and choose what opens when the app starts.">Personalize TVMate and choose what opens when the app starts.</div>
         <div class="grid2">
           <div><label data-i18n="Profile name">Profile name</label><input id="s_profile" type="text" maxlength="40"></div>
           <div><label data-i18n="Profile emblem">Profile emblem</label><div id="s_emblems" class="emblempicker"></div></div>
           <div><label data-i18n="Profile layout">Profile layout</label>
-            <select id="s_mylistlayout"><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="timeline">Now Timeline</option><option value="hub">Profile Hub</option></select></div>
+            <select id="s_mylistlayout"><option value="balanced" data-i18n="Balanced">Balanced</option><option value="spotlight" data-i18n="Spotlight">Spotlight</option><option value="timeline" data-i18n="Now Timeline">Now Timeline</option><option value="hub" data-i18n="Profile Hub">Profile Hub</option></select>
+            <div class="muted" style="margin-top:6px" data-i18n="Changes the arrangement of your Profile page only.">Changes the arrangement of your Profile page only.</div></div>
           <div><label data-i18n="Preferred language">Preferred language</label>
             <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
           <div><label data-i18n="Default start section">Default start section</label>
@@ -4463,6 +4465,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
        </div>
        <div class="settingsgroup" data-settings-panel="content" hidden>
         <div class="colh" data-i18n="Content startup">Content startup</div>
+        <div class="muted" data-i18n="Checks your favorite series for newly available episodes after TVMate opens.">Checks your favorite series for newly available episodes after TVMate opens.</div>
         <div class="settingschecks">
         <label class="settingscheck">
           <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
@@ -4472,6 +4475,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
        </div>
        <div class="settingsgroup" data-settings-panel="content" hidden>
         <div class="colh" data-i18n="Features & Display">Features &amp; Display</div>
+        <div class="muted" data-i18n="Show or hide optional sections. Disabling one also skips it during external-content refreshes.">Show or hide optional sections. Disabling one also skips it during external-content refreshes.</div>
         <div class="settingschecks">
         <label class="settingscheck">
           <input id="s_football" type="checkbox" style="width:auto;margin:0">
@@ -4497,8 +4501,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div><label data-i18n="Password">Password</label><input id="s_pass" type="password"></div>
         <div><label data-i18n="Host (e.g. http://example.com:8080)">Host (e.g. http://example.com:8080)</label><input id="s_host" type="text"></div>
         <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button></div>
-        <div><label data-i18n="Stream extension">Stream extension</label><select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
       </div>
+      <div id="s_connmsg" class="muted" style="margin-top:10px"></div>
       </div>
       <div class="settingsgroup" data-settings-panel="iptv" hidden>
       <div class="colh" data-i18n="Data & Refresh">Data &amp; Refresh</div>
@@ -4509,20 +4513,27 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       <div class="settingsgroup" data-settings-panel="content" hidden>
       <div class="colh" data-i18n="Matching & external content">Matching &amp; external content</div>
+      <div class="muted" data-i18n="These options affect Matchfinder and regional TV listings, not XMLTV EPG storage.">These options affect Matchfinder and regional TV listings, not XMLTV EPG storage.</div>
       <div class="grid2">
         <div><label data-i18n="Match strictness (0.40–0.80)">Match strictness (0.40&ndash;0.80)</label><input id="s_thr" type="text"></div>
       </div>
       <label data-i18n="Listings countries (comma separated: no, uk, us)">Listings countries (comma separated: no, uk, us)</label>
       <input id="s_cc" type="text">
+      <div class="muted" style="margin-top:7px" data-i18n="Lower strictness finds more channel-name matches but may include incorrect ones. Countries choose which regional broadcaster listings Matchfinder checks.">Lower strictness finds more channel-name matches but may include incorrect ones. Countries choose which regional broadcaster listings Matchfinder checks.</div>
       <div class="row settingsrefreshbuttons" style="margin-top:13px"><button class="ghost" onclick="refreshOtherContent(this).catch(()=>{})" data-i18n="Refresh other content">Refresh other content</button></div>
       </div>
       <div class="settingsgroup" data-settings-panel="playback" hidden>
       <div class="colh" data-i18n="Playback">Playback</div>
-      <div><label data-i18n="Auto shutdown when inactive">Auto shutdown when inactive</label><select id="s_autoshutdown"><option value="0" data-i18n="Keep running — uses approximately three crumbs and your calculator works harder">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></div>
+      <div class="muted" data-i18n="Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.">Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.</div>
+      <div style="margin-top:13px"><label data-i18n="Stream extension">Stream extension</label><select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
       </div>
       <div class="settingsgroup" data-settings-panel="maintenance" hidden>
       <div class="colh" data-i18n="Maintenance">Maintenance</div>
+      <div class="muted" data-i18n="Control automatic updates of local data and manage TVMate's local files.">Control automatic updates of local data and manage TVMate's local files.</div>
       <div><label data-i18n="Startup refresh">Startup refresh</label><select id="s_refreshstartup"><option value="off" data-i18n="Off">Off</option><option value="iptv" data-i18n="IPTV & EPG">IPTV &amp; EPG</option><option value="other" data-i18n="Other content">Other content</option><option value="all" data-i18n="Everything">Everything</option></select></div>
+      <div class="muted" style="margin-top:7px" data-i18n="IPTV refreshes Xtream catalogues and EPG. Other content refreshes enabled sports, racing and linked services. Everything runs both.">IPTV refreshes Xtream catalogues and EPG. Other content refreshes enabled sports, racing and linked services. Everything runs both.</div>
+      <div style="margin-top:13px"><label data-i18n="Auto shutdown when inactive">Auto shutdown when inactive</label><select id="s_autoshutdown"><option value="0" data-i18n="Keep running — uses approximately three crumbs and your calculator works harder">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></div>
+      <div class="muted" style="margin-top:7px" data-i18n="Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.">Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.</div>
       <div class="row settingsrefreshbuttons" style="margin-top:14px"><button onclick="refreshEverything(this).catch(()=>{})" data-i18n="Refresh everything">Refresh everything</button></div>
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize" data-i18n="Checking...">Checking...</b></div>
       <div class="row" style="margin-top:14px"><button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button><button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button></div>
@@ -4663,7 +4674,11 @@ const _I18N={
   "Match strictness":"Treffnøyaktighet",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
   "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status","Content startup":"Innhold ved oppstart","Matching & external content":"Matching og eksternt innhold",
+  "Personalize TVMate and choose what opens when the app starts.":"Tilpass TVMate og velg hva som åpnes når appen starter.","Checks your favorite series for newly available episodes after TVMate opens.":"Ser etter nylig tilgjengelige episoder i favorittseriene dine etter at TVMate åpnes.","Show or hide optional sections. Disabling one also skips it during external-content refreshes.":"Vis eller skjul valgfrie seksjoner. Deaktiverte seksjoner hoppes også over ved oppdatering av eksternt innhold.",
+  "These options affect Matchfinder and regional TV listings, not XMLTV EPG storage.":"Disse valgene påvirker Kampfinner og regionale TV-oversikter, ikke lagring av XMLTV-EPG.","Lower strictness finds more channel-name matches but may include incorrect ones. Countries choose which regional broadcaster listings Matchfinder checks.":"Lavere treffnøyaktighet finner flere kanalnavn, men kan gi feiltreff. Land velger hvilke regionale TV-oversikter Kampfinner sjekker.",
+  "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","IPTV refreshes Xtream catalogues and EPG. Other content refreshes enabled sports, racing and linked services. Everything runs both.":"IPTV oppdaterer Xtream-kataloger og EPG. Annet innhold oppdaterer aktivert sport, racing og tilknyttede tjenester. Alt kjører begge.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
   "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem",
+  "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
   "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
   "Features & Display":"Funksjoner og visning","Show football features":"Vis fotballfunksjoner","Show Formula 1 features":"Vis Formel 1-funksjoner","Show racing features":"Vis racingfunksjoner","Show game features":"Vis spillfunksjoner","Animated background decorations":"Animerte bakgrunnsdekorasjoner","Choose the racing series you want to follow.":"Velg racingseriene du vil følge.",
   "Preferred language":"Foretrukket språk",
@@ -5373,8 +5388,9 @@ async function loadSettings(){
   loadArtworkCacheSize();
 }
 async function saveSettings(){
+  const strict=Math.max(0.40,Math.min(0.80,parseFloat(s_thr.value)||0.62));s_thr.value=strict.toFixed(2);
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
-    xtream_pass:s_pass.value,stream_ext:s_ext.value,match_threshold:parseFloat(s_thr.value)||0.55,
+    xtream_pass:s_pass.value,stream_ext:s_ext.value,match_threshold:strict,
     countries:s_cc.value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),
     start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
     startup_refresh_mode:s_refreshstartup.value,refresh_all_on_startup:s_refreshstartup.value==='all',
@@ -5383,6 +5399,7 @@ async function saveSettings(){
     f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0)};
   if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
+  if(!body.football_enabled&&body.start_section==='teams')body.start_section='mylist';
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   s_msg.textContent=r.ok?'Saved.':'Error saving.';
   if(r.ok){setLang(body.preferred_language);applyProfileConfig(body);toast('Saved.');if(!body.football_enabled&&!teamsView.classList.contains('hide'))showMylist();if(!body.games_enabled&&!gamesView.classList.contains('hide'))showMylist();if(!body.f1_enabled&&!racingView.classList.contains('hide'))showMylist();}
@@ -5419,6 +5436,10 @@ document.addEventListener('pointerdown',markTVMateActivity,{passive:true});
 document.addEventListener('keydown',markTVMateActivity,{passive:true});
 document.addEventListener('touchstart',markTVMateActivity,{passive:true});
 document.addEventListener('visibilitychange',function(){if(!document.hidden)markTVMateActivity();});
+setInterval(function(){
+  const popup=document.getElementById('pVideo'),live=document.getElementById('tvVideo');
+  if((popup&&!popup.paused&&!popup.ended)||(live&&!live.paused&&!live.ended))markTVMateActivity();
+},30000);
 markTVMateActivity();
 async function resetColdStart(btn){
   if(!confirm('Clear performance caches and reload TVMate for a cold-start test?'))return;
@@ -5442,9 +5463,11 @@ document.addEventListener('keydown',function(e){
     _devSequence='';setSettingsTab('maintenance');toast('Developer tools unlocked.');
   }
 });
-async function testLogin(){s_msg.textContent='Testing...';
-  const r=await api('/api/test');
-  s_msg.innerHTML=r.ok?('OK &mdash; '+JSON.stringify(r.info)):('<span class="err">'+r.error+'</span>');}
+async function testLogin(){
+  const msg=document.getElementById('s_connmsg');msg.textContent=tr('Testing...');
+  const r=await api('/api/test_credentials',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({xtream_host:s_host.value,xtream_user:s_user.value,xtream_pass:s_pass.value})});
+  msg.innerHTML=r.ok?('<span class="ok">'+tr('Login successful.')+'</span>'):('<span class="err">'+esc(r.error||tr('Login failed.'))+'</span>');
+}
 function refreshMessage(text){const el=document.getElementById('s_refreshmsg');if(el)el.textContent=text;}
 async function withRefreshButton(btn,label,work){
   const old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent=label;}
@@ -7148,8 +7171,10 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
   const setupDone=!!(startupConfig&&startupConfig.setup_complete===true);
   if(startupConfig&&!setupDone)setTimeout(()=>openProfileSetup(true,startupConfig),120);
   if(startupConfig&&setupDone)setTimeout(()=>maybeAutoRefreshSteamWishlist(startupConfig),900);
-  if(setupDone&&refreshStartup!=='off')setTimeout(()=>refreshOnStartup(refreshStartup),500);
-  else if(setupDone&&checkShows)setTimeout(checkShowsOnStartup,500);
+  if(setupDone&&(refreshStartup!=='off'||checkShows))setTimeout(async function(){
+    if(refreshStartup!=='off')await refreshOnStartup(refreshStartup);
+    if(checkShows)await checkShowsOnStartup();
+  },500);
 })();
 window.addEventListener('popstate',function(ev){
   const state=ev.state;
@@ -8736,6 +8761,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(502, {"error": "Steam wishlist: " + str(e)})
         if u.path == "/api/config":
             cfg = load_config()
+            provider_before = tuple(str(cfg.get(k) or "") for k in
+                                    ("xtream_host", "xtream_port", "xtream_user", "xtream_pass"))
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_all_on_startup", "startup_refresh_mode", "profile_name",
@@ -8743,6 +8770,22 @@ class Handler(BaseHTTPRequestHandler):
                       "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes"):
                 if k in payload:
                     cfg[k] = payload[k]
+            if cfg.get("stream_ext") not in ("ts", "m3u8"):
+                cfg["stream_ext"] = "ts"
+            try:
+                cfg["match_threshold"] = max(0.40, min(0.80, float(cfg.get("match_threshold", 0.62))))
+            except (TypeError, ValueError):
+                cfg["match_threshold"] = 0.62
+            raw_countries = cfg.get("countries") if isinstance(cfg.get("countries"), list) else []
+            cfg["countries"] = list(dict.fromkeys(str(code).strip().lower() for code in raw_countries
+                                                   if re.fullmatch(r"[a-zA-Z]{2}", str(code).strip())))[:16] or ["no", "gb", "us"]
+            if cfg.get("preferred_language") not in ("en", "no"):
+                cfg["preferred_language"] = "en"
+            if cfg.get("mylist_layout") not in ("balanced", "spotlight", "timeline", "hub"):
+                cfg["mylist_layout"] = "timeline"
+            allowed_starts = ("mylist", "mytimeline", "channels", "mytv", "movies", "shows", "games", "racing", "teams")
+            if cfg.get("start_section") not in allowed_starts:
+                cfg["start_section"] = "mylist"
             if "background_style" not in payload and "decorations_enabled" in payload:
                 cfg["background_style"] = "float" if payload.get("decorations_enabled") else "off"
             if cfg.get("background_style") not in ("float", "ascii", "off"):
@@ -8753,10 +8796,15 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["auto_shutdown_minutes"] = max(0, int(cfg.get("auto_shutdown_minutes") or 0))
             except (TypeError, ValueError):
                 cfg["auto_shutdown_minutes"] = 0
+            if cfg["auto_shutdown_minutes"] not in (0, 30, 60, 120, 240):
+                cfg["auto_shutdown_minutes"] = 0
             if cfg.get("startup_refresh_mode") not in ("off", "iptv", "other", "all"):
                 cfg["startup_refresh_mode"] = "all" if cfg.get("refresh_all_on_startup") else "off"
             save_config(cfg)
-            _clear_provider_caches()
+            provider_after = tuple(str(cfg.get(k) or "") for k in
+                                   ("xtream_host", "xtream_port", "xtream_user", "xtream_pass"))
+            if provider_after != provider_before:
+                _clear_provider_caches()
             return self._send(200, {"ok": True})
 
         if u.path == "/api/clear_artwork_cache":
