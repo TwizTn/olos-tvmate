@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b297"
+VERSION = "0.777.b298"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3523,8 +3523,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mylisttimeline{border-left:1px solid var(--line2);margin-left:9px;padding-left:22px;display:flex;flex-direction:column;gap:0}
  .mylisttimelinesection{position:relative;margin:2px 0 11px;font-size:10px;font-weight:750;letter-spacing:.8px;text-transform:uppercase;color:var(--mut)}
  .mylisttimelinesection:before{content:"";position:absolute;left:-27px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--line2);box-shadow:0 0 0 3px var(--bg)}
- .mylisttimelinesection.live{margin:2px 0 12px;background:linear-gradient(90deg,#461317,#2b1115);border:1px solid #8d2830;border-radius:7px;padding:4px 10px;color:#ff7d85;font-size:11px;box-shadow:0 0 18px rgba(186,37,49,.12)}
- .mylisttimelinesection.live:before{left:-28px;top:8px;background:#e44752;box-shadow:0 0 0 3px var(--bg),0 0 10px #e44752}
+ .mylisttimelinesection.live{margin:2px 0 11px;background:transparent;border:0;border-radius:0;padding:0;color:#ff6570;font-size:10px;box-shadow:none}
+ .mylisttimelinesection.live:before{left:-27px;top:4px;background:#e44752;box-shadow:0 0 0 3px var(--bg),0 0 10px #e44752}
  .mylisttimelinesection.upcoming{color:var(--acc)}
  .mylisttimelineentry{position:relative;padding:0 0 20px;min-width:0}
  .mylisttimelineentry.live .mylisttimelinebody{border-color:#713039;background:linear-gradient(90deg,rgba(62,19,25,.32),var(--card) 28%);box-shadow:inset 3px 0 0 #d43b46}
