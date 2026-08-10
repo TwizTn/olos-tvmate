@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b310"
+VERSION = "0.777.b311"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1499,6 +1499,7 @@ _F1_TEAMS_CACHE = {"ts": 0, "teams": []}
 _F1_TTL = 7 * 24 * 3600
 _CINEMETA_CACHE = {}
 _CINEMETA_TTL = 6 * 3600
+_CINEMETA_CATALOG_TTL = 24 * 3600
 
 def cinemeta_search(kind, term):
     kind = "series" if kind == "series" else "movie"
@@ -1530,12 +1531,20 @@ def cinemeta_movie_catalog(catalog="popular", limit=10):
         endpoint = "top"
     key = ("catalog", "movie", catalog)
     cached = _CINEMETA_CACHE.get(key)
-    if cached and time.time() - cached["ts"] < _CINEMETA_TTL:
+    if cached and time.time() - cached["ts"] < _CINEMETA_CATALOG_TTL:
         return cached["data"][:limit]
+    cache_suffix = year if catalog == "new" else "v1"
+    disk = _load_timed_data_cache(
+        f"cinemeta-movie-{catalog}-{cache_suffix}.json", _CINEMETA_CATALOG_TTL)
+    if isinstance(disk, list) and disk:
+        _CINEMETA_CACHE[key] = {"ts": time.time(), "data": disk}
+        return disk[:limit]
     url = "https://v3-cinemeta.strem.io/catalog/movie/" + endpoint + ".json"
     data = http_get_json(url, timeout=15)
     rows = data.get("metas") or []
     _CINEMETA_CACHE[key] = {"ts": time.time(), "data": rows}
+    if rows:
+        _save_timed_data_cache(f"cinemeta-movie-{catalog}-{cache_suffix}.json", rows)
     return rows[:limit]
 
 def cinemeta_meta(kind, catalog_id):
@@ -5922,7 +5931,7 @@ async function loadRecentMovies(limit){
   if(limit<36&&r.has_more)more.classList.remove('hide');
   return true;
 }
-let _movieCatalog='popular';
+let _movieCatalog='popular',_movieCatalogCache={};
 function setMovieProviderLayout(loggedIn){
   const catalogs=document.getElementById('movieCatalogs');
   if(catalogs)catalogs.classList.toggle('noxtream',!loggedIn);
@@ -5934,12 +5943,19 @@ async function loadCinemetaMovies(catalog){
   document.querySelectorAll('[data-movie-catalog]').forEach(function(btn){btn.classList.toggle('on',btn.dataset.movieCatalog===_movieCatalog);});
   const el=document.getElementById('cinemetaMovieList');
   if(!el)return;
+  const cached=_movieCatalogCache[_movieCatalog];
+  if(cached){
+    setMovieProviderLayout(cached.logged_in);
+    el.innerHTML='<div class="moviegrid" style="margin-top:0">'+cached.movies.map(m=>movieCard(m,true,false)).join('')+'</div>';
+    return;
+  }
   el.innerHTML='<span class="muted">Loading...</span>';
   try{
     const r=await api('/api/movie_catalog?catalog='+encodeURIComponent(_movieCatalog)+'&limit=10');
     if(typeof r.logged_in==='boolean')setMovieProviderLayout(r.logged_in);
     if(r.error)throw new Error(r.error);
     if(!r.movies.length){el.innerHTML='<span class="muted">No movies found.</span>';return;}
+    _movieCatalogCache[_movieCatalog]={movies:r.movies,logged_in:!!r.logged_in};
     await loadMovieFavorites();
     el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,true,false)).join('')+'</div>';
   }catch(e){el.innerHTML='<span class="muted">Could not load movie catalog.</span>';}
