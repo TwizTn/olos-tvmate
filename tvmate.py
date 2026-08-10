@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b306"
+VERSION = "0.777.b307"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4540,12 +4540,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       </div>
       <div class="settingsgroup" data-settings-panel="general" hidden>
-      <div class="colh" data-i18n="Matching & external content">Matching &amp; external content</div>
-      <div class="muted" data-i18n="These options affect Matchfinder and regional TV listings, not XMLTV EPG storage.">These options affect Matchfinder and regional TV listings, not XMLTV EPG storage.</div>
-      <label data-i18n="Listings countries (comma separated: no, uk, us)">Listings countries (comma separated: no, uk, us)</label>
+      <div class="colh" data-i18n="Sports Search">Sports Search</div>
+      <div class="muted" data-i18n="Choose which regional TV listings Sports Search uses to find broadcasters for matches.">Choose which regional TV listings Sports Search uses to find broadcasters for matches.</div>
+      <label data-i18n="TV listings countries (comma separated, e.g. no, uk, us)">TV listings countries (comma separated, e.g. no, uk, us)</label>
       <input id="s_cc" type="text">
-      <div class="muted" style="margin-top:7px" data-i18n="Countries choose which regional broadcaster listings Matchfinder checks. Match strictness is controlled from Sports.">Countries choose which regional broadcaster listings Matchfinder checks. Match strictness is controlled from Sports.</div>
-      <div class="row settingsrefreshbuttons" style="margin-top:13px"><button class="ghost" onclick="refreshOtherContent(this).catch(()=>{})" data-i18n="Refresh other content">Refresh other content</button></div>
+      <div class="muted" style="margin-top:7px" data-i18n="Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.">Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.</div>
       </div>
       <div class="settingsgroup" data-settings-panel="iptv" hidden>
       <div class="colh" data-i18n="Playback">Playback</div>
@@ -4557,7 +4556,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="muted" data-i18n="Control automatic updates of local data and manage TVMate's local files.">Control automatic updates of local data and manage TVMate's local files.</div>
       <div style="margin-top:13px"><label data-i18n="Auto shutdown when inactive">Auto shutdown when inactive</label><select id="s_autoshutdown"><option value="0" data-i18n="Keep running — uses approximately three crumbs and your calculator works harder">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></div>
       <div class="muted" style="margin-top:7px" data-i18n="Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.">Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.</div>
-      <div class="row settingsrefreshbuttons" style="margin-top:14px"><button onclick="refreshEverything(this).catch(()=>{})" data-i18n="Refresh everything">Refresh everything</button></div>
+      <div class="row settingsrefreshbuttons" style="margin-top:14px"><button class="ghost" onclick="refreshOtherContent(this).catch(()=>{})" data-i18n="Refresh sports & services">Refresh sports &amp; services</button><button onclick="refreshEverything(this).catch(()=>{})" data-i18n="Refresh everything">Refresh everything</button></div>
       <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize" data-i18n="Checking...">Checking...</b></div>
       <div class="row" style="margin-top:14px"><button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button><button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button></div>
       <div class="row" style="margin-top:10px"><button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button></div>
@@ -4696,9 +4695,9 @@ const _I18N={
   "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
   "Match strictness":"Treffnøyaktighet",
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
-  "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status","Content startup":"Innhold ved oppstart","Matching & external content":"Matching og eksternt innhold",
+  "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status","Content startup":"Innhold ved oppstart","Sports Search":"Sportssøk",
   "Personalize TVMate and choose what opens when the app starts.":"Tilpass TVMate og velg hva som åpnes når appen starter.","Checks your favorite series for newly available episodes after TVMate opens.":"Ser etter nylig tilgjengelige episoder i favorittseriene dine etter at TVMate åpnes.","Show or hide optional sections. Disabling one also skips it during external-content refreshes.":"Vis eller skjul valgfrie seksjoner. Deaktiverte seksjoner hoppes også over ved oppdatering av eksternt innhold.",
-  "These options affect Matchfinder and regional TV listings, not XMLTV EPG storage.":"Disse valgene påvirker Kampfinner og regionale TV-oversikter, ikke lagring av XMLTV-EPG.","Countries choose which regional broadcaster listings Matchfinder checks. Match strictness is controlled from Sports.":"Land velger hvilke regionale TV-oversikter Kampfinner sjekker. Treffnøyaktighet styres fra Sport.",
+  "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","TV listings countries (comma separated, e.g. no, uk, us)":"Land for TV-oversikter (kommaseparert, f.eks. no, uk, us)","Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.":"Skriv inn landskodene for TV-guidene du vil søke i. Juster treffnøyaktigheten på Sports-siden.",
   "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","IPTV refreshes Xtream catalogues and EPG. Other content refreshes enabled sports, racing and linked services. Everything runs both.":"IPTV oppdaterer Xtream-kataloger og EPG. Annet innhold oppdaterer aktivert sport, racing og tilknyttede tjenester. Alt kjører begge.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
   "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem",
   "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
@@ -4718,7 +4717,7 @@ const _I18N={
   "Not available":"Ikke tilgjengelig",
   "Maintenance & Playback":"Vedlikehold og avspilling","Refresh all content":"Oppdater alt innhold",
   "Data & Refresh":"Data og oppdatering","Choose exactly which TVMate data should be updated.":"Velg nøyaktig hvilke TVMate-data som skal oppdateres.",
-  "Refresh IPTV & EPG":"Oppdater IPTV og EPG","Refresh other content":"Oppdater annet innhold","Refresh everything":"Oppdater alt",
+  "Refresh IPTV & EPG":"Oppdater IPTV og EPG","Refresh sports & services":"Oppdater sport og tjenester","Refresh everything":"Oppdater alt",
   "Startup refresh":"Oppdatering ved oppstart","IPTV & EPG":"IPTV og EPG","Other content":"Annet innhold","Everything":"Alt",
   "Check favorite shows on startup":"Se etter nye episoder i favorittserier ved oppstart",
   "Refresh all content on startup":"Oppdater alt innhold ved oppstart",
