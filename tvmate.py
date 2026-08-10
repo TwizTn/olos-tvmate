@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b307"
+VERSION = "0.777.b308"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1515,6 +1515,28 @@ def cinemeta_search(kind, term):
     rows = (data.get("metas") or [])[:30]
     _CINEMETA_CACHE[key] = {"ts": time.time(), "data": rows}
     return rows
+
+def cinemeta_movie_catalog(catalog="popular", limit=10):
+    """Return a small browseable Cinemeta movie shelf."""
+    catalog = str(catalog or "popular").lower()
+    limit = max(1, min(30, int(limit or 10)))
+    if catalog == "new":
+        year = str(time.localtime().tm_year)
+        endpoint = "year/genre=" + year
+    elif catalog == "featured":
+        endpoint = "imdbRating"
+    else:
+        catalog = "popular"
+        endpoint = "top"
+    key = ("catalog", "movie", catalog)
+    cached = _CINEMETA_CACHE.get(key)
+    if cached and time.time() - cached["ts"] < _CINEMETA_TTL:
+        return cached["data"][:limit]
+    url = "https://v3-cinemeta.strem.io/catalog/movie/" + endpoint + ".json"
+    data = http_get_json(url, timeout=15)
+    rows = data.get("metas") or []
+    _CINEMETA_CACHE[key] = {"ts": time.time(), "data": rows}
+    return rows[:limit]
 
 def cinemeta_meta(kind, catalog_id):
     kind = "series" if kind == "series" else "movie"
@@ -3854,7 +3876,14 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .moviefavinfo{min-width:0;flex:1;display:flex;justify-content:center;padding:8px 6px 31px 0}
  .moviefavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center;word-break:break-word}
  .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
- .moviesmain{width:100%;max-width:900px;min-width:0;margin:0 auto}
+ .moviesmain{width:100%;max-width:1500px;min-width:0;margin:0 auto}
+ .moviecatalogs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:20px;align-items:start}
+ .moviecatalogcolumn{min-width:0}
+ .moviecatalogcolumn+.moviecatalogcolumn{padding-left:24px;border-left:1px solid var(--line)}
+ .moviecatalogtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+ .moviecatalogtab{background:transparent;color:var(--mut);border-color:var(--line2);box-shadow:none}
+ .moviecatalogtab.on{background:var(--card2);color:var(--fg);border-color:var(--acc)}
+ .moviecatalogcolumn .moviegrid{grid-template-columns:1fr}
  .moviegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:16px}
  .moviecard{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px;transition:border-color .13s,background .13s,transform .13s}
  .recentmovie{cursor:pointer}
@@ -4011,6 +4040,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
  .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
  #recentMovieList>.muted,#latestEpisodeList>.muted,#upcomingEpisodeList>.muted,#teamUpcomingList>.muted,#gameWishlist>.muted{display:block;padding:22px 14px;border:1px dashed var(--line2);border-radius:10px;text-align:center;background:rgba(24,27,34,.45)}
+ @media(max-width:1100px){.moviecatalogs{grid-template-columns:1fr}.moviecatalogcolumn+.moviecatalogcolumn{padding:20px 0 0;border-left:0;border-top:1px solid var(--line)}}
  @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}.matchfindercontrols{align-items:flex-start;flex-direction:column}main.wide{padding-left:18px;padding-right:18px}}
  @media(max-width:560px){main,main.wide{padding:18px 12px 34px}.sectionsearch{grid-template-columns:1fr}.sectionsearch button{width:100%}.moviegrid,.showgrid,.teamfixturegrid{grid-template-columns:1fr}.showhero{align-items:flex-start}.showheroart{width:110px;height:165px}.showhero h2{font-size:21px}}
  .racinglayout{display:grid;grid-template-columns:minmax(320px,480px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
@@ -4321,10 +4351,21 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <input id="movieQ" type="text" placeholder="Search your movies..." data-i18n-ph="Search your movies..." onkeydown="if(event.key==='Enter')searchMovies()">
           <button onclick="searchMovies()" data-i18n="Search">Search</button>
         </div>
-        <div id="recentMoviesSection">
-          <div class="colh" style="margin-top:20px" data-i18n="Recently Added">Recently Added</div>
-          <div id="recentMovieList"><span class="muted">Loading...</span></div>
-          <div style="text-align:center;margin-top:14px"><button id="recentMovieMore" class="ghost hide" onclick="expandRecentMovies(this)" data-i18n="See what else is new">See what else is new</button></div>
+        <div id="movieCatalogs" class="moviecatalogs">
+          <section id="recentMoviesSection" class="moviecatalogcolumn">
+            <div class="colh" data-i18n="Recently Added">Recently Added</div>
+            <div id="recentMovieList"><span class="muted">Loading...</span></div>
+            <div style="text-align:center;margin-top:14px"><button id="recentMovieMore" class="ghost hide" onclick="expandRecentMovies(this)" data-i18n="See what else is new">See what else is new</button></div>
+          </section>
+          <section class="moviecatalogcolumn">
+            <div class="colh" data-i18n="Discover Movies">Discover Movies</div>
+            <nav class="moviecatalogtabs" aria-label="Movie catalog">
+              <button class="moviecatalogtab on" data-movie-catalog="popular" onclick="loadCinemetaMovies('popular')" data-i18n="Popular">Popular</button>
+              <button class="moviecatalogtab" data-movie-catalog="new" onclick="loadCinemetaMovies('new')" data-i18n="New">New</button>
+              <button class="moviecatalogtab" data-movie-catalog="featured" onclick="loadCinemetaMovies('featured')" data-i18n="Featured">Featured</button>
+            </nav>
+            <div id="cinemetaMovieList"><span class="muted">Loading...</span></div>
+          </section>
         </div>
         <div id="movieResults"></div>
       </div>
@@ -4706,7 +4747,7 @@ const _I18N={
   "Preferred language":"Foretrukket språk",
   "Profile layout":"Profiloppsett","Your everyday TVMate preferences. Run the setup guide to change what you follow.":"Dine vanlige TVMate-innstillinger. Kjør oppsettsveiviseren for å endre hva du følger.","Look for newly available episodes when TVMate starts.":"Se etter nylig tilgjengelige episoder når TVMate starter.","Refresh channels, movies, shows and episode data when TVMate starts.":"Oppdater kanaler, filmer, serier og episodedata når TVMate starter.",
   "Startup":"Oppstart","Your Xtream login stays in your local config.json and is only sent to your own provider.":"Xtream-innloggingen lagres lokalt i config.json og sendes bare til din egen leverandør.","Auto shutdown when inactive":"Avslutt automatisk ved inaktivitet","Keep running — uses approximately three crumbs and your calculator works harder":"Fortsett å kjøre — bruker omtrent tre smuler, og kalkulatoren din jobber hardere","Changes are kept locally on this device.":"Endringer lagres lokalt på denne enheten.",
-  "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt",
+  "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt","Discover Movies":"Oppdag filmer","Popular":"Populært","New":"Nytt","Featured":"Fremhevet",
   "Check for new movies":"Se etter nye filmer",
   "Back to My Movies":"Tilbake til Mine filmer","Back to Movies":"Tilbake til Filmer",
   "Your Latest Episodes":"Dine nyeste episoder","See more latest episodes":"Se flere nyeste episoder",
@@ -4800,7 +4841,7 @@ function rememberLocation(section,extra){
   history.pushState(state,'','#'+section);
 }
 function showMytv(){rememberLocation('mytv');hideAll(true);mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
-function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.remove('hide');document.getElementById('recentMoviesSection').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();}
+function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.remove('hide');document.getElementById('movieCatalogs').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();loadCinemetaMovies(_movieCatalog);}
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
@@ -5873,6 +5914,21 @@ async function loadRecentMovies(limit){
   if(limit<36&&r.has_more)more.classList.remove('hide');
   return true;
 }
+let _movieCatalog='popular';
+async function loadCinemetaMovies(catalog){
+  _movieCatalog=['popular','new','featured'].includes(catalog)?catalog:'popular';
+  document.querySelectorAll('[data-movie-catalog]').forEach(function(btn){btn.classList.toggle('on',btn.dataset.movieCatalog===_movieCatalog);});
+  const el=document.getElementById('cinemetaMovieList');
+  if(!el)return;
+  el.innerHTML='<span class="muted">Loading...</span>';
+  try{
+    const r=await api('/api/movie_catalog?catalog='+encodeURIComponent(_movieCatalog)+'&limit=10');
+    if(r.error)throw new Error(r.error);
+    if(!r.movies.length){el.innerHTML='<span class="muted">No movies found.</span>';return;}
+    await loadMovieFavorites();
+    el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,true,false)).join('')+'</div>';
+  }catch(e){el.innerHTML='<span class="muted">Could not load movie catalog.</span>';}
+}
 async function checkMovies(btn){
   const old=btn.innerHTML;btn.disabled=true;btn.textContent='Checking for new movies...';
   try{
@@ -5921,9 +5977,9 @@ async function removeMovieFavorite(key){
 async function searchMovies(){
   const q=(document.getElementById('movieQ').value||'').trim();
   const el=document.getElementById('movieResults');
-  const recent=document.getElementById('recentMoviesSection');
-  if(!q){recent.classList.remove('hide');el.innerHTML='<div class="muted" style="margin-top:14px">Enter a movie title.</div>';return;}
-  recent.classList.add('hide');
+  const catalogs=document.getElementById('movieCatalogs');
+  if(!q){catalogs.classList.remove('hide');el.innerHTML='<div class="muted" style="margin-top:14px">Enter a movie title.</div>';return;}
+  catalogs.classList.add('hide');
   el.innerHTML='<div class="muted" style="margin-top:14px">Searching movies...</div>';
   const r=await api('/api/movies?q='+encodeURIComponent(q));
   const back='<div class="movieresultback"><button class="ghost" onclick="backToMyMovies()">&#8592; '+tr('Back to Movies')+'</button></div>';
@@ -5937,7 +5993,7 @@ async function searchMovies(){
 function backToMyMovies(){
   document.getElementById('movieQ').value='';
   document.getElementById('movieResults').innerHTML='';
-  document.getElementById('recentMoviesSection').classList.remove('hide');
+  document.getElementById('movieCatalogs').classList.remove('hide');
 }
 async function playMovieVLC(sid,ext,btn){
   const old=btn.textContent;btn.textContent='Opening...';
@@ -7884,6 +7940,42 @@ class Handler(BaseHTTPRequestHandler):
                 capped = out[:500]
                 return self._send(200, {"channels": capped, "logged_in": True,
                                         "total": total, "shown": len(capped)})
+
+            if u.path == "/api/movie_catalog":
+                catalog_name = (q.get("catalog", ["popular"])[0]).strip().lower()
+                try:
+                    limit = max(1, min(30, int(q.get("limit", ["10"])[0])))
+                except (TypeError, ValueError):
+                    limit = 10
+                cfg = load_config()
+                x = Xtream(cfg)
+                try:
+                    catalog = cinemeta_movie_catalog(catalog_name, limit)
+                except Exception as e:
+                    return self._send(200, {"movies": [], "logged_in": x.configured(),
+                                            "error": "Movie catalog: " + str(e)})
+                provider_movies = []
+                if x.configured():
+                    try:
+                        provider_movies = get_xtream_movies(cfg)
+                    except Exception:
+                        provider_movies = []
+                out = []
+                for meta in catalog:
+                    name = str(meta.get("name") or "").strip()
+                    if not name:
+                        continue
+                    year = _catalog_year(meta)
+                    sources = match_vod_sources({"name": name, "year": year}, provider_movies)
+                    first = sources[0] if sources else {}
+                    out.append({"catalog_id": meta.get("id") or meta.get("imdb_id") or "",
+                                "stream_id": first.get("stream_id"), "name": name,
+                                "extension": first.get("extension") or "mp4", "year": year,
+                                "rating": meta.get("imdbRating") or "",
+                                "cover": meta.get("poster") or "", "sources": sources,
+                                "stream_found": bool(sources)})
+                return self._send(200, {"movies": out, "logged_in": x.configured(),
+                                        "catalog": catalog_name})
 
             if u.path == "/api/movies":
                 term = (q.get("q", [""])[0]).strip()
