@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b309"
+VERSION = "0.777.b310"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3883,7 +3883,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .moviecatalogs.noxtream .moviecatalogcolumn+.moviecatalogcolumn{padding-left:0;border-left:0}
  .moviecatalogcolumn{min-width:0}
  .moviecatalogcolumn+.moviecatalogcolumn{padding-left:24px;border-left:1px solid var(--line)}
- .moviecatalogtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+ .moviecataloghead{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:42px;margin-bottom:12px}
+ .moviecataloghead .colh{margin:0}
+ .moviecatalogtabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
  .moviecatalogtab{background:transparent;color:var(--mut);border-color:var(--line2);box-shadow:none}
  .moviecatalogtab.on{background:var(--card2);color:var(--fg);border-color:var(--acc)}
  .moviecatalogcolumn .moviegrid{grid-template-columns:1fr}
@@ -4356,17 +4358,19 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         </div>
         <div id="movieCatalogs" class="moviecatalogs">
           <section id="recentMoviesSection" class="moviecatalogcolumn">
-            <div class="colh" data-i18n="Recently Added">Recently Added</div>
+            <header class="moviecataloghead"><div class="colh" data-i18n="Recently Added">Recently Added</div></header>
             <div id="recentMovieList"><span class="muted">Loading...</span></div>
             <div style="text-align:center;margin-top:14px"><button id="recentMovieMore" class="ghost hide" onclick="expandRecentMovies(this)" data-i18n="See what else is new">See what else is new</button></div>
           </section>
           <section class="moviecatalogcolumn">
-            <div class="colh" data-i18n="Discover Movies">Discover Movies</div>
-            <nav class="moviecatalogtabs" aria-label="Movie catalog">
-              <button class="moviecatalogtab on" data-movie-catalog="popular" onclick="loadCinemetaMovies('popular')" data-i18n="Popular">Popular</button>
-              <button class="moviecatalogtab" data-movie-catalog="new" onclick="loadCinemetaMovies('new')" data-i18n="New">New</button>
-              <button class="moviecatalogtab" data-movie-catalog="featured" onclick="loadCinemetaMovies('featured')" data-i18n="Featured">Featured</button>
-            </nav>
+            <header class="moviecataloghead">
+              <div class="colh" data-i18n="Discover Movies">Discover Movies</div>
+              <nav class="moviecatalogtabs" aria-label="Movie catalog">
+                <button class="moviecatalogtab on" data-movie-catalog="popular" onclick="loadCinemetaMovies('popular')" data-i18n="Popular">Popular</button>
+                <button class="moviecatalogtab" data-movie-catalog="new" onclick="loadCinemetaMovies('new')" data-i18n="New">New</button>
+                <button class="moviecatalogtab" data-movie-catalog="featured" onclick="loadCinemetaMovies('featured')" data-i18n="Featured">Featured</button>
+              </nav>
+            </header>
             <div id="cinemetaMovieList"><span class="muted">Loading...</span></div>
           </section>
         </div>
