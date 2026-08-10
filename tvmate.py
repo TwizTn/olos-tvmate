@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b317"
+VERSION = "0.777.b318"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4539,8 +4539,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="card settingscard">
       <nav class="settingstabs" aria-label="Settings categories">
         <button type="button" class="settingstab on" data-settings-tab="profile" onclick="setSettingsTab('profile')" data-i18n="Profile">Profile</button>
-        <button type="button" class="settingstab" data-settings-tab="iptv" onclick="setSettingsTab('iptv')" data-i18n="IPTV & EPG">IPTV &amp; EPG</button>
         <button type="button" class="settingstab" data-settings-tab="general" onclick="setSettingsTab('general')" data-i18n="General">General</button>
+        <button type="button" class="settingstab" data-settings-tab="iptv" onclick="setSettingsTab('iptv')" data-i18n="IPTV & EPG">IPTV &amp; EPG</button>
         <button type="button" class="settingstab" data-settings-tab="maintenance" onclick="setSettingsTab('maintenance')" data-i18n="Maintenance">Maintenance</button>
         <button type="button" class="settingstab" data-settings-tab="health" onclick="setSettingsTab('health')" data-i18n="Health">Health</button>
       </nav>
