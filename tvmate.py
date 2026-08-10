@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b311"
+VERSION = "0.777.b312"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -431,6 +431,8 @@ def _source_key_for_url(url):
     if "tvmaze.com" in u: return "tvmaze"
     if "strem.io" in u or "cinemeta" in u: return "cinemeta"
     if "steam" in u: return "steam"
+    if "fiaformula2.com" in u: return "f2"
+    if "fiaformula3.com" in u: return "f3"
     if "formula1.com" in u or "ergast" in u or "jolpi" in u: return "f1"
     if "indycar.com" in u: return "indycar"
     if "wrc.com" in u or ("wikipedia.org" in u and "rally" in u): return "wrc"
@@ -485,6 +487,8 @@ _SOURCE_LABELS = [
     ("cinemeta", "Movie/series info (Cinemeta)"),
     ("steam",    "Steam profile / wishlist"),
     ("f1",       "Formula 1"),
+    ("f2",       "Formula 2"),
+    ("f3",       "Formula 3"),
     ("indycar",  "IndyCar"),
     ("wrc",      "WRC (rally)"),
     ("formulae", "Formula E"),
@@ -5577,8 +5581,39 @@ async function refreshOtherContent(btn,quiet){
 }
 async function refreshEverything(btn,quiet){
   return withRefreshButton(btn,'Refreshing everything...',async function(){
-    const iptv=await refreshIptvContent(null,true);const other=await refreshOtherContent(null,true);
-    const summary=iptv.summary+' · '+other.summary;refreshMessage(summary);if(!quiet)toast('Everything refreshed successfully.',7000);return {summary:summary};
+    const c=await api('/api/config'),parts=[],failures=[];
+    const run=async function(label,work){try{return await work();}catch(e){failures.push(label);return null;}};
+    const xtreamConfigured=!!(String(c.xtream_host||'').trim()&&String(c.xtream_user||'').trim()&&String(c.xtream_pass||'').trim());
+    refreshMessage('Refreshing enabled content...');
+    if(xtreamConfigured){
+      const catalog=await run('IPTV',async function(){const r=await api('/api/refresh_xtream',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'IPTV refresh failed');return r;});
+      if(catalog)parts.push('IPTV '+catalog.channels+' channels, '+catalog.movies+' movies, '+catalog.shows+' shows');
+      const currentId=(_tvPlaying&&(_tvPlaying.stream_id||_tvPlaying.id||_tvPlaying))||'';
+      const epg=await run('EPG',async function(){const r=await api('/api/epg?force=1&favorites=1'+(currentId?'&ids='+encodeURIComponent(String(currentId)):''));if(r.error)throw new Error(r.error);return r;});
+      if(epg)parts.push('EPG '+((epg.stats&&epg.stats.updated)||0)+' channels');
+    }else parts.push('IPTV skipped');
+    if(c.football_enabled!==false){
+      const football=await run('Sports',async function(){const r=await api('/api/refresh_football',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'sports refresh failed');return r;});
+      if(football)parts.push('Sports '+football.teams+' teams, '+football.guides+' guides');
+    }
+    if(c.f1_enabled!==false){
+      const racing=await run('Racing',async function(){const r=await api('/api/refresh_racing',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'racing refresh failed');return r;});
+      if(racing)parts.push('Racing '+racing.series+' series');
+    }
+    if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
+      const steam=await run('Steam',async function(){const r=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(r.error||!r.ok)throw new Error(r.error||'Steam refresh failed');return r;});
+      if(steam)parts.push('Steam '+steam.imported+' games');
+    }
+    const episodes=await run('Show schedules',async function(){const r=await api('/api/latest_episodes?refresh=1&limit=9');if(r.error)throw new Error(r.error);return r;});
+    if(episodes){_latestEpisodesLoaded=false;parts.push('Show schedules updated');}
+    for(const category of ['popular','new','featured']){
+      const movies=await run('Cinemeta '+category,async function(){const r=await api('/api/movie_catalog?catalog='+category+'&limit=10');if(r.error)throw new Error(r.error);return r;});
+      if(movies)_movieCatalogCache[category]={movies:movies.movies||[],logged_in:!!movies.logged_in};
+    }
+    parts.push('Cinemeta cache checked');
+    refreshStatus();if(!mytvView.classList.contains('hide'))renderTvGuide();
+    const summary=parts.join(' · ')+(failures.length?' · Failed: '+failures.join(', '):'');
+    refreshMessage(summary);if(!quiet)toast(failures.length?'Refresh finished with some errors.':'Everything refreshed successfully.',7000);return {summary:summary,failures:failures};
   });
 }
 let _searchData=null;   // {fixtures, logged_in, ppv_categories}
@@ -9013,7 +9048,9 @@ class Handler(BaseHTTPRequestHandler):
             fav_data = load_favorites()
             favorites = fav_data.get("teams", [])
             _TEAM_FIXTURE_CACHE.clear()
+            _TEAM_PROFILE_CACHE.clear()
             _remove_data_cache_prefix("team-fixtures-")
+            _remove_data_cache_prefix(f"team-profile-v{_TEAM_PROFILE_CACHE_SCHEMA}-")
             refreshed = 0
             errors = []
             changed = False
@@ -9044,6 +9081,53 @@ class Handler(BaseHTTPRequestHandler):
                 save_favorites(fav_data)
             return self._send(200, {"ok": True, "teams": refreshed,
                                     "errors": errors})
+
+        if u.path == "/api/refresh_football":
+            cfg = load_config()
+            try:
+                _DAILY_MATCH_CACHE.update({"date": "", "ts": 0, "matches": []})
+                _TV_CACHE.clear()
+                _remove_data_cache_prefix("fotmob-daily")
+                _remove_data_cache_prefix("tv-guide-")
+                daily = fetch_fotmob_daily_matches()
+                guides = 0
+                for country in cfg.get("countries", ["no", "gb", "us"]):
+                    fetch_country_fixtures(country)
+                    guides += 1
+                fav_data = load_favorites()
+                _TEAM_FIXTURE_CACHE.clear()
+                _TEAM_PROFILE_CACHE.clear()
+                _remove_data_cache_prefix("team-fixtures-")
+                _remove_data_cache_prefix(f"team-profile-v{_TEAM_PROFILE_CACHE_SCHEMA}-")
+                teams = 0
+                errors = []
+                changed = False
+                for favorite in fav_data.get("teams", []):
+                    team_name = str(favorite.get("name") if isinstance(favorite, dict) else favorite).strip()
+                    if not team_name:
+                        continue
+                    team_id = str(favorite.get("team_id") if isinstance(favorite, dict) else "").strip()
+                    if not team_id:
+                        try:
+                            team_id = resolve_fotmob_team_id(team_name)
+                        except Exception as e:
+                            errors.append(f"{team_name}: {e}")
+                    if not team_id:
+                        continue
+                    if isinstance(favorite, dict) and not favorite.get("team_id"):
+                        favorite["team_id"] = team_id
+                        changed = True
+                    try:
+                        fetch_team_schedule(team_id, team_name)
+                        teams += 1
+                    except Exception as e:
+                        errors.append(f"{team_name}: {e}")
+                if changed:
+                    save_favorites(fav_data)
+                return self._send(200, {"ok": True, "teams": teams, "guides": guides,
+                                        "matches": len(daily), "errors": errors})
+            except Exception as e:
+                return self._send(502, {"error": str(e)})
 
         if u.path == "/api/check_movie_updates":
             cfg = load_config()
@@ -9133,6 +9217,8 @@ class Handler(BaseHTTPRequestHandler):
                 lambda: _tvmaze_episode_schedule("Breaking Bad"),
                 lambda: cinemeta_search("movie", "matrix"),
                 lambda: get_f1_schedule(force=True),
+                lambda: get_fia_racing_weekends("f2", force=True),
+                lambda: get_fia_racing_weekends("f3", force=True),
                 lambda: get_indycar_schedule(force=True),
                 lambda: get_wrc_schedule(force=True),
                 lambda: get_formulae_schedule(force=True),
