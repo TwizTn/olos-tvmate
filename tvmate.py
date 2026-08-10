@@ -85,9 +85,39 @@ def _default_data_dir():
 
 CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
+_CONFIG_LOCK = threading.RLock()
+_FAVORITES_LOCK = threading.RLock()
+_CACHE_WRITE_LOCK = threading.RLock()
+
+def _atomic_write_bytes(path, raw):
+    """Write a complete file beside its destination, then atomically replace it."""
+    folder = os.path.dirname(os.path.abspath(path))
+    os.makedirs(folder, exist_ok=True)
+    temp = path + ".tmp-" + str(os.getpid()) + "-" + str(threading.get_ident())
+    try:
+        with open(temp, "wb") as f:
+            f.write(raw)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+        os.replace(temp, path)
+    finally:
+        try:
+            if os.path.exists(temp):
+                os.remove(temp)
+        except OSError:
+            pass
+
+def _atomic_write_json(path, value, indent=None, compact=False):
+    separators = (",", ":") if compact else None
+    raw = json.dumps(value, indent=indent, separators=separators,
+                     ensure_ascii=False).encode("utf-8")
+    _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b318"
+VERSION = "0.777.b319"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -279,11 +309,11 @@ def _load_latest_episodes_cache(x):
 
 def _save_latest_episodes_cache(x, episodes, upcoming, errors=0):
     try:
-        os.makedirs(artwork_cache_dir(), exist_ok=True)
-        with open(_latest_episodes_cache_path(), "w", encoding="utf-8") as f:
-            json.dump({"provider": _latest_episodes_cache_key(x),
-                       "saved_at": int(time.time()), "episodes": episodes,
-                       "upcoming": upcoming, "errors": int(errors or 0)}, f)
+        with _CACHE_WRITE_LOCK:
+            _atomic_write_json(_latest_episodes_cache_path(), {
+                "provider": _latest_episodes_cache_key(x),
+                "saved_at": int(time.time()), "episodes": episodes,
+                "upcoming": upcoming, "errors": int(errors or 0)})
     except Exception:
         pass
 
@@ -326,10 +356,10 @@ def _save_vod_catalog_cache(x, movies):
     if not movies:
         return []
     try:
-        os.makedirs(data_cache_dir(), exist_ok=True)
-        with open(_vod_catalog_cache_path(), "w", encoding="utf-8") as f:
-            json.dump({"provider": _vod_cache_key(x), "saved_at": int(time.time()),
-                       "movies": movies}, f, separators=(",", ":"))
+        with _CACHE_WRITE_LOCK:
+            _atomic_write_json(_vod_catalog_cache_path(), {
+                "provider": _vod_cache_key(x), "saved_at": int(time.time()),
+                "movies": movies}, compact=True)
     except Exception:
         pass
     return movies
@@ -346,10 +376,9 @@ def _load_timed_data_cache(filename, max_age):
 
 def _save_timed_data_cache(filename, data):
     try:
-        os.makedirs(data_cache_dir(), exist_ok=True)
-        with open(os.path.join(data_cache_dir(), filename), "w", encoding="utf-8") as f:
-            json.dump({"saved_at": time.time(), "data": data}, f,
-                      separators=(",", ":"))
+        with _CACHE_WRITE_LOCK:
+            _atomic_write_json(os.path.join(data_cache_dir(), filename),
+                               {"saved_at": time.time(), "data": data}, compact=True)
     except Exception:
         pass
 
@@ -368,61 +397,62 @@ def _remove_data_cache_prefix(prefix):
         pass
 
 def load_config():
-    if not os.path.exists(CONFIG_PATH):
-        return dict(DEFAULT_CONFIG)
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        merged = dict(DEFAULT_CONFIG)
-        merged.update(cfg or {})
-        # Migrate the former Off/IPTV/Other/Everything selector to independent
-        # startup actions without changing existing users' saved behaviour.
-        if "refresh_iptv_on_startup" not in (cfg or {}):
-            legacy_mode = (cfg or {}).get("startup_refresh_mode")
-            merged["refresh_iptv_on_startup"] = legacy_mode in ("iptv", "all") or bool((cfg or {}).get("refresh_all_on_startup"))
-        if "refresh_sports_on_startup" not in (cfg or {}):
-            legacy_mode = (cfg or {}).get("startup_refresh_mode")
-            merged["refresh_sports_on_startup"] = legacy_mode in ("other", "all") or bool((cfg or {}).get("refresh_all_on_startup"))
-        if "background_style" not in (cfg or {}):
-            merged["background_style"] = "float" if merged.get("decorations_enabled", True) else "off"
-        if merged.get("background_style") not in ("float", "ascii", "off"):
-            merged["background_style"] = "float"
-        merged["decorations_enabled"] = merged["background_style"] != "off"
-        # Retro console mode is parked for now.  Always use the modern,
-        # browser-first launcher behavior even if an older config enabled it.
-        merged["hide_cmd_window"] = True
-        return merged
-    except Exception:
-        return dict(DEFAULT_CONFIG)
+    with _CONFIG_LOCK:
+        if not os.path.exists(CONFIG_PATH):
+            return dict(DEFAULT_CONFIG)
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            merged = dict(DEFAULT_CONFIG)
+            merged.update(cfg or {})
+            # Migrate the former Off/IPTV/Other/Everything selector to independent
+            # startup actions without changing existing users' saved behaviour.
+            if "refresh_iptv_on_startup" not in (cfg or {}):
+                legacy_mode = (cfg or {}).get("startup_refresh_mode")
+                merged["refresh_iptv_on_startup"] = legacy_mode in ("iptv", "all") or bool((cfg or {}).get("refresh_all_on_startup"))
+            if "refresh_sports_on_startup" not in (cfg or {}):
+                legacy_mode = (cfg or {}).get("startup_refresh_mode")
+                merged["refresh_sports_on_startup"] = legacy_mode in ("other", "all") or bool((cfg or {}).get("refresh_all_on_startup"))
+            if "background_style" not in (cfg or {}):
+                merged["background_style"] = "float" if merged.get("decorations_enabled", True) else "off"
+            if merged.get("background_style") not in ("float", "ascii", "off"):
+                merged["background_style"] = "float"
+            merged["decorations_enabled"] = merged["background_style"] != "off"
+            # Retro console mode is parked for now. Always use the modern launcher.
+            merged["hide_cmd_window"] = True
+            return merged
+        except Exception:
+            return dict(DEFAULT_CONFIG)
 
 def save_config(cfg):
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+    with _CONFIG_LOCK:
+        _atomic_write_json(CONFIG_PATH, cfg, indent=2)
 
 FAVORITES_PATH = os.path.join(app_dir(), "favorites.json")
 
 def load_favorites():
-    if not os.path.exists(FAVORITES_PATH):
-        return {"categories": [], "channels": [], "movies": [], "shows": [], "games": [], "teams": [],
-                "f1_teams": [], "mylist_channels": []}
-    try:
-        with open(FAVORITES_PATH, "r", encoding="utf-8") as f:
-            fav = json.load(f) or {}
-        return {"categories": list(fav.get("categories", [])),
+    with _FAVORITES_LOCK:
+        if not os.path.exists(FAVORITES_PATH):
+            return {"categories": [], "channels": [], "movies": [], "shows": [], "games": [], "teams": [],
+                    "f1_teams": [], "mylist_channels": []}
+        try:
+            with open(FAVORITES_PATH, "r", encoding="utf-8") as f:
+                fav = json.load(f) or {}
+            return {"categories": list(fav.get("categories", [])),
                 "channels": list(fav.get("channels", [])),
                 "movies": list(fav.get("movies", [])),
                 "shows": list(fav.get("shows", [])),
                 "games": list(fav.get("games", [])),
                 "teams": list(fav.get("teams", [])),
                 "f1_teams": list(fav.get("f1_teams", [])),
-                "mylist_channels": list(fav.get("mylist_channels", []))}
-    except Exception:
-        return {"categories": [], "channels": [], "movies": [], "shows": [], "games": [], "teams": [],
-                "f1_teams": [], "mylist_channels": []}
+                    "mylist_channels": list(fav.get("mylist_channels", []))}
+        except Exception:
+            return {"categories": [], "channels": [], "movies": [], "shows": [], "games": [], "teams": [],
+                    "f1_teams": [], "mylist_channels": []}
 
 def save_favorites(fav):
-    with open(FAVORITES_PATH, "w", encoding="utf-8") as f:
-        json.dump(fav, f, indent=2)
+    with _FAVORITES_LOCK:
+        _atomic_write_json(FAVORITES_PATH, fav, indent=2)
 
 # --------------------------------------------------------------------------
 # HTTP helpers (stdlib only, read as UTF-8)
@@ -505,15 +535,16 @@ _SOURCE_LABELS = [
 ]
 _SOURCE_LABEL_MAP = dict(_SOURCE_LABELS)
 
-def _record_source(key, ok, count=None, error=""):
+def _record_source(key, ok, count=None, error="", latency_ms=None):
     """Record the outcome of a source fetch. Safe to call from anywhere."""
     try:
         with _SOURCE_HEALTH_LOCK:
             _SOURCE_HEALTH[key] = {
                 "label": _SOURCE_LABEL_MAP.get(key, key),
-                "ok": bool(ok),
+                "ok": None if ok is None else bool(ok),
                 "count": count,
-                "error": ("" if ok else str(error)[:200]),
+                "error": ("" if ok is True else str(error)[:200]),
+                "latency_ms": latency_ms,
                 "ts": time.time(),
             }
     except Exception:
@@ -529,7 +560,7 @@ def source_health_snapshot():
                 out.append(dict(rec, key=key))
             else:
                 out.append({"key": key, "label": label, "ok": None,
-                            "count": None, "error": "", "ts": 0})
+                            "count": None, "error": "", "latency_ms": None, "ts": 0})
     return out
 
 # --------------------------------------------------------------------------
@@ -907,6 +938,18 @@ def _fetch_text(url, timeout=8):
     except Exception:
         return None
 
+def _update_manifest():
+    """Return the published version and optional SHA-256 from version.txt."""
+    text = _fetch_text(UPDATE_VERSION_URL)
+    if not text:
+        return "", ""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    version = lines[0] if lines else ""
+    checksum = lines[1].lower() if len(lines) > 1 else ""
+    if checksum and not re.fullmatch(r"[0-9a-f]{64}", checksum):
+        checksum = ""
+    return version, checksum
+
 def _parse_ver(v):
     """Turn '0.777.b1' into a comparable tuple. Higher = newer."""
     v = (v or "").strip().lstrip("v").strip()
@@ -921,10 +964,7 @@ def _parse_ver(v):
 
 def check_for_update():
     """Return (update_available, remote_version) comparing GitHub version.txt to VERSION."""
-    remote = _fetch_text(UPDATE_VERSION_URL)
-    if not remote:
-        return (False, None)
-    remote = remote.strip().splitlines()[0].strip() if remote.strip() else ""
+    remote, _checksum = _update_manifest()
     if not remote:
         return (False, None)
     try:
@@ -934,9 +974,10 @@ def check_for_update():
     return (newer, remote)
 
 def download_update():
-    """Download the new tvmate.py to a temp file next to the current script. Return path or None."""
+    """Download and validate a new tvmate.py. Return its local path or None."""
+    remote_version, expected_sha = _update_manifest()
     text = _fetch_text(UPDATE_SCRIPT_URL, timeout=30)
-    if not text or "def main(" not in text and "PORT" not in text:
+    if not remote_version or not text or len(text.encode("utf-8")) < 100000:
         return None
     try:
         # Normalize line endings: strip any CR so we don't end up with \r\r\n
@@ -944,9 +985,15 @@ def download_update():
         # / stretch the ASCII banner. Write with newline="" so Python doesn't
         # translate again.
         text = text.replace("\r\n", "\n").replace("\r", "\n")
+        marker = re.search(r'^VERSION\s*=\s*["\']([^"\']+)["\']', text, re.MULTILINE)
+        if not marker or marker.group(1).strip() != remote_version:
+            return None
+        compile(text, "tvmate_new.py", "exec")
+        raw = text.encode("utf-8")
+        if expected_sha and hashlib.sha256(raw).hexdigest().lower() != expected_sha:
+            return None
         dest = os.path.join(app_dir(), "tvmate_new.py")
-        with open(dest, "w", encoding="utf-8", newline="\n") as f:
-            f.write(text)
+        _atomic_write_bytes(dest, raw)
         return dest
     except Exception:
         return None
@@ -1513,6 +1560,23 @@ _CINEMETA_CACHE = {}
 _CINEMETA_TTL = 6 * 3600
 _CINEMETA_CATALOG_TTL = 24 * 3600
 
+def _cinemeta_released_movie(row, now=None):
+    """Exclude known future/undated current-year titles from browse shelves."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    released = str((row or {}).get("released") or "").strip()
+    if released:
+        try:
+            value = datetime.datetime.fromisoformat(released.replace("Z", "+00:00"))
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=datetime.timezone.utc)
+            return value <= now
+        except (TypeError, ValueError):
+            pass
+    year = _catalog_year(row)
+    if year.isdigit():
+        return int(year) < now.year
+    return False
+
 def cinemeta_search(kind, term):
     kind = "series" if kind == "series" else "movie"
     term = str(term or "").strip()
@@ -1545,7 +1609,7 @@ def cinemeta_movie_catalog(catalog="popular", limit=10):
     cached = _CINEMETA_CACHE.get(key)
     if cached and time.time() - cached["ts"] < _CINEMETA_CATALOG_TTL:
         return cached["data"][:limit]
-    cache_suffix = year if catalog == "new" else "v1"
+    cache_suffix = (year if catalog == "new" else "all") + "-released-v2"
     disk = _load_timed_data_cache(
         f"cinemeta-movie-{catalog}-{cache_suffix}.json", _CINEMETA_CATALOG_TTL)
     if isinstance(disk, list) and disk:
@@ -1553,7 +1617,10 @@ def cinemeta_movie_catalog(catalog="popular", limit=10):
         return disk[:limit]
     url = "https://v3-cinemeta.strem.io/catalog/movie/" + endpoint + ".json"
     data = http_get_json(url, timeout=15)
-    rows = data.get("metas") or []
+    rows = [row for row in (data.get("metas") or [])
+            if _cinemeta_released_movie(row)]
+    if catalog == "new":
+        rows.sort(key=lambda row: str(row.get("released") or ""), reverse=True)
     _CINEMETA_CACHE[key] = {"ts": time.time(), "data": rows}
     if rows:
         _save_timed_data_cache(f"cinemeta-movie-{catalog}-{cache_suffix}.json", rows)
@@ -4392,7 +4459,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
               <div class="colh" data-i18n="Discover Movies">Discover Movies</div>
               <nav class="moviecatalogtabs" aria-label="Movie catalog">
                 <button class="moviecatalogtab on" data-movie-catalog="popular" onclick="loadCinemetaMovies('popular')" data-i18n="Popular">Popular</button>
-                <button class="moviecatalogtab" data-movie-catalog="new" onclick="loadCinemetaMovies('new')" data-i18n="New">New</button>
+                <button class="moviecatalogtab" data-movie-catalog="new" onclick="loadCinemetaMovies('new')" data-i18n="New Releases">New Releases</button>
                 <button class="moviecatalogtab" data-movie-catalog="featured" onclick="loadCinemetaMovies('featured')" data-i18n="Featured">Featured</button>
               </nav>
             </header>
@@ -4785,7 +4852,7 @@ const _I18N={
   "Preferred language":"Foretrukket språk",
   "Profile layout":"Profiloppsett","Your everyday TVMate preferences. Run the setup guide to change what you follow.":"Dine vanlige TVMate-innstillinger. Kjør oppsettsveiviseren for å endre hva du følger.","Look for newly available episodes when TVMate starts.":"Se etter nylig tilgjengelige episoder når TVMate starter.","Refresh channels, movies, shows and episode data when TVMate starts.":"Oppdater kanaler, filmer, serier og episodedata når TVMate starter.",
   "Startup":"Oppstart","Your Xtream login stays in your local config.json and is only sent to your own provider.":"Xtream-innloggingen lagres lokalt i config.json og sendes bare til din egen leverandør.","Auto shutdown when inactive":"Avslutt automatisk ved inaktivitet","Keep running — uses approximately three crumbs and your calculator works harder":"Fortsett å kjøre — bruker omtrent tre smuler, og kalkulatoren din jobber hardere","Changes are kept locally on this device.":"Endringer lagres lokalt på denne enheten.",
-  "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt","Discover Movies":"Oppdag filmer","Popular":"Populært","New":"Nytt","Featured":"Fremhevet",
+  "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt","Discover Movies":"Oppdag filmer","Popular":"Populært","New Releases":"Nye utgivelser","Featured":"Fremhevet",
   "Check for new movies":"Se etter nye filmer",
   "Back to My Movies":"Tilbake til Mine filmer","Back to Movies":"Tilbake til Filmer",
   "Your Latest Episodes":"Dine nyeste episoder","See more latest episodes":"Se flere nyeste episoder",
@@ -4833,7 +4900,7 @@ const _I18N={
   "Open config folder":"Åpne konfigurasjonsmappe","Could not open folder.":"Kunne ikke åpne mappen.",
   "Source health":"Kildestatus","Test all sources":"Test alle kilder","Testing sources...":"Tester kilder...",
   "Shows whether the external data sources responded last time they were used.":"Viser om de eksterne datakildene svarte sist de ble brukt.",
-  "not checked yet":"ikke sjekket enda","just now":"akkurat nå","min ago":"min siden","h ago":"t siden","d ago":"d siden",
+  "not checked yet":"ikke sjekket enda","Not configured":"Ikke konfigurert","just now":"akkurat nå","min ago":"min siden","h ago":"t siden","d ago":"d siden",
   "working":"fungerer","failed":"feilet","items":"elementer","No sources.":"Ingen kilder.","Could not test sources.":"Kunne ikke teste kilder.",
   "Host (e.g. http://example.com:8080)":"Vert (f.eks. http://example.com:777)",
   "Username":"Brukernavn","Password":"Passord","Stream extension":"Strøm-format",
@@ -5682,7 +5749,7 @@ function groupByTeam(fixtures,q){
   return order.map(function(t){return {team:t,fixtures:groups[t]};});
 }
 function wordsOverlap(q,name){
-  const qs=q.split(/\s+/).filter(Boolean);
+  const qs=q.split(/\\s+/).filter(Boolean);
   return qs.some(function(w){return w.length>=3&&name.includes(w);});
 }
 
@@ -5948,10 +6015,10 @@ async function playVLC(sid,btn){
 let _favMovieSet=new Set();
 function cleanMovieSearchTitle(name){
   return String(name||'')
-    .replace(/^\s*.+?\s+-\s+/,'')
-    .replace(/^\s*.{1,40}?\s*\|\s*/,'')
-    .replace(/\s*\((?:US|UK|GB|NO|EN|SE|DK|FI)\)\s*$/i,'')
-    .replace(/\s*\((?:19|20)\d{2}\)\s*$/,'')
+    .replace(/^\\s*.+?\\s+-\\s+/,'')
+    .replace(/^\\s*.{1,40}?\\s*\\|\\s*/,'')
+    .replace(/\\s*\\((?:US|UK|GB|NO|EN|SE|DK|FI)\\)\\s*$/i,'')
+    .replace(/\\s*\\((?:19|20)\\d{2}\\)\\s*$/,'')
     .trim();
 }
 function movieCard(m,showYear,recent){
@@ -6816,7 +6883,7 @@ async function loadMyListShows(){
 }
 function myListSportArtwork(fixture){
   const id=String((fixture&&fixture.league_id)||'');
-  if(!/^\d+$/.test(id))return '';
+  if(!/^\\d+$/.test(id))return '';
   const name=String((fixture&&fixture.league_name)||tr('Sports'));
   return '<img class="mylisttimelineart" src="/api/league_logo?id='+encodeURIComponent(id)+'" alt="'+escAttr(name)+'" title="'+escAttr(name)+'" loading="lazy" onerror="this.remove()">';
 }
@@ -7090,7 +7157,7 @@ function epgWallClockTs(value,fallback){
   // servers also expose start_timestamp as if that wall clock were UTC; using
   // that epoch in a browser then shifts Norwegian listings by +1/+2 hours.
   // Build the raw schedule time in the viewer's local timezone when available.
-  const s=String(value||'').trim(),m=s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  const s=String(value||'').trim(),m=s.match(/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{1,2}):(\\d{2})(?::(\\d{2}))?/);
   if(m){const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),Number(m[4]),Number(m[5]),Number(m[6]||0));const ts=d.getTime()/1000;if(Number.isFinite(ts))return ts;}
   return Number(fallback)||0;
 }
@@ -7377,8 +7444,10 @@ function renderSourceHealth(data){
   let h='';
   (data.sources||[]).forEach(function(s){
     let dot='dot-unknown',label=tr('not checked yet');
-    if(s.ok===true){dot='dot-ok';label=tr('working')+(s.count!=null?(' \u00b7 '+s.count+' '+tr('items')):'')+' \u00b7 '+_healthAgo(s.ts,now);}
-    else if(s.ok===false){dot='dot-bad';label=(s.error?s.error:tr('failed'))+' \u00b7 '+_healthAgo(s.ts,now);}
+    const speed=s.latency_ms!=null?(' \u00b7 '+(s.latency_ms>=1000?(s.latency_ms/1000).toFixed(1)+'s':s.latency_ms+'ms')):'';
+    if(s.ok===true){dot='dot-ok';label=tr('working')+(s.count!=null?(' \u00b7 '+s.count+' '+tr('items')):'')+speed+' \u00b7 '+_healthAgo(s.ts,now);}
+    else if(s.ok===false){dot='dot-bad';label=(s.error?s.error:tr('failed'))+speed+' \u00b7 '+_healthAgo(s.ts,now);}
+    else if(s.error){label=tr(s.error);}
     h+='<div class="srcrow"><span class="srcdot '+dot+'"></span><span class="srcname">'+esc(s.label)+'</span><span class="srcstat muted">'+esc(label)+'</span></div>';
   });
   el.innerHTML=h||('<span class="muted">'+tr('No sources.')+'</span>');
@@ -7389,9 +7458,10 @@ async function loadSourceHealth(){
 async function testSources(btn){
   if(btn){btn.disabled=true;btn.textContent=tr('Testing sources...');}
   try{
-    const j=await api('/api/test_sources',{method:'POST'});
-    if(j&&j.sources)renderSourceHealth({sources:j.sources,now:Date.now()/1000});
-    else await loadSourceHealth();
+    const first=await api('/api/source_health'),keys=(first.sources||[]).map(s=>s.key),total=keys.length;let next=0,done=0;
+    const worker=async function(){while(next<total){const key=keys[next++];try{const j=await api('/api/test_source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key})});if(j&&j.sources)renderSourceHealth({sources:j.sources,now:Date.now()/1000});}catch(e){}done++;if(btn)btn.textContent=tr('Testing sources...')+' '+done+'/'+total;}};
+    await Promise.all([worker(),worker(),worker()]);
+    await loadSourceHealth();
   }catch(e){toast(tr('Could not test sources.'));}
   if(btn){btn.disabled=false;btn.textContent=tr('Test all sources');}
 }
@@ -7453,6 +7523,64 @@ checkForUpdate();
 
 _LAST_ACTIVITY = time.monotonic()
 _ACTIVITY_LOCK = threading.Lock()
+
+def test_external_source(key):
+    """Run one fresh health probe and return whether it was applicable."""
+    cfg = load_config()
+    x = Xtream(cfg)
+    sid = str(cfg.get("steam_wishlist_id") or "").strip()
+    probes = {
+        "fotmob": lambda: http_get_json(FOTMOB_DAILY_MATCHES.format(
+            date=time.strftime("%Y%m%d", time.localtime())), timeout=15),
+        "tvmaze": lambda: _tvmaze_episode_schedule("Breaking Bad", force=True),
+        "cinemeta": lambda: http_get_json(
+            "https://v3-cinemeta.strem.io/catalog/movie/top/search=matrix.json", timeout=15),
+        "f1": lambda: get_f1_schedule(force=True),
+        "f2": lambda: get_fia_racing_weekends("f2", force=True),
+        "f3": lambda: get_fia_racing_weekends("f3", force=True),
+        "indycar": lambda: get_indycar_schedule(force=True),
+        "wrc": lambda: get_wrc_schedule(force=True),
+        "formulae": lambda: get_formulae_schedule(force=True),
+        "wec": lambda: get_wec_schedule(force=True),
+        "motogp": lambda: get_motogp_schedule(force=True),
+    }
+    if key == "xtream":
+        if not x.configured():
+            _record_source(key, None, error="Not configured")
+            return {"key": key, "skipped": True}
+        probe = lambda: x.login()
+    elif key == "epg_xmltv":
+        if not x.configured():
+            _record_source(key, None, error="Not configured")
+            return {"key": key, "skipped": True}
+        probe = lambda: probe_xmltv(x)
+    elif key == "steam":
+        if not re.fullmatch(r"\d{17}", sid):
+            _record_source(key, None, error="Not configured")
+            return {"key": key, "skipped": True}
+        probe = lambda: steam_public_profile(sid, force=True)
+    else:
+        probe = probes.get(key)
+    if not probe:
+        _record_source(key, None, error="Not available")
+        return {"key": key, "skipped": True}
+    started = time.perf_counter()
+    try:
+        result = probe()
+        if key == "xtream":
+            ok, detail = result
+            if not ok:
+                raise RuntimeError(detail or "login failed")
+            count = None
+        else:
+            count = len(result) if isinstance(result, (list, tuple, dict)) else None
+        latency = int((time.perf_counter() - started) * 1000)
+        _record_source(key, True, count=count, latency_ms=latency)
+        return {"key": key, "ok": True, "count": count, "latency_ms": latency}
+    except Exception as e:
+        latency = int((time.perf_counter() - started) * 1000)
+        _record_source(key, False, error=e, latency_ms=latency)
+        return {"key": key, "ok": False, "error": str(e)[:200], "latency_ms": latency}
 
 def _mark_app_activity():
     global _LAST_ACTIVITY
@@ -9201,74 +9329,13 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(502, {"error": str(e)})
 
-        if u.path == "/api/refresh_all":
-            cfg = load_config()
-            x = Xtream(cfg)
-            try:
-                _clear_racing_availability_cache()
-                if cfg.get("f1_enabled", True):
-                    get_racing_events(cfg.get("racing_series", ["f1"]), force=True)
-                    if "f1" in cfg.get("racing_series", ["f1"]):
-                        get_f1_teams(force=True)
-                    get_racing_drivers(force=True)
-                if not x.configured():
-                    return self._send(200, {"ok": True, "channels": 0, "movies": 0,
-                                            "shows": 0, "f1_refreshed": bool(cfg.get("f1_enabled", True))})
-                channels, _cats = get_xtream_channels(cfg, force=True)
-                movies = get_xtream_movies(cfg, force=True)
-                shows = get_xtream_series(cfg, force=True)
-                episode_result = refresh_favorite_show_episodes(cfg)
-                return self._send(200, dict({"ok": True,
-                    "channels": len(channels), "movies": len(movies),
-                    "shows": len(shows), "f1_refreshed": bool(cfg.get("f1_enabled", True))}, **episode_result))
-            except Exception as e:
-                return self._send(502, {"error": str(e)})
-
-        if u.path == "/api/test_sources":
-            # Gently probe each external source in turn (small delay between
-            # each) so we get a fresh health snapshot without hammering sites.
-            def _probe(key, fn):
-                try:
-                    result = fn()
-                    count = len(result) if isinstance(result, (list, tuple, dict)) else None
-                    _record_source(key, True, count=count)
-                except Exception as e:
-                    _record_source(key, False, error=e)
-            probes = [
-                ("fotmob", lambda: http_get_json(FOTMOB_DAILY_MATCHES.format(
-                    date=time.strftime("%Y%m%d", time.localtime())), timeout=15)),
-                ("tvmaze", lambda: _tvmaze_episode_schedule("Breaking Bad", force=True)),
-                ("cinemeta", lambda: http_get_json(
-                    "https://v3-cinemeta.strem.io/catalog/movie/top/search=matrix.json", timeout=15)),
-                ("f1", lambda: get_f1_schedule(force=True)),
-                ("f2", lambda: get_fia_racing_weekends("f2", force=True)),
-                ("f3", lambda: get_fia_racing_weekends("f3", force=True)),
-                ("indycar", lambda: get_indycar_schedule(force=True)),
-                ("wrc", lambda: get_wrc_schedule(force=True)),
-                ("formulae", lambda: get_formulae_schedule(force=True)),
-                ("wec", lambda: get_wec_schedule(force=True)),
-                ("motogp", lambda: get_motogp_schedule(force=True)),
-            ]
-            cfg = load_config()
-            x = Xtream(cfg)
-            if x.configured():
-                try:
-                    ok, detail = x.login()
-                    _record_source("xtream", ok, error="" if ok else detail)
-                except Exception as e:
-                    _record_source("xtream", False, error=e)
-                try:
-                    probe_xmltv(x)
-                    _record_source("epg_xmltv", True)
-                except Exception as e:
-                    _record_source("epg_xmltv", False, error=e)
-            sid = (cfg.get("steam_wishlist_id") or "").strip()
-            if sid:
-                probes.append(("steam", lambda: steam_public_profile(sid, force=True)))
-            for key, probe in probes:
-                _probe(key, probe)
-                time.sleep(0.4)   # gentle spacing
-            return self._send(200, {"ok": True, "sources": source_health_snapshot()})
+        if u.path == "/api/test_source":
+            key = str(payload.get("key") or "").strip()
+            if key not in _SOURCE_LABEL_MAP:
+                return self._send(400, {"error": "unknown source"})
+            result = test_external_source(key)
+            return self._send(200, {"ok": True, "result": result,
+                                    "sources": source_health_snapshot()})
 
         if u.path == "/api/favorites":
             # actions: category/channel/movie favorite management and reordering
@@ -9481,6 +9548,7 @@ class Handler(BaseHTTPRequestHandler):
                     helper = os.path.join(app_dir(), "_update.bat")
                     lines = ["@echo off\r\n",
                              "timeout /t 2 /nobreak >nul\r\n",
+                             'copy /y "' + cur + '" "' + cur + '.backup" >nul\r\n',
                              'move /y "' + new + '" "' + cur + '" >nul\r\n']
                     if relaunch:
                         lines.append('start "" ' + relaunch + "\r\n")
@@ -9490,7 +9558,7 @@ class Handler(BaseHTTPRequestHandler):
                     subprocess.Popen(["cmd", "/c", helper], creationflags=0x00000008)
                 else:
                     helper = os.path.join(app_dir(), "_update.sh")
-                    body = "#!/bin/sh\nsleep 2\nmv -f '" + new + "' '" + cur + "'\n"
+                    body = "#!/bin/sh\nsleep 2\ncp -f '" + cur + "' '" + cur + ".backup'\nmv -f '" + new + "' '" + cur + "'\n"
                     if relaunch:
                         body += relaunch + " &\n"
                     body += 'rm -- "$0"\n'
@@ -9918,5 +9986,30 @@ def _t_sleep(sec):
     import time as _t
     _t.sleep(sec)
 
+def run_self_tests():
+    """Fast, offline checks for the small pieces most likely to break updates."""
+    checks = []
+    def check(name, condition):
+        if not condition:
+            raise AssertionError(name)
+        checks.append(name)
+    check("version ordering", _parse_ver("0.777.b320") > _parse_ver("0.777.b319"))
+    check("version equality", _parse_ver("v0.777.b319") == _parse_ver("0.777.b319"))
+    now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
+    check("released movie included", _cinemeta_released_movie(
+        {"released": "2026-08-10T00:00:00.000Z"}, now))
+    check("future movie excluded", not _cinemeta_released_movie(
+        {"released": "2026-08-12T00:00:00.000Z"}, now))
+    check("undated current-year movie excluded", not _cinemeta_released_movie(
+        {"releaseInfo": "2026"}, now))
+    check("older movie included", _cinemeta_released_movie(
+        {"releaseInfo": "2025"}, now))
+    check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
+    return checks
+
 if __name__ == "__main__":
-    main()
+    if "--self-test" in sys.argv:
+        passed = run_self_tests()
+        print("Self-test passed: " + ", ".join(passed))
+    else:
+        main()
