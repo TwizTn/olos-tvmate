@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b313"
+VERSION = "0.777.b314"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -9210,23 +9210,27 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/test_sources":
             # Gently probe each external source in turn (small delay between
             # each) so we get a fresh health snapshot without hammering sites.
-            def _probe(fn):
+            def _probe(key, fn):
                 try:
-                    fn()
-                except Exception:
-                    pass   # failure is already recorded by the http layer
+                    result = fn()
+                    count = len(result) if isinstance(result, (list, tuple, dict)) else None
+                    _record_source(key, True, count=count)
+                except Exception as e:
+                    _record_source(key, False, error=e)
             probes = [
-                lambda: fetch_fotmob_daily_matches(),
-                lambda: _tvmaze_episode_schedule("Breaking Bad"),
-                lambda: cinemeta_search("movie", "matrix"),
-                lambda: get_f1_schedule(force=True),
-                lambda: get_fia_racing_weekends("f2", force=True),
-                lambda: get_fia_racing_weekends("f3", force=True),
-                lambda: get_indycar_schedule(force=True),
-                lambda: get_wrc_schedule(force=True),
-                lambda: get_formulae_schedule(force=True),
-                lambda: get_wec_schedule(force=True),
-                lambda: get_motogp_schedule(force=True),
+                ("fotmob", lambda: http_get_json(FOTMOB_DAILY_MATCHES.format(
+                    date=time.strftime("%Y%m%d", time.localtime())), timeout=15)),
+                ("tvmaze", lambda: _tvmaze_episode_schedule("Breaking Bad", force=True)),
+                ("cinemeta", lambda: http_get_json(
+                    "https://v3-cinemeta.strem.io/catalog/movie/top/search=matrix.json", timeout=15)),
+                ("f1", lambda: get_f1_schedule(force=True)),
+                ("f2", lambda: get_fia_racing_weekends("f2", force=True)),
+                ("f3", lambda: get_fia_racing_weekends("f3", force=True)),
+                ("indycar", lambda: get_indycar_schedule(force=True)),
+                ("wrc", lambda: get_wrc_schedule(force=True)),
+                ("formulae", lambda: get_formulae_schedule(force=True)),
+                ("wec", lambda: get_wec_schedule(force=True)),
+                ("motogp", lambda: get_motogp_schedule(force=True)),
             ]
             cfg = load_config()
             x = Xtream(cfg)
@@ -9243,9 +9247,9 @@ class Handler(BaseHTTPRequestHandler):
                     _record_source("epg_xmltv", False, error=e)
             sid = (cfg.get("steam_wishlist_id") or "").strip()
             if sid:
-                probes.append(lambda: steam_public_profile(sid, force=True))
-            for p in probes:
-                _probe(p)
+                probes.append(("steam", lambda: steam_public_profile(sid, force=True)))
+            for key, probe in probes:
+                _probe(key, probe)
                 time.sleep(0.4)   # gentle spacing
             return self._send(200, {"ok": True, "sources": source_health_snapshot()})
 
