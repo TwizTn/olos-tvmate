@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b308"
+VERSION = "0.777.b309"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3878,6 +3878,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
  .moviesmain{width:100%;max-width:1500px;min-width:0;margin:0 auto}
  .moviecatalogs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:20px;align-items:start}
+ .moviecatalogs.noxtream{grid-template-columns:minmax(0,760px);justify-content:center}
+ .moviecatalogs.noxtream #recentMoviesSection{display:none}
+ .moviecatalogs.noxtream .moviecatalogcolumn+.moviecatalogcolumn{padding-left:0;border-left:0}
  .moviecatalogcolumn{min-width:0}
  .moviecatalogcolumn+.moviecatalogcolumn{padding-left:24px;border-left:1px solid var(--line)}
  .moviecatalogtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
@@ -5906,6 +5909,7 @@ async function loadRecentMovies(limit){
   el.innerHTML='<span class="muted">Loading...</span>';
   more.classList.add('hide');
   const r=await api('/api/recent_movies?limit='+limit);
+  if(typeof r.logged_in==='boolean')setMovieProviderLayout(r.logged_in);
   if(r.error){el.innerHTML='<span class="muted">Could not load recently added movies.</span>';return false;}
   if(!r.logged_in){el.innerHTML='<span class="muted">Log in via Settings first.</span>';return false;}
   if(!r.movies.length){el.innerHTML='<span class="muted">No recent movies found.</span>';return false;}
@@ -5915,6 +5919,12 @@ async function loadRecentMovies(limit){
   return true;
 }
 let _movieCatalog='popular';
+function setMovieProviderLayout(loggedIn){
+  const catalogs=document.getElementById('movieCatalogs');
+  if(catalogs)catalogs.classList.toggle('noxtream',!loggedIn);
+  const refresh=document.getElementById('movieRefreshBtn');
+  if(refresh)refresh.classList.toggle('hide',!loggedIn);
+}
 async function loadCinemetaMovies(catalog){
   _movieCatalog=['popular','new','featured'].includes(catalog)?catalog:'popular';
   document.querySelectorAll('[data-movie-catalog]').forEach(function(btn){btn.classList.toggle('on',btn.dataset.movieCatalog===_movieCatalog);});
@@ -5923,6 +5933,7 @@ async function loadCinemetaMovies(catalog){
   el.innerHTML='<span class="muted">Loading...</span>';
   try{
     const r=await api('/api/movie_catalog?catalog='+encodeURIComponent(_movieCatalog)+'&limit=10');
+    if(typeof r.logged_in==='boolean')setMovieProviderLayout(r.logged_in);
     if(r.error)throw new Error(r.error);
     if(!r.movies.length){el.innerHTML='<span class="muted">No movies found.</span>';return;}
     await loadMovieFavorites();
