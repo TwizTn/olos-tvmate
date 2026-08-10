@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b316"
+VERSION = "0.777.b317"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -122,8 +122,8 @@ DEFAULT_CONFIG = {
     "match_threshold": 0.62,           # 0..1, higher = stricter
     "countries": ["no", "gb", "us", "es", "de", "it", "fr"],  # NO/UK/US + big-5 league homes
     "check_shows_on_startup": False,
-    "refresh_all_on_startup": False,
-    "startup_refresh_mode": "off",   # off, iptv, other, all
+    "refresh_iptv_on_startup": False,
+    "refresh_sports_on_startup": False,
     "profile_name": "",
     "preferred_language": "en",
     "profile_emblem": "tvstack",
@@ -375,6 +375,14 @@ def load_config():
             cfg = json.load(f)
         merged = dict(DEFAULT_CONFIG)
         merged.update(cfg or {})
+        # Migrate the former Off/IPTV/Other/Everything selector to independent
+        # startup actions without changing existing users' saved behaviour.
+        if "refresh_iptv_on_startup" not in (cfg or {}):
+            legacy_mode = (cfg or {}).get("startup_refresh_mode")
+            merged["refresh_iptv_on_startup"] = legacy_mode in ("iptv", "all") or bool((cfg or {}).get("refresh_all_on_startup"))
+        if "refresh_sports_on_startup" not in (cfg or {}):
+            legacy_mode = (cfg or {}).get("startup_refresh_mode")
+            merged["refresh_sports_on_startup"] = legacy_mode in ("other", "all") or bool((cfg or {}).get("refresh_all_on_startup"))
         if "background_style" not in (cfg or {}):
             merged["background_style"] = "float" if merged.get("decorations_enabled", True) else "off"
         if merged.get("background_style") not in ("float", "ascii", "off"):
@@ -4254,7 +4262,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="Profile">Profile</option><option value="mytimeline" data-i18n="Timeline">Timeline</option><option value="channels" data-i18n="Playlists">Playlists</option><option value="mytv" data-i18n="Live TV">Live TV</option><option value="movies" data-i18n="Movies">Movies</option><option value="shows" data-i18n="Shows">Shows</option><option value="games" data-i18n="Games">Games</option><option value="racing" data-i18n="Racing">Racing</option><option value="teams" data-i18n="Sports">Sports</option></select></div>
       <div><label data-i18n="Profile layout">Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
       <label class="setupfeature full"><input id="ep_checkshows" type="checkbox"><span><b data-i18n="Check favorite shows on startup">Check favorite shows on startup</b><small data-i18n="Look for newly available episodes when TVMate starts.">Look for newly available episodes when TVMate starts.</small></span></label>
-      <div class="full"><label data-i18n="Startup refresh">Startup refresh</label><select id="ep_refreshstartup"><option value="off" data-i18n="Off">Off</option><option value="iptv" data-i18n="IPTV & EPG">IPTV &amp; EPG</option><option value="other" data-i18n="Other content">Other content</option><option value="all" data-i18n="Everything">Everything</option></select></div>
+      <label class="setupfeature full"><input id="ep_refreshiptv" type="checkbox"><span><b data-i18n="Refresh IPTV & EPG on startup">Refresh IPTV &amp; EPG on startup</b><small data-i18n="Refresh Xtream channels, movies, shows and TV guide data.">Refresh Xtream channels, movies, shows and TV guide data.</small></span></label>
+      <label class="setupfeature full"><input id="ep_refreshsports" type="checkbox"><span><b data-i18n="Refresh sports, racing & games on startup">Refresh sports, racing &amp; games on startup</b><small data-i18n="Refresh matches, regional TV listings, racing and your Steam wishlist.">Refresh matches, regional TV listings, racing and your Steam wishlist.</small></span></label>
       <div class="full"><label data-i18n="Background style">Background style</label><select id="ep_background"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div>
     </div>
     <div class="editprofileactions"><button type="button" class="ghost" onclick="runSetupGuideFromProfile()" data-i18n="Run setup guide">Run setup guide</button><div class="spacer"></div><button type="button" class="ghost" onclick="closeEditProfile()" data-i18n="Cancel">Cancel</button><button type="button" onclick="saveEditProfile(this)" data-i18n="Save">Save</button></div>
@@ -4555,15 +4564,21 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
        </div>
        <div class="settingsgroup" data-settings-panel="general" hidden>
         <div class="colh" data-i18n="Content startup">Content startup</div>
-        <div class="muted" data-i18n="Checks your favorite series for newly available episodes after TVMate opens.">Checks your favorite series for newly available episodes after TVMate opens.</div>
+        <div class="muted" data-i18n="Choose which content TVMate updates automatically after it opens.">Choose which content TVMate updates automatically after it opens.</div>
         <div class="settingschecks">
         <label class="settingscheck">
           <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
           <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
         </label>
+        <label class="settingscheck">
+          <input id="s_refreshiptv" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Refresh IPTV & EPG on startup">Refresh IPTV &amp; EPG on startup</span>
+        </label>
+        <label class="settingscheck">
+          <input id="s_refreshsports" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Refresh sports, racing & games on startup">Refresh sports, racing &amp; games on startup</span>
+        </label>
         </div>
-        <div style="margin-top:13px"><label data-i18n="Startup refresh">Startup refresh</label><select id="s_refreshstartup"><option value="off" data-i18n="Off">Off</option><option value="iptv" data-i18n="IPTV & EPG">IPTV &amp; EPG</option><option value="other" data-i18n="Other content">Other content</option><option value="all" data-i18n="Everything">Everything</option></select></div>
-        <div class="muted" style="margin-top:7px" data-i18n="IPTV refreshes Xtream catalogues and EPG. Other content refreshes enabled sports, racing and linked services. Everything runs both.">IPTV refreshes Xtream catalogues and EPG. Other content refreshes enabled sports, racing and linked services. Everything runs both.</div>
        </div>
        <div class="settingsgroup" data-settings-panel="general" hidden>
         <div class="colh" data-i18n="Features & Display">Features &amp; Display</div>
@@ -4762,7 +4777,7 @@ const _I18N={
   "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status","Content startup":"Innhold ved oppstart","Sports Search":"Sportssøk",
   "Personalize TVMate and choose what opens when the app starts.":"Tilpass TVMate og velg hva som åpnes når appen starter.","Checks your favorite series for newly available episodes after TVMate opens.":"Ser etter nylig tilgjengelige episoder i favorittseriene dine etter at TVMate åpnes.","Show or hide optional sections. Disabling one also skips it during external-content refreshes.":"Vis eller skjul valgfrie seksjoner. Deaktiverte seksjoner hoppes også over ved oppdatering av eksternt innhold.",
   "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","TV listings countries (comma separated, e.g. no, uk, us)":"Land for TV-oversikter (kommaseparert, f.eks. no, uk, us)","Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.":"Skriv inn landskodene for TV-guidene du vil søke i. Juster treffnøyaktigheten på Sports-siden.",
-  "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","IPTV refreshes Xtream catalogues and EPG. Other content refreshes enabled sports, racing and linked services. Everything runs both.":"IPTV oppdaterer Xtream-kataloger og EPG. Annet innhold oppdaterer aktivert sport, racing og tilknyttede tjenester. Alt kjører begge.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
+  "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","Choose which content TVMate updates automatically after it opens.":"Velg hvilket innhold TVMate oppdaterer automatisk etter oppstart.","Refresh IPTV & EPG on startup":"Oppdater IPTV og EPG ved oppstart","Refresh sports, racing & games on startup":"Oppdater sport, racing og spill ved oppstart","Refresh Xtream channels, movies, shows and TV guide data.":"Oppdater Xtream-kanaler, filmer, serier og TV-guide.","Refresh matches, regional TV listings, racing and your Steam wishlist.":"Oppdater kamper, regionale TV-oversikter, racing og Steam-ønskelisten din.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
   "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem",
   "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
   "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
@@ -5008,13 +5023,13 @@ function selectEditProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_editProf
 async function openEditProfile(){
   let c={};try{c=await api('/api/config');}catch(e){c=_profileConfig||{};}
   ep_name.value=c.profile_name||'';ep_lang.value=c.preferred_language||'en';_editProfileEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEditProfileEmblems();
-  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshstartup.value=['iptv','other','all'].includes(c.startup_refresh_mode)?c.startup_refresh_mode:(c.refresh_all_on_startup?'all':'off');ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
+  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshiptv.checked=!!c.refresh_iptv_on_startup;ep_refreshsports.checked=!!c.refresh_sports_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   editProfileOverlay.classList.remove('hide');setTimeout(()=>ep_name.focus(),30);
 }
 function closeEditProfile(){editProfileOverlay.classList.add('hide');}
 function runSetupGuideFromProfile(){closeEditProfile();openProfileSetup(false);}
 async function saveEditProfile(btn){
-  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,startup_refresh_mode:ep_refreshstartup.value,refresh_all_on_startup:ep_refreshstartup.value==='all',background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
+  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,refresh_iptv_on_startup:ep_refreshiptv.checked,refresh_sports_on_startup:ep_refreshsports.checked,background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
   if(!body.profile_name){ep_name.focus();toast(tr('Enter a profile name.'));return;}if(body.mylist_layout==='timeline'&&body.start_section==='mytimeline')body.start_section='mylist';if(!_gamesEnabled&&body.start_section==='games')body.start_section='mylist';if(!_f1Enabled&&body.start_section==='racing')body.start_section='mylist';if(!_footballEnabled&&body.start_section==='teams')body.start_section='mylist';
   const old=btn.textContent;btn.disabled=true;btn.textContent='Saving...';
   try{const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('save failed');setLang(body.preferred_language);applyProfileConfig(body);closeEditProfile();toast(tr('Profile saved.'));}catch(e){toast(tr('Could not save profile.'));}
@@ -5462,7 +5477,8 @@ async function loadSettings(){
   s_cc.value=(c.countries||['no','uk','us']).join(', ');
   s_start.value=c.start_section||'mylist';
   s_checkshows.checked=!!c.check_shows_on_startup;
-  s_refreshstartup.value=['iptv','other','all'].includes(c.startup_refresh_mode)?c.startup_refresh_mode:(c.refresh_all_on_startup?'all':'off');
+  s_refreshiptv.checked=!!c.refresh_iptv_on_startup;
+  s_refreshsports.checked=!!c.refresh_sports_on_startup;
   s_profile.value=c.profile_name||'';
   s_lang.value=c.preferred_language||'en';
   _selectedEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEmblemPicker();
@@ -5479,7 +5495,7 @@ async function saveSettings(){
     xtream_pass:s_pass.value,stream_ext:s_ext.value,
     countries:s_cc.value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),
     start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
-    startup_refresh_mode:s_refreshstartup.value,refresh_all_on_startup:s_refreshstartup.value==='all',
+    refresh_iptv_on_startup:s_refreshiptv.checked,refresh_sports_on_startup:s_refreshsports.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
     profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
     f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0)};
@@ -6527,12 +6543,10 @@ async function checkShowsOnStartup(){
     else toast('Successfully refreshed playlists, no new episodes found',7000);
   }catch(e){toast('Could not refresh show playlists.',7000);}
 }
-async function refreshOnStartup(mode){
+async function refreshOnStartup(refreshIptv,refreshSports){
   try{
-    if(mode==='iptv')await refreshIptvContent(null,true);
-    else if(mode==='other')await refreshOtherContent(null,true);
-    else if(mode==='all')await refreshEverything(null,true);
-    else return;
+    if(refreshIptv)await refreshIptvContent(null,true);
+    if(refreshSports)await refreshOtherContent(null,true);
     toast('Startup refresh finished.',5000);
   }catch(e){toast('Startup refresh failed: '+String(e&&e.message||e),7000);}
 }
@@ -7309,8 +7323,8 @@ document.addEventListener('click',function(e){
 try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else applyLang();}catch(e){applyLang();}
 // open the user's default start section
 (async function(){
-  let start='mylist',checkShows=false,refreshStartup='off',startupConfig=null;
-  try{const c=await api('/api/config');startupConfig=c;start=c.start_section||'mylist';checkShows=!!c.check_shows_on_startup;refreshStartup=['iptv','other','all'].includes(c.startup_refresh_mode)?c.startup_refresh_mode:(c.refresh_all_on_startup?'all':'off');setLang(c.preferred_language||'en');applyProfileConfig(c);if(start==='teams'&&!_footballEnabled)start='mylist';if(start==='games'&&!_gamesEnabled)start='mylist';if(start==='racing'&&!_f1Enabled)start='mylist';}catch(e){}
+  let start='mylist',checkShows=false,refreshIptv=false,refreshSports=false,startupConfig=null;
+  try{const c=await api('/api/config');startupConfig=c;start=c.start_section||'mylist';checkShows=!!c.check_shows_on_startup;refreshIptv=!!c.refresh_iptv_on_startup;refreshSports=!!c.refresh_sports_on_startup;setLang(c.preferred_language||'en');applyProfileConfig(c);if(start==='teams'&&!_footballEnabled)start='mylist';if(start==='games'&&!_gamesEnabled)start='mylist';if(start==='racing'&&!_f1Enabled)start='mylist';}catch(e){}
   if(start==='search')start='channels'; // migrate the removed Search section
   if(start==='mytimeline'&&_myListLayout==='timeline')start='mylist';
   const map={channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline};
@@ -7320,9 +7334,9 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
   const setupDone=!!(startupConfig&&startupConfig.setup_complete===true);
   if(startupConfig&&!setupDone)setTimeout(()=>openProfileSetup(true,startupConfig),120);
   if(startupConfig&&setupDone)setTimeout(()=>maybeAutoRefreshSteamWishlist(startupConfig),900);
-  if(setupDone&&(refreshStartup!=='off'||checkShows))setTimeout(async function(){
-    if(refreshStartup!=='off')await refreshOnStartup(refreshStartup);
-    if(checkShows)await checkShowsOnStartup();
+  if(setupDone&&(refreshIptv||refreshSports||checkShows))setTimeout(async function(){
+    if(refreshIptv||refreshSports)await refreshOnStartup(refreshIptv,refreshSports);
+    if(checkShows&&!refreshIptv)await checkShowsOnStartup();
   },500);
 })();
 window.addEventListener('popstate',function(ev){
@@ -8951,7 +8965,7 @@ class Handler(BaseHTTPRequestHandler):
                                     ("xtream_host", "xtream_port", "xtream_user", "xtream_pass"))
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
-                      "check_shows_on_startup", "refresh_all_on_startup", "startup_refresh_mode", "profile_name",
+                      "check_shows_on_startup", "refresh_iptv_on_startup", "refresh_sports_on_startup", "profile_name",
                       "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
                       "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes"):
                 if k in payload:
@@ -8984,8 +8998,11 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["auto_shutdown_minutes"] = 0
             if cfg["auto_shutdown_minutes"] not in (0, 30, 60, 120, 240):
                 cfg["auto_shutdown_minutes"] = 0
-            if cfg.get("startup_refresh_mode") not in ("off", "iptv", "other", "all"):
-                cfg["startup_refresh_mode"] = "all" if cfg.get("refresh_all_on_startup") else "off"
+            cfg["check_shows_on_startup"] = bool(cfg.get("check_shows_on_startup"))
+            cfg["refresh_iptv_on_startup"] = bool(cfg.get("refresh_iptv_on_startup"))
+            cfg["refresh_sports_on_startup"] = bool(cfg.get("refresh_sports_on_startup"))
+            cfg.pop("refresh_all_on_startup", None)
+            cfg.pop("startup_refresh_mode", None)
             save_config(cfg)
             provider_after = tuple(str(cfg.get(k) or "") for k in
                                    ("xtream_host", "xtream_port", "xtream_user", "xtream_pass"))
