@@ -87,7 +87,7 @@ CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b312"
+VERSION = "0.777.b313"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3891,9 +3891,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
  .moviesmain{width:100%;max-width:1500px;min-width:0;margin:0 auto}
  .moviecatalogs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:20px;align-items:start}
- .moviecatalogs.noxtream{grid-template-columns:minmax(0,760px);justify-content:center}
+ .moviecatalogs.noxtream{grid-template-columns:minmax(0,1200px);justify-content:center}
  .moviecatalogs.noxtream #recentMoviesSection{display:none}
  .moviecatalogs.noxtream .moviecatalogcolumn+.moviecatalogcolumn{padding-left:0;border-left:0}
+ .moviecatalogs.noxtream .moviegrid{grid-template-columns:repeat(3,minmax(0,1fr))}
  .moviecatalogcolumn{min-width:0}
  .moviecatalogcolumn+.moviecatalogcolumn{padding-left:24px;border-left:1px solid var(--line)}
  .moviecataloghead{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:42px;margin-bottom:12px}
@@ -4059,6 +4060,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
  #recentMovieList>.muted,#latestEpisodeList>.muted,#upcomingEpisodeList>.muted,#teamUpcomingList>.muted,#gameWishlist>.muted{display:block;padding:22px 14px;border:1px dashed var(--line2);border-radius:10px;text-align:center;background:rgba(24,27,34,.45)}
  @media(max-width:1100px){.moviecatalogs{grid-template-columns:1fr}.moviecatalogcolumn+.moviecatalogcolumn{padding:20px 0 0;border-left:0;border-top:1px solid var(--line)}}
+ @media(max-width:850px){.moviecatalogs.noxtream .moviegrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ @media(max-width:600px){.moviecatalogs.noxtream .moviegrid{grid-template-columns:1fr}}
  @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}.matchfindercontrols{align-items:flex-start;flex-direction:column}main.wide{padding-left:18px;padding-right:18px}}
  @media(max-width:560px){main,main.wide{padding:18px 12px 34px}.sectionsearch{grid-template-columns:1fr}.sectionsearch button{width:100%}.moviegrid,.showgrid,.teamfixturegrid{grid-template-columns:1fr}.showhero{align-items:flex-start}.showheroart{width:110px;height:165px}.showhero h2{font-size:21px}}
  .racinglayout{display:grid;grid-template-columns:minmax(320px,480px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
