@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b327"
+VERSION = "0.777.b328"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5870,6 +5870,15 @@ function fixtureChannelRank(m,f){
   if(m&&m.fixture_match==='partial')return 1;
   return homeHit||awayHit?1:2;
 }
+function channelLocalePriority(ch){
+  const text=[ch&&ch.category,ch&&ch.xtream_name,ch&&ch.quality].filter(Boolean).join(' ');
+  const is4k=/\\b(4k|uhd)\\b/i.test(text);
+  const isNorwegian=/(^|[^a-z0-9])(no|norway|norge)([^a-z0-9]|$)/i.test(text);
+  return (is4k?2:0)+(isNorwegian?1:0);
+}
+function preferredChannelSort(a,b){
+  return channelLocalePriority(b)-channelLocalePriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
+}
 
 function renderFixtureCard(f,fi){
   const when=f.start?new Date(f.start).toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
@@ -5888,7 +5897,7 @@ function renderFixtureCard(f,fi){
   }
   const rows=[];
   for(const cc of Object.keys(f.by_country||{}))for(const b of f.by_country[cc])rows.push({cc:cc,bcast:b});
-  rows.sort(function(x,y){return x.cc===y.cc?x.bcast.localeCompare(y.bcast):x.cc.localeCompare(y.cc);});
+  rows.sort(function(x,y){const xp=x.cc.toUpperCase()==='NO'?1:0,yp=y.cc.toUpperCase()==='NO'?1:0;return yp-xp||(x.cc===y.cc?x.bcast.localeCompare(y.bcast):x.cc.localeCompare(y.cc));});
   // Pull every definite fixture-title hit into one visible section before
   // the broader broadcaster/provider categories. Keep those categories broad.
   const strictSeen=new Set(),strictResults=[];
@@ -5896,7 +5905,7 @@ function renderFixtureCard(f,fi){
     const key=String(m.stream_id||'');
     if(key&&!strictSeen.has(key)){strictSeen.add(key);strictResults.push(m);}
   });
-  strictResults.sort(function(a,b){return Number(b.score||0)-Number(a.score||0);});
+  strictResults.sort(preferredChannelSort);
   const matchedIds=new Set([...(f.matches||[]),...(f.ppv_hits||[])].map(m=>String(m.stream_id||'' )).filter(Boolean));
   const availText=matchedIds.size?(matchedIds.size+' '+tr(matchedIds.size===1?'channel':'channels')):(rows.length?tr('TV listed'):tr('No TV'));
   const availClass=(matchedIds.size||rows.length)?'':' none';
@@ -5925,7 +5934,7 @@ function renderFixtureCard(f,fi){
     html+='<div class="bcastlist">';
     rows.forEach(function(row,ri){
       // channels matched to this broadcaster
-      const chans=(f.matches||[]).filter(function(m){return m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase());}).sort(function(a,b){const rank=fixtureChannelRank(b,f)-fixtureChannelRank(a,f);return rank||Number(b.score||0)-Number(a.score||0);});
+      const chans=(f.matches||[]).filter(function(m){return m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase());}).sort(function(a,b){const rank=fixtureChannelRank(b,f)-fixtureChannelRank(a,f);return rank||preferredChannelSort(a,b);});
       const rid='f'+fi+'b'+ri;
       html+='<div class="bcrow" data-exp="'+rid+'">'
         +'<div class="bchead"><span class="cc">'+esc(row.cc)+'</span> <span class="bcname">'+esc(row.bcast)+'</span>'
@@ -6463,7 +6472,7 @@ function racingChannelLine(ch){
   return '<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
 }
 function racingChannelSections(channels){
-  const definite=channels.filter(ch=>ch.match_kind==='event'),dedicated=channels.filter(ch=>ch.match_kind==='series'),possible=channels.filter(ch=>ch.match_kind!=='event'&&ch.match_kind!=='series');
+  const definite=channels.filter(ch=>ch.match_kind==='event').sort(preferredChannelSort),dedicated=channels.filter(ch=>ch.match_kind==='series').sort(preferredChannelSort),possible=channels.filter(ch=>ch.match_kind!=='event'&&ch.match_kind!=='series').sort(preferredChannelSort);
   let h='';
   if(definite.length)h+='<div class="muted">'+esc(tr('Definite event matches'))+'</div>'+definite.map(racingChannelLine).join('');
   if(dedicated.length)h+='<div class="muted" style="margin-top:8px">'+esc(tr('Dedicated series channels'))+'</div>'+dedicated.map(racingChannelLine).join('');
@@ -10123,8 +10132,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b327") > _parse_ver("0.777.b326"))
-    check("version equality", _parse_ver("v0.777.b327") == _parse_ver("0.777.b327"))
+    check("version ordering", _parse_ver("0.777.b328") > _parse_ver("0.777.b327"))
+    check("version equality", _parse_ver("v0.777.b328") == _parse_ver("0.777.b328"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
