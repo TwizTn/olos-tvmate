@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b324"
+VERSION = "0.777.b325"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -9636,6 +9636,10 @@ class Handler(BaseHTTPRequestHandler):
                 if sys.platform.startswith("win"):
                     helper = os.path.join(app_dir(), "_update.bat")
                     lines = ["@echo off\r\n",
+                             "title Updating TVMate\r\n",
+                             "echo.\r\n",
+                             "echo Updating TVMate...\r\n",
+                             "echo Please wait while TVMate restarts.\r\n",
                              "timeout /t 2 /nobreak >nul\r\n",
                              'copy /y "' + cur + '" "' + cur + '.backup" >nul\r\n',
                              'move /y "' + new + '" "' + cur + '" >nul\r\n']
@@ -10082,8 +10086,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b324") > _parse_ver("0.777.b323"))
-    check("version equality", _parse_ver("v0.777.b324") == _parse_ver("0.777.b324"))
+    check("version ordering", _parse_ver("0.777.b325") > _parse_ver("0.777.b324"))
+    check("version equality", _parse_ver("v0.777.b325") == _parse_ver("0.777.b325"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
