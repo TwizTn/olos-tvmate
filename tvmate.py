@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b319"
+VERSION = "0.777.b320"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3253,6 +3253,11 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     for country, names in (by_country or {}).items():
         allowed = _COUNTRY_MATCH.get(country.upper(), {country.lower()})
         for s in names:
+            # OTT services name a platform rather than one linear channel.
+            # Matching "TV 2 Play" to every TV 2 provider channel creates huge,
+            # misleading result sets; fixture-specific event matching handles it.
+            if _is_streaming(s):
+                continue
             ns = normalise(s)
             toks = set(ns.split())
             if toks:
@@ -3282,7 +3287,9 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             scompact = re.sub(r"\s+", "", sn)
             xcompact = re.sub(r"\s+", "", xn)
             compact_exact = bool(scompact and scompact == xcompact)
-            compact_contained = (len(scompact) >= 4 and
+            compact_contained = (min(len(scompact), len(xcompact)) >= 4 and
+                                 min(len(scompact), len(xcompact)) /
+                                 max(len(scompact), len(xcompact)) >= 0.65 and
                                  (scompact in xcompact or xcompact in scompact))
             inter = xid & sid
             if compact_exact:
@@ -3315,9 +3322,8 @@ def match_channels(by_country, xtream_channels, cats, threshold):
 def find_team_channels(team_terms, xtream_channels, cats, x):
     """Find plausible match-specific PPV/event channels.
 
-    A one-team name hit is only accepted in a PPV/Play/Event category (or a
-    channel explicitly labelled that way). A channel containing both fixture
-    teams is strong enough to accept regardless of category.
+    Event-named channels must contain both fixture teams. A channel whose
+    complete identity is one team name is retained as a possible club channel.
     """
     side_forms = []
     for team in team_terms:
@@ -3341,20 +3347,20 @@ def find_team_channels(team_terms, xtream_channels, cats, x):
         category = cats.get(ch["category_id"], "")
         hits = 0
         team_branded = False
-        hay_identity = set(_distinctive(hay.split()))
+        hay_tokens = set(hay.split())
         for forms in side_forms:
             matched_forms = [form for form in forms
                              if re.search(r"(?<![a-z0-9])" + re.escape(form) +
                                           r"(?![a-z0-9])", hay)]
             if matched_forms:
                 hits += 1
-                if hay_identity and any(
-                        hay_identity == set(_distinctive(form.split()))
-                        for form in matched_forms):
+                if any(set(form.split()) <= hay_tokens and
+                       all(token in _GENERIC for token in
+                           (hay_tokens - set(form.split())))
+                       for form in matched_forms):
                     team_branded = True
         strong_event_name = hits >= 2
-        ppv_context = _is_ppv_category(category) or _is_ppv_category(cname)
-        if hits and (strong_event_name or ppv_context or team_branded):
+        if strong_event_name or team_branded:
             out.append({
                 "xtream_name": cname, "stream_id": ch["stream_id"],
                 "category": category,
@@ -4818,7 +4824,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
@@ -5147,7 +5153,7 @@ function applyProfileConfig(c){
   applyMyListLayout();
 }
 
-let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null;
+let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
 function favoriteTeamRow(t){return {name:String(typeof t==='string'?t:(t.name||'')),team_id:String(typeof t==='string'?'':(t.team_id||'')),logo:String(typeof t==='string'?'':(t.logo||''))};}
 function renderTeamFavoriteRail(){
   const rail=document.getElementById('teamFavList');if(!rail)return;
@@ -5270,6 +5276,7 @@ async function searchTeamHub(query){
   if(!input||!input.value.trim()){clearSportsSearch();return;}
   const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
   _teamDeepLink=null;
+  _fixtureSearchTeamId='';
   const results=document.getElementById('results');if(results)results.innerHTML='';
   await searchTeams();
 }
@@ -5277,13 +5284,13 @@ async function findSportsFixtures(name,teamId){
   const input=document.getElementById('q');if(input)input.value=String(name||'');
   if(!String(name||'').trim())return;
   const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
-  _teamDeepLink=null;selectMyTeam(name,teamId||'','');
+  _teamDeepLink=null;_fixtureSearchTeamId=String(teamId||'');selectMyTeam(name,teamId||'','');
   await doSearch();
 }
 function clearSportsSearch(){
   const input=document.getElementById('q'),teams=document.getElementById('teamSearchResults'),results=document.getElementById('results'),back=document.getElementById('sportsSearchBack');
   if(input)input.value='';if(teams)teams.innerHTML='';if(results)results.innerHTML='';if(back)back.classList.add('hide');
-  _searchData=null;_teamGroups=[];_activeTeam=0;_teamDeepLink=null;
+  _searchData=null;_teamGroups=[];_activeTeam=0;_teamDeepLink=null;_fixtureSearchTeamId='';
 }
 function openMyTeamsFixture(target){
   if(!target)return;
@@ -5291,6 +5298,7 @@ function openMyTeamsFixture(target){
   _teamDeepLink={home:String(read('data-home')||target.home||''),away:String(read('data-away')||target.away||''),start:String(read('data-start')||target.start||'')};
   const query=String(read('data-search')||target.search||target.owner||_teamDeepLink.home||_teamDeepLink.away||'');
   _selectedTeamName=query;const favorite=_favTeamRows.find(t=>_teamNamesEquivalentForUi(t.name,query));if(favorite){_selectedTeamRow=favorite;renderTeamFavoriteRail();loadSelectedTeamProfile(favorite);}
+  _fixtureSearchTeamId=String((favorite&&favorite.team_id)||'');
   const input=document.getElementById('q');if(input)input.value=query;
   const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
   searchTeams();doSearch();
@@ -5714,7 +5722,7 @@ async function doSearch(){
   if(!q)return;
   resultEl.innerHTML='<span class="muted">Searching listings...</span>';
   const strict=document.getElementById('matchStrict').value;
-  const r=await api('/api/search?q='+encodeURIComponent(q)+'&strictness='+encodeURIComponent(strict));
+  const r=await api('/api/search?q='+encodeURIComponent(q)+'&strictness='+encodeURIComponent(strict)+(_fixtureSearchTeamId?'&team_id='+encodeURIComponent(_fixtureSearchTeamId):''));
   if(r.error){resultEl.innerHTML='<span class="err">'+r.error+'</span>';return;}
   _searchData=r;
   if(r.logged_in)await refreshFavState();
@@ -5815,6 +5823,19 @@ function renderFixtureCard(f,fi){
     html+='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to see which of your Xtream channels match.</div></div></div>';
     return html;
   }
+  // Exact fixture/team event hits are the strongest results, so show them
+  // before broader linear-broadcaster suggestions.
+  if(f.ppv_hits&&f.ppv_hits.length){
+    html+='<div class="muted" style="margin-bottom:8px">'+esc(tr('Best team/event matches'))+':</div><div class="bcastlist besteventmatches">';
+    for(const [ppvIndex,m] of f.ppv_hits.entries()){
+      const fav=_favChanSet.has(String(m.stream_id))?' on':'';
+      html+='<div class="chline'+(ppvIndex>=7?' ppvextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
+        +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
+        +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
+    }
+    html+='</div>';
+    if(f.ppv_hits.length>7)html+='<button class="ghost ppvexpand" onclick="togglePpv(this)" data-more="'+(f.ppv_hits.length-7)+'">Show '+(f.ppv_hits.length-7)+' more</button>';
+  }
   // Broadcaster rows are sorted country then broadcaster.
   if(rows.length){
     html+='<div class="bcastlist">';
@@ -5839,18 +5860,6 @@ function renderFixtureCard(f,fi){
       html+='</div></div>';
     });
     html+='</div>';
-  }
-  // PPV / streaming fallbacks (kept from before)
-  if(f.ppv_hits&&f.ppv_hits.length){
-    html+='<div class="muted" style="margin-top:8px">Possible PPV/event channels:</div><div class="bcastlist">';
-    for(const [ppvIndex,m] of f.ppv_hits.entries()){
-      const fav=_favChanSet.has(String(m.stream_id))?' on':'';
-      html+='<div class="chline'+(ppvIndex>=7?' ppvextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
-        +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
-        +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
-    }
-    html+='</div>';
-    if(f.ppv_hits.length>7)html+='<button class="ghost ppvexpand" onclick="togglePpv(this)" data-more="'+(f.ppv_hits.length-7)+'">Show '+(f.ppv_hits.length-7)+' more</button>';
   }
   if(!rows.length&&(!f.ppv_hits||!f.ppv_hits.length)){
     if(!Object.keys(f.by_country||{}).length)html+='<div class="muted">No TV channels found.</div>';
@@ -8906,6 +8915,9 @@ class Handler(BaseHTTPRequestHandler):
 
             if u.path == "/api/search":
                 term = (q.get("q", [""])[0]).strip()
+                selected_team_id = (q.get("team_id", [""])[0]).strip()
+                if selected_team_id and not selected_team_id.isdigit():
+                    return self._send(400, {"error": "invalid team id"})
                 if not term:
                     return self._send(200, {"fixtures": [], "logged_in": False})
                 cfg = load_config()
@@ -8934,6 +8946,11 @@ class Handler(BaseHTTPRequestHandler):
                     fixtures.sort(key=lambda row: row.get("start") or "")
                 except Exception as e:
                     src_err.append(f"FotMob matches: {e}")
+                if selected_team_id:
+                    fixtures = [fixture for fixture in fixtures
+                                if selected_team_id in {
+                                    str(fixture.get("home_id") or ""),
+                                    str(fixture.get("away_id") or "")}]
                 x = Xtream(cfg)
                 logged_in = x.configured()
                 channels, cats = [], {}
@@ -10004,6 +10021,26 @@ def run_self_tests():
         {"releaseInfo": "2026"}, now))
     check("older movie included", _cinemeta_released_movie(
         {"releaseInfo": "2025"}, now))
+    sample_channels = [
+        {"name": "NO: TV 2 Sport 1", "stream_id": 1, "category_id": "no"},
+        {"name": "LIVE | APOLLON LIMASSOL - BRANN | VGTV PPV 3",
+         "stream_id": 2, "category_id": "ppv"},
+        {"name": "LIVE | BRANN - HAMKAM | VGTV PPV 5",
+         "stream_id": 3, "category_id": "ppv"},
+        {"name": "BRANN 2", "stream_id": 4, "category_id": "ppv"},
+    ]
+    sample_cats = {"no": "NO| NORWAY", "ppv": "NO| PPV EVENTS"}
+    check("streaming platform does not overmatch", not match_channels(
+        {"NO": ["TV 2 Play (NO)"]}, sample_channels, sample_cats, 0.49))
+    class _TestXtream:
+        @staticmethod
+        def stream_url(stream_id):
+            return "test:" + str(stream_id)
+    event_ids = {row["stream_id"] for row in find_team_channels(
+        ["Brann", "HamKam"], sample_channels, sample_cats, _TestXtream())}
+    check("both fixture teams rank", 3 in event_ids)
+    check("one-team event excluded", 2 not in event_ids)
+    check("reserve team excluded", 4 not in event_ids)
     check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
     return checks
 
