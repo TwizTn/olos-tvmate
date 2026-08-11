@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b323"
+VERSION = "0.777.b324"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5867,6 +5867,14 @@ function renderFixtureCard(f,fi){
   const rows=[];
   for(const cc of Object.keys(f.by_country||{}))for(const b of f.by_country[cc])rows.push({cc:cc,bcast:b});
   rows.sort(function(x,y){return x.cc===y.cc?x.bcast.localeCompare(y.bcast):x.cc.localeCompare(y.cc);});
+  // Pull every definite fixture-title hit into one visible section before
+  // the broader broadcaster/provider categories. Keep those categories broad.
+  const strictSeen=new Set(),strictResults=[];
+  [...(f.ppv_hits||[]),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3)].forEach(function(m){
+    const key=String(m.stream_id||'');
+    if(key&&!strictSeen.has(key)){strictSeen.add(key);strictResults.push(m);}
+  });
+  strictResults.sort(function(a,b){return Number(b.score||0)-Number(a.score||0);});
   const matchedIds=new Set([...(f.matches||[]),...(f.ppv_hits||[])].map(m=>String(m.stream_id||'' )).filter(Boolean));
   const availText=matchedIds.size?(matchedIds.size+' '+tr(matchedIds.size===1?'channel':'channels')):(rows.length?tr('TV listed'):tr('No TV'));
   const availClass=(matchedIds.size||rows.length)?'':' none';
@@ -5879,16 +5887,16 @@ function renderFixtureCard(f,fi){
   }
   // Exact fixture/team event hits are the strongest results, so show them
   // before broader linear-broadcaster suggestions.
-  if(f.ppv_hits&&f.ppv_hits.length){
+  if(strictResults.length){
     html+='<div class="muted" style="margin-bottom:8px">'+esc(tr('Best team/event matches'))+':</div><div class="bcastlist besteventmatches">';
-    for(const [ppvIndex,m] of f.ppv_hits.entries()){
+    for(const [ppvIndex,m] of strictResults.entries()){
       const fav=_favChanSet.has(String(m.stream_id))?' on':'';
       html+='<div class="chline'+(ppvIndex>=7?' ppvextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
         +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
         +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
     }
     html+='</div>';
-    if(f.ppv_hits.length>7)html+='<button class="ghost ppvexpand" onclick="togglePpv(this)" data-more="'+(f.ppv_hits.length-7)+'">Show '+(f.ppv_hits.length-7)+' more</button>';
+    if(strictResults.length>7)html+='<button class="ghost ppvexpand" onclick="togglePpv(this)" data-more="'+(strictResults.length-7)+'">Show '+(strictResults.length-7)+' more</button>';
   }
   // Broadcaster rows are sorted country then broadcaster.
   if(rows.length){
@@ -5916,7 +5924,7 @@ function renderFixtureCard(f,fi){
     });
     html+='</div>';
   }
-  if(!rows.length&&(!f.ppv_hits||!f.ppv_hits.length)){
+  if(!rows.length&&!strictResults.length){
     if(!Object.keys(f.by_country||{}).length)html+='<div class="muted">No TV channels found.</div>';
     else html+='<div class="muted">No Xtream channels matched. Try lowering strictness.</div>';
   }
@@ -10074,8 +10082,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b323") > _parse_ver("0.777.b322"))
-    check("version equality", _parse_ver("v0.777.b323") == _parse_ver("0.777.b323"))
+    check("version ordering", _parse_ver("0.777.b324") > _parse_ver("0.777.b323"))
+    check("version equality", _parse_ver("v0.777.b324") == _parse_ver("0.777.b324"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
