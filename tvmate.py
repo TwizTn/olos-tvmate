@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b322"
+VERSION = "0.777.b323"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4141,6 +4141,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teammatchfinder{background:linear-gradient(180deg,rgba(24,28,36,.76),rgba(18,21,27,.58));border:1px solid var(--line);border-radius:12px;padding:17px 18px;margin:0 0 22px}
  .matchfinderhead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:12px}.matchfindertitle{font-size:15px;font-weight:650;color:var(--fg)}.matchfindersub{font-size:11px;color:var(--mut);margin-top:2px}
  .matchfindercontrols{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-top:8px}.matchfindercontrols .matchstrict{margin:0}.matchfinderhint{font-size:10px;color:var(--mut)}
+ .sportssearchrow{grid-template-columns:minmax(0,7fr) auto minmax(150px,3fr)}.sportschannelsearch{width:100%;white-space:nowrap}
 .matchresultslabel{font-size:9px;letter-spacing:.75px;text-transform:uppercase;color:var(--mut);margin:13px 0 7px}
  .sportssearchback{text-align:center;margin:14px 0 2px}.sportssearchback button{padding:7px 16px}
  .teammatchresults:empty{display:none}
@@ -4182,7 +4183,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:850px){.moviecatalogs.noxtream .moviegrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
  @media(max-width:600px){.moviecatalogs.noxtream .moviegrid{grid-template-columns:1fr}}
  @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}.matchfindercontrols{align-items:flex-start;flex-direction:column}main.wide{padding-left:18px;padding-right:18px}}
- @media(max-width:560px){main,main.wide{padding:18px 12px 34px}.sectionsearch{grid-template-columns:1fr}.sectionsearch button{width:100%}.moviegrid,.showgrid,.teamfixturegrid{grid-template-columns:1fr}.showhero{align-items:flex-start}.showheroart{width:110px;height:165px}.showhero h2{font-size:21px}}
+ @media(max-width:560px){main,main.wide{padding:18px 12px 34px}.sectionsearch,.sportssearchrow{grid-template-columns:1fr}.sectionsearch button{width:100%}.moviegrid,.showgrid,.teamfixturegrid{grid-template-columns:1fr}.showhero{align-items:flex-start}.showheroart{width:110px;height:165px}.showhero h2{font-size:21px}}
  .racinglayout{display:grid;grid-template-columns:minmax(320px,480px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
  .racingwrap{width:100%;min-width:0;margin:0}
  .racingsidebar{min-width:0}
@@ -4612,9 +4613,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <h2 class="colh" data-i18n="Sports">Sports</h2>
         <div class="teammatchfinder">
           <div class="matchfinderhead"><div><div class="matchfindertitle" data-i18n="Find a match">Find a match</div><div class="matchfindersub" data-i18n="Search for a team, then choose Find fixtures when you want Matchfinder and TV results.">Search for a team, then choose Find fixtures when you want Matchfinder and TV results.</div></div></div>
-          <div class="row sectionsearch">
+          <div class="row sectionsearch sportssearchrow">
             <input id="q" type="text" placeholder="Search a team, e.g. Leeds" data-i18n-ph="Search a team, e.g. Leeds" onkeydown="if(event.key==='Enter')searchTeamHub()">
             <button onclick="searchTeamHub()" data-i18n="Find team">Find team</button>
+            <button class="ghost sportschannelsearch" onclick="openSportsChannelSearch()" data-i18n="Search channels">Search channels</button>
           </div>
           <div class="matchfindercontrols"><div class="matchstrict"><span data-i18n="Match strictness">Match strictness</span>
               <input id="matchStrict" type="range" min="0.40" max="0.80" step="0.01" value="0.62" oninput="document.getElementById('matchStrictValue').textContent=this.value" onchange="saveMatchStrictness(this.value)">
@@ -4672,6 +4674,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
             <select id="s_start"><option value="mylist">Profile</option><option id="startTimelineOption" value="mytimeline">Timeline</option><option value="channels">Playlists</option><option value="mytv">Live TV</option><option value="movies">Movies</option><option value="shows">Shows</option><option id="startGamesOption" value="games">Games</option><option id="startRacingOption" value="racing">Racing</option><option value="teams">Sports</option></select></div>
           <div><label data-i18n="Background style">Background style</label><select id="s_background"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div>
         </div>
+        <div style="margin-top:14px"><button type="button" class="ghost" onclick="openProfileSetup(false)" data-i18n="Run setup guide">Run setup guide</button></div>
        </div>
        <div class="settingsgroup" data-settings-panel="general" hidden>
         <div class="colh" data-i18n="Content startup">Content startup</div>
@@ -4853,7 +4856,7 @@ const _I18N={
   "Search":"Søk","Playlist Builder":"Lag spilleliste","Playlists":"Spillelister","Timeline":"Tidslinje","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger","Stop TVMate":"Stopp TVMate",
   "Welcome to TVMate":"Velkommen til TVMate","Let's make it yours. Everything here can be changed later from Settings or Edit Profile.":"La oss gjøre TVMate til ditt. Alt her kan endres senere i Innstillinger eller Rediger profil.","Your name":"Navnet ditt","Pick an emblem":"Velg et emblem","Emblem":"Emblem",
   "Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what My Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Min profil ser ut.","Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Profil ser ut.","If you don't add anything yet, TVMate will add a couple of demo items. They disappear permanently when you favorite your first real movie or show.":"Hvis du ikke legger til noe ennå, legger TVMate inn et par demo-elementer. De forsvinner permanent når du favorittmerker din første ekte film eller serie.",
-  "How should TVMate open?":"Hvordan skal TVMate åpnes?","TVMate opens straight in your browser. Use Stop TVMate in the top-right when you want to shut the app down.":"TVMate åpnes rett i nettleseren. Bruk Stopp TVMate øverst til høyre når du vil avslutte appen.","Modern TVMate":"Moderne TVMate","TVMate opens straight in your browser with no CMD window.":"TVMate åpnes rett i nettleseren uten CMD-vindu.","Bookmark TVMate":"Bokmerk TVMate","Press Ctrl+D to bookmark TVMate for an easy way back.":"Trykk Ctrl+D for å bokmerke TVMate, så finner du enkelt tilbake.","Copy address":"Kopier adresse","Stop TVMate after":"Stopp TVMate etter","Activity in TVMate resets the timer.":"Aktivitet i TVMate nullstiller tidsuret.",
+  "How should TVMate open?":"Hvordan skal TVMate åpnes?","TVMate opens straight in your browser. Use Stop TVMate in the top-right when you want to shut the app down.":"TVMate åpnes rett i nettleseren. Bruk Stopp TVMate øverst til høyre når du vil avslutte appen.","Modern TVMate":"Moderne TVMate","TVMate opens straight in your browser with no CMD window.":"Tvmate åpnes rett i nettleseren","Bookmark TVMate":"Bokmerk TVMate","Press Ctrl+D to bookmark TVMate for an easy way back.":"Trykk Ctrl+D for å bokmerke TVMate, så finner du enkelt tilbake.","Copy address":"Kopier adresse","Stop TVMate after":"Stopp TVMate etter","Activity in TVMate resets the timer.":"Aktivitet i TVMate nullstiller tidsuret.",
   "You're ready":"Du er klar","TVMate is set up around what you follow. A streaming login is only needed for your own channels, movies and shows.":"TVMate er satt opp rundt det du følger. Strømmeinnlogging trengs bare for dine egne kanaler, filmer og serier.","Want playback too?":"Vil du også spille av?","Set up your Xtream login for your own channels, movies and shows.":"Sett opp Xtream-innlogging for dine egne kanaler, filmer og serier.","Set up Xtream":"Sett opp Xtream","All done":"Alt klart","Head straight to My Profile and start using TVMate.":"Gå rett til Min profil og begynn å bruke TVMate.","Head straight to Profile and start using TVMate.":"Gå rett til Profil og begynn å bruke TVMate.","Let's go, I'm ready":"Kjør på, jeg er klar",
   "Background style":"Bakgrunnsstil","Floating pancakes & TVs":"Flytende pannekaker og TV-er","Off":"Av","What do you want to follow?":"Hva vil du følge?","Movies and shows are always available. Turn the extra sections on or off here.":"Filmer og serier er alltid tilgjengelige. Slå ekstraseksjonene av eller på her.",
   "Football":"Fotball","Games":"Spill","Movies":"Filmer","Matchfinder, My Teams and fixtures":"Kampfinner, Mine lag og kamper","Matchfinder, Sports and fixtures":"Kampfinner, Sport og kamper","My Racing, schedules and followed drivers":"Min racing, terminlister og førere du følger","Racing schedules and followed drivers":"Racingterminlister og førere du følger","Steam wishlist and game releases":"Steam-ønskeliste og spillanseringer",
@@ -4862,7 +4865,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
@@ -5001,6 +5004,7 @@ function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineVie
 // Search now lives inside Playlists.
 function showSearch(){showChannels();}
 function showChannels(){rememberLocation('channels');hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
+function openSportsChannelSearch(){showChannels();setTimeout(function(){const input=document.getElementById('cq');if(input)input.focus();},60);}
 let _settingsTab='profile';
 function setSettingsTab(tab){
   const migrated={content:'general',playback:'iptv'};
@@ -5119,7 +5123,7 @@ async function finishProfileSetup(btn,openXtream){
     if(body.football_enabled)await syncSetupTeams();
     if(body.f1_enabled){await api('/api/racing_series',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({series:Array.from(_setupRacingSeries)})});if(_setupRacingSeries.has('f1'))await favPost({action:'set_f1_team',team:_setupF1Team||{}});}
     setLang(body.preferred_language);applyProfileConfig(Object.assign({},body,{racing_series:Array.from(_setupRacingSeries)}));closeProfileSetup();toast(tr('Profile saved.'));
-    if(openXtream)showSettings();else showMylist();
+    if(openXtream){showSettings();setSettingsTab('iptv');}else showMylist();
   }catch(e){toast('Could not save profile.');}
   btn.disabled=false;btn.textContent=openXtream?'Set up Xtream':"Let's go, I'm ready";
 }
@@ -5833,13 +5837,16 @@ function fixtureMatchesDeepLink(f){
 }
 function _teamNamesEquivalentForUi(a,b){const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').trim();const x=clean(a),y=clean(b);return !!x&&!!y&&(x===y||x.includes(y)||y.includes(x));}
 function fixtureChannelRank(m,f){
-  if(m&&m.fixture_match==='exact')return 3;
-  if(m&&m.fixture_match==='generic')return 2;
-  if(m&&m.fixture_match==='partial')return 1;
   const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').replace(/\\s+/g,' ').trim();
   const name=clean(m&&m.xtream_name),home=clean(f&&f.home),away=clean(f&&f.away);
   const homeHit=!!home&&name.includes(home),awayHit=!!away&&name.includes(away);
-  return homeHit&&awayHit?3:((homeHit||awayHit)?1:2);
+  // Visible two-team text is definitive and must override stale/mistaken
+  // backend metadata before the broadcaster list is sorted.
+  if(homeHit&&awayHit)return 3;
+  if(m&&m.fixture_match==='exact')return 3;
+  if(m&&m.fixture_match==='generic')return 2;
+  if(m&&m.fixture_match==='partial')return 1;
+  return homeHit||awayHit?1:2;
 }
 
 function renderFixtureCard(f,fi){
@@ -10067,8 +10074,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b322") > _parse_ver("0.777.b321"))
-    check("version equality", _parse_ver("v0.777.b322") == _parse_ver("0.777.b322"))
+    check("version ordering", _parse_ver("0.777.b323") > _parse_ver("0.777.b322"))
+    check("version equality", _parse_ver("v0.777.b323") == _parse_ver("0.777.b323"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
