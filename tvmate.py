@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b321"
+VERSION = "0.777.b322"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5832,6 +5832,15 @@ function fixtureMatchesDeepLink(f){
   const a=new Date(f.start).getTime(),b=new Date(_teamDeepLink.start).getTime();return Number.isFinite(a)&&Number.isFinite(b)?Math.abs(a-b)<6*3600000:true;
 }
 function _teamNamesEquivalentForUi(a,b){const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').trim();const x=clean(a),y=clean(b);return !!x&&!!y&&(x===y||x.includes(y)||y.includes(x));}
+function fixtureChannelRank(m,f){
+  if(m&&m.fixture_match==='exact')return 3;
+  if(m&&m.fixture_match==='generic')return 2;
+  if(m&&m.fixture_match==='partial')return 1;
+  const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').replace(/\\s+/g,' ').trim();
+  const name=clean(m&&m.xtream_name),home=clean(f&&f.home),away=clean(f&&f.away);
+  const homeHit=!!home&&name.includes(home),awayHit=!!away&&name.includes(away);
+  return homeHit&&awayHit?3:((homeHit||awayHit)?1:2);
+}
 
 function renderFixtureCard(f,fi){
   const when=f.start?new Date(f.start).toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
@@ -5879,7 +5888,7 @@ function renderFixtureCard(f,fi){
     html+='<div class="bcastlist">';
     rows.forEach(function(row,ri){
       // channels matched to this broadcaster
-      const chans=(f.matches||[]).filter(function(m){return m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase());});
+      const chans=(f.matches||[]).filter(function(m){return m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase());}).sort(function(a,b){const rank=fixtureChannelRank(b,f)-fixtureChannelRank(a,f);return rank||Number(b.score||0)-Number(a.score||0);});
       const rid='f'+fi+'b'+ri;
       html+='<div class="bcrow" data-exp="'+rid+'">'
         +'<div class="bchead"><span class="cc">'+esc(row.cc)+'</span> <span class="bcname">'+esc(row.bcast)+'</span>'
@@ -5889,7 +5898,7 @@ function renderFixtureCard(f,fi){
         for(const [channelIndex,m] of chans.entries()){
           const fav=_favChanSet.has(String(m.stream_id))?' on':'';
           html+='<div class="chline'+(channelIndex>=10?' bcchanextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
-            +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.fixture_match==='exact'?'<span class="tag">'+esc(tr('Best match'))+'</span>':'')+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
+            +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(fixtureChannelRank(m,f)===3?'<span class="tag">'+esc(tr('Best match'))+'</span>':'')+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
             +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
         }
         if(chans.length>10)html+='<button class="ghost bcchanexpand" onclick="toggleBroadcasterCandidates(this)" data-more="'+(chans.length-10)+'">'+esc(tr('Show more channels'))+' ('+(chans.length-10)+')</button>';
@@ -10058,8 +10067,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b321") > _parse_ver("0.777.b320"))
-    check("version equality", _parse_ver("v0.777.b321") == _parse_ver("0.777.b321"))
+    check("version ordering", _parse_ver("0.777.b322") > _parse_ver("0.777.b321"))
+    check("version equality", _parse_ver("v0.777.b322") == _parse_ver("0.777.b322"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
