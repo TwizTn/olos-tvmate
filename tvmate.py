@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b328"
+VERSION = "0.777.b329"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -7630,7 +7630,17 @@ async function doUpdateRestart(){
       document.getElementById('updateMsg').textContent=tr('Update installed. Please close this window and open Olo’s TVMate again.');
     }else{
       document.getElementById('updateMsg').textContent=tr('Updating... this window will reload shortly.');
-      setTimeout(function(){location.reload();},6000);
+      const started=Date.now();
+      const waitForRestart=async function(){
+        try{
+          const response=await fetch('/api/ping',{cache:'no-store'});
+          const ping=await response.json();
+          if(ping&&ping.app==='olos-tvmate'){location.reload();return;}
+        }catch(e){}
+        if(Date.now()-started<60000)setTimeout(waitForRestart,1500);
+        else document.getElementById('updateMsg').textContent=tr('Restart failed. Please close and reopen the app.');
+      };
+      setTimeout(waitForRestart,5000);
     }
   }catch(e){
     document.getElementById('updateMsg').textContent=tr('Restart failed. Please close and reopen the app.');
@@ -9681,20 +9691,45 @@ class Handler(BaseHTTPRequestHandler):
 
                 if sys.platform.startswith("win"):
                     helper = os.path.join(app_dir(), "_update.bat")
+                    launcher_name = os.path.basename(launcher_exe or "")
+                    known_launcher = bool(re.fullmatch(
+                        r"(?:OTVM|OlosTVMate)(?:\s*\(\d+\))?\.exe",
+                        launcher_name, flags=re.IGNORECASE))
                     lines = ["@echo off\r\n",
                              "title Updating TVMate\r\n",
+                             'cd /d "' + app_dir() + '"\r\n',
                              "echo.\r\n",
                              "echo Updating TVMate...\r\n",
                              "echo Please wait while TVMate restarts.\r\n",
-                             "timeout /t 2 /nobreak >nul\r\n",
+                             "timeout /t 3 /nobreak >nul\r\n"]
+                    # Nuitka's old onefile launcher can survive its child and
+                    # prevent a clean relaunch. Kill only a known TVMate image.
+                    if known_launcher:
+                        lines.extend(['taskkill /f /im "' + launcher_name +
+                                      '" >nul 2>&1\r\n',
+                                      "timeout /t 1 /nobreak >nul\r\n"])
+                    lines.extend([
                              'copy /y "' + cur + '" "' + cur + '.backup" >nul\r\n',
-                             'move /y "' + new + '" "' + cur + '" >nul\r\n']
+                             "for /l %%I in (1,1,20) do (\r\n",
+                             '  move /y "' + new + '" "' + cur + '" >nul 2>&1 && goto updated\r\n',
+                             "  timeout /t 1 /nobreak >nul\r\n",
+                             ")\r\n",
+                             "echo Update file swap failed. Starting the previous version.\r\n",
+                             "goto relaunch\r\n",
+                             ":updated\r\n",
+                             "echo Update installed successfully.\r\n",
+                             ":relaunch\r\n"])
                     if relaunch:
-                        lines.append('start "" ' + relaunch + "\r\n")
-                    lines.append('del "%~f0"\r\n')
-                    with open(helper, "w", encoding="utf-8") as f:
+                        lines.extend(["echo Starting TVMate...\r\n",
+                                      'start "" ' + relaunch + "\r\n"])
+                    lines.extend(["timeout /t 3 /nobreak >nul\r\n",
+                                  'del "%~f0"\r\n'])
+                    with open(helper, "w", encoding="utf-8", newline="") as f:
                         f.writelines(lines)
-                    subprocess.Popen(["cmd", "/c", helper], creationflags=0x00000008)
+                    flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0x00000010)
+                    subprocess.Popen(["cmd.exe", "/d", "/c", helper],
+                                     cwd=app_dir(), creationflags=flags,
+                                     close_fds=True)
                 else:
                     helper = os.path.join(app_dir(), "_update.sh")
                     body = "#!/bin/sh\nsleep 2\ncp -f '" + cur + "' '" + cur + ".backup'\nmv -f '" + new + "' '" + cur + "'\n"
@@ -10132,8 +10167,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b328") > _parse_ver("0.777.b327"))
-    check("version equality", _parse_ver("v0.777.b328") == _parse_ver("0.777.b328"))
+    check("version ordering", _parse_ver("0.777.b329") > _parse_ver("0.777.b328"))
+    check("version equality", _parse_ver("v0.777.b329") == _parse_ver("0.777.b329"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
