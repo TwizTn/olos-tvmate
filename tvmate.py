@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b320"
+VERSION = "0.777.b321"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3168,6 +3168,17 @@ def normalise(name):
     n = re.sub(r"\s+", " ", n).strip()
     return n
 
+def normalise_event_name(name):
+    """Normalize an event channel without stripping its leading team name."""
+    n = str(name or "").lower()
+    n = _HASH_RE.sub(" ", n)
+    n = _PAREN_CC_RE.sub("", n)
+    n = _FPS_RE.sub(" ", n)
+    n = _QUALITY_RE.sub(" ", n)
+    n = n.replace("&", "and")
+    n = _NOISE_RE.sub(" ", n)
+    return re.sub(r"\s+", " ", n).strip()
+
 def _distinctive(words):
     """The identifying words of a name (generic terms removed)."""
     return [w for w in words if w not in _GENERIC and len(w) > 1]
@@ -3253,11 +3264,6 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     for country, names in (by_country or {}).items():
         allowed = _COUNTRY_MATCH.get(country.upper(), {country.lower()})
         for s in names:
-            # OTT services name a platform rather than one linear channel.
-            # Matching "TV 2 Play" to every TV 2 provider channel creates huge,
-            # misleading result sets; fixture-specific event matching handles it.
-            if _is_streaming(s):
-                continue
             ns = normalise(s)
             toks = set(ns.split())
             if toks:
@@ -3287,10 +3293,10 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             scompact = re.sub(r"\s+", "", sn)
             xcompact = re.sub(r"\s+", "", xn)
             compact_exact = bool(scompact and scompact == xcompact)
-            compact_contained = (min(len(scompact), len(xcompact)) >= 4 and
-                                 min(len(scompact), len(xcompact)) /
-                                 max(len(scompact), len(xcompact)) >= 0.65 and
-                                 (scompact in xcompact or xcompact in scompact))
+            # A complete broadcaster brand may be embedded in a longer event
+            # channel name ("... | VGTV PPV 3"). Do not accept the reverse:
+            # a short generic channel such as "TV 2" is not "TV 2 Play".
+            compact_contained = len(scompact) >= 4 and scompact in xcompact
             inter = xid & sid
             if compact_exact:
                 s = 1.0
@@ -3319,6 +3325,38 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     rows.sort(key=lambda r: r["score"], reverse=True)
     return rows
 
+def rank_fixture_channels(rows, home, away):
+    """Put exact fixture channels first without removing generic PPV slots."""
+    def forms(team):
+        raw = str(team or "").lower().strip()
+        values = set()
+        for alias in _expand_terms(raw):
+            cleaned = normalise(alias)
+            if len(cleaned) >= 3:
+                values.add(cleaned)
+        cleaned = normalise(raw)
+        if len(cleaned) >= 3:
+            values.add(cleaned)
+        return values
+    home_forms, away_forms = forms(home), forms(away)
+    ranked = []
+    for index, original in enumerate(rows):
+        row = dict(original)
+        hay = normalise_event_name(row.get("xtream_name", ""))
+        def hit(values):
+            return any(re.search(r"(?<![a-z0-9])" + re.escape(value) +
+                                 r"(?![a-z0-9])", hay) for value in values)
+        home_hit, away_hit = hit(home_forms), hit(away_forms)
+        row["fixture_match"] = "exact" if home_hit and away_hit else (
+            "partial" if home_hit or away_hit else "generic")
+        # A one-team event title usually belongs to a different fixture; rank
+        # unknown/generic PPV slots above it because those may carry this game.
+        priority = 2 if row["fixture_match"] == "exact" else (
+            1 if row["fixture_match"] == "generic" else 0)
+        ranked.append((priority, float(row.get("score") or 0), index, row))
+    ranked.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    return [item[3] for item in ranked]
+
 def find_team_channels(team_terms, xtream_channels, cats, x):
     """Find plausible match-specific PPV/event channels.
 
@@ -3343,7 +3381,7 @@ def find_team_channels(team_terms, xtream_channels, cats, x):
     out = []
     for ch in xtream_channels:
         cname = ch["name"]
-        hay = normalise(cname)
+        hay = normalise_event_name(cname)
         category = cats.get(ch["category_id"], "")
         hits = 0
         team_branded = False
@@ -4824,7 +4862,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
@@ -5848,12 +5886,13 @@ function renderFixtureCard(f,fi){
         +' <span class="muted exphint">'+(chans.length?(chans.length+' '+tr(chans.length===1?'channel':'channels')):tr('No matching channels'))+'</span><span class="bcchevron">&#9662;</span></div>'
         +'<div class="bcchans hide" id="'+rid+'">';
       if(chans.length){
-        for(const m of chans){
+        for(const [channelIndex,m] of chans.entries()){
           const fav=_favChanSet.has(String(m.stream_id))?' on':'';
-          html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
-            +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
+          html+='<div class="chline'+(channelIndex>=10?' bcchanextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
+            +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.fixture_match==='exact'?'<span class="tag">'+esc(tr('Best match'))+'</span>':'')+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
             +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
         }
+        if(chans.length>10)html+='<button class="ghost bcchanexpand" onclick="toggleBroadcasterCandidates(this)" data-more="'+(chans.length-10)+'">'+esc(tr('Show more channels'))+' ('+(chans.length-10)+')</button>';
       }else{
         html+='<div class="muted" style="padding:6px 10px">No channels in your list match this broadcaster.</div>';
       }
@@ -5956,6 +5995,13 @@ async function playBrowser(sid,name){
 }
 function playerFullscreenElement(){
   return document.fullscreenElement||document.webkitFullscreenElement||null;
+}
+function toggleBroadcasterCandidates(btn){
+  const box=btn.parentElement,extras=box?box.querySelectorAll('.bcchanextra'):[];
+  if(!extras.length)return;
+  const opening=extras[0].classList.contains('hide');
+  extras.forEach(el=>el.classList.toggle('hide',!opening));
+  btn.textContent=opening?tr('Show fewer channels'):(tr('Show more channels')+' ('+btn.dataset.more+')');
 }
 function syncSectionPlayerLayout(){
   // Force the already-open section to adopt its constrained player layout on
@@ -8972,7 +9018,9 @@ class Handler(BaseHTTPRequestHandler):
                     ppv_hits = []
                     streaming_only = False
                     if logged_in:
-                        rows = match_channels(f["by_country"], channels, cats, thr)
+                        rows = rank_fixture_channels(
+                            match_channels(f["by_country"], channels, cats, thr),
+                            f.get("home"), f.get("away"))
                         for r in rows:
                             r["url"] = x.stream_url(r["stream_id"])
                         matches = rows
@@ -10010,8 +10058,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b320") > _parse_ver("0.777.b319"))
-    check("version equality", _parse_ver("v0.777.b319") == _parse_ver("0.777.b319"))
+    check("version ordering", _parse_ver("0.777.b321") > _parse_ver("0.777.b320"))
+    check("version equality", _parse_ver("v0.777.b321") == _parse_ver("0.777.b321"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
@@ -10028,10 +10076,12 @@ def run_self_tests():
         {"name": "LIVE | BRANN - HAMKAM | VGTV PPV 5",
          "stream_id": 3, "category_id": "ppv"},
         {"name": "BRANN 2", "stream_id": 4, "category_id": "ppv"},
+        {"name": "NO: TV 2 PLAY | PPV 1", "stream_id": 5, "category_id": "ppv"},
     ]
     sample_cats = {"no": "NO| NORWAY", "ppv": "NO| PPV EVENTS"}
-    check("streaming platform does not overmatch", not match_channels(
-        {"NO": ["TV 2 Play (NO)"]}, sample_channels, sample_cats, 0.49))
+    platform_ids = {row["stream_id"] for row in match_channels(
+        {"NO": ["TV 2 Play (NO)"]}, sample_channels, sample_cats, 0.49)}
+    check("streaming platform candidates retained", platform_ids == {5})
     class _TestXtream:
         @staticmethod
         def stream_url(stream_id):
@@ -10041,6 +10091,20 @@ def run_self_tests():
     check("both fixture teams rank", 3 in event_ids)
     check("one-team event excluded", 2 not in event_ids)
     check("reserve team excluded", 4 not in event_ids)
+    ranked = rank_fixture_channels([
+        {"xtream_name": "VGTV PPV 1", "stream_id": 10, "score": 0.96},
+        {"xtream_name": "APOLLON LIMASSOL - BRANN | VGTV PPV 3",
+         "stream_id": 11, "score": 0.80},
+        {"xtream_name": "APOLLON LIMASSOL - BRANN | VGTV PPV 4",
+         "stream_id": 12, "score": 0.99}], "Brann", "HamKam")
+    # Re-rank the same rows for the exact Apollon fixture separately.
+    exact_ranked = rank_fixture_channels([
+        {"xtream_name": "VGTV PPV 1", "stream_id": 10, "score": 0.96},
+        {"xtream_name": "APOLLON LIMASSOL - BRANN | VGTV PPV 3",
+         "stream_id": 11, "score": 0.80}], "Apollon Limassol", "Brann")
+    check("exact fixture sorted first", exact_ranked[0]["stream_id"] == 11)
+    check("generic PPV candidate retained", ranked[0]["fixture_match"] == "generic")
+    check("wrong one-team event ranked last", ranked[-1]["fixture_match"] == "partial")
     check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
     return checks
 
