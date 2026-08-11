@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b325"
+VERSION = "0.777.b326"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3277,7 +3277,7 @@ def match_channels(by_country, xtream_channels, cats, threshold):
         xset = set(xn.split())
         category = cats.get(ch["category_id"], "")
         ch_cc = _resolve_channel_country(cname, category)  # category first, then name
-        best, best_src, best_country = 0.0, "", ""
+        best, best_src, best_country, best_exact_provider = 0.0, "", "", False
         for orig, bcountry, allowed, sn, sset in srcs:
             # Country rule: if the channel HAS a recognised country prefix and
             # it isn't in this broadcaster's allowed set -> skip (wrong country).
@@ -3314,6 +3314,11 @@ def match_channels(by_country, xtream_channels, cats, threshold):
                     s = max(s, cover_b * cover_c)
             if s > best:
                 best, best_src, best_country = s, orig, bcountry
+                # A prominent provider result must be a named linear channel,
+                # an exact normalized name, and carry the provider's country.
+                # Streaming platforms such as TV 2 Play remain category-only.
+                best_exact_provider = bool(compact_exact and ch_cc in allowed and
+                                           not _is_streaming(orig))
         best = round(max(0.0, min(1.0, best)), 3)
         if best >= threshold:
             rows.append({"xtream_name": cname, "stream_id": ch["stream_id"],
@@ -3321,7 +3326,7 @@ def match_channels(by_country, xtream_channels, cats, threshold):
                          "logo": ch.get("stream_icon", ""),
                          "quality": quality_tag(cname),
                          "matched": best_src, "country": best_country,
-                         "score": best})
+                         "score": best, "provider_exact": best_exact_provider})
     rows.sort(key=lambda r: r["score"], reverse=True)
     return rows
 
@@ -4865,7 +4870,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
@@ -5870,7 +5875,7 @@ function renderFixtureCard(f,fi){
   // Pull every definite fixture-title hit into one visible section before
   // the broader broadcaster/provider categories. Keep those categories broad.
   const strictSeen=new Set(),strictResults=[];
-  [...(f.ppv_hits||[]),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3)].forEach(function(m){
+  [...(f.ppv_hits||[]),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true)].forEach(function(m){
     const key=String(m.stream_id||'');
     if(key&&!strictSeen.has(key)){strictSeen.add(key);strictResults.push(m);}
   });
@@ -5888,7 +5893,7 @@ function renderFixtureCard(f,fi){
   // Exact fixture/team event hits are the strongest results, so show them
   // before broader linear-broadcaster suggestions.
   if(strictResults.length){
-    html+='<div class="muted" style="margin-bottom:8px">'+esc(tr('Best team/event matches'))+':</div><div class="bcastlist besteventmatches">';
+    html+='<div class="muted" style="margin-bottom:8px">'+esc(tr('Definite channel matches'))+':</div><div class="bcastlist besteventmatches">';
     for(const [ppvIndex,m] of strictResults.entries()){
       const fav=_favChanSet.has(String(m.stream_id))?' on':'';
       html+='<div class="chline'+(ppvIndex>=7?' ppvextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
@@ -10086,8 +10091,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b325") > _parse_ver("0.777.b324"))
-    check("version equality", _parse_ver("v0.777.b325") == _parse_ver("0.777.b325"))
+    check("version ordering", _parse_ver("0.777.b326") > _parse_ver("0.777.b325"))
+    check("version equality", _parse_ver("v0.777.b326") == _parse_ver("0.777.b326"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
@@ -10110,6 +10115,12 @@ def run_self_tests():
     platform_ids = {row["stream_id"] for row in match_channels(
         {"NO": ["TV 2 Play (NO)"]}, sample_channels, sample_cats, 0.49)}
     check("streaming platform candidates retained", platform_ids == {5})
+    provider_rows = match_channels(
+        {"NO": ["TV 2 Sport 1", "TV 2 Play (NO)"]},
+        sample_channels, sample_cats, 0.49)
+    provider_exact = {row["stream_id"]: row.get("provider_exact") for row in provider_rows}
+    check("exact linear provider promoted", provider_exact.get(1) is True)
+    check("streaming provider not promoted", provider_exact.get(5) is False)
     class _TestXtream:
         @staticmethod
         def stream_url(stream_id):
