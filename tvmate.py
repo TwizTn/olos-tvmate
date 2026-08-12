@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b348"
+VERSION = "0.777.b349"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3307,6 +3307,12 @@ _STREAMING_HINTS = (
     "tv2 play", "tv 2 play", "nrk tv", "vg+", "vg tv",
 )
 
+# A shared word such as "Network" or "Sports" must never make a channel for
+# another sport a football broadcaster candidate.
+_NON_FOOTBALL_CHANNEL_RE = re.compile(
+    r"(?<![a-z0-9])(mlb|nfl|nba|nhl|baseball|basketball|ice hockey|cricket)(?![a-z0-9])",
+    re.I)
+
 def _is_streaming(name):
     n = (name or "").lower()
     return any(h in n for h in _STREAMING_HINTS)
@@ -3376,11 +3382,14 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     rows = []
     for ch in xtream_channels:
         cname = ch["name"]
+        category = cats.get(ch["category_id"], "")
+        if (_NON_FOOTBALL_CHANNEL_RE.search(cname) or
+                _NON_FOOTBALL_CHANNEL_RE.search(category)):
+            continue
         xn = normalise(cname)
         if not xn:
             continue
         xset = set(xn.split())
-        category = cats.get(ch["category_id"], "")
         ch_cc = _resolve_channel_country(cname, category)  # category first, then name
         best, best_src, best_country, best_exact_provider = 0.0, "", "", False
         for orig, bcountry, allowed, sn, sset in srcs:
@@ -3539,7 +3548,8 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return _vod_cache_key(x) + "|" + str(cfg.get("match_threshold") or 0.62)
+    return "football-v2|" + _vod_cache_key(x) + "|" + str(
+        cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
     clean = dict(result or {})
@@ -4379,12 +4389,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfixturecompetition{font-size:11px;color:var(--mut);margin-bottom:4px}
  .teamfixturetv{margin-left:auto}
  .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
- .fixturebroadcasters{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin-top:4px;padding-top:9px;border-top:1px solid var(--line)}
  .teamfixture.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
  .teamfixturebroadcasts.hide{display:none}
- .teamcaster{background:var(--card2);border:1px solid var(--line2);color:var(--fg);border-radius:7px;padding:5px 8px;font-size:11px}
- .teamcaster:hover{border-color:#2b4a30;background:#17241a}
- .teamcaster .cc{margin-right:5px}
  .matchstrict{display:flex;align-items:center;gap:9px;margin-top:9px;color:var(--mut);font-size:11px}
  .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
  .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
@@ -5468,16 +5474,13 @@ function teamFixtureCard(f,live,deepLink){
     status='<span class="live">&#9679; LIVE '+mins+' min</span>';
   }
   const owners=(f.favorite_teams||[]).join(', ');
-  const broadcasters=[];
-  for(const cc of Object.keys(f.by_country||{}))for(const name of (f.by_country[cc]||[]))broadcasters.push({cc:cc,name:name});
   const query=(f.home||'')+' '+(f.away||''),matchQuery=(f.favorite_teams||[])[0]||f.home||f.away||'';
   const homeLogo=f.home_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.home_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
-  const broadcasterHtml=broadcasters.length?broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join(''):'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>';
   const knownChannels=[...(f.matches||[]),...(f.ppv_hits||[])],hasChannels=knownChannels.length>0;
   const channelHtml=(hasChannels||f.availability_checked)?fixtureStoredChannelsHtml(Object.assign({logged_in:true},f)):'<span class="muted">'+esc(tr('Checking your channels...'))+'</span>';
-  const details='<div class="teamfixturebroadcasts hide"><div class="fixturechannelresults" style="width:100%">'+channelHtml+'</div><div class="fixturebroadcasters">'+broadcasterHtml+'</div><button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-tv="'+escAttr(JSON.stringify(f.by_country||{}))+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
+  const details='<div class="teamfixturebroadcasts hide"><div class="fixturechannelresults" style="width:100%">'+channelHtml+'</div></div>';
   const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-event-key="'+escAttr(sportsFixtureKey(f))+'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
   return '<div class="teamfixture hastv'+(live?' livefixture':'')+(hasChannels?' haschannels':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
     +(hasChannels?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
@@ -5612,19 +5615,9 @@ function fixtureStoredChannelsHtml(f){
   if(other.length){const groups=new Map();for(const ch of other){const key=String(ch.category||tr('Other possible channels'));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ch);}h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(line).join('')+'</div></div>';}
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
 }
-async function findOpenedFixtureChannels(target){
-  if(!target)return;const card=target.closest('.teamfixture'),panel=card&&card.querySelector('.fixturechannelresults');if(!panel)return;
-  let byCountry={};try{byCountry=JSON.parse(target.getAttribute('data-tv')||'{}');}catch(e){}
-  const fixture={home:target.getAttribute('data-home')||'',away:target.getAttribute('data-away')||'',start:target.getAttribute('data-start')||'',by_country:byCountry};
-  target.disabled=true;target.textContent=tr('Refreshing channel matches...');panel.innerHTML='<span class="muted">'+esc(tr('Refreshing channel matches...'))+'</span>';
-  try{const result=await api('/api/sports_event_channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixture:fixture,force:true})});if(result.error)throw new Error(result.error);Object.assign(fixture,result);panel.innerHTML=fixtureStoredChannelsHtml(fixture);target.textContent=tr('Refresh channel matches');}
-  catch(e){panel.innerHTML='<span class="err">'+esc(String(e.message||e))+'</span>';target.textContent=tr('Refresh channel matches');}
-  finally{target.disabled=false;}
-}
 async function loadStoredFixtureChannels(card){
-  const target=card&&card.querySelector('.fixturefindchannels'),panel=card&&card.querySelector('.fixturechannelresults');if(!target||!panel||panel.innerHTML.trim())return;
-  let byCountry={};try{byCountry=JSON.parse(target.getAttribute('data-tv')||'{}');}catch(e){}
-  const fixture={home:target.getAttribute('data-home')||'',away:target.getAttribute('data-away')||'',start:target.getAttribute('data-start')||'',by_country:byCountry};
+  const panel=card&&card.querySelector('.fixturechannelresults');if(!card||!panel||panel.innerHTML.trim())return;
+  const fixture={home:card.getAttribute('data-home')||'',away:card.getAttribute('data-away')||'',start:card.getAttribute('data-start')||'',by_country:{}};
   try{const result=await api('/api/sports_event_channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixture:fixture,cached_only:true})});if(result.cached){Object.assign(fixture,result);panel.innerHTML=fixtureStoredChannelsHtml(fixture);}}catch(e){}
 }
 async function toggleTeamFavorite(name,star,teamId){
@@ -7693,8 +7686,6 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
-  const fixtureFind=e.target.closest('.fixturefindchannels');
-  if(fixtureFind){e.stopPropagation();findOpenedFixtureChannels(fixtureFind);return;}
   const timelineTeamFixture=e.target.closest('.teamfixture[data-profile-fixture="1"]');
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const teamFixture=e.target.closest('.teamfixture[data-fixture-card="1"]');
@@ -10613,8 +10604,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b348") > _parse_ver("0.777.b347"))
-    check("version equality", _parse_ver("v0.777.b348") == _parse_ver("0.777.b348"))
+    check("version ordering", _parse_ver("0.777.b349") > _parse_ver("0.777.b348"))
+    check("version equality", _parse_ver("v0.777.b349") == _parse_ver("0.777.b349"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10664,6 +10655,12 @@ def run_self_tests():
                            sample_channels, sample_cats, 0.49)
     check("countryless 4k provider promoted",
           len(uk_4k) == 1 and uk_4k[0].get("provider_exact") is True)
+    non_football = match_channels(
+        {"US": ["USA Network"]},
+        [{"name": "US: MLB Networks", "stream_id": 99,
+          "category_id": "us-sports"}],
+        {"us-sports": "US | SPORTS"}, 0.40)
+    check("other-sport networks excluded from football", non_football == [])
     class _TestXtream:
         @staticmethod
         def stream_url(stream_id):
