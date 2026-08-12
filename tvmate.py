@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b346"
+VERSION = "0.777.b347"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3535,11 +3535,64 @@ _RACING_AVAILABILITY_TTL = 15 * 60
 _SPORTS_EVENT_CHANNEL_CACHE = {}
 _SPORTS_EVENT_CHANNEL_TTL = 15 * 60
 
+def _sports_availability_cache_path():
+    return os.path.join(data_cache_dir(), "sports-availability.json")
+
+def _sports_cache_signature(cfg, x):
+    return _vod_cache_key(x) + "|" + str(cfg.get("match_threshold") or 0.62)
+
+def _sports_result_for_storage(result):
+    clean = dict(result or {})
+    for key in ("matches", "ppv_hits"):
+        clean[key] = [{k: v for k, v in dict(row).items() if k != "url"}
+                      for row in (clean.get(key) or []) if isinstance(row, dict)]
+    return clean
+
+def _sports_result_for_client(result, x):
+    hydrated = dict(result or {})
+    for key in ("matches", "ppv_hits"):
+        rows = []
+        for stored in hydrated.get(key) or []:
+            row = dict(stored)
+            if row.get("stream_id") is not None:
+                row["url"] = x.stream_url(row["stream_id"])
+            rows.append(row)
+        hydrated[key] = rows
+    return hydrated
+
+def _load_sports_disk_cache(cfg, x):
+    try:
+        with open(_sports_availability_cache_path(), "r", encoding="utf-8") as f:
+            cached = json.load(f) or {}
+        if cached.get("signature") != _sports_cache_signature(cfg, x):
+            return {}
+        entries = cached.get("entries") or {}
+        return entries if isinstance(entries, dict) else {}
+    except Exception:
+        return {}
+
+def _save_sports_disk_cache(cfg, x, entries):
+    try:
+        # Finished fixtures naturally disappear as fresh schedules replace the
+        # cache; cap the file as an additional guard against indefinite growth.
+        ordered = sorted(entries.items(), key=lambda item: float(
+            (item[1] or {}).get("ts") or 0), reverse=True)[:500]
+        with _CACHE_WRITE_LOCK:
+            _atomic_write_json(_sports_availability_cache_path(), {
+                "signature": _sports_cache_signature(cfg, x),
+                "entries": dict(ordered)}, compact=True)
+    except Exception:
+        pass
+
 def _clear_racing_availability_cache():
     _RACING_AVAILABILITY_CACHE.update({"key": "", "ts": 0, "availability": {}})
 
 def _clear_sports_event_channel_cache():
     _SPORTS_EVENT_CHANNEL_CACHE.clear()
+    try:
+        os.remove(_sports_availability_cache_path())
+    except OSError:
+        pass
 
 def _sports_event_key(home, away, start):
     return "|".join((normalise(str(home or "")), normalise(str(away or "")),
@@ -3565,7 +3618,8 @@ def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
                               channels, cats, x)
     have = {str(row.get("stream_id")) for row in matches}
     ppv_hits = [row for row in hits if str(row.get("stream_id")) not in have]
-    return {"logged_in": True, "matches": matches, "ppv_hits": ppv_hits}
+    return {"logged_in": True, "availability_checked": True,
+            "matches": matches, "ppv_hits": ppv_hits}
 
 def _racing_event_key(event):
     return "|".join(str(event.get(k) or "") for k in
@@ -5422,7 +5476,7 @@ function teamFixtureCard(f,live,deepLink){
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
   const broadcasterHtml=broadcasters.length?broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join(''):'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>';
   const knownChannels=[...(f.matches||[]),...(f.ppv_hits||[])],hasChannels=knownChannels.length>0;
-  const channelHtml=hasChannels?fixtureStoredChannelsHtml(Object.assign({logged_in:true},f)):'<span class="muted">'+esc(tr('Checking your channels...'))+'</span>';
+  const channelHtml=(hasChannels||f.availability_checked)?fixtureStoredChannelsHtml(Object.assign({logged_in:true},f)):'<span class="muted">'+esc(tr('Checking your channels...'))+'</span>';
   const details='<div class="teamfixturebroadcasts hide"><div class="fixturechannelresults" style="width:100%">'+channelHtml+'</div><div class="fixturebroadcasters">'+broadcasterHtml+'</div><button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-tv="'+escAttr(JSON.stringify(f.by_country||{}))+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
   const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-event-key="'+escAttr(sportsFixtureKey(f))+'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
   return '<div class="teamfixture hastv'+(live?' livefixture':'')+(hasChannels?' haschannels':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
@@ -9286,6 +9340,18 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     top_fixtures = []
                     errors.append(f"FotMob featured fixtures: {e}")
+                # Hydrate durable channel matches before the page renders. The
+                # client may refresh stale entries later, but never needs to
+                # replace an already-known match with a Checking placeholder.
+                x = Xtream(cfg)
+                if x.configured():
+                    stored_availability = _load_sports_disk_cache(cfg, x)
+                    for fixture in fixtures + top_fixtures:
+                        stored = stored_availability.get(_sports_event_key(
+                            fixture.get("home"), fixture.get("away"),
+                            fixture.get("start")))
+                        if isinstance(stored, dict) and isinstance(stored.get("result"), dict):
+                            fixture.update(_sports_result_for_client(stored["result"], x))
                 return self._send(200, {"fixtures": fixtures,
                                         "top_fixtures": top_fixtures,
                                         "source_errors": list(dict.fromkeys(errors))})
@@ -9479,6 +9545,10 @@ class Handler(BaseHTTPRequestHandler):
                     {"home": home, "away": away, "start": start,
                      "by_country": cleaned_tv}, cfg)
                 _SPORTS_EVENT_CHANNEL_CACHE[key] = {"ts": time.time(), "result": result}
+                disk_entries = _load_sports_disk_cache(cfg, x)
+                disk_entries[_sports_event_key(home, away, start)] = {
+                    "ts": time.time(), "result": _sports_result_for_storage(result)}
+                _save_sports_disk_cache(cfg, x, disk_entries)
                 return self._send(200, dict(result, cached=False))
             except Exception as e:
                 return self._send(502, {"error": "Sports channel search: " + str(e)})
@@ -9494,6 +9564,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(502, {"error": "Sports channel catalogue: " + str(e)})
             availability = {}; now = time.time()
+            disk_entries = _load_sports_disk_cache(cfg, x)
             for raw_fixture in incoming[:160]:
                 if not isinstance(raw_fixture, dict):
                     continue
@@ -9518,6 +9589,12 @@ class Handler(BaseHTTPRequestHandler):
                 key = (_vod_cache_key(x), str(cfg.get("match_threshold") or 0.62),
                        _sports_event_key(home, away, start))
                 cached = _SPORTS_EVENT_CHANNEL_CACHE.get(key)
+                disk_key = _sports_event_key(home, away, start)
+                if not cached:
+                    stored = disk_entries.get(disk_key)
+                    if isinstance(stored, dict) and isinstance(stored.get("result"), dict):
+                        cached = {"ts": float(stored.get("ts") or 0),
+                                  "result": _sports_result_for_client(stored["result"], x)}
                 fresh = bool(cached and now - float(cached.get("ts") or 0) <
                              _SPORTS_EVENT_CHANNEL_TTL)
                 if fresh and not payload.get("force"):
@@ -9527,7 +9604,10 @@ class Handler(BaseHTTPRequestHandler):
                         {"home": home, "away": away, "start": start,
                          "by_country": cleaned_tv}, cfg, channels, cats, x)
                     _SPORTS_EVENT_CHANNEL_CACHE[key] = {"ts": time.time(), "result": result}
+                    disk_entries[disk_key] = {"ts": time.time(),
+                                              "result": _sports_result_for_storage(result)}
                 availability["|".join((home.lower(), away.lower(), start[:16]))] = result
+            _save_sports_disk_cache(cfg, x, disk_entries)
             return self._send(200, {"availability": availability, "logged_in": True})
         if u.path == "/api/import_steam_wishlist":
             cfg = load_config()
@@ -10533,8 +10613,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b346") > _parse_ver("0.777.b345"))
-    check("version equality", _parse_ver("v0.777.b346") == _parse_ver("0.777.b346"))
+    check("version ordering", _parse_ver("0.777.b347") > _parse_ver("0.777.b346"))
+    check("version equality", _parse_ver("v0.777.b347") == _parse_ver("0.777.b347"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10595,6 +10675,14 @@ def run_self_tests():
     check("sports bulk matcher reuses shared catalogue",
           {row["stream_id"] for row in sports_shared["matches"]} == {1} and
           3 in {row["stream_id"] for row in sports_shared["ppv_hits"]})
+    stored_sports = _sports_result_for_storage(sports_shared)
+    check("sports disk cache omits credential-bearing URLs",
+          all("url" not in row for key in ("matches", "ppv_hits")
+              for row in stored_sports[key]))
+    check("sports no-result state remains cacheable",
+          _sports_result_for_storage({"logged_in": True,
+              "availability_checked": True, "matches": [], "ppv_hits": []
+          }).get("availability_checked") is True)
     class _TestRacingXtream:
         @staticmethod
         def stream_url(stream_id):
