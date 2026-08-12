@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b347"
+VERSION = "0.777.b348"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5989,8 +5989,8 @@ async function refreshIptvContent(btn,quiet){
 async function refreshOtherContent(btn,quiet){
   return withRefreshButton(btn,'Refreshing content...',async function(){
     const c=await api('/api/config'),parts=[],failures=[];refreshMessage('Refreshing sports, racing and games...');
-    if(c.football_enabled!==false){const sports=await api('/api/refresh_football',{method:'POST'});if(!sports.error&&sports.ok)parts.push((sports.matches||0)+' matches, '+(sports.teams||0)+' teams, '+(sports.guides||0)+' TV guides');else failures.push('sports');}
     if(c.f1_enabled!==false){const racing=await api('/api/refresh_racing',{method:'POST'});if(!racing.error&&racing.ok)parts.push((racing.series||0)+' racing series');else failures.push('racing');}
+    if(c.football_enabled!==false){const sports=await api('/api/refresh_football',{method:'POST'});if(!sports.error&&sports.ok)parts.push((sports.matches||0)+' matches, '+(sports.teams||0)+' teams, '+(sports.guides||0)+' TV guides');else failures.push('sports');}
     if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
       const steam=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(!steam.error&&steam.ok)parts.push((steam.imported||0)+' Steam games');else failures.push('games');
     }
@@ -6010,13 +6010,13 @@ async function refreshEverything(btn,quiet){
       const epg=await run('EPG',async function(){const r=await api('/api/epg?force=1&favorites=1'+(currentId?'&ids='+encodeURIComponent(String(currentId)):''));if(r.error)throw new Error(r.error);return r;});
       if(epg)parts.push('EPG '+((epg.stats&&epg.stats.updated)||0)+' channels');
     }else parts.push('IPTV skipped');
-    if(c.football_enabled!==false){
-      const football=await run('Sports',async function(){const r=await api('/api/refresh_football',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'sports refresh failed');return r;});
-      if(football)parts.push('Sports '+football.teams+' teams, '+football.guides+' guides');
-    }
     if(c.f1_enabled!==false){
       const racing=await run('Racing',async function(){const r=await api('/api/refresh_racing',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'racing refresh failed');return r;});
       if(racing)parts.push('Racing '+racing.series+' series');
+    }
+    if(c.football_enabled!==false){
+      const football=await run('Sports',async function(){const r=await api('/api/refresh_football',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'sports refresh failed');return r;});
+      if(football)parts.push('Sports '+football.teams+' teams, '+football.guides+' guides');
     }
     if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
       const steam=await run('Steam',async function(){const r=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(r.error||!r.ok)throw new Error(r.error||'Steam refresh failed');return r;});
@@ -10613,8 +10613,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b347") > _parse_ver("0.777.b346"))
-    check("version equality", _parse_ver("v0.777.b347") == _parse_ver("0.777.b347"))
+    check("version ordering", _parse_ver("0.777.b348") > _parse_ver("0.777.b347"))
+    check("version equality", _parse_ver("v0.777.b348") == _parse_ver("0.777.b348"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
