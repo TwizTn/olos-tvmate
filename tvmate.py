@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b334"
+VERSION = "0.777.b335"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4290,6 +4290,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfixturecompetition{font-size:11px;color:var(--mut);margin-bottom:4px}
  .teamfixturetv{margin-left:auto}
  .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
+ .teamfixture.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
  .teamfixturebroadcasts.hide{display:none}
  .teamcaster{background:var(--card2);border:1px solid var(--line2);color:var(--fg);border-radius:7px;padding:5px 8px;font-size:11px}
  .teamcaster:hover{border-color:#2b4a30;background:#17241a}
@@ -4996,8 +4997,8 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Fixture details":"Kampdetaljer","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
-  "Back to Sports":"Tilbake til Sport",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
@@ -5372,10 +5373,10 @@ function teamFixtureCard(f,live,deepLink){
   const homeLogo=f.home_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.home_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
-  let details='';
-  if(broadcasters.length)details='<div class="teamfixturebroadcasts hide">'+broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join('')+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
-  const deepAttrs=deepLink?' data-team-fixture="1" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"':'';
-  return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"'+deepAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
+  const broadcasterHtml=broadcasters.length?broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join(''):'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>';
+  const details='<div class="teamfixturebroadcasts hide">'+broadcasterHtml+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
+  const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
+  return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
     +(broadcasters.length?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
     +competition+'<div class="muted">'+esc(when)+' '+status+'</div>'+(owners?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')+details+'</div>';
 }
@@ -5472,16 +5473,16 @@ function openMyTeamsFixture(target){
   const query=String(read('data-search')||target.search||target.owner||_teamDeepLink.home||_teamDeepLink.away||'');
   _selectedTeamName=query;const favorite=_favTeamRows.find(t=>_teamNamesEquivalentForUi(t.name,query));if(favorite){_selectedTeamRow=favorite;renderTeamFavoriteRail();loadSelectedTeamProfile(favorite);}
   _fixtureSearchTeamId=String((favorite&&favorite.team_id)||'');
-  const input=document.getElementById('q');if(input)input.value=query;
-  const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
-  const allFixtures=_myTeamFixtures.concat(_myListTeamMoments.map(row=>row.fixture).filter(Boolean));
-  const fixture=allFixtures.find(f=>_teamNamesEquivalentForUi(f.home,_teamDeepLink.home)&&_teamNamesEquivalentForUi(f.away,_teamDeepLink.away)&&(!_teamDeepLink.start||!f.start||Math.abs(new Date(f.start)-new Date(_teamDeepLink.start))<6*3600000))||{home:_teamDeepLink.home,away:_teamDeepLink.away,start:_teamDeepLink.start,favorite_teams:[query],by_country:{}};
-  const results=document.getElementById('results'),teams=document.getElementById('teamSearchResults');if(teams)teams.innerHTML='';
-  if(results)results.innerHTML='<div class="matchresultslabel">'+esc(tr('Fixture details'))+'</div><div class="card sportsfixturedetail">'+teamFixtureCard(fixture,!!fixture.is_live,false)+'<div class="row" style="margin-top:12px"><button type="button" onclick="findOpenedFixtureChannels()">'+esc(tr('Refresh channel matches'))+'</button><button type="button" class="ghost" onclick="clearSportsSearch()">'+esc(tr('Back to Sports'))+'</button></div></div>';
+  const input=document.getElementById('q'),results=document.getElementById('results'),teams=document.getElementById('teamSearchResults'),back=document.getElementById('sportsSearchBack');
+  if(input)input.value='';if(results)results.innerHTML='';if(teams)teams.innerHTML='';if(back)back.classList.add('hide');
+  const cards=Array.from(document.querySelectorAll('#teamsView .teamfixture[data-fixture-card="1"]'));
+  const selected=cards.find(card=>_teamNamesEquivalentForUi(card.getAttribute('data-home'),_teamDeepLink.home)&&_teamNamesEquivalentForUi(card.getAttribute('data-away'),_teamDeepLink.away)&&(!_teamDeepLink.start||!card.getAttribute('data-start')||Math.abs(new Date(card.getAttribute('data-start'))-new Date(_teamDeepLink.start))<6*3600000));
+  cards.forEach(card=>card.classList.toggle('selectedfixture',card===selected));
+  if(selected){const details=selected.querySelector('.teamfixturebroadcasts');if(details)details.classList.remove('hide');selected.scrollIntoView({behavior:'smooth',block:'center'});}
 }
-async function findOpenedFixtureChannels(){
-  if(!_teamDeepLink)return;
-  const query=String(_selectedTeamName||_teamDeepLink.home||_teamDeepLink.away||'');
+async function findOpenedFixtureChannels(target){
+  if(target)openMyTeamsFixture(target);if(!_teamDeepLink)return;
+  const query=String((target&&target.getAttribute('data-search'))||_selectedTeamName||_teamDeepLink.home||_teamDeepLink.away||'');
   const input=document.getElementById('q');if(input)input.value=query;
   const results=document.getElementById('results');if(results)results.innerHTML='<span class="muted">'+esc(tr('Refreshing channel matches...'))+'</span>';
   await doSearch();
@@ -7545,11 +7546,11 @@ async function epgRefresh(){
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
   const fixtureFind=e.target.closest('.fixturefindchannels');
-  if(fixtureFind){e.stopPropagation();openMyTeamsFixture(fixtureFind);findOpenedFixtureChannels();return;}
-  const timelineTeamFixture=e.target.closest('.teamfixture[data-team-fixture="1"]');
+  if(fixtureFind){e.stopPropagation();findOpenedFixtureChannels(fixtureFind);return;}
+  const timelineTeamFixture=e.target.closest('.teamfixture[data-profile-fixture="1"]');
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
-  const teamFixture=e.target.closest('.teamfixture.hastv');
-  if(teamFixture){const details=teamFixture.querySelector('.teamfixturebroadcasts');if(details)details.classList.toggle('hide');return;}
+  const teamFixture=e.target.closest('.teamfixture[data-fixture-card="1"]');
+  if(teamFixture){const details=teamFixture.querySelector('.teamfixturebroadcasts'),opening=details&&details.classList.contains('hide');document.querySelectorAll('#teamsView .teamfixture.selectedfixture').forEach(card=>card.classList.remove('selectedfixture'));teamFixture.classList.toggle('selectedfixture',!!opening);if(details)details.classList.toggle('hide');return;}
   const teamRemove=e.target.closest('.teamremove');
   if(teamRemove){removeTeamFavorite(teamRemove.getAttribute('data-team-name'));return;}
   const teamFav=e.target.closest('.teamfavitem[data-team-search]');
@@ -10333,8 +10334,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b334") > _parse_ver("0.777.b333"))
-    check("version equality", _parse_ver("v0.777.b334") == _parse_ver("0.777.b334"))
+    check("version ordering", _parse_ver("0.777.b335") > _parse_ver("0.777.b334"))
+    check("version equality", _parse_ver("v0.777.b335") == _parse_ver("0.777.b335"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
