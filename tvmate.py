@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b341"
+VERSION = "0.777.b342"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -546,8 +546,10 @@ def restore_profile_backup(backup):
     save_favorites(restored_fav)
     _clear_provider_caches()
     _clear_racing_availability_cache()
+    x = Xtream(restored_cfg)
     return {"type": kind, "timeline": backup.get("timeline") or {},
             "profile_name": str(restored_cfg.get("profile_name") or ""),
+            "xtream_configured": x.configured(),
             "counts": {key: len(restored_fav[key]) for key in
                        ("movies", "shows", "games", "teams", "f1_teams", "channels")}}
 
@@ -7768,8 +7770,9 @@ async function importProfileBackup(input){
     const result=await api('/api/profile_backup_import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({backup:backup})});
     if(result.error)throw new Error(result.error);
     const timeline=result.timeline||{};if(timeline.filter)localStorage.setItem('tvmateTimelineFilter',timeline.filter);if(timeline.settings)localStorage.setItem('tvmateTimelineSettings',JSON.stringify(timeline.settings));
-    _myTimelinePrefsLoaded=false;await loadSettings();await loadFavorites();refreshStatus();
+    _myTimelinePrefsLoaded=false;_catsLoaded=false;_latestEpisodesLoaded=false;_myListLoaded=false;await loadSettings();await loadFavorites();refreshStatus();
     if(msg)msg.textContent=tr('Backup imported and merged.');toast(tr('Backup imported and merged.'));
+    if(result.type==='full'){setTimeout(()=>location.reload(),700);}
   }catch(e){if(msg)msg.textContent=tr('Could not import this backup.')+' '+String(e.message||e);}
   finally{input.value='';}
 }
@@ -10436,12 +10439,15 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b341") > _parse_ver("0.777.b340"))
-    check("version equality", _parse_ver("v0.777.b341") == _parse_ver("0.777.b341"))
+    check("version ordering", _parse_ver("0.777.b342") > _parse_ver("0.777.b341"))
+    check("version equality", _parse_ver("v0.777.b342") == _parse_ver("0.777.b342"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
     check("profile backup retains favorites", isinstance(profile_backup["favorites"], dict))
+    full_backup = create_profile_backup("full", {"filter": "all"})
+    check("full backup includes Xtream credential fields",
+          _PROFILE_SECRET_KEYS.issubset(full_backup["config"]))
     merged_test = _merge_favorite_lists(
         "teams", [{"team_id": "1", "name": "Old"}],
         [{"team_id": "1", "name": "Updated"}, {"team_id": "2", "name": "New"}])
