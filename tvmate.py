@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b335"
+VERSION = "0.777.b336"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3466,6 +3466,34 @@ def rank_fixture_channels(rows, home, away):
     ranked.sort(key=lambda item: (-item[0], -item[1], item[2]))
     return [item[3] for item in ranked]
 
+def add_fixture_channel_availability(fixtures, cfg):
+    """Attach already-available Xtream matches to known fixtures in one pass."""
+    x = Xtream(cfg)
+    if not x.configured() or not fixtures:
+        return
+    try:
+        channels, cats = get_xtream_channels(cfg)
+    except Exception:
+        return
+    threshold = max(0.40, min(0.80, float(cfg.get("match_threshold", 0.62) or 0.62)))
+    for fixture in fixtures:
+        normal = rank_fixture_channels(
+            match_channels(fixture.get("by_country", {}), channels, cats, threshold),
+            fixture.get("home"), fixture.get("away"))
+        event = find_team_channels(
+            [fixture.get("home", ""), fixture.get("away", "")],
+            channels, cats, x)
+        seen, available = set(), []
+        for row in normal + event:
+            sid = str(row.get("stream_id") or "")
+            if not sid or sid in seen:
+                continue
+            seen.add(sid)
+            item = dict(row)
+            item["url"] = item.get("url") or x.stream_url(item["stream_id"])
+            available.append(item)
+        fixture["channels"] = available[:30]
+
 def find_team_channels(team_terms, xtream_channels, cats, x):
     """Find plausible match-specific PPV/event channels.
 
@@ -4997,8 +5025,8 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
-  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
@@ -5369,15 +5397,17 @@ function teamFixtureCard(f,live,deepLink){
   const owners=(f.favorite_teams||[]).join(', ');
   const broadcasters=[];
   for(const cc of Object.keys(f.by_country||{}))for(const name of (f.by_country[cc]||[]))broadcasters.push({cc:cc,name:name});
+  const available=(f.channels||[]).slice().sort(preferredChannelSort);
   const query=(f.home||'')+' '+(f.away||''),matchQuery=(f.favorite_teams||[])[0]||f.home||f.away||'';
   const homeLogo=f.home_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.home_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
-  const broadcasterHtml=broadcasters.length?broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join(''):'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>';
-  const details='<div class="teamfixturebroadcasts hide">'+broadcasterHtml+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
+  const channelHtml=available.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('Available channels'))+'</div>'+available.map(ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>').join('')+'</div>':'';
+  const broadcasterHtml=broadcasters.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('TV listings'))+'</div>'+broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join('')+'</div>':(!available.length?'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>':'');
+  const details='<div class="teamfixturebroadcasts hide">'+channelHtml+broadcasterHtml+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
   const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
   return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
-    +(broadcasters.length?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
+    +((broadcasters.length||available.length)?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
     +competition+'<div class="muted">'+esc(when)+' '+status+'</div>'+(owners?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')+details+'</div>';
 }
 async function loadMyTeams(){
@@ -5481,11 +5511,12 @@ function openMyTeamsFixture(target){
   if(selected){const details=selected.querySelector('.teamfixturebroadcasts');if(details)details.classList.remove('hide');selected.scrollIntoView({behavior:'smooth',block:'center'});}
 }
 async function findOpenedFixtureChannels(target){
-  if(target)openMyTeamsFixture(target);if(!_teamDeepLink)return;
-  const query=String((target&&target.getAttribute('data-search'))||_selectedTeamName||_teamDeepLink.home||_teamDeepLink.away||'');
-  const input=document.getElementById('q');if(input)input.value=query;
-  const results=document.getElementById('results');if(results)results.innerHTML='<span class="muted">'+esc(tr('Refreshing channel matches...'))+'</span>';
-  await doSearch();
+  const fixture={home:String((target&&target.getAttribute('data-home'))||(_teamDeepLink&&_teamDeepLink.home)||''),away:String((target&&target.getAttribute('data-away'))||(_teamDeepLink&&_teamDeepLink.away)||''),start:String((target&&target.getAttribute('data-start'))||(_teamDeepLink&&_teamDeepLink.start)||''),search:String((target&&target.getAttribute('data-search'))||_selectedTeamName||'')};
+  if(!fixture.home&&!fixture.away)return;
+  if(target){target.disabled=true;target.textContent=tr('Refreshing channel matches...');}
+  await loadMyTeams();
+  openMyTeamsFixture(fixture);
+  toast(tr('Channel matches refreshed.'));
 }
 async function toggleTeamFavorite(name,star,teamId){
   const r=await favPost({action:'toggle_team',team:{name:name,team_id:teamId||''}});
@@ -9189,6 +9220,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     top_fixtures = []
                     errors.append(f"FotMob featured fixtures: {e}")
+                add_fixture_channel_availability(fixtures + top_fixtures, cfg)
                 return self._send(200, {"fixtures": fixtures,
                                         "top_fixtures": top_fixtures,
                                         "source_errors": list(dict.fromkeys(errors))})
@@ -10334,8 +10366,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b335") > _parse_ver("0.777.b334"))
-    check("version equality", _parse_ver("v0.777.b335") == _parse_ver("0.777.b335"))
+    check("version ordering", _parse_ver("0.777.b336") > _parse_ver("0.777.b335"))
+    check("version equality", _parse_ver("v0.777.b336") == _parse_ver("0.777.b336"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
