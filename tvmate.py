@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b333"
+VERSION = "0.777.b334"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4996,7 +4996,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Fixture details":"Kampdetaljer","Find matching channels":"Finn matchende kanaler","Finding matching channels...":"Finner matchende kanaler...","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Fixture details":"Kampdetaljer","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
@@ -5373,7 +5373,7 @@ function teamFixtureCard(f,live,deepLink){
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
   let details='';
-  if(broadcasters.length)details='<div class="teamfixturebroadcasts hide">'+broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join('')+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Find matching channels'))+'</button></div>';
+  if(broadcasters.length)details='<div class="teamfixturebroadcasts hide">'+broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join('')+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
   const deepAttrs=deepLink?' data-team-fixture="1" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"':'';
   return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"'+deepAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
     +(broadcasters.length?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
@@ -5477,13 +5477,13 @@ function openMyTeamsFixture(target){
   const allFixtures=_myTeamFixtures.concat(_myListTeamMoments.map(row=>row.fixture).filter(Boolean));
   const fixture=allFixtures.find(f=>_teamNamesEquivalentForUi(f.home,_teamDeepLink.home)&&_teamNamesEquivalentForUi(f.away,_teamDeepLink.away)&&(!_teamDeepLink.start||!f.start||Math.abs(new Date(f.start)-new Date(_teamDeepLink.start))<6*3600000))||{home:_teamDeepLink.home,away:_teamDeepLink.away,start:_teamDeepLink.start,favorite_teams:[query],by_country:{}};
   const results=document.getElementById('results'),teams=document.getElementById('teamSearchResults');if(teams)teams.innerHTML='';
-  if(results)results.innerHTML='<div class="matchresultslabel">'+esc(tr('Fixture details'))+'</div><div class="card sportsfixturedetail">'+teamFixtureCard(fixture,!!fixture.is_live,false)+'<div class="row" style="margin-top:12px"><button type="button" onclick="findOpenedFixtureChannels()">'+esc(tr('Find matching channels'))+'</button><button type="button" class="ghost" onclick="clearSportsSearch()">'+esc(tr('Back to Sports'))+'</button></div></div>';
+  if(results)results.innerHTML='<div class="matchresultslabel">'+esc(tr('Fixture details'))+'</div><div class="card sportsfixturedetail">'+teamFixtureCard(fixture,!!fixture.is_live,false)+'<div class="row" style="margin-top:12px"><button type="button" onclick="findOpenedFixtureChannels()">'+esc(tr('Refresh channel matches'))+'</button><button type="button" class="ghost" onclick="clearSportsSearch()">'+esc(tr('Back to Sports'))+'</button></div></div>';
 }
 async function findOpenedFixtureChannels(){
   if(!_teamDeepLink)return;
   const query=String(_selectedTeamName||_teamDeepLink.home||_teamDeepLink.away||'');
   const input=document.getElementById('q');if(input)input.value=query;
-  const results=document.getElementById('results');if(results)results.innerHTML='<span class="muted">'+esc(tr('Finding matching channels...'))+'</span>';
+  const results=document.getElementById('results');if(results)results.innerHTML='<span class="muted">'+esc(tr('Refreshing channel matches...'))+'</span>';
   await doSearch();
 }
 async function toggleTeamFavorite(name,star,teamId){
@@ -10333,8 +10333,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b333") > _parse_ver("0.777.b332"))
-    check("version equality", _parse_ver("v0.777.b333") == _parse_ver("0.777.b333"))
+    check("version ordering", _parse_ver("0.777.b334") > _parse_ver("0.777.b333"))
+    check("version equality", _parse_ver("v0.777.b334") == _parse_ver("0.777.b334"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
