@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b349"
+VERSION = "0.777.b350"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2726,6 +2726,7 @@ def featured_daily_fixtures():
                     "start": str(status.get("utcTime") or match.get("startDate") or ""),
                     "is_live": bool((status.get("started") or status.get("ongoing")) and
                                     not status.get("finished")),
+                    "is_finished": bool(status.get("finished")),
                     "live_minute": live_minute, "league_name": league,
                     "league_id": str(match.get("_league_id") or ""),
                     "status_known": True, "by_country": {}, "favorite_teams": []})
@@ -2763,6 +2764,7 @@ def search_daily_matches(term):
                     "home_id": str(home_obj.get("id") or ""),
                     "away_id": str(away_obj.get("id") or ""),
                     "is_live": is_live, "live_minute": live_minute,
+                    "is_finished": bool(status.get("finished")),
                     "league_name": str(match.get("_league_name") or ""),
                     "league_id": str(match.get("_league_id") or ""),
                     "by_country": {}, "all_channels": []})
@@ -5504,7 +5506,7 @@ async function loadMyTeams(){
   const live=[], future=[];
   for(const f of (r.fixtures||[])){
     const ts=f.start?new Date(f.start).getTime():0, mins=ts?(Date.now()-ts)/60000:null;
-    if(f.is_live||(!f.status_known&&mins!==null&&mins>=0&&mins<=140))live.push(f);
+    if(f.is_live||(!f.is_finished&&mins!==null&&mins>=0&&mins<=240))live.push(f);
     else if(mins!==null&&mins<0)future.push(f);
   }
   if(live.length){liveList.innerHTML=live.map(f=>teamFixtureCard(f,true)).join('');liveSection.classList.remove('hide');}
@@ -6140,12 +6142,12 @@ function renderFixtureCard(f,fi){
     const kick=new Date(f.start);
     const mins=Math.floor((Date.now()-kick.getTime())/60000);
     const sameDay=kick.toDateString()===new Date().toDateString();
-    if(f.is_live||(mins>=0&&mins<=140)){
+    if(f.is_live||(!f.is_finished&&mins>=0&&mins<=240)){
       const hasClock=f.live_minute!==null&&f.live_minute!==undefined&&Number.isFinite(Number(f.live_minute));
       const liveMins=hasClock?Number(f.live_minute):Math.max(0,mins);
       badge=' <span class="live">\u25CF LIVE '+(hasClock?'':'~')+liveMins+"'</span>";
     }
-    else if(mins>140&&(mins<360||sameDay))badge=' <span class="ended">ended / earlier today</span>';
+    else if(f.is_finished||(mins>240&&(mins<360||sameDay)))badge=' <span class="ended">ended / earlier today</span>';
     else if(mins<0&&mins>-60)badge=' <span class="soon">starts in '+(-mins)+" min</span>";
   }
   const rows=[];
@@ -9290,6 +9292,7 @@ class Handler(BaseHTTPRequestHandler):
                             fixtures.append(dict(daily, status_known=True))
                         else:
                             duplicate["is_live"] = bool(daily.get("is_live"))
+                            duplicate["is_finished"] = bool(daily.get("is_finished"))
                             duplicate["live_minute"] = daily.get("live_minute")
                             duplicate["home_id"] = duplicate.get("home_id") or daily.get("home_id", "")
                             duplicate["away_id"] = duplicate.get("away_id") or daily.get("away_id", "")
@@ -9318,6 +9321,8 @@ class Handler(BaseHTTPRequestHandler):
                             merged[key] = row
                         elif fixture.get("is_live"):
                             row["is_live"] = True
+                        if fixture.get("is_finished"):
+                            row["is_finished"] = True
                         if fixture.get("live_minute") is not None:
                             row["live_minute"] = fixture.get("live_minute")
                         if team_name not in row["favorite_teams"]:
@@ -10604,8 +10609,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b349") > _parse_ver("0.777.b348"))
-    check("version equality", _parse_ver("v0.777.b349") == _parse_ver("0.777.b349"))
+    check("version ordering", _parse_ver("0.777.b350") > _parse_ver("0.777.b349"))
+    check("version equality", _parse_ver("v0.777.b350") == _parse_ver("0.777.b350"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10714,6 +10719,8 @@ def run_self_tests():
     check("generic PPV candidate retained", ranked[0]["fixture_match"] == "generic")
     check("wrong one-team event ranked last", ranked[-1]["fixture_match"] == "partial")
     check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
+    check("live fallback requires explicit finished state",
+          "!f.is_finished&&mins!==null&&mins>=0&&mins<=240" in PAGE)
     return checks
 
 if __name__ == "__main__":
