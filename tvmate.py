@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b350"
+VERSION = "0.777.b351"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3340,6 +3340,24 @@ _COUNTRY_CODES = {
     "yu", "ex-yu", "lt", "lv", "ee", "is", "lu", "mt", "cy",
 }
 _CC_PREFIX_RE = re.compile(r"^\s*([a-z]{2,4})\s*[:|\-]", re.I)
+_COUNTRY_NAME_ALIASES = {
+    "norway": "no", "norge": "no", "norwegian": "no",
+    "united kingdom": "uk", "great britain": "gb", "britain": "gb",
+    "england": "uk", "english": "uk",
+    "united states": "us", "america": "us", "american": "us",
+    "ireland": "ie", "irish": "ie", "spain": "es", "spanish": "es",
+    "germany": "de", "german": "de", "italy": "it", "italian": "it",
+    "france": "fr", "french": "fr", "portugal": "pt", "portuguese": "pt",
+    "netherlands": "nl", "dutch": "nl", "belgium": "be", "belgian": "be",
+    "denmark": "dk", "danish": "dk", "sweden": "se", "swedish": "se",
+    "finland": "fi", "finnish": "fi", "canada": "ca", "canadian": "ca",
+    "australia": "au", "australian": "au", "brazil": "br", "brazilian": "br",
+    "mexico": "mx", "mexican": "mx", "india": "in", "indian": "in",
+    "hong kong": "hk", "hongkong": "hk",
+    "singapore": "sg", "malaysia": "my", "indonesia": "id",
+    "philippines": "ph", "thailand": "th", "vietnam": "vn",
+}
+_COUNTRY_CODES.update({"hk", "sg", "my", "id", "ph", "th", "vn"})
 
 # broadcaster-country -> the channel prefix codes that count as "same country"
 _COUNTRY_MATCH = {
@@ -3361,12 +3379,25 @@ def _cc_from_prefix(text):
     code = m.group(1).lower()
     return code if code in _COUNTRY_CODES else None
 
+def _cc_from_name(text):
+    """Recognise an explicitly written country/region in a provider label."""
+    value = re.sub(r"[^a-z0-9]+", " ", str(text or "").lower()).strip()
+    if not value:
+        return None
+    for alias, code in sorted(_COUNTRY_NAME_ALIASES.items(),
+                              key=lambda item: len(item[0]), reverse=True):
+        if re.search(r"(?<![a-z0-9])" + re.escape(alias) +
+                     r"(?![a-z0-9])", value):
+            return code
+    return None
+
 def _resolve_channel_country(name, category):
     """Determine a channel's country. Prefer the CATEGORY prefix (e.g.
     'NO| NORWAY HD/RAW') since providers group channels by country there and
     it's far more consistent than the name prefix. Fall back to the name
     prefix ('NO:'), else None (unknown -> not country-filtered)."""
-    return _cc_from_prefix(category) or _cc_from_prefix(name)
+    return (_cc_from_prefix(category) or _cc_from_name(category) or
+            _cc_from_prefix(name) or _cc_from_name(name))
 
 def match_channels(by_country, xtream_channels, cats, threshold):
     """`by_country`: {COUNTRY: [broadcaster names]}. A channel is only eligible
@@ -3550,7 +3581,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v2|" + _vod_cache_key(x) + "|" + str(
+    return "football-v3|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -10609,8 +10640,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b350") > _parse_ver("0.777.b349"))
-    check("version equality", _parse_ver("v0.777.b350") == _parse_ver("0.777.b350"))
+    check("version ordering", _parse_ver("0.777.b351") > _parse_ver("0.777.b350"))
+    check("version equality", _parse_ver("v0.777.b351") == _parse_ver("0.777.b351"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10660,6 +10691,17 @@ def run_self_tests():
                            sample_channels, sample_cats, 0.49)
     check("countryless 4k provider promoted",
           len(uk_4k) == 1 and uk_4k[0].get("provider_exact") is True)
+    hong_kong_4k = match_channels(
+        {"UK": ["Premier Sports 2"]},
+        [{"name": "Hongkong NOW Premier Sports 2 4K", "stream_id": 98,
+          "category_id": "4k"}], sample_cats, 0.49)
+    check("written foreign country rejected inside global 4k category",
+          hong_kong_4k == [])
+    unknown_4k = match_channels(
+        {"UK": ["Premier Sports 2"]},
+        [{"name": "Premier Sports 2 4K", "stream_id": 97,
+          "category_id": "4k"}], sample_cats, 0.49)
+    check("global 4k category remains eligible", len(unknown_4k) == 1)
     non_football = match_channels(
         {"US": ["USA Network"]},
         [{"name": "US: MLB Networks", "stream_id": 99,
