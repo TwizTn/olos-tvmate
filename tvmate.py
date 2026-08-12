@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b337"
+VERSION = "0.777.b338"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3944,7 +3944,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
  .tvplayerslot.mini{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
- .tvplayerslot.mini .tvplayerbar{background:#111720}\n .tvplayerslot.sectionmax{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:500;border:0;border-radius:0;overflow:hidden;box-shadow:none}
+ .tvplayerslot.mini .tvplayerbar{background:#111720}
+ .tvplayerslot.sectionmax{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:500;border:0;border-radius:0;overflow:hidden;box-shadow:none}
  .tvplayeractions{display:flex;align-items:center;gap:6px}
  .tvminbtn{background:#202733;border:1px solid #3a4554;color:#dce5f2;border-radius:6px;padding:3px 8px;font-size:12px;line-height:1.1;cursor:pointer}
  .tvminbtn:hover{border-color:#6d86a8;filter:none}
@@ -4324,6 +4325,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfixturetv{margin-left:auto}
  .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
  .teamfixture.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
+ .sportsprovider{width:100%;border:1px solid var(--line2);border-radius:7px;background:var(--card2);overflow:hidden}.sportsproviderhead{display:flex;align-items:center;gap:7px;padding:7px 9px;cursor:pointer}.sportsproviderhead:hover{background:#20252e}.sportsproviderhead .bcname{flex:1}.sportsproviderchannels{border-top:1px solid var(--line);padding:2px 8px}.sportsproviderchannels.hide{display:none}
  .teamfixturebroadcasts.hide{display:none}
  .teamcaster{background:var(--card2);border:1px solid var(--line2);color:var(--fg);border-radius:7px;padding:5px 8px;font-size:11px}
  .teamcaster:hover{border-color:#2b4a30;background:#17241a}
@@ -4948,7 +4950,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <div id="playerModal" class="pmodal hide" onclick="if(event.target===this)closePlayer()">
   <div class="pbox">
     <div class="pbar"><span id="pTitle" data-i18n="Player">Player</span><div class="tvplayeractions"><button type="button" class="tvminbtn" id="pMinBtn" title="Maximize player" aria-label="Maximize player" onclick="togglePopupPlayerSize()">&#8598;</button><button class="pclose" onclick="closePlayer()">&times;</button></div></div>
-    <video id="pVideo" controls autoplay playsinline></video>\n    <button type="button" class="tvvideohit" id="pVideoHit" aria-label="Maximize player" onclick="togglePopupPlayerSize()"></button>
+    <video id="pVideo" controls autoplay playsinline></video>
+    <button type="button" class="tvvideohit" id="pVideoHit" aria-label="Maximize player" onclick="togglePopupPlayerSize()"></button>
     <div id="pMsg" class="muted" style="padding:8px 12px"></div>
   </div>
 </div>
@@ -5031,7 +5034,7 @@ const _I18N={
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
   "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
-  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt",
+  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
@@ -5146,9 +5149,18 @@ function setLang(l){
 function hideAll(keepMytv){
   // Live TV playback persists across sections. Capture the source state first,
   // then move the player only after the Live TV view has been hidden.
-  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);\n  const popupPlayer=document.getElementById('playerModal');\n  const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));\n  const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);\n  const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
+  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);
+  const popupPlayer=document.getElementById('playerModal');
+  const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));
+  const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
+  const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
   settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
-  if(!keepMytv&&hasPlayback){\n    if(leavingLiveTv)tvSetMini(true);\n    document.body.classList.add('tvsectionplay');\n  }else{\n    document.body.classList.remove('tvsectionplay');\n  }
+  if(!keepMytv&&hasPlayback){
+    if(leavingLiveTv)tvSetMini(true);
+    document.body.classList.add('tvsectionplay');
+  }else{
+    document.body.classList.remove('tvsectionplay');
+  }
 }
 let _historyReady=false,_historyRestoring=false,_historySection='';
 function rememberLocation(section,extra){
@@ -5408,8 +5420,16 @@ function teamFixtureCard(f,live,deepLink){
   const homeLogo=f.home_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.home_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
-  const channelHtml=available.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('Available channels'))+'</div>'+available.map(ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>').join('')+'</div>':'';
-  const broadcasterHtml=broadcasters.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('TV listings'))+'</div>'+broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join('')+'</div>':(!available.length?'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>':'');
+  const assignedIds=new Set(),providerRows=broadcasters.map(function(row,ri){
+    const chans=available.filter(function(ch){const country=String(ch.country||'').toUpperCase();return ch.matched===row.name&&(!country||country===String(row.cc).toUpperCase());}).sort(preferredChannelSort);
+    chans.forEach(ch=>assignedIds.add(String(ch.stream_id||'')));
+    const count=chans.length?(chans.length+' '+tr(chans.length===1?'channel':'channels')):tr('No matching channels');
+    const lines=chans.length?chans.map(ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>').join(''):'<div class="muted" style="padding:7px 2px">'+esc(tr('No channels in your list match this broadcaster.'))+'</div>';
+    return '<div class="sportsprovider"><div class="sportsproviderhead" data-sports-provider="'+ri+'"><span class="cc">'+esc(row.cc)+'</span><span class="bcname">'+esc(row.name)+'</span><span class="muted">'+esc(count)+'</span><span class="bcchevron">&#9662;</span></div><div class="sportsproviderchannels hide">'+lines+'</div></div>';
+  }).join('');
+  const definite=available.filter(ch=>fixtureChannelRank(ch,f)===3||!assignedIds.has(String(ch.stream_id||''))).sort(preferredChannelSort);
+  const channelHtml=definite.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('Definite channel matches'))+'</div>'+definite.map(ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>').join('')+'</div>':'';
+  const broadcasterHtml=broadcasters.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('TV listings'))+'</div>'+providerRows+'</div>':(!available.length?'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>':'');
   const details='<div class="teamfixturebroadcasts hide">'+channelHtml+broadcasterHtml+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
   const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
   return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
@@ -6206,7 +6226,9 @@ async function playBrowser(sid,name){
   const msg=document.getElementById('pMsg');
   document.getElementById('pTitle').textContent=name||'Player';
   msg.textContent='Loading...';
-  modal.classList.remove('hide');\n  setPopupPlayerMax(false);\n  document.body.classList.add('tvsectionplay');
+  modal.classList.remove('hide');
+  setPopupPlayerMax(false);
+  document.body.classList.add('tvsectionplay');
   syncSectionPlayerLayout();
   // get the hls url
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
@@ -6279,7 +6301,10 @@ function closePlayer(){
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
   if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
   video.pause();video.removeAttribute('src');video.load();
-  modal.classList.add('hide');\n  modal.classList.remove('sectionmax');\n  const liveAway=(_tvPlaying!==null||window._tvPlaybackController)&&mytvView.classList.contains('hide');\n  if(!liveAway)document.body.classList.remove('tvsectionplay');
+  modal.classList.add('hide');
+  modal.classList.remove('sectionmax');
+  const liveAway=(_tvPlaying!==null||window._tvPlaybackController)&&mytvView.classList.contains('hide');
+  if(!liveAway)document.body.classList.remove('tvsectionplay');
 }
 async function playVLC(sid,btn){
   const old=btn?btn.textContent:'';
@@ -7537,7 +7562,8 @@ function tvToggleMini(){
   tvSetMini(true);
 }
 function tvStop(){
-  _tvPlaying=null;\n  document.body.classList.remove('tvsectionplay');
+  _tvPlaying=null;
+  document.body.classList.remove('tvsectionplay');
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
   if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
   if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
@@ -7593,6 +7619,8 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
+  const sportsProvider=e.target.closest('.sportsproviderhead');
+  if(sportsProvider){e.stopPropagation();const box=sportsProvider.nextElementSibling;if(box)box.classList.toggle('hide');const chev=sportsProvider.querySelector('.bcchevron');if(chev)chev.innerHTML=box&&!box.classList.contains('hide')?'&#9652;':'&#9662;';return;}
   const fixtureFind=e.target.closest('.fixturefindchannels');
   if(fixtureFind){e.stopPropagation();findOpenedFixtureChannels(fixtureFind);return;}
   const timelineTeamFixture=e.target.closest('.teamfixture[data-profile-fixture="1"]');
@@ -10400,8 +10428,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b337") > _parse_ver("0.777.b336"))
-    check("version equality", _parse_ver("v0.777.b337") == _parse_ver("0.777.b337"))
+    check("version ordering", _parse_ver("0.777.b338") > _parse_ver("0.777.b337"))
+    check("version equality", _parse_ver("v0.777.b338") == _parse_ver("0.777.b338"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
