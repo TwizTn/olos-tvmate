@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b345"
+VERSION = "0.777.b346"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3694,7 +3694,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .bcrow.open .bchead{border-bottom:1px solid var(--line);background:var(--card2)}
  .bcname{font-weight:500;color:var(--fg)}
 .exphint{margin-left:auto;font-size:12px}
- .bcchevron{color:var(--mut);font-size:13px;transition:transform .13s}.bcrow.open .bcchevron{transform:rotate(180deg)}
+ .bcchevron{margin-left:auto;color:var(--mut);font-size:13px;transition:transform .13s}.bcrow.open .bcchevron{transform:rotate(180deg)}
  .bcchans{display:flex;flex-direction:column}
  .chline{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--line)}
  .chline:first-child{border-top:0}
@@ -5555,7 +5555,7 @@ function fixtureStoredChannelsHtml(f){
   definite.sort(preferredChannelSort);other.sort(preferredChannelSort);
   const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
   let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+definite.map(line).join('');
-  if(other.length){const groups=new Map();for(const ch of other){const key=String(ch.category||tr('Other possible channels'));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ch);}h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(name)+'</span> <span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span></div>'+items.map(line).join('')+'</div>';}
+  if(other.length){const groups=new Map();for(const ch of other){const key=String(ch.category||tr('Other possible channels'));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ch);}h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(line).join('')+'</div></div>';}
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
 }
 async function findOpenedFixtureChannels(target){
@@ -6690,7 +6690,7 @@ function racingChannelSections(channels){
   if(possible.length){
     const groups=new Map();for(const ch of possible){const category=String(ch.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(ch);}
     h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';
-    for(const [category,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(category)+'</span> <span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span></div>'+items.map(racingChannelLine).join('')+'</div>';
+    for(const [category,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(category)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(racingChannelLine).join('')+'</div></div>';
   }
   return h;
 }
@@ -7644,7 +7644,7 @@ document.addEventListener('click',function(e){
   const timelineTeamFixture=e.target.closest('.teamfixture[data-profile-fixture="1"]');
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const teamFixture=e.target.closest('.teamfixture[data-fixture-card="1"]');
-  if(teamFixture&&!e.target.closest('.btnplay,.btnvlc')){const details=teamFixture.querySelector('.teamfixturebroadcasts'),opening=details&&details.classList.contains('hide');document.querySelectorAll('#teamsView .teamfixture.selectedfixture').forEach(card=>card.classList.remove('selectedfixture'));teamFixture.classList.toggle('selectedfixture',!!opening);if(details)details.classList.toggle('hide');if(opening)loadStoredFixtureChannels(teamFixture);return;}
+  if(teamFixture&&!e.target.closest('.btnplay,.btnvlc,.bchead')){const details=teamFixture.querySelector('.teamfixturebroadcasts'),opening=details&&details.classList.contains('hide');document.querySelectorAll('#teamsView .teamfixture.selectedfixture').forEach(card=>card.classList.remove('selectedfixture'));teamFixture.classList.toggle('selectedfixture',!!opening);if(details)details.classList.toggle('hide');if(opening)loadStoredFixtureChannels(teamFixture);return;}
   const teamRemove=e.target.closest('.teamremove');
   if(teamRemove){removeTeamFavorite(teamRemove.getAttribute('data-team-name'));return;}
   const teamFav=e.target.closest('.teamfavitem[data-team-search]');
@@ -7662,7 +7662,7 @@ document.addEventListener('click',function(e){
   const timelineF1=e.target.closest('.mylisttimelinef1');
   if(timelineF1){showRacing(timelineF1.getAttribute('data-driver-key')||'');return;}
   const racingEvent=e.target.closest('.racingevent');
-  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc')){if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');return;}const url=racingEvent.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
+  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc,.bchead')){if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');return;}const url=racingEvent.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
   const lev=e.target.closest('.latestepisodevlc');
   if(lev){playLatestEpisode(lev.getAttribute('data-id'),lev.getAttribute('data-ext'),lev);return;}
   const myListShow=e.target.closest('.mylistshowcard');
@@ -7695,8 +7695,10 @@ document.addEventListener('click',function(e){
   if(bh){
     const row=bh.parentElement;
     const box=row.querySelector('.bcchans');
-    if(box)box.classList.toggle('hide');
-    row.classList.toggle('open');
+    const opening=box&&box.classList.contains('hide');
+    const scope=row.parentElement;if(scope)scope.querySelectorAll(':scope > .bcrow.open').forEach(other=>{if(other!==row){other.classList.remove('open');const otherBox=other.querySelector('.bcchans');if(otherBox)otherBox.classList.add('hide');}});
+    if(box)box.classList.toggle('hide',!opening);
+    row.classList.toggle('open',!!opening);
     return;
   }
   const src=e.target.closest('.tvsrc');
@@ -10531,8 +10533,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b345") > _parse_ver("0.777.b344"))
-    check("version equality", _parse_ver("v0.777.b345") == _parse_ver("0.777.b345"))
+    check("version ordering", _parse_ver("0.777.b346") > _parse_ver("0.777.b345"))
+    check("version equality", _parse_ver("v0.777.b346") == _parse_ver("0.777.b346"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
