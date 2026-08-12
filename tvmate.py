@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b336"
+VERSION = "0.777.b337"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3557,6 +3557,7 @@ _RACING_CHANNEL_TERMS = {
 }
 _RACING_AVAILABILITY_CACHE = {"key": "", "ts": 0, "availability": {}}
 _RACING_AVAILABILITY_TTL = 15 * 60
+_SPORTS_FIXTURE_CACHE = {"ts": 0, "fixtures": [], "top_fixtures": []}
 
 def _clear_racing_availability_cache():
     _RACING_AVAILABILITY_CACHE.update({"key": "", "ts": 0, "availability": {}})
@@ -3564,6 +3565,10 @@ def _clear_racing_availability_cache():
 def _racing_event_key(event):
     return "|".join(str(event.get(k) or "") for k in
                     ("series", "race", "session", "start"))
+
+def _sports_event_key(event):
+    return "|".join(str(event.get(k) or "") for k in
+                    ("home", "away", "start"))
 
 def find_racing_channels(event, xtream_channels, cats, x):
     """Find dedicated racing or event-named channels already in Xtream.
@@ -5356,6 +5361,7 @@ function applyProfileConfig(c){
 }
 
 let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
+let _sportsAvailability={};
 function favoriteTeamRow(t){return {name:String(typeof t==='string'?t:(t.name||'')),team_id:String(typeof t==='string'?'':(t.team_id||'')),logo:String(typeof t==='string'?'':(t.logo||''))};}
 function renderTeamFavoriteRail(){
   const rail=document.getElementById('teamFavList');if(!rail)return;
@@ -5410,7 +5416,16 @@ function teamFixtureCard(f,live,deepLink){
     +((broadcasters.length||available.length)?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
     +competition+'<div class="muted">'+esc(when)+' '+status+'</div>'+(owners?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')+details+'</div>';
 }
-async function loadMyTeams(){
+function sportsAvailabilityKey(f){return [f.home||'',f.away||'',f.start||''].join('|');}
+function applySportsAvailability(map,fixtures){for(const fixture of (fixtures||[]))fixture.channels=(map&&map[sportsAvailabilityKey(fixture)])||[];}
+async function loadSportsAvailability(){
+  try{
+    const a=await api('/api/sports_availability');
+    _sportsAvailability=a.availability||{};
+    await loadMyTeams(true);
+  }catch(e){}
+}
+async function loadMyTeams(skipAvailability){
   const fav=await api('/api/favorites'), teams=fav.teams||[];
   _favTeamSet=new Set(teams.map(t=>String(typeof t==='string'?t:t.name).toLowerCase()));
   _favTeamRows=teams.map(favoriteTeamRow).filter(t=>t.name);
@@ -5422,9 +5437,9 @@ async function loadMyTeams(){
   const topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
   if(!teams.length){liveSection.classList.add('hide');upcoming.innerHTML='<span class="muted">Add a favorite team to see its fixtures.</span>';}
   upcoming.innerHTML='<span class="muted">Loading fixtures...</span>';
-  const r=await api('/api/my_teams');
+  const r=await api('/api/my_teams'+(skipAvailability?'?cached=1':''));
   if(r.error){upcoming.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
-  _myTeamFixtures=r.fixtures||[];renderSelectedTeamProfile(_selectedTeamProfile);
+  _myTeamFixtures=r.fixtures||[];applySportsAvailability(_sportsAvailability,_myTeamFixtures);applySportsAvailability(_sportsAvailability,r.top_fixtures||[]);renderSelectedTeamProfile(_selectedTeamProfile);
   const live=[], future=[];
   for(const f of (r.fixtures||[])){
     const ts=f.start?new Date(f.start).getTime():0, mins=ts?(Date.now()-ts)/60000:null;
@@ -5447,6 +5462,7 @@ async function loadMyTeams(){
     upcomingHtml+='<div class="teamupcominggroup"><div class="teamupcomingname">'+esc(name)+'</div><div class="teamfixturegrid">'+teamFixtures.map(f=>teamFixtureCard(f,false)).join('')+'</div></div>';
   }
   upcoming.innerHTML=upcomingHtml||(teams.length?'<span class="muted">No upcoming fixtures found.</span>':'<span class="muted">Add a favorite team to see its fixtures.</span>');
+  if(!skipAvailability)loadSportsAvailability();
 }
 async function checkTeamFixtures(btn){
   const old=btn.innerHTML;
@@ -5514,7 +5530,8 @@ async function findOpenedFixtureChannels(target){
   const fixture={home:String((target&&target.getAttribute('data-home'))||(_teamDeepLink&&_teamDeepLink.home)||''),away:String((target&&target.getAttribute('data-away'))||(_teamDeepLink&&_teamDeepLink.away)||''),start:String((target&&target.getAttribute('data-start'))||(_teamDeepLink&&_teamDeepLink.start)||''),search:String((target&&target.getAttribute('data-search'))||_selectedTeamName||'')};
   if(!fixture.home&&!fixture.away)return;
   if(target){target.disabled=true;target.textContent=tr('Refreshing channel matches...');}
-  await loadMyTeams();
+  const a=await api('/api/sports_availability?force=1');_sportsAvailability=a.availability||{};
+  await loadMyTeams(true);
   openMyTeamsFixture(fixture);
   toast(tr('Channel matches refreshed.'));
 }
@@ -9108,6 +9125,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"profile": profile})
 
             if u.path == "/api/my_teams":
+                if q.get("cached", ["0"])[0] == "1" and _SPORTS_FIXTURE_CACHE.get("ts"):
+                    return self._send(200, {
+                        "fixtures": _SPORTS_FIXTURE_CACHE.get("fixtures") or [],
+                        "top_fixtures": _SPORTS_FIXTURE_CACHE.get("top_fixtures") or [],
+                        "source_errors": []})
                 cfg = load_config()
                 countries = cfg.get("countries") or ["no", "uk", "us"]
                 fav_data = load_favorites()
@@ -9220,10 +9242,22 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     top_fixtures = []
                     errors.append(f"FotMob featured fixtures: {e}")
-                add_fixture_channel_availability(fixtures + top_fixtures, cfg)
+                _SPORTS_FIXTURE_CACHE.update({"ts": time.time(),
+                                              "fixtures": fixtures,
+                                              "top_fixtures": top_fixtures})
                 return self._send(200, {"fixtures": fixtures,
                                         "top_fixtures": top_fixtures,
                                         "source_errors": list(dict.fromkeys(errors))})
+
+            if u.path == "/api/sports_availability":
+                cfg = load_config()
+                fixtures = [dict(row) for row in
+                            (_SPORTS_FIXTURE_CACHE.get("fixtures") or []) +
+                            (_SPORTS_FIXTURE_CACHE.get("top_fixtures") or [])]
+                add_fixture_channel_availability(fixtures, cfg)
+                return self._send(200, {"availability": {
+                    _sports_event_key(row): row.get("channels", [])
+                    for row in fixtures if row.get("channels")}})
 
             if u.path == "/api/search":
                 term = (q.get("q", [""])[0]).strip()
@@ -10366,8 +10400,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b336") > _parse_ver("0.777.b335"))
-    check("version equality", _parse_ver("v0.777.b336") == _parse_ver("0.777.b336"))
+    check("version ordering", _parse_ver("0.777.b337") > _parse_ver("0.777.b336"))
+    check("version equality", _parse_ver("v0.777.b337") == _parse_ver("0.777.b337"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
