@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b340"
+VERSION = "0.777.b341"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4325,7 +4325,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfixturetv{margin-left:auto}
  .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
  .teamfixture.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
- .sportsprovider{width:100%;border:1px solid var(--line2);border-radius:7px;background:var(--card2);overflow:hidden}.sportsproviderhead{display:flex;align-items:center;gap:7px;padding:7px 9px;cursor:pointer}.sportsproviderhead:hover{background:#20252e}.sportsproviderhead .bcname{flex:1}.sportsproviderchannels{border-top:1px solid var(--line);padding:2px 8px}.sportsproviderchannels.hide{display:none}.sportsproviderunmatched{display:flex;flex-wrap:wrap;gap:6px;padding:8px}.sportsproviderunmatched .teamcaster{cursor:default}
  .teamfixturebroadcasts.hide{display:none}
  .teamcaster{background:var(--card2);border:1px solid var(--line2);color:var(--fg);border-radius:7px;padding:5px 8px;font-size:11px}
  .teamcaster:hover{border-color:#2b4a30;background:#17241a}
@@ -5373,7 +5372,7 @@ function applyProfileConfig(c){
 }
 
 let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
-let _sportsAvailability={},_sportsAvailabilityReady=false,_sportsAvailabilityPromise=null,_openSportsFixtureKey='';
+let _sportsAvailability={};
 function favoriteTeamRow(t){return {name:String(typeof t==='string'?t:(t.name||'')),team_id:String(typeof t==='string'?'':(t.team_id||'')),logo:String(typeof t==='string'?'':(t.logo||''))};}
 function renderTeamFavoriteRail(){
   const rail=document.getElementById('teamFavList');if(!rail)return;
@@ -5420,20 +5419,9 @@ function teamFixtureCard(f,live,deepLink){
   const homeLogo=f.home_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.home_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
-  const assignedIds=new Set(),matchedProviders=[],unmatchedProviders=[];broadcasters.forEach(function(row,ri){
-    const chans=available.filter(function(ch){const country=String(ch.country||'').toUpperCase();return ch.matched===row.name&&(!country||country===String(row.cc).toUpperCase());}).sort(preferredChannelSort);
-    chans.forEach(ch=>assignedIds.add(String(ch.stream_id||'')));
-    if(!chans.length){unmatchedProviders.push(row);return;}
-    const lines=chans.map(ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>').join('');
-    matchedProviders.push('<div class="sportsprovider"><div class="sportsproviderhead" data-sports-provider="'+ri+'"><span class="cc">'+esc(row.cc)+'</span><span class="bcname">'+esc(row.name)+'</span><span class="muted">'+chans.length+' '+esc(tr(chans.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="sportsproviderchannels hide">'+lines+'</div></div>');
-  });
-  const unmatchedHtml=unmatchedProviders.length?'<div class="sportsprovider"><div class="sportsproviderhead"><span class="bcname">'+esc(tr('Other TV providers'))+'</span><span class="muted">'+unmatchedProviders.length+'</span><span class="bcchevron">&#9662;</span></div><div class="sportsproviderchannels sportsproviderunmatched hide">'+unmatchedProviders.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join('')+'</div></div>':'';
-  const providerRows=matchedProviders.join('')+unmatchedHtml;
-  const remaining=available.filter(ch=>!assignedIds.has(String(ch.stream_id||''))).sort(preferredChannelSort);
-  const channelHtml=remaining.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('Available channels'))+'</div>'+remaining.map(ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>').join('')+'</div>':(!_sportsAvailabilityReady?'<span class="muted">'+esc(tr('Loading channel matches...'))+'</span>':'');
-  const broadcasterHtml=broadcasters.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('TV listings'))+'</div>'+providerRows+'</div>':(!available.length?'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>':'');
-  const isOpen=_openSportsFixtureKey===sportsAvailabilityKey(f);
-  const details='<div class="teamfixturebroadcasts'+(isOpen?'':' hide')+'">'+channelHtml+broadcasterHtml+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
+  const channelHtml=available.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('Available channels'))+'</div>'+available.map(ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>').join('')+'</div>':'';
+  const broadcasterHtml=broadcasters.length?'<div style="width:100%"><div class="muted" style="margin-bottom:5px">'+esc(tr('TV listings'))+'</div>'+broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join('')+'</div>':(!available.length?'<span class="muted">'+esc(tr('No TV listings for this fixture.'))+'</span>':'');
+  const details='<div class="teamfixturebroadcasts hide">'+channelHtml+broadcasterHtml+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Refresh channel matches'))+'</button></div>';
   const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
   return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
     +((broadcasters.length||available.length)?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
@@ -5442,14 +5430,11 @@ function teamFixtureCard(f,live,deepLink){
 function sportsAvailabilityKey(f){return [f.home||'',f.away||'',f.start||''].join('|');}
 function applySportsAvailability(map,fixtures){for(const fixture of (fixtures||[]))fixture.channels=(map&&map[sportsAvailabilityKey(fixture)])||[];}
 async function loadSportsAvailability(){
-  if(_sportsAvailabilityReady)return _sportsAvailability;
-  if(_sportsAvailabilityPromise)return _sportsAvailabilityPromise;
-  _sportsAvailabilityPromise=(async function(){
-    try{const a=await api('/api/sports_availability');_sportsAvailability=a.availability||{};_sportsAvailabilityReady=true;await loadMyTeams(true);return _sportsAvailability;}
-    catch(e){_sportsAvailabilityReady=true;return _sportsAvailability;}
-    finally{_sportsAvailabilityPromise=null;}
-  })();
-  return _sportsAvailabilityPromise;
+  try{
+    const a=await api('/api/sports_availability');
+    _sportsAvailability=a.availability||{};
+    await loadMyTeams(true);
+  }catch(e){}
 }
 async function loadMyTeams(skipAvailability){
   const fav=await api('/api/favorites'), teams=fav.teams||[];
@@ -5488,7 +5473,7 @@ async function loadMyTeams(skipAvailability){
     upcomingHtml+='<div class="teamupcominggroup"><div class="teamupcomingname">'+esc(name)+'</div><div class="teamfixturegrid">'+teamFixtures.map(f=>teamFixtureCard(f,false)).join('')+'</div></div>';
   }
   upcoming.innerHTML=upcomingHtml||(teams.length?'<span class="muted">No upcoming fixtures found.</span>':'<span class="muted">Add a favorite team to see its fixtures.</span>');
-  if(!skipAvailability&&!_sportsAvailabilityReady)loadSportsAvailability();
+  if(!skipAvailability)loadSportsAvailability();
 }
 async function checkTeamFixtures(btn){
   const old=btn.innerHTML;
@@ -6678,7 +6663,7 @@ function racingChannelSections(channels){
   if(possible.length){
     const groups=new Map();for(const ch of possible){const category=String(ch.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(ch);}
     h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';
-    for(const [category,items] of groups)h+='<div class="sportsprovider"><div class="sportsproviderhead"><span class="bcname">'+esc(category)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="sportsproviderchannels hide">'+items.map(racingChannelLine).join('')+'</div></div>';
+    for(const [category,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(category)+'</span> <span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span></div>'+items.map(racingChannelLine).join('')+'</div>';
   }
   return h;
 }
@@ -7627,14 +7612,12 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
-  const sportsProvider=e.target.closest('.sportsproviderhead');
-  if(sportsProvider){e.stopPropagation();const box=sportsProvider.nextElementSibling;if(box)box.classList.toggle('hide');const chev=sportsProvider.querySelector('.bcchevron');if(chev)chev.innerHTML=box&&!box.classList.contains('hide')?'&#9652;':'&#9662;';return;}
   const fixtureFind=e.target.closest('.fixturefindchannels');
   if(fixtureFind){e.stopPropagation();findOpenedFixtureChannels(fixtureFind);return;}
   const timelineTeamFixture=e.target.closest('.teamfixture[data-profile-fixture="1"]');
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const teamFixture=e.target.closest('.teamfixture[data-fixture-card="1"]');
-  if(teamFixture){const details=teamFixture.querySelector('.teamfixturebroadcasts'),opening=details&&details.classList.contains('hide');_openSportsFixtureKey=opening?[teamFixture.getAttribute('data-home')||'',teamFixture.getAttribute('data-away')||'',teamFixture.getAttribute('data-start')||''].join('|'):'';document.querySelectorAll('#teamsView .teamfixture.selectedfixture').forEach(card=>card.classList.remove('selectedfixture'));teamFixture.classList.toggle('selectedfixture',!!opening);if(details)details.classList.toggle('hide');return;}
+  if(teamFixture){const details=teamFixture.querySelector('.teamfixturebroadcasts'),opening=details&&details.classList.contains('hide');document.querySelectorAll('#teamsView .teamfixture.selectedfixture').forEach(card=>card.classList.remove('selectedfixture'));teamFixture.classList.toggle('selectedfixture',!!opening);if(details)details.classList.toggle('hide');return;}
   const teamRemove=e.target.closest('.teamremove');
   if(teamRemove){removeTeamFavorite(teamRemove.getAttribute('data-team-name'));return;}
   const teamFav=e.target.closest('.teamfavitem[data-team-search]');
@@ -10453,8 +10436,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b340") > _parse_ver("0.777.b339"))
-    check("version equality", _parse_ver("v0.777.b340") == _parse_ver("0.777.b340"))
+    check("version ordering", _parse_ver("0.777.b341") > _parse_ver("0.777.b340"))
+    check("version equality", _parse_ver("v0.777.b341") == _parse_ver("0.777.b341"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
