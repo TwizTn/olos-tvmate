@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b339"
+VERSION = "0.777.b340"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -9945,6 +9945,7 @@ class Handler(BaseHTTPRequestHandler):
             if not os.path.exists(new):
                 return self._send(400, {"ok": False, "error": "no update downloaded"})
             try:
+                _remote_version, recovery_sha = _update_manifest()
                 # Determine how to relaunch. ONLY relaunch the permanent launcher
                 # .exe - never a temp-extracted python.exe (which vanishes).
                 launcher_exe = os.environ.get("TVMATE_EXE")
@@ -9983,7 +9984,23 @@ class Handler(BaseHTTPRequestHandler):
                              '  move /y "' + new + '" "' + cur + '" >nul 2>&1 && goto updated\r\n',
                              "  timeout /t 1 /nobreak >nul\r\n",
                              ")\r\n",
-                             "echo Update file swap failed. Starting the previous version.\r\n",
+                             "echo Normal update failed. Trying a clean download...\r\n"])
+                    if recovery_sha:
+                        ps_url = UPDATE_SCRIPT_URL.replace("'", "''")
+                        ps_new = new.replace("'", "''")
+                        lines.extend([
+                             'del /f /q "' + cur + '" >nul 2>&1\r\n',
+                             'del /f /q "' + new + '" >nul 2>&1\r\n',
+                             'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference=\'SilentlyContinue\'; try { Invoke-WebRequest -UseBasicParsing -Uri \'' + ps_url + '\' -OutFile \'' + ps_new + '\'; if ((Get-FileHash -Algorithm SHA256 -LiteralPath \'' + ps_new + '\').Hash.ToLower() -ne \'' + recovery_sha + '\') { throw \'checksum mismatch\' } } catch { Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath \'' + ps_new + '\'; exit 1 }"\r\n',
+                             "if errorlevel 1 goto recoverfailed\r\n",
+                             'move /y "' + new + '" "' + cur + '" >nul 2>&1 || goto recoverfailed\r\n',
+                             "goto updated\r\n"])
+                    else:
+                        lines.append("echo Update manifest checksum is unavailable.\r\n")
+                    lines.extend([
+                             ":recoverfailed\r\n",
+                             "echo Clean download failed. Restoring the previous version.\r\n",
+                             'if exist "' + cur + '.backup" copy /y "' + cur + '.backup" "' + cur + '" >nul\r\n',
                              "goto relaunch\r\n",
                              ":updated\r\n",
                              "echo Update installed successfully.\r\n",
@@ -10436,8 +10453,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b339") > _parse_ver("0.777.b338"))
-    check("version equality", _parse_ver("v0.777.b339") == _parse_ver("0.777.b339"))
+    check("version ordering", _parse_ver("0.777.b340") > _parse_ver("0.777.b339"))
+    check("version equality", _parse_ver("v0.777.b340") == _parse_ver("0.777.b340"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
