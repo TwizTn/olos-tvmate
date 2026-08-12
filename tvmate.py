@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b331"
+VERSION = "0.777.b332"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -453,6 +453,104 @@ def load_favorites():
 def save_favorites(fav):
     with _FAVORITES_LOCK:
         _atomic_write_json(FAVORITES_PATH, fav, indent=2)
+
+_PROFILE_SECRET_KEYS = {"xtream_host", "xtream_port", "xtream_user", "xtream_pass"}
+_FAVORITE_LIST_KEYS = ("categories", "channels", "movies", "shows", "games",
+                       "teams", "f1_teams", "mylist_channels")
+
+def create_profile_backup(kind="profile", timeline=None):
+    """Build a portable JSON backup. Profile backups omit Xtream credentials."""
+    full = kind == "full"
+    cfg = load_config()
+    if not full:
+        cfg = {key: value for key, value in cfg.items()
+               if key not in _PROFILE_SECRET_KEYS}
+    return {
+        "format": "olos-tvmate-backup",
+        "format_version": 1,
+        "backup_type": "full" if full else "profile",
+        "app_version": VERSION,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "config": cfg,
+        "favorites": load_favorites(),
+        "timeline": timeline if isinstance(timeline, dict) else {},
+    }
+
+def _favorite_identity(kind, item):
+    if not isinstance(item, dict):
+        return str(item).strip().lower()
+    fields = {
+        "channels": ("stream_id", "name"),
+        "movies": ("catalog_id", "stream_id", "name"),
+        "shows": ("catalog_id", "show_key", "series_id", "name"),
+        "games": ("app_id", "name"),
+        "teams": ("team_id", "name"),
+        "f1_teams": ("id", "name"),
+    }.get(kind, ("id", "name"))
+    for field in fields:
+        value = str(item.get(field) or "").strip().lower()
+        if value:
+            return field + ":" + value
+    return json.dumps(item, sort_keys=True, ensure_ascii=False)
+
+def _merge_favorite_lists(kind, current, incoming):
+    merged, positions = [], {}
+    for item in list(current or []) + list(incoming or []):
+        identity = _favorite_identity(kind, item)
+        if not identity:
+            continue
+        if identity in positions:
+            index = positions[identity]
+            if isinstance(merged[index], dict) and isinstance(item, dict):
+                merged[index] = dict(merged[index], **item)
+        else:
+            positions[identity] = len(merged)
+            merged.append(item)
+    return merged
+
+def restore_profile_backup(backup):
+    """Restore a validated backup and preserve credentials for profile imports."""
+    if not isinstance(backup, dict) or backup.get("format") != "olos-tvmate-backup":
+        raise ValueError("This is not a TVMate backup file")
+    if int(backup.get("format_version") or 0) != 1:
+        raise ValueError("This TVMate backup version is not supported")
+    kind = str(backup.get("backup_type") or "")
+    if kind not in ("profile", "full"):
+        raise ValueError("Unknown TVMate backup type")
+    incoming_cfg = backup.get("config")
+    incoming_fav = backup.get("favorites")
+    if not isinstance(incoming_cfg, dict) or not isinstance(incoming_fav, dict):
+        raise ValueError("The TVMate backup is incomplete")
+    current_cfg, current_fav = load_config(), load_favorites()
+    # Keep one recoverable pre-import snapshot beside the normal data files.
+    _atomic_write_json(os.path.join(app_dir(), "profile-before-import.json"), {
+        "format": "olos-tvmate-backup", "format_version": 1,
+        "backup_type": "full", "app_version": VERSION,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "config": current_cfg, "favorites": current_fav}, indent=2)
+    if kind == "profile":
+        restored_cfg = dict(current_cfg)
+        restored_cfg.update({key: value for key, value in incoming_cfg.items()
+                             if key not in _PROFILE_SECRET_KEYS})
+    else:
+        restored_cfg = dict(current_cfg)
+        restored_cfg.update(incoming_cfg)
+    restored_cfg["hide_cmd_window"] = True
+    restored_fav = {}
+    for key in _FAVORITE_LIST_KEYS:
+        incoming = incoming_fav.get(key, [])
+        if not isinstance(incoming, list):
+            incoming = []
+        restored_fav[key] = _merge_favorite_lists(
+            key, current_fav.get(key, []), incoming)
+    save_config(restored_cfg)
+    save_favorites(restored_fav)
+    _clear_provider_caches()
+    _clear_racing_availability_cache()
+    return {"type": kind, "timeline": backup.get("timeline") or {},
+            "profile_name": str(restored_cfg.get("profile_name") or ""),
+            "counts": {key: len(restored_fav[key]) for key in
+                       ("movies", "shows", "games", "teams", "f1_teams", "channels")}}
 
 # --------------------------------------------------------------------------
 # HTTP helpers (stdlib only, read as UTF-8)
@@ -4698,6 +4796,18 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         </div>
         <div style="margin-top:14px"><button type="button" class="ghost" onclick="openProfileSetup(false)" data-i18n="Run setup guide">Run setup guide</button></div>
        </div>
+       <div class="settingsgroup" data-settings-panel="profile">
+        <div class="colh" data-i18n="Backup & Import">Backup &amp; Import</div>
+        <div class="muted" data-i18n="Download a portable backup or merge one into this profile. Caches and artwork are never included.">Download a portable backup or merge one into this profile. Caches and artwork are never included.</div>
+        <div class="row settingsrefreshbuttons" style="margin-top:13px">
+          <button type="button" class="ghost" onclick="exportProfileBackup(false)" data-i18n="Export profile backup">Export profile backup</button>
+          <button type="button" class="ghost" onclick="exportProfileBackup(true)" data-i18n="Export full backup">Export full backup</button>
+          <button type="button" onclick="document.getElementById('profileImportFile').click()" data-i18n="Import backup">Import backup</button>
+          <input id="profileImportFile" type="file" accept="application/json,.json" class="hide" onchange="importProfileBackup(this)">
+        </div>
+        <div class="muted" style="margin-top:9px" data-i18n="Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.">Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.</div>
+        <div id="profileBackupMsg" class="muted" style="margin-top:9px"></div>
+       </div>
        <div class="settingsgroup" data-settings-panel="general" hidden>
         <div class="colh" data-i18n="Content startup">Content startup</div>
         <div class="muted" data-i18n="Choose which content TVMate updates automatically after it opens.">Choose which content TVMate updates automatically after it opens.</div>
@@ -4914,7 +5024,7 @@ const _I18N={
   "Personalize TVMate and choose what opens when the app starts.":"Tilpass TVMate og velg hva som åpnes når appen starter.","Checks your favorite series for newly available episodes after TVMate opens.":"Ser etter nylig tilgjengelige episoder i favorittseriene dine etter at TVMate åpnes.","Show or hide optional sections. Disabling one also skips it during external-content refreshes.":"Vis eller skjul valgfrie seksjoner. Deaktiverte seksjoner hoppes også over ved oppdatering av eksternt innhold.",
   "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","TV listings countries (comma separated, e.g. no, uk, us)":"Land for TV-oversikter (kommaseparert, f.eks. no, uk, us)","Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.":"Skriv inn landskodene for TV-guidene du vil søke i. Juster treffnøyaktigheten på Sports-siden.",
   "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","Choose which content TVMate updates automatically after it opens.":"Velg hvilket innhold TVMate oppdaterer automatisk etter oppstart.","Refresh IPTV & EPG on startup":"Oppdater IPTV og EPG ved oppstart","Refresh sports, racing & games on startup":"Oppdater sport, racing og spill ved oppstart","Refresh Xtream channels, movies, shows and TV guide data.":"Oppdater Xtream-kanaler, filmer, serier og TV-guide.","Refresh matches, regional TV listings, racing and your Steam wishlist.":"Oppdater kamper, regionale TV-oversikter, racing og Steam-ønskelisten din.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
-  "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem",
+  "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem","Backup & Import":"Sikkerhetskopi og import","Download a portable backup or merge one into this profile. Caches and artwork are never included.":"Last ned en flyttbar sikkerhetskopi eller slå en sammen med denne profilen. Mellomlager og omslagskunst tas aldri med.","Export profile backup":"Eksporter profilsikkerhetskopi","Export full backup":"Eksporter full sikkerhetskopi","Import backup":"Importer sikkerhetskopi","Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.":"Profilsikkerhetskopien utelater innlogging. Full sikkerhetskopi inkluderer Xtream-innlogging; oppbevar den sikkert.","Backup downloaded.":"Sikkerhetskopien er lastet ned.","Backup imported and merged.":"Sikkerhetskopien er importert og slått sammen.","Could not import this backup.":"Kunne ikke importere denne sikkerhetskopien.",
   "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
   "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
   "Features & Display":"Funksjoner og visning","Show football features":"Vis fotballfunksjoner","Show Formula 1 features":"Vis Formel 1-funksjoner","Show racing features":"Vis racingfunksjoner","Show game features":"Vis spillfunksjoner","Animated background decorations":"Animerte bakgrunnsdekorasjoner","Choose the racing series you want to follow.":"Velg racingseriene du vil følge.",
@@ -7552,6 +7662,40 @@ async function openConfigFolder(){
     if(!j.ok)toast(tr('Could not open folder.')+(j.path?(' '+j.path):''));
   }catch(e){toast(tr('Could not open folder.'));}
 }
+function profileTimelineBackup(){
+  let settings={};try{settings=JSON.parse(localStorage.getItem('tvmateTimelineSettings')||'{}')||{};}catch(e){}
+  return {filter:localStorage.getItem('tvmateTimelineFilter')||'all',settings:settings};
+}
+async function exportProfileBackup(full){
+  if(full&&!confirm('Full backup includes your Xtream login. Download and store it securely?'))return;
+  const msg=document.getElementById('profileBackupMsg');if(msg)msg.textContent=tr('Preparing backup...');
+  try{
+    const backup=await api('/api/profile_backup_export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:full?'full':'profile',timeline:profileTimelineBackup()})});
+    if(backup.error)throw new Error(backup.error);
+    const safe=String((backup.config&&backup.config.profile_name)||'profile').replace(/[^a-z0-9_-]+/gi,'-').replace(/^-+|-+$/g,'')||'profile';
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}),link=document.createElement('a');
+    link.href=URL.createObjectURL(blob);link.download='TVMate-'+safe+'-'+(full?'full':'profile')+'-backup.json';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+    if(msg)msg.textContent=tr('Backup downloaded.');
+  }catch(e){if(msg)msg.textContent=String(e.message||e);}
+}
+async function importProfileBackup(input){
+  const msg=document.getElementById('profileBackupMsg'),file=input.files&&input.files[0];if(!file)return;
+  try{
+    if(file.size>5*1024*1024)throw new Error('Backup file is too large.');
+    const backup=JSON.parse(await file.text());
+    if(backup.format!=='olos-tvmate-backup')throw new Error('This is not a TVMate backup file.');
+    const counts=backup.favorites||{},summary=['shows','movies','games','teams','channels'].map(k=>(Array.isArray(counts[k])?counts[k].length:0)+' '+k).join(', ');
+    const full=backup.backup_type==='full';
+    const warning=(full?'This full backup can replace the current Xtream login.\\n\\n':'')+'Merge backup into this profile?\\n'+summary;
+    if(!confirm(warning))return;
+    const result=await api('/api/profile_backup_import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({backup:backup})});
+    if(result.error)throw new Error(result.error);
+    const timeline=result.timeline||{};if(timeline.filter)localStorage.setItem('tvmateTimelineFilter',timeline.filter);if(timeline.settings)localStorage.setItem('tvmateTimelineSettings',JSON.stringify(timeline.settings));
+    _myTimelinePrefsLoaded=false;await loadSettings();await loadFavorites();refreshStatus();
+    if(msg)msg.textContent=tr('Backup imported and merged.');toast(tr('Backup imported and merged.'));
+  }catch(e){if(msg)msg.textContent=tr('Could not import this backup.')+' '+String(e.message||e);}
+  finally{input.value='';}
+}
 function _healthAgo(ts,now){
   if(!ts)return tr('not checked yet');
   const s=Math.max(0,Math.floor((now-ts)));
@@ -9173,6 +9317,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
         length = int(self.headers.get("Content-Length", 0))
+        if length > 5 * 1024 * 1024:
+            return self._send(413, {"error": "Backup or request is too large"})
         raw = self.rfile.read(length) if length else b"{}"
         try:
             payload = json.loads(raw.decode("utf-8") or "{}")
@@ -9181,6 +9327,17 @@ class Handler(BaseHTTPRequestHandler):
         if u.path in {"/api/activity", "/api/shutdown", "/api/test_credentials",
                       "/api/match_strictness", "/api/racing_series"}:
             return self._post_core_api(u.path, payload)
+        if u.path == "/api/profile_backup_export":
+            kind = "full" if payload.get("type") == "full" else "profile"
+            return self._send(200, create_profile_backup(kind, payload.get("timeline")))
+        if u.path == "/api/profile_backup_import":
+            try:
+                result = restore_profile_backup(payload.get("backup"))
+                return self._send(200, dict({"ok": True}, **result))
+            except (ValueError, TypeError) as e:
+                return self._send(400, {"error": str(e)})
+            except Exception as e:
+                return self._send(500, {"error": "Could not restore backup: " + str(e)})
         if u.path == "/api/import_steam_wishlist":
             cfg = load_config()
             saved_url = str(cfg.get("steam_wishlist_url") or "").strip()
@@ -10167,8 +10324,17 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b331") > _parse_ver("0.777.b330"))
-    check("version equality", _parse_ver("v0.777.b331") == _parse_ver("0.777.b331"))
+    check("version ordering", _parse_ver("0.777.b332") > _parse_ver("0.777.b331"))
+    check("version equality", _parse_ver("v0.777.b332") == _parse_ver("0.777.b332"))
+    profile_backup = create_profile_backup("profile", {"filter": "all"})
+    check("profile backup omits Xtream credentials",
+          _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
+    check("profile backup retains favorites", isinstance(profile_backup["favorites"], dict))
+    merged_test = _merge_favorite_lists(
+        "teams", [{"team_id": "1", "name": "Old"}],
+        [{"team_id": "1", "name": "Updated"}, {"team_id": "2", "name": "New"}])
+    check("backup favorites merge and deduplicate",
+          len(merged_test) == 2 and merged_test[0]["name"] == "Updated")
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
