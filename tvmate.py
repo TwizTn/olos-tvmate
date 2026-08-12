@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b332"
+VERSION = "0.777.b333"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -453,7 +453,6 @@ def load_favorites():
 def save_favorites(fav):
     with _FAVORITES_LOCK:
         _atomic_write_json(FAVORITES_PATH, fav, indent=2)
-
 _PROFILE_SECRET_KEYS = {"xtream_host", "xtream_port", "xtream_user", "xtream_pass"}
 _FAVORITE_LIST_KEYS = ("categories", "channels", "movies", "shows", "games",
                        "teams", "f1_teams", "mylist_channels")
@@ -4292,7 +4291,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfixturetv{margin-left:auto}
  .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
  .teamfixturebroadcasts.hide{display:none}
- .teamcaster{background:var(--card2);border:1px solid var(--line2);color:var(--fg);border-radius:7px;padding:5px 8px;font-size:11px;cursor:pointer}
+ .teamcaster{background:var(--card2);border:1px solid var(--line2);color:var(--fg);border-radius:7px;padding:5px 8px;font-size:11px}
  .teamcaster:hover{border-color:#2b4a30;background:#17241a}
  .teamcaster .cc{margin-right:5px}
  .matchstrict{display:flex;align-items:center;gap:9px;margin-top:9px;color:var(--mut);font-size:11px}
@@ -4800,7 +4799,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div class="colh" data-i18n="Backup & Import">Backup &amp; Import</div>
         <div class="muted" data-i18n="Download a portable backup or merge one into this profile. Caches and artwork are never included.">Download a portable backup or merge one into this profile. Caches and artwork are never included.</div>
         <div class="row settingsrefreshbuttons" style="margin-top:13px">
-          <button type="button" class="ghost" onclick="exportProfileBackup(false)" data-i18n="Export profile backup">Export profile backup</button>
+          <button type="button" class="ghost" onclick="exportProfileBackup(false)" data-i18n="Export profile">Export profile</button>
           <button type="button" class="ghost" onclick="exportProfileBackup(true)" data-i18n="Export full backup">Export full backup</button>
           <button type="button" onclick="document.getElementById('profileImportFile').click()" data-i18n="Import backup">Import backup</button>
           <input id="profileImportFile" type="file" accept="application/json,.json" class="hide" onchange="importProfileBackup(this)">
@@ -4997,7 +4996,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
-  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Fixture details":"Kampdetaljer","Find matching channels":"Finn matchende kanaler","Finding matching channels...":"Finner matchende kanaler...","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
@@ -5024,7 +5023,7 @@ const _I18N={
   "Personalize TVMate and choose what opens when the app starts.":"Tilpass TVMate og velg hva som åpnes når appen starter.","Checks your favorite series for newly available episodes after TVMate opens.":"Ser etter nylig tilgjengelige episoder i favorittseriene dine etter at TVMate åpnes.","Show or hide optional sections. Disabling one also skips it during external-content refreshes.":"Vis eller skjul valgfrie seksjoner. Deaktiverte seksjoner hoppes også over ved oppdatering av eksternt innhold.",
   "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","TV listings countries (comma separated, e.g. no, uk, us)":"Land for TV-oversikter (kommaseparert, f.eks. no, uk, us)","Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.":"Skriv inn landskodene for TV-guidene du vil søke i. Juster treffnøyaktigheten på Sports-siden.",
   "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","Choose which content TVMate updates automatically after it opens.":"Velg hvilket innhold TVMate oppdaterer automatisk etter oppstart.","Refresh IPTV & EPG on startup":"Oppdater IPTV og EPG ved oppstart","Refresh sports, racing & games on startup":"Oppdater sport, racing og spill ved oppstart","Refresh Xtream channels, movies, shows and TV guide data.":"Oppdater Xtream-kanaler, filmer, serier og TV-guide.","Refresh matches, regional TV listings, racing and your Steam wishlist.":"Oppdater kamper, regionale TV-oversikter, racing og Steam-ønskelisten din.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
-  "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem","Backup & Import":"Sikkerhetskopi og import","Download a portable backup or merge one into this profile. Caches and artwork are never included.":"Last ned en flyttbar sikkerhetskopi eller slå en sammen med denne profilen. Mellomlager og omslagskunst tas aldri med.","Export profile backup":"Eksporter profilsikkerhetskopi","Export full backup":"Eksporter full sikkerhetskopi","Import backup":"Importer sikkerhetskopi","Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.":"Profilsikkerhetskopien utelater innlogging. Full sikkerhetskopi inkluderer Xtream-innlogging; oppbevar den sikkert.","Backup downloaded.":"Sikkerhetskopien er lastet ned.","Backup imported and merged.":"Sikkerhetskopien er importert og slått sammen.","Could not import this backup.":"Kunne ikke importere denne sikkerhetskopien.",
+  "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem","Backup & Import":"Sikkerhetskopi og import","Download a portable backup or merge one into this profile. Caches and artwork are never included.":"Last ned en flyttbar sikkerhetskopi eller slå en sammen med denne profilen. Mellomlager og omslagskunst tas aldri med.","Export profile":"Eksporter profil","Export full backup":"Eksporter full sikkerhetskopi","Import backup":"Importer sikkerhetskopi","Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.":"Profilsikkerhetskopien utelater innlogging. Full sikkerhetskopi inkluderer Xtream-innlogging; oppbevar den sikkert.","Backup downloaded.":"Sikkerhetskopien er lastet ned.","Backup imported and merged.":"Sikkerhetskopien er importert og slått sammen.","Could not import this backup.":"Kunne ikke importere denne sikkerhetskopien.",
   "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
   "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
   "Features & Display":"Funksjoner og visning","Show football features":"Vis fotballfunksjoner","Show Formula 1 features":"Vis Formel 1-funksjoner","Show racing features":"Vis racingfunksjoner","Show game features":"Vis spillfunksjoner","Animated background decorations":"Animerte bakgrunnsdekorasjoner","Choose the racing series you want to follow.":"Velg racingseriene du vil følge.",
@@ -5129,7 +5128,7 @@ function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
-function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();loadMyTeams();if(target)setTimeout(()=>openMyTeamsFixture(target),0);}
+function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));}
 function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
 // Backward compatibility for old bookmarks/configs that still point at Search.
@@ -5374,7 +5373,7 @@ function teamFixtureCard(f,live,deepLink){
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
   let details='';
-  if(broadcasters.length)details='<div class="teamfixturebroadcasts hide">'+broadcasters.map(row=>'<button class="teamcaster" data-fixture-query="'+escAttr(matchQuery)+'"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</button>').join('')+'</div>';
+  if(broadcasters.length)details='<div class="teamfixturebroadcasts hide">'+broadcasters.map(row=>'<div class="teamcaster"><span class="cc">'+esc(row.cc)+'</span>'+esc(row.name)+'</div>').join('')+'<button type="button" class="ghost fixturefindchannels" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'">'+esc(tr('Find matching channels'))+'</button></div>';
   const deepAttrs=deepLink?' data-team-fixture="1" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"':'';
   return '<div class="teamfixture'+(live?' livefixture':'')+(broadcasters.length?' hastv':'')+'"'+deepAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
     +(broadcasters.length?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
@@ -5475,7 +5474,17 @@ function openMyTeamsFixture(target){
   _fixtureSearchTeamId=String((favorite&&favorite.team_id)||'');
   const input=document.getElementById('q');if(input)input.value=query;
   const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
-  searchTeams();doSearch();
+  const allFixtures=_myTeamFixtures.concat(_myListTeamMoments.map(row=>row.fixture).filter(Boolean));
+  const fixture=allFixtures.find(f=>_teamNamesEquivalentForUi(f.home,_teamDeepLink.home)&&_teamNamesEquivalentForUi(f.away,_teamDeepLink.away)&&(!_teamDeepLink.start||!f.start||Math.abs(new Date(f.start)-new Date(_teamDeepLink.start))<6*3600000))||{home:_teamDeepLink.home,away:_teamDeepLink.away,start:_teamDeepLink.start,favorite_teams:[query],by_country:{}};
+  const results=document.getElementById('results'),teams=document.getElementById('teamSearchResults');if(teams)teams.innerHTML='';
+  if(results)results.innerHTML='<div class="matchresultslabel">'+esc(tr('Fixture details'))+'</div><div class="card sportsfixturedetail">'+teamFixtureCard(fixture,!!fixture.is_live,false)+'<div class="row" style="margin-top:12px"><button type="button" onclick="findOpenedFixtureChannels()">'+esc(tr('Find matching channels'))+'</button><button type="button" class="ghost" onclick="clearSportsSearch()">'+esc(tr('Back to Sports'))+'</button></div></div>';
+}
+async function findOpenedFixtureChannels(){
+  if(!_teamDeepLink)return;
+  const query=String(_selectedTeamName||_teamDeepLink.home||_teamDeepLink.away||'');
+  const input=document.getElementById('q');if(input)input.value=query;
+  const results=document.getElementById('results');if(results)results.innerHTML='<span class="muted">'+esc(tr('Finding matching channels...'))+'</span>';
+  await doSearch();
 }
 async function toggleTeamFavorite(name,star,teamId){
   const r=await favPost({action:'toggle_team',team:{name:name,team_id:teamId||''}});
@@ -7535,8 +7544,8 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
-  const teamCaster=e.target.closest('.teamcaster');
-  if(teamCaster){const q=teamCaster.getAttribute('data-fixture-query')||'';showTeams();findSportsFixtures(q,'');return;}
+  const fixtureFind=e.target.closest('.fixturefindchannels');
+  if(fixtureFind){e.stopPropagation();openMyTeamsFixture(fixtureFind);findOpenedFixtureChannels();return;}
   const timelineTeamFixture=e.target.closest('.teamfixture[data-team-fixture="1"]');
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const teamFixture=e.target.closest('.teamfixture.hastv');
@@ -10324,8 +10333,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b332") > _parse_ver("0.777.b331"))
-    check("version equality", _parse_ver("v0.777.b332") == _parse_ver("0.777.b332"))
+    check("version ordering", _parse_ver("0.777.b333") > _parse_ver("0.777.b332"))
+    check("version equality", _parse_ver("v0.777.b333") == _parse_ver("0.777.b333"))
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
