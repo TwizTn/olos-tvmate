@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b351"
+VERSION = "0.777.b352"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3312,7 +3312,8 @@ _STREAMING_HINTS = (
 # A shared word such as "Network" or "Sports" must never make a channel for
 # another sport a football broadcaster candidate.
 _NON_FOOTBALL_CHANNEL_RE = re.compile(
-    r"(?<![a-z0-9])(mlb|nfl|nba|nhl|baseball|basketball|ice hockey|cricket)(?![a-z0-9])",
+    r"(?<![a-z0-9])(mlb|nfl|nba|nhl|baseball|basketball|ice hockey|cricket|"
+    r"cartoon network|nickelodeon|disney channel|disney junior|boomerang)(?![a-z0-9])",
     re.I)
 
 def _is_streaming(name):
@@ -3337,7 +3338,7 @@ _COUNTRY_CODES = {
     "it", "es", "pt", "ie", "be", "ch", "pl", "cz", "sk", "hu", "ro", "bg",
     "gr", "hr", "si", "rs", "ba", "bh", "mk", "al", "tr", "ru", "ua", "ar",
     "sa", "ir", "in", "pk", "ca", "au", "br", "mx", "asia", "afr", "ex",
-    "yu", "ex-yu", "lt", "lv", "ee", "is", "lu", "mt", "cy",
+    "yu", "ex-yu", "lt", "lv", "ee", "is", "lu", "mt", "cy", "cr",
 }
 _CC_PREFIX_RE = re.compile(r"^\s*([a-z]{2,4})\s*[:|\-]", re.I)
 _COUNTRY_NAME_ALIASES = {
@@ -3581,7 +3582,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v3|" + _vod_cache_key(x) + "|" + str(
+    return "football-v5|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -10640,8 +10641,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b351") > _parse_ver("0.777.b350"))
-    check("version equality", _parse_ver("v0.777.b351") == _parse_ver("0.777.b351"))
+    check("version ordering", _parse_ver("0.777.b352") > _parse_ver("0.777.b351"))
+    check("version equality", _parse_ver("v0.777.b352") == _parse_ver("0.777.b352"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10702,6 +10703,19 @@ def run_self_tests():
         [{"name": "Premier Sports 2 4K", "stream_id": 97,
           "category_id": "4k"}], sample_cats, 0.49)
     check("global 4k category remains eligible", len(unknown_4k) == 1)
+    caribbean_cartoon = match_channels(
+        {"US": ["USA Network"]},
+        [{"name": "AMP: CARTOON NETWORK", "stream_id": 96,
+          "category_id": "cr"}],
+        {"cr": "CR: carribean amp"}, 0.62)
+    check("CR category rejected for US football broadcaster",
+          caribbean_cartoon == [])
+    global_cartoon = match_channels(
+        {"US": ["USA Network"]},
+        [{"name": "CARTOON NETWORK", "stream_id": 95,
+          "category_id": "4k"}], sample_cats, 0.40)
+    check("Cartoon Network excluded regardless of category",
+          global_cartoon == [])
     non_football = match_channels(
         {"US": ["USA Network"]},
         [{"name": "US: MLB Networks", "stream_id": 99,
