@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b330"
+VERSION = "0.777.b331"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6955,7 +6955,7 @@ async function loadMyListMovies(){
   scheduleMyListTimelineRender();
 }
 function loadMyListGames(favorites){
-  const now=Date.now(),recentCutoff=now-2*24*3600000;
+  const now=Date.now(),recentCutoff=now-7*24*3600000;
   _myListGameMoments=(favorites.games||[]).filter(game=>game.wishlist_imported).map(game=>({game:game,ts:Date.parse(game.released||'')})).filter(row=>Number.isFinite(row.ts)&&row.ts>=recentCutoff).sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)).slice(0,4);
   scheduleMyListTimelineRender();
 }
@@ -6992,7 +6992,7 @@ async function loadMyListShows(){
   const el=document.getElementById('myListShows');
   _myListShowMoments=[];
   try{
-    const r=await api('/api/latest_episodes?limit=36'),now=Date.now(),recentWindow=2*24*3600000,upcomingWindow=7*24*3600000,candidates=[];
+    const r=await api('/api/latest_episodes?limit=36'),now=Date.now(),recentWindow=24*3600000,upcomingWindow=7*24*3600000,candidates=[];
     for(const ep of (r.episodes||[])){const aired=Number(ep.air_ts||0)*1000,added=Number(ep.added||0)*1000;const ts=(aired>0&&aired<=now&&now-aired<=recentWindow)?aired:(added||aired);if(ts)candidates.push({ep:ep,ts:ts,upcoming:false});}
     for(const ep of (r.upcoming||[])){const ts=Number(ep.air_ts||0)*1000||(ep.airstamp?new Date(ep.airstamp).getTime():0);if(ts)candidates.push({ep:ep,ts:ts,upcoming:true});}
     const nearest=new Map();
@@ -10167,8 +10167,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b330") > _parse_ver("0.777.b329"))
-    check("version equality", _parse_ver("v0.777.b330") == _parse_ver("0.777.b330"))
+    check("version ordering", _parse_ver("0.777.b331") > _parse_ver("0.777.b330"))
+    check("version equality", _parse_ver("v0.777.b331") == _parse_ver("0.777.b331"))
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
