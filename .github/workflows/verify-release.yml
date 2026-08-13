@@ -3,7 +3,17 @@ name: Verify release manifest
 on:
   push:
     branches: [main]
+    # The connector publishes the complete script first and the verified
+    # manifest last. Run on that final release-publication step so the safe
+    # intermediate state does not generate an expected failure email.
+    paths:
+      - version.txt
   pull_request:
+    paths:
+      - tvmate.py
+      - version.txt
+      - scripts/verify_release.py
+      - .github/workflows/verify-release.yml
 
 jobs:
   verify:
