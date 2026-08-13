@@ -44,6 +44,7 @@ import shutil
 import datetime
 import urllib.parse
 import urllib.request
+import concurrent.futures
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # --------------------------------------------------------------------------
@@ -117,7 +118,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b361"
+VERSION = "0.777.b358"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -507,11 +508,12 @@ def _merge_favorite_lists(kind, current, incoming):
             merged.append(item)
     return merged
 
-def restore_profile_backup(backup):
-    """Restore a validated backup and preserve credentials for profile imports."""
+def _validated_backup_payload(backup):
+    """Validate and normalise the durable parts of an imported backup."""
     if not isinstance(backup, dict) or backup.get("format") != "olos-tvmate-backup":
         raise ValueError("This is not a TVMate backup file")
-    if int(backup.get("format_version") or 0) != 1:
+    version = backup.get("format_version")
+    if isinstance(version, bool) or version != 1:
         raise ValueError("This TVMate backup version is not supported")
     kind = str(backup.get("backup_type") or "")
     if kind not in ("profile", "full"):
@@ -520,19 +522,29 @@ def restore_profile_backup(backup):
     incoming_fav = backup.get("favorites")
     if not isinstance(incoming_cfg, dict) or not isinstance(incoming_fav, dict):
         raise ValueError("The TVMate backup is incomplete")
-    current_cfg, current_fav = load_config(), load_favorites()
-    # Keep one recoverable pre-import snapshot beside the normal data files.
-    _atomic_write_json(os.path.join(app_dir(), "profile-before-import.json"), {
-        "format": "olos-tvmate-backup", "format_version": 1,
-        "backup_type": "full", "app_version": VERSION,
-        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "config": current_cfg, "favorites": current_fav}, indent=2)
+    if kind == "full":
+        missing = [key for key in _FAVORITE_LIST_KEYS
+                   if not isinstance(incoming_fav.get(key), list)]
+        if missing:
+            raise ValueError("The full backup is missing favorite lists: " +
+                             ", ".join(missing))
+        required = ("xtream_host", "xtream_user", "xtream_pass")
+        if any(not str(incoming_cfg.get(key) or "").strip() for key in required):
+            raise ValueError("The full backup has incomplete Xtream credentials")
+    timeline = backup.get("timeline", {})
+    if not isinstance(timeline, dict):
+        raise ValueError("The TVMate timeline settings are invalid")
+    return kind, incoming_cfg, incoming_fav, timeline
+
+def _prepare_backup_restore(kind, incoming_cfg, incoming_fav,
+                            current_cfg, current_fav):
+    """Build restored state without touching disk, ready for one transaction."""
     if kind == "profile":
         restored_cfg = dict(current_cfg)
         restored_cfg.update({key: value for key, value in incoming_cfg.items()
                              if key not in _PROFILE_SECRET_KEYS})
     else:
-        restored_cfg = dict(current_cfg)
+        restored_cfg = dict(DEFAULT_CONFIG)
         restored_cfg.update(incoming_cfg)
     restored_cfg["hide_cmd_window"] = True
     restored_fav = {}
@@ -540,14 +552,58 @@ def restore_profile_backup(backup):
         incoming = incoming_fav.get(key, [])
         if not isinstance(incoming, list):
             incoming = []
-        restored_fav[key] = _merge_favorite_lists(
-            key, current_fav.get(key, []), incoming)
-    save_config(restored_cfg)
-    save_favorites(restored_fav)
+        if kind == "full":
+            restored_fav[key] = list(incoming)
+        else:
+            restored_fav[key] = _merge_favorite_lists(
+                key, current_fav.get(key, []), incoming)
+    return restored_cfg, restored_fav
+
+def restore_profile_backup(backup):
+    """Restore a validated backup, rolling both durable files back on failure."""
+    kind, incoming_cfg, incoming_fav, timeline = _validated_backup_payload(backup)
+    current_cfg, current_fav = load_config(), load_favorites()
+    restored_cfg, restored_fav = _prepare_backup_restore(
+        kind, incoming_cfg, incoming_fav, current_cfg, current_fav)
+    snapshot = {
+        "format": "olos-tvmate-backup", "format_version": 1,
+        "backup_type": "full", "app_version": VERSION,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "config": current_cfg, "favorites": current_fav}
+    pending_path = os.path.join(app_dir(), "profile-import-pending.json")
+    recovery_path = os.path.join(app_dir(), "profile-before-import.json")
+    _atomic_write_json(pending_path, snapshot, indent=2)
+    try:
+        save_config(restored_cfg)
+        save_favorites(restored_fav)
+    except Exception:
+        rollback_errors = []
+        try:
+            save_config(current_cfg)
+        except Exception as e:
+            rollback_errors.append("configuration: " + str(e))
+        try:
+            save_favorites(current_fav)
+        except Exception as e:
+            rollback_errors.append("favorites: " + str(e))
+        if rollback_errors:
+            raise RuntimeError("Import failed and rollback was incomplete (" +
+                               "; ".join(rollback_errors) + ")")
+        try:
+            os.remove(pending_path)
+        except OSError:
+            pass
+        raise
+    try:
+        os.replace(pending_path, recovery_path)
+    except OSError:
+        # The imported profile is already durable. Keep the pending snapshot
+        # as recovery data rather than reporting a false import failure.
+        pass
     _clear_provider_caches()
     _clear_racing_availability_cache()
     x = Xtream(restored_cfg)
-    return {"type": kind, "timeline": backup.get("timeline") or {},
+    return {"type": kind, "timeline": timeline,
             "profile_name": str(restored_cfg.get("profile_name") or ""),
             "xtream_configured": x.configured(),
             "counts": {key: len(restored_fav[key]) for key in
@@ -3103,6 +3159,7 @@ def _slug_name(url):
 # for ONE team. A search term maps to a group if it matches any member; we then
 # search for all members of that group only (not unrelated teams).
 _TEAM_ALIAS_GROUPS = [
+    ["hearts", "heart of midlothian"],
     ["manchester city", "man city"],
     ["manchester united", "man utd", "man united"],
     ["wolverhampton wanderers", "wolverhampton", "wolves"],
@@ -3166,23 +3223,41 @@ def _team_names_equivalent(a, b):
         return False
     return a == b or b in _expand_terms(a) or a in _expand_terms(b)
 
+def _fetch_country_guides(countries, max_workers=6):
+    """Fetch selected regional guides concurrently, preserving their order."""
+    seen, normalized = set(), []
+    for value in countries or []:
+        country = _norm_cc(value)
+        if country and country not in seen:
+            seen.add(country)
+            normalized.append(country)
+    if not normalized:
+        return [], []
+    results, failures = {}, {}
+    workers = min(max_workers, len(normalized))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        pending = {pool.submit(fetch_country_fixtures, country): country
+                   for country in normalized}
+        for future in concurrent.futures.as_completed(pending):
+            country = pending[future]
+            try:
+                results[country] = future.result()
+            except Exception as e:
+                failures[country] = str(e)
+    rows, errors = [], []
+    for country in normalized:
+        if country in failures:
+            errors.append(f"{_display_cc(country)}: {failures[country]}")
+        else:
+            rows.append((country, results.get(country, [])))
+    return rows, errors
+
 def search_fixtures(term, countries):
     term_l = term.lower().strip()
     want = _expand_terms(term_l)
     merged, errors = {}, []
-    # normalise (uk->gb) and dedupe while keeping order
-    seen_cc, norm_countries = set(), []
-    for c in countries:
-        nc = _norm_cc(c)
-        if nc and nc not in seen_cc:
-            seen_cc.add(nc)
-            norm_countries.append(nc)
-    for country in norm_countries:
-        try:
-            fx = fetch_country_fixtures(country)
-        except Exception as e:
-            errors.append(f"{_display_cc(country)}: {e}")
-            continue
+    guides, errors = _fetch_country_guides(countries)
+    for country, fx in guides:
         for f in fx:
             hay = " ".join([
                 f.get("home", ""), f.get("away", ""),
@@ -3212,16 +3287,9 @@ def search_fixtures(term, countries):
 def add_tv_listings(fixtures, countries):
     """Overlay configured-country FotMob TV listings onto known fixtures."""
     tv_rows, errors = [], []
-    seen_cc = set()
-    for country in countries:
-        country = _norm_cc(country)
-        if not country or country in seen_cc:
-            continue
-        seen_cc.add(country)
-        try:
-            tv_rows.extend(fetch_country_fixtures(country))
-        except Exception as e:
-            errors.append(f"{_display_cc(country)}: {e}")
+    guides, errors = _fetch_country_guides(countries)
+    for _country, rows in guides:
+        tv_rows.extend(rows)
     for fixture in fixtures:
         fday = str(fixture.get("start") or "")[:10]
         by_country = fixture.setdefault("by_country", {})
@@ -3240,6 +3308,90 @@ def add_tv_listings(fixtures, countries):
                 if channel not in current:
                     current.append(channel)
     return errors
+
+def _overlay_fixture_rows(fixtures, overlay_rows, append_missing=False):
+    """Overlay status/listing data without allowing it to remove fixtures."""
+    for overlay in overlay_rows or []:
+        oday = str(overlay.get("start") or "")[:10]
+        duplicate = None
+        for fixture in fixtures:
+            if oday and str(fixture.get("start") or "")[:10] != oday:
+                continue
+            if (_team_names_equivalent(fixture.get("home"), overlay.get("home")) and
+                    _team_names_equivalent(fixture.get("away"), overlay.get("away"))):
+                duplicate = fixture
+                break
+        if duplicate is None:
+            if append_missing:
+                fixtures.append(dict(overlay))
+            continue
+        for key in ("home_id", "away_id", "league_name", "league_id"):
+            duplicate[key] = duplicate.get(key) or overlay.get(key, "")
+        if overlay.get("by_country"):
+            target = duplicate.setdefault("by_country", {})
+            for country, names in overlay.get("by_country", {}).items():
+                current = target.setdefault(country, [])
+                for name in names or []:
+                    if name not in current:
+                        current.append(name)
+        if overlay.get("status_known") or "is_live" in overlay:
+            duplicate["is_live"] = bool(overlay.get("is_live"))
+            duplicate["is_finished"] = bool(overlay.get("is_finished"))
+            duplicate["live_minute"] = overlay.get("live_minute")
+            duplicate["status_known"] = bool(overlay.get("status_known", True))
+    return fixtures
+
+def _current_and_upcoming_fixtures(fixtures, now=None):
+    """Exclude completed historical rows while retaining live/recent fixtures."""
+    now = float(now if now is not None else time.time())
+    kept = []
+    for fixture in fixtures:
+        if fixture.get("is_live"):
+            kept.append(fixture)
+            continue
+        try:
+            kickoff = datetime.datetime.fromisoformat(str(
+                fixture.get("start") or "").replace("Z", "+00:00")).timestamp()
+        except Exception:
+            continue
+        if kickoff >= now - 6 * 3600:
+            kept.append(fixture)
+    return kept
+
+def complete_team_fixtures(term, team_id, countries):
+    """Return the team schedule; country guides only enrich, never filter it."""
+    errors = []
+    tv_fixtures, tv_errors = search_fixtures(term, countries)
+    errors.extend(tv_errors)
+    if not team_id:
+        try:
+            team_id = resolve_fotmob_team_id(term)
+        except Exception as e:
+            errors.append(f"FotMob team lookup: {e}")
+            team_id = ""
+    try:
+        fixtures = fetch_team_schedule(team_id, term) if team_id else []
+    except Exception as e:
+        errors.append(f"{term}: {e}")
+        fixtures = []
+    # Only fall back to guide fixtures when the authoritative team feed failed.
+    authoritative = bool(fixtures)
+    if not authoritative:
+        fixtures = [dict(row, is_live=False, status_known=False)
+                    for row in tv_fixtures]
+    else:
+        fixtures = [dict(row) for row in fixtures]
+        _overlay_fixture_rows(fixtures, tv_fixtures, append_missing=False)
+    try:
+        _overlay_fixture_rows(fixtures, search_daily_matches(term),
+                              append_missing=not authoritative)
+    except Exception as e:
+        errors.append(f"{term} live status: {e}")
+    for fixture in fixtures:
+        fixture.setdefault("by_country", {})
+    fixtures = _current_and_upcoming_fixtures(fixtures)
+    fixtures.sort(key=lambda row: row.get("start") or "")
+    return fixtures, errors, str(team_id or "")
 
 # --------------------------------------------------------------------------
 # Fuzzy channel matching (handles "COUNTRY: Channel Name HD")
@@ -3309,10 +3461,17 @@ _STREAMING_HINTS = (
     "tv2 play", "tv 2 play", "nrk tv", "vg+", "vg tv",
 )
 
+# FotMob sometimes reports access-package names rather than one fixed channel.
+# Providers commonly expose the package's simultaneous event feeds as numbered
+# channels (for example ESPN Unlimited 1..40). Match the complete package stem,
+# never one generic word such as "ESPN", "Select", or "Unlimited" by itself.
+_NUMBERED_FEED_PACKAGES = {"espn select", "espn unlimited"}
+
 # A shared word such as "Network" or "Sports" must never make a channel for
 # another sport a football broadcaster candidate.
 _NON_FOOTBALL_CHANNEL_RE = re.compile(
-    r"(?<![a-z0-9])(mlb|nfl|nba|nhl|baseball|basketball|ice hockey|cricket)(?![a-z0-9])",
+    r"(?<![a-z0-9])(mlb|nfl|nba|nhl|baseball|basketball|ice hockey|cricket|"
+    r"cartoon network|nickelodeon|disney channel|disney junior|boomerang)(?![a-z0-9])",
     re.I)
 
 def _is_streaming(name):
@@ -3337,7 +3496,7 @@ _COUNTRY_CODES = {
     "it", "es", "pt", "ie", "be", "ch", "pl", "cz", "sk", "hu", "ro", "bg",
     "gr", "hr", "si", "rs", "ba", "bh", "mk", "al", "tr", "ru", "ua", "ar",
     "sa", "ir", "in", "pk", "ca", "au", "br", "mx", "asia", "afr", "ex",
-    "yu", "ex-yu", "lt", "lv", "ee", "is", "lu", "mt", "cy",
+    "yu", "ex-yu", "lt", "lv", "ee", "is", "lu", "mt", "cy", "cr",
 }
 _CC_PREFIX_RE = re.compile(r"^\s*([a-z]{2,4})\s*[:|\-]", re.I)
 _COUNTRY_NAME_ALIASES = {
@@ -3437,6 +3596,9 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             # time compact brand spellings are equivalent: VG TV == VGTV.
             sid = set(_distinctive(sn.split()))
             xid = set(_distinctive(xn.split()))
+            numbered_package = sn in _NUMBERED_FEED_PACKAGES
+            if numbered_package and not (sid and sid <= xid):
+                continue
             scompact = re.sub(r"\s+", "", sn)
             xcompact = re.sub(r"\s+", "", xn)
             compact_exact = bool(scompact and scompact == xcompact)
@@ -3445,7 +3607,9 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             # a short generic channel such as "TV 2" is not "TV 2 Play".
             compact_contained = len(scompact) >= 4 and scompact in xcompact
             inter = xid & sid
-            if compact_exact:
+            if numbered_package:
+                s = 1.0 if compact_exact else 0.96
+            elif compact_exact:
                 s = 1.0
             elif compact_contained:
                 s = 0.96
@@ -3581,7 +3745,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v3|" + _vod_cache_key(x) + "|" + str(
+    return "football-v5|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -3602,6 +3766,100 @@ def _sports_result_for_client(result, x):
             rows.append(row)
         hydrated[key] = rows
     return hydrated
+
+def _fixture_title_has_both_teams(title, home, away):
+    """True when an EPG title contains both fixture sides or known aliases."""
+    hay = normalise_event_name(title)
+    if not hay:
+        return False
+    def side_hit(team):
+        forms = {normalise(value) for value in _expand_terms(
+            str(team or "").lower().strip())}
+        return any(value and re.search(r"(?<![a-z0-9])" + re.escape(value) +
+                                       r"(?![a-z0-9])", hay)
+                   for value in forms)
+    return side_hit(home) and side_hit(away)
+
+def _cached_epg_discovery(fixtures, channels, cats, x):
+    """Discover fixture channels from already-cached EPG in one shared pass.
+
+    This function never contacts the provider. Missing/no-info EPG is neutral.
+    """
+    prepared = []
+    for fixture in fixtures:
+        if not isinstance(fixture, dict):
+            continue
+        try:
+            kickoff = datetime.datetime.fromisoformat(str(
+                fixture.get("start") or "").replace("Z", "+00:00")).timestamp()
+        except Exception:
+            continue
+        prepared.append((_sports_event_key(fixture.get("home"), fixture.get("away"),
+                                            fixture.get("start")), fixture, kickoff))
+    if not prepared or not _EPG_CACHE:
+        return {}
+    channel_by_sid = {str(ch.get("stream_id")): ch for ch in channels
+                      if isinstance(ch, dict) and ch.get("stream_id") is not None}
+    found = {}
+    for sid, cached in _EPG_CACHE.items():
+        channel = channel_by_sid.get(str(sid))
+        programmes = cached.get("programmes") if isinstance(cached, dict) else None
+        if not channel or not isinstance(programmes, list):
+            continue
+        for programme in programmes:
+            if not isinstance(programme, dict):
+                continue
+            title = str(programme.get("title") or "").strip()
+            try:
+                start = float(programme.get("start_ts") or 0)
+                stop = float(programme.get("stop_ts") or 0) or start + 3 * 3600
+            except (TypeError, ValueError):
+                continue
+            if not title or not start:
+                continue
+            for key, fixture, kickoff in prepared:
+                # Allow pre-match coverage and provider schedule rounding, but
+                # never compare unrelated programmes elsewhere in the guide.
+                if start > kickoff + 90 * 60 or stop < kickoff - 45 * 60:
+                    continue
+                if not _fixture_title_has_both_teams(
+                        title, fixture.get("home"), fixture.get("away")):
+                    continue
+                row = {
+                    "xtream_name": str(channel.get("name") or ""),
+                    "stream_id": channel.get("stream_id"),
+                    "category": cats.get(channel.get("category_id"), ""),
+                    "logo": channel.get("stream_icon", ""),
+                    "quality": quality_tag(str(channel.get("name") or "")),
+                    "url": x.stream_url(channel.get("stream_id")),
+                    "matched": title, "score": 1.0,
+                    "provider_exact": True, "fixture_match": "exact",
+                    "epg_confirmed": True, "epg_title": title,
+                }
+                bucket = found.setdefault(key, {})
+                bucket[str(channel.get("stream_id"))] = row
+    return {key: list(rows.values()) for key, rows in found.items()}
+
+def _add_epg_discoveries(result, rows):
+    """Union independently discovered EPG channels into a sports result."""
+    merged = dict(result or {})
+    matches = [dict(row) for row in merged.get("matches") or []]
+    ppv = [dict(row) for row in merged.get("ppv_hits") or []]
+    locations = {str(row.get("stream_id")): (bucket, index)
+                 for bucket in (matches, ppv) for index, row in enumerate(bucket)}
+    for epg_row in rows or []:
+        sid = str(epg_row.get("stream_id"))
+        existing = locations.get(sid)
+        if existing:
+            bucket, index = existing
+            bucket[index] = dict(bucket[index], **epg_row)
+        else:
+            matches.append(dict(epg_row))
+            locations[sid] = (matches, len(matches) - 1)
+    matches.sort(key=lambda row: (not row.get("epg_confirmed"),
+                                  -float(row.get("score") or 0)))
+    merged["matches"], merged["ppv_hits"] = matches, ppv
+    return merged
 
 def _load_sports_disk_cache(cfg, x):
     try:
@@ -3647,7 +3905,11 @@ def find_sports_event_channels(fixture, cfg):
     if not x.configured():
         return {"logged_in": False, "matches": [], "ppv_hits": []}
     channels, cats = get_xtream_channels(cfg)
-    return _match_sports_fixture_channels(fixture, cfg, channels, cats, x)
+    _load_epg_disk_cache(x)
+    result = _match_sports_fixture_channels(fixture, cfg, channels, cats, x)
+    discovered = _cached_epg_discovery([fixture], channels, cats, x)
+    return _add_epg_discoveries(result, discovered.get(_sports_event_key(
+        fixture.get("home"), fixture.get("away"), fixture.get("start")), []))
 
 def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
     """Match one fixture using an already-loaded Xtream catalogue."""
@@ -4518,6 +4780,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .setupfeatures{display:grid;grid-template-columns:1fr 1fr;gap:11px}.setupfeature{display:flex;align-items:center;gap:11px;border:1px solid var(--line);background:rgba(20,25,32,.9);border-radius:11px;padding:15px;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}.setupfeature:hover{border-color:#566276;transform:translateY(-1px)}.setupfeature:has(input:checked){border-color:#2869c9;background:#12223a}.setupfeature input{width:auto;margin:0}.setupfeature b{display:block}.setupfeature small{display:block;color:var(--mut);margin-top:3px;line-height:1.4}
  .setupoptional{border:1px solid var(--line);background:rgba(20,25,32,.72);border-radius:11px;padding:14px 15px;margin-top:15px;color:var(--mut);font-size:12px;line-height:1.5}
  .setupchoices{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.setupchoice{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;padding:9px 13px}.setupchoice.on{border-color:#2768d8;background:#102347;color:#dbeaff}
+ .countrygrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:13px}.countrychoice{display:flex;align-items:center;gap:9px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);cursor:pointer;user-select:none}.countrychoice:hover{border-color:#4a586c}.countrychoice.on{border-color:#2768d8;background:#102347}.countrychoice input{width:auto;margin:0}.countryflag{font-size:18px}.countryname{min-width:0;flex:1}.countrycode{font-size:10px;color:var(--muted);font-weight:700}.countrychoice.unsupported{border-color:#765c2b;background:#241e13}
  .setupsearch{display:grid;grid-template-columns:1fr auto;gap:8px;margin:10px 0}.setupresults{display:grid;gap:7px;margin-top:8px;max-height:210px;overflow:auto}.setupresult{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}.setupresult img{width:38px;height:50px;object-fit:cover;border-radius:5px}.setupresult .grow{flex:1}.setupresult button{min-width:64px}.setupselected{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}.setupchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:var(--card)}
  .setupstartergrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.setupstartergrid h3{margin:0 0 7px}.setupfinishopts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.setupfinishopt{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:16px}.setupfinishopt b{display:block;margin-bottom:5px}.setupfinishopt button{margin-top:13px}
  .setupactions{display:flex;align-items:center;gap:9px;margin:22px 28px 0;padding:17px 0 23px;border-top:1px solid var(--line)}.setupactions .setupspacer{flex:1}.setupactions button{min-width:94px}
@@ -4996,9 +5259,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="settingsgroup" data-settings-panel="general" hidden>
       <div class="colh" data-i18n="Sports Search">Sports Search</div>
       <div class="muted" data-i18n="Choose which regional TV listings Sports Search uses to find broadcasters for matches.">Choose which regional TV listings Sports Search uses to find broadcasters for matches.</div>
-      <label data-i18n="TV listings countries (comma separated, e.g. no, uk, us)">TV listings countries (comma separated, e.g. no, uk, us)</label>
-      <input id="s_cc" type="text">
-      <div class="muted" style="margin-top:7px" data-i18n="Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.">Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.</div>
+      <div id="countryPicker" class="countrygrid"></div>
+      <input id="s_cc" type="hidden">
+      <div class="muted" style="margin-top:9px" data-i18n="Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.">Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.</div>
       </div>
       <div class="settingsgroup" data-settings-panel="iptv" hidden>
       <div class="colh" data-i18n="Playback">Playback</div>
@@ -5152,9 +5415,9 @@ const _I18N={
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
   "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status","Content startup":"Innhold ved oppstart","Sports Search":"Sportssøk",
   "Personalize TVMate and choose what opens when the app starts.":"Tilpass TVMate og velg hva som åpnes når appen starter.","Checks your favorite series for newly available episodes after TVMate opens.":"Ser etter nylig tilgjengelige episoder i favorittseriene dine etter at TVMate åpnes.","Show or hide optional sections. Disabling one also skips it during external-content refreshes.":"Vis eller skjul valgfrie seksjoner. Deaktiverte seksjoner hoppes også over ved oppdatering av eksternt innhold.",
-  "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","TV listings countries (comma separated, e.g. no, uk, us)":"Land for TV-oversikter (kommaseparert, f.eks. no, uk, us)","Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.":"Skriv inn landskodene for TV-guidene du vil søke i. Juster treffnøyaktigheten på Sports-siden.",
+  "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.":"Velg regionale TV-guider. Landene legger til kanalinformasjon, men begrenser aldri hvilke kamper som vises.","Unsupported saved code":"Ikke støttet lagret kode",
   "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","Choose which content TVMate updates automatically after it opens.":"Velg hvilket innhold TVMate oppdaterer automatisk etter oppstart.","Refresh IPTV & EPG on startup":"Oppdater IPTV og EPG ved oppstart","Refresh sports, racing & games on startup":"Oppdater sport, racing og spill ved oppstart","Refresh Xtream channels, movies, shows and TV guide data.":"Oppdater Xtream-kanaler, filmer, serier og TV-guide.","Refresh matches, regional TV listings, racing and your Steam wishlist.":"Oppdater kamper, regionale TV-oversikter, racing og Steam-ønskelisten din.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
-  "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem","Backup & Import":"Sikkerhetskopi og import","Download a portable backup or merge one into this profile. Caches and artwork are never included.":"Last ned en flyttbar sikkerhetskopi eller slå en sammen med denne profilen. Mellomlager og omslagskunst tas aldri med.","Export profile":"Eksporter profil","Export full backup":"Eksporter full sikkerhetskopi","Import backup":"Importer sikkerhetskopi","Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.":"Profilsikkerhetskopien utelater innlogging. Full sikkerhetskopi inkluderer Xtream-innlogging; oppbevar den sikkert.","Backup downloaded.":"Sikkerhetskopien er lastet ned.","Backup imported and merged.":"Sikkerhetskopien er importert og slått sammen.","Could not import this backup.":"Kunne ikke importere denne sikkerhetskopien.",
+  "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem","Backup & Import":"Sikkerhetskopi og import","Download a portable backup or merge one into this profile. Caches and artwork are never included.":"Last ned en flyttbar sikkerhetskopi eller slå en sammen med denne profilen. Mellomlager og omslagskunst tas aldri med.","Export profile":"Eksporter profil","Export full backup":"Eksporter full sikkerhetskopi","Import backup":"Importer sikkerhetskopi","Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.":"Profilsikkerhetskopien utelater innlogging. Full sikkerhetskopi inkluderer Xtream-innlogging; oppbevar den sikkert.","Backup downloaded.":"Sikkerhetskopien er lastet ned.","Backup imported and merged.":"Sikkerhetskopien er importert og slått sammen.","Full backup restored.":"Full sikkerhetskopi er gjenopprettet.","Could not import this backup.":"Kunne ikke importere denne sikkerhetskopien.",
   "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
   "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
   "Features & Display":"Funksjoner og visning","Show football features":"Vis fotballfunksjoner","Show Formula 1 features":"Vis Formel 1-funksjoner","Show racing features":"Vis racingfunksjoner","Show game features":"Vis spillfunksjoner","Animated background decorations":"Animerte bakgrunnsdekorasjoner","Choose the racing series you want to follow.":"Velg racingseriene du vil følge.",
@@ -5890,6 +6153,30 @@ async function refreshStatus(){
   const slider=document.getElementById('matchStrict'), value=document.getElementById('matchStrictValue');
   if(slider&&s.match_threshold!=null){slider.value=Number(s.match_threshold).toFixed(2);value.textContent=slider.value;}
 }
+const _TV_GUIDE_COUNTRIES=[
+  ['no','🇳🇴','Norway'],['gb','🇬🇧','United Kingdom'],['us','🇺🇸','United States'],
+  ['pt','🇵🇹','Portugal'],['ie','🇮🇪','Ireland'],['es','🇪🇸','Spain'],
+  ['de','🇩🇪','Germany'],['it','🇮🇹','Italy'],['fr','🇫🇷','France'],
+  ['nl','🇳🇱','Netherlands'],['be','🇧🇪','Belgium'],['dk','🇩🇰','Denmark'],
+  ['se','🇸🇪','Sweden'],['fi','🇫🇮','Finland'],['at','🇦🇹','Austria'],
+  ['ch','🇨🇭','Switzerland'],['pl','🇵🇱','Poland'],['ca','🇨🇦','Canada'],
+  ['au','🇦🇺','Australia'],['br','🇧🇷','Brazil'],['mx','🇲🇽','Mexico']
+];
+function selectedTvGuideCountries(){return String(s_cc.value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);}
+function renderCountryPicker(values){
+  const selected=new Set((values||[]).map(v=>String(v).toLowerCase()==='uk'?'gb':String(v).toLowerCase()));
+  const known=new Set(_TV_GUIDE_COUNTRIES.map(row=>row[0]));
+  const rows=_TV_GUIDE_COUNTRIES.map(row=>({code:row[0],flag:row[1],name:row[2],unsupported:false}));
+  for(const code of selected)if(!known.has(code))rows.push({code:code,flag:'⚠️',name:tr('Unsupported saved code'),unsupported:true});
+  const el=document.getElementById('countryPicker');if(!el)return;
+  el.innerHTML=rows.map(row=>'<label class="countrychoice'+(selected.has(row.code)?' on':'')+(row.unsupported?' unsupported':'')+'"><input type="checkbox" value="'+escAttr(row.code)+'"'+(selected.has(row.code)?' checked':'')+' onchange="syncCountryPicker()"><span class="countryflag">'+row.flag+'</span><span class="countryname">'+esc(row.name)+'</span><span class="countrycode">'+esc(row.code.toUpperCase())+'</span></label>').join('');
+  syncCountryPicker();
+}
+function syncCountryPicker(){
+  const checked=Array.from(document.querySelectorAll('#countryPicker input:checked')).map(input=>input.value);
+  s_cc.value=checked.join(',');
+  document.querySelectorAll('#countryPicker .countrychoice').forEach(label=>label.classList.toggle('on',label.querySelector('input').checked));
+}
 async function saveMatchStrictness(value){
   const strict=Math.max(0.40,Math.min(0.80,parseFloat(value)||0.62));
   try{await api('/api/match_strictness',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({match_threshold:strict})});}catch(e){}
@@ -5899,7 +6186,7 @@ async function loadSettings(){
   s_host.value=c.xtream_host||'';
   s_user.value=c.xtream_user||'';s_pass.value=c.xtream_pass||'';
   s_ext.value=c.stream_ext||'ts';
-  s_cc.value=(c.countries||['no','uk','us']).join(', ');
+  renderCountryPicker(c.countries||['no','gb','us']);
   s_start.value=c.start_section||'mylist';
   s_checkshows.checked=!!c.check_shows_on_startup;
   s_refreshiptv.checked=!!c.refresh_iptv_on_startup;
@@ -5918,7 +6205,7 @@ async function loadSettings(){
 async function saveSettings(){
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
     xtream_pass:s_pass.value,stream_ext:s_ext.value,
-    countries:s_cc.value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),
+    countries:selectedTvGuideCountries(),
     start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
     refresh_iptv_on_startup:s_refreshiptv.checked,refresh_sports_on_startup:s_refreshsports.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
@@ -7874,10 +8161,15 @@ async function importProfileBackup(input){
     if(!confirm(warning))return;
     const result=await api('/api/profile_backup_import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({backup:backup})});
     if(result.error)throw new Error(result.error);
-    const timeline=result.timeline||{};if(timeline.filter)localStorage.setItem('tvmateTimelineFilter',timeline.filter);if(timeline.settings)localStorage.setItem('tvmateTimelineSettings',JSON.stringify(timeline.settings));
+    const timeline=result.timeline||{};
+    if(result.type==='full'){
+      if(Object.prototype.hasOwnProperty.call(timeline,'filter'))localStorage.setItem('tvmateTimelineFilter',String(timeline.filter||'all'));else localStorage.removeItem('tvmateTimelineFilter');
+      if(Object.prototype.hasOwnProperty.call(timeline,'settings'))localStorage.setItem('tvmateTimelineSettings',JSON.stringify(timeline.settings||{}));else localStorage.removeItem('tvmateTimelineSettings');
+      if(msg)msg.textContent=tr('Full backup restored.');toast(tr('Full backup restored.'));location.reload();return;
+    }
+    if(timeline.filter)localStorage.setItem('tvmateTimelineFilter',timeline.filter);if(timeline.settings)localStorage.setItem('tvmateTimelineSettings',JSON.stringify(timeline.settings));
     _myTimelinePrefsLoaded=false;_catsLoaded=false;_latestEpisodesLoaded=false;_myListLoaded=false;await loadSettings();await loadFavorites();refreshStatus();
     if(msg)msg.textContent=tr('Backup imported and merged.');toast(tr('Backup imported and merged.'));
-    if(result.type==='full'){setTimeout(()=>location.reload(),700);}
   }catch(e){if(msg)msg.textContent=tr('Could not import this backup.')+' '+String(e.message||e);}
   finally{input.value='';}
 }
@@ -9213,9 +9505,7 @@ class Handler(BaseHTTPRequestHandler):
                 term = (q.get("q", [""])[0]).strip()
                 if not term:
                     return self._send(200, {"teams": []})
-                cfg = load_config()
-                countries = cfg.get("countries") or ["no", "uk", "us"]
-                fixtures, src_err = search_fixtures(term, countries)
+                src_err = []
                 term_l = term.lower()
                 wanted = _expand_terms(term_l)
                 found = []
@@ -9228,17 +9518,6 @@ class Handler(BaseHTTPRequestHandler):
                             found.append(team)
                 except Exception as e:
                     src_err.append(f"FotMob team search: {e}")
-                for fixture in fixtures:
-                    sides = ((fixture.get("home", ""), fixture.get("home_id", "")),
-                             (fixture.get("away", ""), fixture.get("away_id", "")))
-                    for name, team_id in sides:
-                        low = name.lower().strip()
-                        matches = (term_l in low or low in wanted or
-                                   any(alias in low or low in alias for alias in wanted
-                                       if len(alias) >= 3))
-                        if matches and low and low not in seen:
-                            seen.add(low)
-                            found.append({"name": name, "team_id": team_id})
                 return self._send(200, {"teams": found, "source_errors": src_err})
 
             if u.path == "/api/team_profile":
@@ -9392,30 +9671,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"fixtures": [], "logged_in": False})
                 cfg = load_config()
                 countries = cfg.get("countries") or ["no", "uk", "us"]
-                fixtures, src_err = search_fixtures(term, countries)
-                try:
-                    daily_fixtures = search_daily_matches(term)
-                    for daily in daily_fixtures:
-                        duplicate = None
-                        dday = str(daily.get("start") or "")[:10]
-                        for fixture in fixtures:
-                            if dday and str(fixture.get("start") or "")[:10] != dday:
-                                continue
-                            if (_team_names_equivalent(daily.get("home"), fixture.get("home")) and
-                                    _team_names_equivalent(daily.get("away"), fixture.get("away"))):
-                                duplicate = fixture
-                                break
-                        if duplicate is not None:
-                            duplicate["is_live"] = daily.get("is_live", False)
-                            if daily.get("live_minute") is not None:
-                                duplicate["live_minute"] = daily.get("live_minute")
-                            duplicate["home_id"] = duplicate.get("home_id") or daily.get("home_id", "")
-                            duplicate["away_id"] = duplicate.get("away_id") or daily.get("away_id", "")
-                        else:
-                            fixtures.append(daily)
-                    fixtures.sort(key=lambda row: row.get("start") or "")
-                except Exception as e:
-                    src_err.append(f"FotMob matches: {e}")
+                fixtures, src_err, resolved_team_id = complete_team_fixtures(
+                    term, selected_team_id, countries)
                 if selected_team_id:
                     fixtures = [fixture for fixture in fixtures
                                 if selected_team_id in {
@@ -9448,16 +9705,14 @@ class Handler(BaseHTTPRequestHandler):
                         for r in rows:
                             r["url"] = x.stream_url(r["stream_id"])
                         matches = rows
-                        # Streaming/PPV fallback: if broadcasters are streaming
-                        # services, try to find channels named after the teams.
+                        # Fixture/event channels are independent of broadcaster
+                        # listings and remain eligible even when no guide exists.
                         all_bcasters = [b for names in f["by_country"].values() for b in names]
                         has_linear = any(not _is_streaming(b) for b in all_bcasters)
                         has_streaming = any(_is_streaming(b) for b in all_bcasters)
-                        if has_streaming:
-                            hits = find_team_channels([f["home"], f["away"]], channels, cats, x)
-                            # avoid duplicating channels already matched
-                            have = {m["stream_id"] for m in matches}
-                            ppv_hits = [h for h in hits if h["stream_id"] not in have]
+                        hits = find_team_channels([f["home"], f["away"]], channels, cats, x)
+                        have = {m["stream_id"] for m in matches}
+                        ppv_hits = [h for h in hits if h["stream_id"] not in have]
                         # "only streaming" = no linear broadcaster AND no normal matches
                         streaming_only = (has_streaming and not has_linear and not matches)
                     out.append({"home": f["home"], "away": f["away"], "start": f["start"],
@@ -9466,7 +9721,10 @@ class Handler(BaseHTTPRequestHandler):
                                 "by_country": f["by_country"], "matches": matches,
                                 "ppv_hits": ppv_hits, "streaming_only": streaming_only,
                                 "is_live": bool(f.get("is_live")),
-                                "live_minute": f.get("live_minute")})
+                                "is_finished": bool(f.get("is_finished")),
+                                "live_minute": f.get("live_minute"),
+                                "league_name": f.get("league_name", ""),
+                                "league_id": f.get("league_id", "")})
                 return self._send(200, {"fixtures": out, "logged_in": logged_in,
                                         "source_errors": src_err,
                                         "ppv_categories": ppv_cats})
@@ -9592,6 +9850,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(502, {"error": "Sports channel catalogue: " + str(e)})
             availability = {}; now = time.time()
             disk_entries = _load_sports_disk_cache(cfg, x)
+            # Reuse the existing EPG cache in one pass for the whole fixture
+            # batch. This is disk/memory-only and never downloads guide data.
+            _load_epg_disk_cache(x)
+            epg_discoveries = _cached_epg_discovery(
+                incoming[:160], channels, cats, x)
             for raw_fixture in incoming[:160]:
                 if not isinstance(raw_fixture, dict):
                     continue
@@ -9631,8 +9894,11 @@ class Handler(BaseHTTPRequestHandler):
                         {"home": home, "away": away, "start": start,
                          "by_country": cleaned_tv}, cfg, channels, cats, x)
                     _SPORTS_EVENT_CHANNEL_CACHE[key] = {"ts": time.time(), "result": result}
-                    disk_entries[disk_key] = {"ts": time.time(),
-                                              "result": _sports_result_for_storage(result)}
+                result = _add_epg_discoveries(
+                    result, epg_discoveries.get(disk_key, []))
+                _SPORTS_EVENT_CHANNEL_CACHE[key] = {"ts": time.time(), "result": result}
+                disk_entries[disk_key] = {"ts": time.time(),
+                                          "result": _sports_result_for_storage(result)}
                 availability["|".join((home.lower(), away.lower(), start[:16]))] = result
             _save_sports_disk_cache(cfg, x, disk_entries)
             return self._send(200, {"availability": availability, "logged_in": True})
@@ -10640,11 +10906,41 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b351") > _parse_ver("0.777.b350"))
-    check("version equality", _parse_ver("v0.777.b351") == _parse_ver("0.777.b351"))
+    check("version ordering", _parse_ver("0.777.b358") > _parse_ver("0.777.b357"))
+    check("version equality", _parse_ver("v0.777.b358") == _parse_ver("0.777.b358"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
+    schedule_test = [
+        {"home": "Hearts", "away": "Benfica", "start": "2026-08-13T18:45:00Z",
+         "by_country": {}},
+        {"home": "Hearts", "away": "Inverness", "start": "2026-08-16T13:00:00Z",
+         "by_country": {}}]
+    _overlay_fixture_rows(schedule_test, [{
+        "home": "Heart of Midlothian", "away": "Benfica",
+        "start": "2026-08-13T18:45:00Z",
+        "by_country": {"PT": ["Sport TV 5"]}}])
+    check("TV listings enrich without reducing team schedule",
+          len(schedule_test) == 2 and
+          schedule_test[0]["by_country"] == {"PT": ["Sport TV 5"]})
+    unrelated_test = [dict(schedule_test[0])]
+    _overlay_fixture_rows(unrelated_test, [{
+        "home": "Portland Hearts of Pine", "away": "Forward Madison",
+        "start": "2026-08-16T18:30:00Z", "by_country": {"US": ["ESPN Select"]}}])
+    check("team schedule overlay cannot append partial-name fixtures",
+          len(unrelated_test) == 1)
+    current_test = _current_and_upcoming_fixtures([
+        {"home": "Old", "away": "May", "start": "2026-05-01T12:00:00Z"},
+        {"home": "Hearts", "away": "Benfica", "start": "2026-08-13T18:45:00Z"}],
+        datetime.datetime(2026, 8, 13, 12, tzinfo=datetime.timezone.utc).timestamp())
+    check("historical team fixtures excluded from search",
+          len(current_test) == 1 and current_test[0]["home"] == "Hearts")
+    check("country picker uses labeled Portugal code",
+          "['pt','🇵🇹','Portugal']" in PAGE and
+          'id="s_cc" type="hidden"' in PAGE)
+    check("country guides use bounded parallel loading",
+          "ThreadPoolExecutor(max_workers=workers)" in
+          open(__file__, "r", encoding="utf-8").read())
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
@@ -10657,6 +10953,31 @@ def run_self_tests():
         [{"team_id": "1", "name": "Updated"}, {"team_id": "2", "name": "New"}])
     check("backup favorites merge and deduplicate",
           len(merged_test) == 2 and merged_test[0]["name"] == "Updated")
+    current_test_cfg = dict(DEFAULT_CONFIG, profile_name="Current",
+                            xtream_host="old.example")
+    incoming_test_cfg = dict(DEFAULT_CONFIG, profile_name="Imported",
+                             xtream_host="new.example")
+    current_test_fav = {key: [] for key in _FAVORITE_LIST_KEYS}
+    incoming_test_fav = {key: [] for key in _FAVORITE_LIST_KEYS}
+    current_test_fav["channels"] = [{"stream_id": 7, "name": "Old channel"}]
+    incoming_test_fav["channels"] = [{"stream_id": 8, "name": "New channel"}]
+    restored_cfg_test, restored_fav_test = _prepare_backup_restore(
+        "full", incoming_test_cfg, incoming_test_fav,
+        current_test_cfg, current_test_fav)
+    check("full backup replaces provider-bound favorites",
+          restored_fav_test["channels"] == incoming_test_fav["channels"])
+    check("full backup replaces configuration",
+          restored_cfg_test["profile_name"] == "Imported" and
+          restored_cfg_test["xtream_host"] == "new.example")
+    try:
+        _validated_backup_payload({"format": "olos-tvmate-backup",
+                                   "format_version": 1.9,
+                                   "backup_type": "full", "config": {},
+                                   "favorites": {}})
+        invalid_backup_rejected = False
+    except ValueError:
+        invalid_backup_rejected = True
+    check("non-integer backup version rejected", invalid_backup_rejected)
     now = datetime.datetime(2026, 8, 11, tzinfo=datetime.timezone.utc)
     check("released movie included", _cinemeta_released_movie(
         {"released": "2026-08-10T00:00:00.000Z"}, now))
@@ -10702,12 +11023,39 @@ def run_self_tests():
         [{"name": "Premier Sports 2 4K", "stream_id": 97,
           "category_id": "4k"}], sample_cats, 0.49)
     check("global 4k category remains eligible", len(unknown_4k) == 1)
+    caribbean_cartoon = match_channels(
+        {"US": ["USA Network"]},
+        [{"name": "AMP: CARTOON NETWORK", "stream_id": 96,
+          "category_id": "cr"}],
+        {"cr": "CR: carribean amp"}, 0.62)
+    check("CR category rejected for US football broadcaster",
+          caribbean_cartoon == [])
+    global_cartoon = match_channels(
+        {"US": ["USA Network"]},
+        [{"name": "CARTOON NETWORK", "stream_id": 95,
+          "category_id": "4k"}], sample_cats, 0.40)
+    check("Cartoon Network excluded regardless of category",
+          global_cartoon == [])
     non_football = match_channels(
         {"US": ["USA Network"]},
         [{"name": "US: MLB Networks", "stream_id": 99,
           "category_id": "us-sports"}],
         {"us-sports": "US | SPORTS"}, 0.40)
     check("other-sport networks excluded from football", non_football == [])
+    espn_package = match_channels(
+        {"US": ["ESPN Select", "ESPN Unlimited"]},
+        [{"name": "US: ESPN Unlimited 34 HD", "stream_id": 101,
+          "category_id": "us-sports"},
+         {"name": "24/7: JUSTICE LEAGUE UNLIMITED", "stream_id": 102,
+          "category_id": "24-7"},
+         {"name": "PRIME: RACER SELECT", "stream_id": 103,
+          "category_id": "prime"},
+         {"name": "US: ESPN NEWS HD", "stream_id": 104,
+          "category_id": "us-sports"}],
+        {"us-sports": "US | SPORTS", "24-7": "24/7", "prime": "PRIME"},
+        0.40)
+    check("numbered ESPN package feed retained",
+          {row["stream_id"] for row in espn_package} == {101})
     class _TestXtream:
         @staticmethod
         def stream_url(stream_id):
@@ -10727,6 +11075,32 @@ def run_self_tests():
           _sports_result_for_storage({"logged_in": True,
               "availability_checked": True, "matches": [], "ppv_hits": []
           }).get("availability_checked") is True)
+    old_epg_test = dict(_EPG_CACHE)
+    try:
+        kickoff_test = datetime.datetime(2026, 8, 13, 18, 45,
+                                         tzinfo=datetime.timezone.utc).timestamp()
+        _EPG_CACHE.clear()
+        _EPG_CACHE["77"] = {"ts": time.time(), "programmes": [{
+            "title": "Heart of Midlothian v Benfica",
+            "start_ts": kickoff_test - 900, "stop_ts": kickoff_test + 7200}]}
+        epg_found = _cached_epg_discovery(
+            [{"home": "Hearts", "away": "Benfica",
+              "start": "2026-08-13T18:45:00Z"}],
+            [{"name": "US: ESPN News HD", "stream_id": 77,
+              "category_id": "us-sports"}],
+            {"us-sports": "US | SPORTS"}, _TestXtream())
+        epg_rows = epg_found.get(_sports_event_key(
+            "Hearts", "Benfica", "2026-08-13T18:45:00Z"), [])
+        check("cached EPG independently discovers fixture channel",
+              len(epg_rows) == 1 and epg_rows[0].get("epg_confirmed") is True)
+        check("missing cached EPG remains neutral",
+              _cached_epg_discovery(
+                  [{"home": "Leeds", "away": "Manchester United",
+                    "start": "2026-08-13T18:45:00Z"}],
+                  [], {}, _TestXtream()) == {})
+    finally:
+        _EPG_CACHE.clear()
+        _EPG_CACHE.update(old_epg_test)
     class _TestRacingXtream:
         @staticmethod
         def stream_url(stream_id):
