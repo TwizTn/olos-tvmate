@@ -3732,6 +3732,14 @@ def _viaplay_norway_linear_feed(name):
     return bool(re.fullmatch(
         r"v sport(?: (?:live|premier league))?(?: [1-9]\d*)?", value))
 
+def _viaplay_finland_linear_feed(name):
+    """Finnish V Sport feeds that can carry Viaplay football/events."""
+    value = re.sub(r"(?<![a-z0-9])ultra(?![a-z0-9])", " ", normalise(name))
+    value = re.sub(r"\s+", " ", value).strip()
+    return bool(re.fullmatch(
+        r"v sport(?: (?:live|football|premium))?(?: [1-9]\d*)?(?: suomi)?",
+        value))
+
 def match_channels(by_country, xtream_channels, cats, threshold):
     """`by_country`: {COUNTRY: [broadcaster names]}. A channel is only eligible
     to match a broadcaster from country C if the channel's own country prefix
@@ -3764,9 +3772,11 @@ def match_channels(by_country, xtream_channels, cats, threshold):
         for orig, bcountry, allowed, sn, sset in srcs:
             viaplay_no_feed = (bcountry == "NO" and sn == "viaplay norway" and
                                _viaplay_norway_linear_feed(cname))
+            viaplay_fi_feed = (bcountry == "FI" and sn == "viaplay finland" and
+                               _viaplay_finland_linear_feed(cname))
             nordic_viaplay = ((bcountry, sn) in {
                 ("NO", "viaplay norway"), ("SE", "viaplay sweden"),
-                ("DK", "viaplay denmark")})
+                ("DK", "viaplay denmark"), ("FI", "viaplay finland")})
             shared_4k_feed = (nordic_viaplay and _is_4k_category(category) and
                               _viaplay_norway_linear_feed(cname))
             # Country rule: if the channel HAS a recognised country prefix and
@@ -3774,7 +3784,7 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             if (allowed is not None and ch_cc is not None and ch_cc not in allowed and
                     not shared_4k_feed):
                 continue
-            if viaplay_no_feed or shared_4k_feed:
+            if viaplay_no_feed or viaplay_fi_feed or shared_4k_feed:
                 # LTV identifies the streaming platform, while Norwegian TV
                 # providers expose its simultaneous events on these linear
                 # feeds. Keep them possible until team text or EPG confirms one.
@@ -11302,6 +11312,18 @@ def run_self_tests():
         {"4k": "4K | UHD CHANNELS", "swe": "SWE | SPORTS"}, 0.62)
     check("multilingual V Sport 4K maps to Swedish and Danish Viaplay",
           {row["stream_id"] for row in viaplay_nordic_4k} == {117})
+    viaplay_fi = match_channels(
+        {"FI": ["Viaplay Finland"]},
+        [{"name": "FI: V Sport 1 Suomi", "stream_id": 119, "category_id": "fi"},
+         {"name": "FI: V Sport+ Suomi", "stream_id": 120, "category_id": "fi"},
+         {"name": "FI: V Sport Football", "stream_id": 121, "category_id": "fi"},
+         {"name": "FI: V Sport Live", "stream_id": 122, "category_id": "fi"},
+         {"name": "FI: V Sport Golf", "stream_id": 123, "category_id": "fi"},
+         {"name": "4K: V Sport", "stream_id": 124, "category_id": "4k"},
+         {"name": "4K: V Sport+", "stream_id": 125, "category_id": "4k"}],
+        {"fi": "FI | SPORTS", "4k": "4K | UHD CHANNELS"}, 0.62)
+    check("Viaplay Finland expands to Finnish and shared 4K V Sport feeds",
+          {row["stream_id"] for row in viaplay_fi} == {119, 120, 121, 122, 124, 125})
     sport_tv_country_rows = match_channels(
         {"PT": ["Sport TV 5"]},
         [{"name": "POR: Sport TV 5", "stream_id": 105, "category_id": "por"},
