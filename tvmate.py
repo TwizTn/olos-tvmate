@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b356"
+VERSION = "0.777.b357"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4747,6 +4747,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .setupfeatures{display:grid;grid-template-columns:1fr 1fr;gap:11px}.setupfeature{display:flex;align-items:center;gap:11px;border:1px solid var(--line);background:rgba(20,25,32,.9);border-radius:11px;padding:15px;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}.setupfeature:hover{border-color:#566276;transform:translateY(-1px)}.setupfeature:has(input:checked){border-color:#2869c9;background:#12223a}.setupfeature input{width:auto;margin:0}.setupfeature b{display:block}.setupfeature small{display:block;color:var(--mut);margin-top:3px;line-height:1.4}
  .setupoptional{border:1px solid var(--line);background:rgba(20,25,32,.72);border-radius:11px;padding:14px 15px;margin-top:15px;color:var(--mut);font-size:12px;line-height:1.5}
  .setupchoices{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.setupchoice{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;padding:9px 13px}.setupchoice.on{border-color:#2768d8;background:#102347;color:#dbeaff}
+ .countrygrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:13px}.countrychoice{display:flex;align-items:center;gap:9px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);cursor:pointer;user-select:none}.countrychoice:hover{border-color:#4a586c}.countrychoice.on{border-color:#2768d8;background:#102347}.countrychoice input{width:auto;margin:0}.countryflag{font-size:18px}.countryname{min-width:0;flex:1}.countrycode{font-size:10px;color:var(--muted);font-weight:700}.countrychoice.unsupported{border-color:#765c2b;background:#241e13}
  .setupsearch{display:grid;grid-template-columns:1fr auto;gap:8px;margin:10px 0}.setupresults{display:grid;gap:7px;margin-top:8px;max-height:210px;overflow:auto}.setupresult{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}.setupresult img{width:38px;height:50px;object-fit:cover;border-radius:5px}.setupresult .grow{flex:1}.setupresult button{min-width:64px}.setupselected{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}.setupchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:var(--card)}
  .setupstartergrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.setupstartergrid h3{margin:0 0 7px}.setupfinishopts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.setupfinishopt{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:16px}.setupfinishopt b{display:block;margin-bottom:5px}.setupfinishopt button{margin-top:13px}
  .setupactions{display:flex;align-items:center;gap:9px;margin:22px 28px 0;padding:17px 0 23px;border-top:1px solid var(--line)}.setupactions .setupspacer{flex:1}.setupactions button{min-width:94px}
@@ -5225,9 +5226,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="settingsgroup" data-settings-panel="general" hidden>
       <div class="colh" data-i18n="Sports Search">Sports Search</div>
       <div class="muted" data-i18n="Choose which regional TV listings Sports Search uses to find broadcasters for matches.">Choose which regional TV listings Sports Search uses to find broadcasters for matches.</div>
-      <label data-i18n="TV listings countries (comma separated, e.g. no, uk, us)">TV listings countries (comma separated, e.g. no, uk, us)</label>
-      <input id="s_cc" type="text">
-      <div class="muted" style="margin-top:7px" data-i18n="Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.">Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.</div>
+      <div id="countryPicker" class="countrygrid"></div>
+      <input id="s_cc" type="hidden">
+      <div class="muted" style="margin-top:9px" data-i18n="Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.">Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.</div>
       </div>
       <div class="settingsgroup" data-settings-panel="iptv" hidden>
       <div class="colh" data-i18n="Playback">Playback</div>
@@ -5381,7 +5382,7 @@ const _I18N={
   "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
   "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status","Content startup":"Innhold ved oppstart","Sports Search":"Sportssøk",
   "Personalize TVMate and choose what opens when the app starts.":"Tilpass TVMate og velg hva som åpnes når appen starter.","Checks your favorite series for newly available episodes after TVMate opens.":"Ser etter nylig tilgjengelige episoder i favorittseriene dine etter at TVMate åpnes.","Show or hide optional sections. Disabling one also skips it during external-content refreshes.":"Vis eller skjul valgfrie seksjoner. Deaktiverte seksjoner hoppes også over ved oppdatering av eksternt innhold.",
-  "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","TV listings countries (comma separated, e.g. no, uk, us)":"Land for TV-oversikter (kommaseparert, f.eks. no, uk, us)","Enter country codes for the TV guides you want searched. Adjust match strictness from the Sports page.":"Skriv inn landskodene for TV-guidene du vil søke i. Juster treffnøyaktigheten på Sports-siden.",
+  "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.":"Velg regionale TV-guider. Landene legger til kanalinformasjon, men begrenser aldri hvilke kamper som vises.","Unsupported saved code":"Ikke støttet lagret kode",
   "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","Choose which content TVMate updates automatically after it opens.":"Velg hvilket innhold TVMate oppdaterer automatisk etter oppstart.","Refresh IPTV & EPG on startup":"Oppdater IPTV og EPG ved oppstart","Refresh sports, racing & games on startup":"Oppdater sport, racing og spill ved oppstart","Refresh Xtream channels, movies, shows and TV guide data.":"Oppdater Xtream-kanaler, filmer, serier og TV-guide.","Refresh matches, regional TV listings, racing and your Steam wishlist.":"Oppdater kamper, regionale TV-oversikter, racing og Steam-ønskelisten din.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
   "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem","Backup & Import":"Sikkerhetskopi og import","Download a portable backup or merge one into this profile. Caches and artwork are never included.":"Last ned en flyttbar sikkerhetskopi eller slå en sammen med denne profilen. Mellomlager og omslagskunst tas aldri med.","Export profile":"Eksporter profil","Export full backup":"Eksporter full sikkerhetskopi","Import backup":"Importer sikkerhetskopi","Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.":"Profilsikkerhetskopien utelater innlogging. Full sikkerhetskopi inkluderer Xtream-innlogging; oppbevar den sikkert.","Backup downloaded.":"Sikkerhetskopien er lastet ned.","Backup imported and merged.":"Sikkerhetskopien er importert og slått sammen.","Full backup restored.":"Full sikkerhetskopi er gjenopprettet.","Could not import this backup.":"Kunne ikke importere denne sikkerhetskopien.",
   "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
@@ -6119,6 +6120,30 @@ async function refreshStatus(){
   const slider=document.getElementById('matchStrict'), value=document.getElementById('matchStrictValue');
   if(slider&&s.match_threshold!=null){slider.value=Number(s.match_threshold).toFixed(2);value.textContent=slider.value;}
 }
+const _TV_GUIDE_COUNTRIES=[
+  ['no','🇳🇴','Norway'],['gb','🇬🇧','United Kingdom'],['us','🇺🇸','United States'],
+  ['pt','🇵🇹','Portugal'],['ie','🇮🇪','Ireland'],['es','🇪🇸','Spain'],
+  ['de','🇩🇪','Germany'],['it','🇮🇹','Italy'],['fr','🇫🇷','France'],
+  ['nl','🇳🇱','Netherlands'],['be','🇧🇪','Belgium'],['dk','🇩🇰','Denmark'],
+  ['se','🇸🇪','Sweden'],['fi','🇫🇮','Finland'],['at','🇦🇹','Austria'],
+  ['ch','🇨🇭','Switzerland'],['pl','🇵🇱','Poland'],['ca','🇨🇦','Canada'],
+  ['au','🇦🇺','Australia'],['br','🇧🇷','Brazil'],['mx','🇲🇽','Mexico']
+];
+function selectedTvGuideCountries(){return String(s_cc.value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);}
+function renderCountryPicker(values){
+  const selected=new Set((values||[]).map(v=>String(v).toLowerCase()==='uk'?'gb':String(v).toLowerCase()));
+  const known=new Set(_TV_GUIDE_COUNTRIES.map(row=>row[0]));
+  const rows=_TV_GUIDE_COUNTRIES.map(row=>({code:row[0],flag:row[1],name:row[2],unsupported:false}));
+  for(const code of selected)if(!known.has(code))rows.push({code:code,flag:'⚠️',name:tr('Unsupported saved code'),unsupported:true});
+  const el=document.getElementById('countryPicker');if(!el)return;
+  el.innerHTML=rows.map(row=>'<label class="countrychoice'+(selected.has(row.code)?' on':'')+(row.unsupported?' unsupported':'')+'"><input type="checkbox" value="'+escAttr(row.code)+'"'+(selected.has(row.code)?' checked':'')+' onchange="syncCountryPicker()"><span class="countryflag">'+row.flag+'</span><span class="countryname">'+esc(row.name)+'</span><span class="countrycode">'+esc(row.code.toUpperCase())+'</span></label>').join('');
+  syncCountryPicker();
+}
+function syncCountryPicker(){
+  const checked=Array.from(document.querySelectorAll('#countryPicker input:checked')).map(input=>input.value);
+  s_cc.value=checked.join(',');
+  document.querySelectorAll('#countryPicker .countrychoice').forEach(label=>label.classList.toggle('on',label.querySelector('input').checked));
+}
 async function saveMatchStrictness(value){
   const strict=Math.max(0.40,Math.min(0.80,parseFloat(value)||0.62));
   try{await api('/api/match_strictness',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({match_threshold:strict})});}catch(e){}
@@ -6128,7 +6153,7 @@ async function loadSettings(){
   s_host.value=c.xtream_host||'';
   s_user.value=c.xtream_user||'';s_pass.value=c.xtream_pass||'';
   s_ext.value=c.stream_ext||'ts';
-  s_cc.value=(c.countries||['no','uk','us']).join(', ');
+  renderCountryPicker(c.countries||['no','gb','us']);
   s_start.value=c.start_section||'mylist';
   s_checkshows.checked=!!c.check_shows_on_startup;
   s_refreshiptv.checked=!!c.refresh_iptv_on_startup;
@@ -6147,7 +6172,7 @@ async function loadSettings(){
 async function saveSettings(){
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
     xtream_pass:s_pass.value,stream_ext:s_ext.value,
-    countries:s_cc.value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean),
+    countries:selectedTvGuideCountries(),
     start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
     refresh_iptv_on_startup:s_refreshiptv.checked,refresh_sports_on_startup:s_refreshsports.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
@@ -10861,8 +10886,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b356") > _parse_ver("0.777.b355"))
-    check("version equality", _parse_ver("v0.777.b356") == _parse_ver("0.777.b356"))
+    check("version ordering", _parse_ver("0.777.b357") > _parse_ver("0.777.b356"))
+    check("version equality", _parse_ver("v0.777.b357") == _parse_ver("0.777.b357"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10878,6 +10903,9 @@ def run_self_tests():
     check("TV listings enrich without reducing team schedule",
           len(schedule_test) == 2 and
           schedule_test[0]["by_country"] == {"PT": ["Sport TV 5"]})
+    check("country picker uses labeled Portugal code",
+          "['pt','🇵🇹','Portugal']" in PAGE and
+          'id="s_cc" type="hidden"' in PAGE)
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
