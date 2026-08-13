@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b355"
+VERSION = "0.777.b356"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3296,6 +3296,69 @@ def add_tv_listings(fixtures, countries):
                 if channel not in current:
                     current.append(channel)
     return errors
+
+def _overlay_fixture_rows(fixtures, overlay_rows):
+    """Overlay status/listing data without allowing it to remove fixtures."""
+    for overlay in overlay_rows or []:
+        oday = str(overlay.get("start") or "")[:10]
+        duplicate = None
+        for fixture in fixtures:
+            if oday and str(fixture.get("start") or "")[:10] != oday:
+                continue
+            if (_team_names_equivalent(fixture.get("home"), overlay.get("home")) and
+                    _team_names_equivalent(fixture.get("away"), overlay.get("away"))):
+                duplicate = fixture
+                break
+        if duplicate is None:
+            fixtures.append(dict(overlay))
+            continue
+        for key in ("home_id", "away_id", "league_name", "league_id"):
+            duplicate[key] = duplicate.get(key) or overlay.get(key, "")
+        if overlay.get("by_country"):
+            target = duplicate.setdefault("by_country", {})
+            for country, names in overlay.get("by_country", {}).items():
+                current = target.setdefault(country, [])
+                for name in names or []:
+                    if name not in current:
+                        current.append(name)
+        if overlay.get("status_known") or "is_live" in overlay:
+            duplicate["is_live"] = bool(overlay.get("is_live"))
+            duplicate["is_finished"] = bool(overlay.get("is_finished"))
+            duplicate["live_minute"] = overlay.get("live_minute")
+            duplicate["status_known"] = bool(overlay.get("status_known", True))
+    return fixtures
+
+def complete_team_fixtures(term, team_id, countries):
+    """Return the team schedule; country guides only enrich, never filter it."""
+    errors = []
+    tv_fixtures, tv_errors = search_fixtures(term, countries)
+    errors.extend(tv_errors)
+    if not team_id:
+        try:
+            team_id = resolve_fotmob_team_id(term)
+        except Exception as e:
+            errors.append(f"FotMob team lookup: {e}")
+            team_id = ""
+    try:
+        fixtures = fetch_team_schedule(team_id, term) if team_id else []
+    except Exception as e:
+        errors.append(f"{term}: {e}")
+        fixtures = []
+    # Only fall back to guide fixtures when the authoritative team feed failed.
+    if not fixtures:
+        fixtures = [dict(row, is_live=False, status_known=False)
+                    for row in tv_fixtures]
+    else:
+        fixtures = [dict(row) for row in fixtures]
+        _overlay_fixture_rows(fixtures, tv_fixtures)
+    try:
+        _overlay_fixture_rows(fixtures, search_daily_matches(term))
+    except Exception as e:
+        errors.append(f"{term} live status: {e}")
+    for fixture in fixtures:
+        fixture.setdefault("by_country", {})
+    fixtures.sort(key=lambda row: row.get("start") or "")
+    return fixtures, errors, str(team_id or "")
 
 # --------------------------------------------------------------------------
 # Fuzzy channel matching (handles "COUNTRY: Channel Name HD")
@@ -9563,30 +9626,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"fixtures": [], "logged_in": False})
                 cfg = load_config()
                 countries = cfg.get("countries") or ["no", "uk", "us"]
-                fixtures, src_err = search_fixtures(term, countries)
-                try:
-                    daily_fixtures = search_daily_matches(term)
-                    for daily in daily_fixtures:
-                        duplicate = None
-                        dday = str(daily.get("start") or "")[:10]
-                        for fixture in fixtures:
-                            if dday and str(fixture.get("start") or "")[:10] != dday:
-                                continue
-                            if (_team_names_equivalent(daily.get("home"), fixture.get("home")) and
-                                    _team_names_equivalent(daily.get("away"), fixture.get("away"))):
-                                duplicate = fixture
-                                break
-                        if duplicate is not None:
-                            duplicate["is_live"] = daily.get("is_live", False)
-                            if daily.get("live_minute") is not None:
-                                duplicate["live_minute"] = daily.get("live_minute")
-                            duplicate["home_id"] = duplicate.get("home_id") or daily.get("home_id", "")
-                            duplicate["away_id"] = duplicate.get("away_id") or daily.get("away_id", "")
-                        else:
-                            fixtures.append(daily)
-                    fixtures.sort(key=lambda row: row.get("start") or "")
-                except Exception as e:
-                    src_err.append(f"FotMob matches: {e}")
+                fixtures, src_err, resolved_team_id = complete_team_fixtures(
+                    term, selected_team_id, countries)
                 if selected_team_id:
                     fixtures = [fixture for fixture in fixtures
                                 if selected_team_id in {
@@ -9619,16 +9660,14 @@ class Handler(BaseHTTPRequestHandler):
                         for r in rows:
                             r["url"] = x.stream_url(r["stream_id"])
                         matches = rows
-                        # Streaming/PPV fallback: if broadcasters are streaming
-                        # services, try to find channels named after the teams.
+                        # Fixture/event channels are independent of broadcaster
+                        # listings and remain eligible even when no guide exists.
                         all_bcasters = [b for names in f["by_country"].values() for b in names]
                         has_linear = any(not _is_streaming(b) for b in all_bcasters)
                         has_streaming = any(_is_streaming(b) for b in all_bcasters)
-                        if has_streaming:
-                            hits = find_team_channels([f["home"], f["away"]], channels, cats, x)
-                            # avoid duplicating channels already matched
-                            have = {m["stream_id"] for m in matches}
-                            ppv_hits = [h for h in hits if h["stream_id"] not in have]
+                        hits = find_team_channels([f["home"], f["away"]], channels, cats, x)
+                        have = {m["stream_id"] for m in matches}
+                        ppv_hits = [h for h in hits if h["stream_id"] not in have]
                         # "only streaming" = no linear broadcaster AND no normal matches
                         streaming_only = (has_streaming and not has_linear and not matches)
                     out.append({"home": f["home"], "away": f["away"], "start": f["start"],
@@ -9637,7 +9676,10 @@ class Handler(BaseHTTPRequestHandler):
                                 "by_country": f["by_country"], "matches": matches,
                                 "ppv_hits": ppv_hits, "streaming_only": streaming_only,
                                 "is_live": bool(f.get("is_live")),
-                                "live_minute": f.get("live_minute")})
+                                "is_finished": bool(f.get("is_finished")),
+                                "live_minute": f.get("live_minute"),
+                                "league_name": f.get("league_name", ""),
+                                "league_id": f.get("league_id", "")})
                 return self._send(200, {"fixtures": out, "logged_in": logged_in,
                                         "source_errors": src_err,
                                         "ppv_categories": ppv_cats})
@@ -10819,11 +10861,23 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b355") > _parse_ver("0.777.b354"))
-    check("version equality", _parse_ver("v0.777.b355") == _parse_ver("0.777.b355"))
+    check("version ordering", _parse_ver("0.777.b356") > _parse_ver("0.777.b355"))
+    check("version equality", _parse_ver("v0.777.b356") == _parse_ver("0.777.b356"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
+    schedule_test = [
+        {"home": "Hearts", "away": "Benfica", "start": "2026-08-13T18:45:00Z",
+         "by_country": {}},
+        {"home": "Hearts", "away": "Inverness", "start": "2026-08-16T13:00:00Z",
+         "by_country": {}}]
+    _overlay_fixture_rows(schedule_test, [{
+        "home": "Heart of Midlothian", "away": "Benfica",
+        "start": "2026-08-13T18:45:00Z",
+        "by_country": {"PT": ["Sport TV 5"]}}])
+    check("TV listings enrich without reducing team schedule",
+          len(schedule_test) == 2 and
+          schedule_test[0]["by_country"] == {"PT": ["Sport TV 5"]})
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
