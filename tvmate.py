@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b372"
+VERSION = "0.777.b373"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -11130,8 +11130,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b372") > _parse_ver("0.777.b371"))
-    check("version equality", _parse_ver("v0.777.b372") == _parse_ver("0.777.b372"))
+    check("version ordering", _parse_ver("0.777.b373") > _parse_ver("0.777.b372"))
+    check("version equality", _parse_ver("v0.777.b373") == _parse_ver("0.777.b373"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
