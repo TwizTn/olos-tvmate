@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b375"
+VERSION = "0.777.b376"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1705,6 +1705,8 @@ _TV_CACHE = {}          # country -> {"ts": float, "fixtures": [...]}
 _TV_TTL = 6 * 3600      # broadcaster listings persist for 6 hours
 _LTV_TTL = 26 * 3600    # daily listing; date-keyed cache survives the whole day
 _LTV_CACHE = {}         # date -> {ts, rows}; FotMob remains the fixture source
+_LTV_CACHE_LOCK = threading.Lock()
+_LTV_DATE_LOCKS = {}
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
 _TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
@@ -3008,20 +3010,31 @@ def fetch_ltv_daily(date):
     """Fetch at most one LTV schedule per date and reuse it through that day."""
     date = str(date or "")[:10]
     now = time.time()
-    cached = _LTV_CACHE.get(date)
+    with _LTV_CACHE_LOCK:
+        cached = _LTV_CACHE.get(date)
+        date_lock = _LTV_DATE_LOCKS.setdefault(date, threading.Lock())
     if cached:
         return cached["rows"]
-    disk = _load_timed_data_cache(f"ltv-daily-v2-{date}.json", _LTV_TTL)
-    if isinstance(disk, list) and disk:
-        _LTV_CACHE[date] = {"ts": now, "rows": disk}
-        return disk
-    page = http_get_text(LTV_DAILY_SCHEDULE.format(date=date), timeout=15)
-    rows = _parse_ltv_daily(page, date)
-    if not rows:
-        raise RuntimeError("Live Soccer TV returned no readable listings")
-    _LTV_CACHE[date] = {"ts": now, "rows": rows}
-    _save_timed_data_cache(f"ltv-daily-v2-{date}.json", rows)
-    return rows
+    # Search/profile requests can overlap in the threaded local server. Only
+    # one of them may download a particular day's guide; the rest reuse it.
+    with date_lock:
+        with _LTV_CACHE_LOCK:
+            cached = _LTV_CACHE.get(date)
+        if cached:
+            return cached["rows"]
+        disk = _load_timed_data_cache(f"ltv-daily-v2-{date}.json", _LTV_TTL)
+        if isinstance(disk, list) and disk:
+            with _LTV_CACHE_LOCK:
+                _LTV_CACHE[date] = {"ts": now, "rows": disk}
+            return disk
+        page = http_get_text(LTV_DAILY_SCHEDULE.format(date=date), timeout=15)
+        rows = _parse_ltv_daily(page, date)
+        if not rows:
+            raise RuntimeError("Live Soccer TV returned no readable listings")
+        with _LTV_CACHE_LOCK:
+            _LTV_CACHE[date] = {"ts": now, "rows": rows}
+        _save_timed_data_cache(f"ltv-daily-v2-{date}.json", rows)
+        return rows
 
 def _team_profile_from_data(data, team_id, team_name=""):
     """Extract stable team facts from FotMob without depending on one response layout."""
@@ -3418,22 +3431,52 @@ def add_tv_listings(fixtures, countries):
                     current.append(channel)
     return errors
 
+def _nearby_ltv_dates(fixtures, today=None, limit=4, horizon_days=14):
+    """Choose a bounded set of nearby fixture dates for daily LTV guides."""
+    all_dates = sorted({str(row.get("start") or "")[:10] for row in fixtures
+                        if str(row.get("start") or "")[:10]})
+    today = str(today or datetime.date.today().isoformat())[:10]
+    today_date = datetime.date.fromisoformat(today)
+    nearby = []
+    for day in all_dates:
+        try:
+            delta = (datetime.date.fromisoformat(day) - today_date).days
+        except ValueError:
+            continue
+        if 0 <= delta <= horizon_days:
+            nearby.append(day)
+    return nearby[:limit]
+
 def add_primary_tv_listings(fixtures, countries):
     """Use LTV for channels only; fall back to FotMob per missing fixture."""
     errors, ltv_rows, failed_dates = [], [], set()
-    all_dates = sorted({str(row.get("start") or "")[:10] for row in fixtures
-                        if str(row.get("start") or "")[:10]})
     today = datetime.date.today().isoformat()
-    # A team schedule may span months. Enrich today plus only the nearest other
-    # match date; later fixtures use FotMob fallback until they become relevant.
-    dates = ([today] if today in all_dates else [])
-    dates += [day for day in all_dates if day != today][:max(0, 2 - len(dates))]
-    for day in dates:
+    # Cover the nearby fixture cards, not merely the first two dates. A cup or
+    # friendly between league games must not prevent the next televised league
+    # fixture from receiving its listings. Four date guides inside two weeks is
+    # a small bounded workload and covers the cards a user is likely to open.
+    dates = _nearby_ltv_dates(fixtures, today)
+    # The guides are independent. Download uncached dates concurrently so four
+    # nearby fixtures cost one network timeout rather than four in sequence.
+    results, failures = {}, {}
+    def load_day(day):
         try:
-            ltv_rows.extend(fetch_ltv_daily(day))
+            results[day] = fetch_ltv_daily(day)
         except Exception as exc:
+            failures[day] = exc
+    workers = [threading.Thread(target=load_day, args=(day,), daemon=True)
+               for day in dates]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+    for day in dates:
+        if day in results:
+            ltv_rows.extend(results[day])
+        elif day in failures:
             failed_dates.add(day)
-            errors.append(f"Live Soccer TV channel listings unavailable — using FotMob channel listings ({exc})")
+            errors.append("Live Soccer TV channel listings unavailable — "
+                          f"using FotMob channel listings ({failures[day]})")
     missing = []
     for fixture in fixtures:
         fday = str(fixture.get("start") or "")[:10]
@@ -3958,7 +4001,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v11|" + _vod_cache_key(x) + "|" + str(
+    return "football-v12|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11138,8 +11181,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b375") > _parse_ver("0.777.b374"))
-    check("version equality", _parse_ver("v0.777.b375") == _parse_ver("0.777.b375"))
+    check("version ordering", _parse_ver("0.777.b376") > _parse_ver("0.777.b375"))
+    check("version equality", _parse_ver("v0.777.b376") == _parse_ver("0.777.b376"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11345,6 +11388,13 @@ def run_self_tests():
          "4k": "4K | UHD CHANNELS"}, 0.62)
     check("country-scoped plain Viaplay expands to Nordic V Sport feeds",
           {row["stream_id"] for row in plain_viaplay} == {126, 127, 128})
+    check("nearby LTV dates include third fixture after friendly and cup",
+          _nearby_ltv_dates([
+              {"start": "2026-08-15T12:00:00Z"},
+              {"start": "2026-08-18T19:00:00Z"},
+              {"start": "2026-08-22T14:00:00Z"},
+              {"start": "2026-09-05T14:00:00Z"}], "2026-08-14") ==
+          ["2026-08-15", "2026-08-18", "2026-08-22"])
     sport_tv_country_rows = match_channels(
         {"PT": ["Sport TV 5"]},
         [{"name": "POR: Sport TV 5", "stream_id": 105, "category_id": "por"},
