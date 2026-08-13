@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b365"
+VERSION = "0.777.b366"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -620,6 +620,7 @@ def _source_key_for_url(url):
     """Map a URL's domain to a known source key (or None if untracked)."""
     u = (url or "").lower()
     if "fotmob.com" in u or "images.fotmob.com" in u: return "fotmob"
+    if "livesoccertv.com" in u: return "ltv"
     if "tvmaze.com" in u: return "tvmaze"
     if "strem.io" in u or "cinemeta" in u: return "cinemeta"
     if "steam" in u: return "steam"
@@ -674,6 +675,7 @@ _SOURCE_HEALTH_LOCK = threading.Lock()
 _SOURCE_LABELS = [
     ("xtream",   "IPTV provider (Xtream)"),
     ("fotmob",   "Football (Fotmob)"),
+    ("ltv",      "Channel listings (Live Soccer TV)"),
     ("epg_xmltv","TV guide / EPG (XMLTV)"),
     ("tvmaze",   "TV shows (TVMaze)"),
     ("cinemeta", "Movie/series info (Cinemeta)"),
@@ -1683,6 +1685,9 @@ FOTMOB_TVGUIDE = "https://www.fotmob.com/en-GB/tv-guide/{country}"
 FOTMOB_TEAM_API = "https://www.fotmob.com/api/data/teams?id={team_id}&ccode3=NOR"
 FOTMOB_TEAM_SEARCH = "https://www.fotmob.com/api/data/search/suggest?term={term}"
 FOTMOB_DAILY_MATCHES = "https://www.fotmob.com/api/data/matches?date={date}&ccode3=NOR"
+LTV_DAILY_SCHEDULE = "https://www.livesoccertv.com/schedules/{date}/"
+FOTMOB_FALLBACK_COUNTRIES = ("no", "gb", "us", "pt", "ie", "es", "de",
+                             "it", "fr", "nl", "be", "dk", "se")
 
 # Fotmob uses ISO-ish slugs; "uk" is commonly typed but the real page is "gb".
 _CC_ALIAS = {"uk": "gb", "en": "gb", "gbr": "gb", "usa": "us", "nor": "no"}
@@ -1698,6 +1703,8 @@ def _display_cc(cc):
     return _CC_DISPLAY.get(cc.lower(), cc)
 _TV_CACHE = {}          # country -> {"ts": float, "fixtures": [...]}
 _TV_TTL = 6 * 3600      # broadcaster listings persist for 6 hours
+_LTV_TTL = 3 * 3600     # one light daily-page request, reused by every search
+_LTV_CACHE = {}         # date -> {ts, rows}; FotMob remains the fixture source
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
 _TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
@@ -2902,6 +2909,76 @@ def fetch_country_fixtures(country):
     _save_timed_data_cache(f"tv-guide-{country}.json", fixtures)
     return fixtures
 
+def _plain_html(value):
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ",
+                  str(value or "")))).strip()
+
+def _ltv_country(fragment):
+    """Best-effort country metadata carried beside an LTV channel link."""
+    low = str(fragment or "").lower()
+    for pattern in (r'data-country=["\']([^"\']+)',
+                    r'(?:flag[-_/]|/flags?/)([a-z]{2,3})(?:\.|[-_/"\'])'):
+        match = re.search(pattern, low)
+        if match:
+            raw = match.group(1)
+            code = _COUNTRY_NAME_ALIASES.get(raw, raw)
+            return _display_cc(_norm_cc(code))
+    return "LTV"
+
+def _parse_ltv_daily(page, date):
+    """Parse LTV's public daily table. It enriches existing FotMob rows only."""
+    rows = []
+    for match in re.finditer(r'<tr\b[^>]*class=["\'][^"\']*matchrow[^"\']*["\'][^>]*>(.*?)</tr>',
+                             page or "", re.I | re.S):
+        body = match.group(1)
+        game = ""
+        game_link = re.search(r'<a\b[^>]*(?:/match/|class=["\'][^"\']*(?:match|game))[^>]*>(.*?)</a>',
+                              body, re.I | re.S)
+        if game_link:
+            game = _plain_html(game_link.group(1))
+        if not game:
+            anchors = re.findall(r'<a\b[^>]*>(.*?)</a>', body, re.I | re.S)
+            game = next((_plain_html(a) for a in anchors
+                         if re.search(r'\s(?:vs?\.?|–|—|-)\s', _plain_html(a), re.I)), "")
+        teams = re.split(r'\s+(?:vs?\.?|–|—)\s+', game, maxsplit=1, flags=re.I)
+        if len(teams) != 2:
+            continue
+        channel_area = re.search(r'<[^>]+id=["\']channels["\'][^>]*>(.*)', body, re.I | re.S)
+        area = channel_area.group(1) if channel_area else body
+        by_country = {}
+        for link in re.finditer(r'<a\b([^>]*)>(.*?)</a>', area, re.I | re.S):
+            name = _plain_html(link.group(2))
+            attrs = link.group(1)
+            if not name or name == "…" or "/match/" in attrs.lower():
+                continue
+            cc = _ltv_country(attrs)
+            by_country.setdefault(cc, [])
+            if name not in by_country[cc]:
+                by_country[cc].append(name)
+        if by_country:
+            rows.append({"home": teams[0].strip(), "away": teams[1].strip(),
+                         "start": str(date), "by_country": by_country})
+    return rows
+
+def fetch_ltv_daily(date):
+    """Fetch at most one LTV schedule per date and reuse it for three hours."""
+    date = str(date or "")[:10]
+    now = time.time()
+    cached = _LTV_CACHE.get(date)
+    if cached and now - cached["ts"] < _LTV_TTL:
+        return cached["rows"]
+    disk = _load_timed_data_cache(f"ltv-daily-{date}.json", _LTV_TTL)
+    if isinstance(disk, list) and disk:
+        _LTV_CACHE[date] = {"ts": now, "rows": disk}
+        return disk
+    page = http_get_text(LTV_DAILY_SCHEDULE.format(date=date), timeout=15)
+    rows = _parse_ltv_daily(page, date)
+    if not rows:
+        raise RuntimeError("Live Soccer TV returned no readable listings")
+    _LTV_CACHE[date] = {"ts": now, "rows": rows}
+    _save_timed_data_cache(f"ltv-daily-{date}.json", rows)
+    return rows
+
 def _team_profile_from_data(data, team_id, team_name=""):
     """Extract stable team facts from FotMob without depending on one response layout."""
     profile = {"team_id": str(team_id or ""), "name": str(team_name or "").strip(),
@@ -3297,6 +3374,46 @@ def add_tv_listings(fixtures, countries):
                     current.append(channel)
     return errors
 
+def add_primary_tv_listings(fixtures, countries):
+    """Use LTV for channels only; fall back to FotMob per missing fixture."""
+    errors, ltv_rows, failed_dates = [], [], set()
+    all_dates = sorted({str(row.get("start") or "")[:10] for row in fixtures
+                        if str(row.get("start") or "")[:10]})
+    today = datetime.date.today().isoformat()
+    # A team schedule may span months. Enrich today plus only the nearest other
+    # match date; later fixtures use FotMob fallback until they become relevant.
+    dates = ([today] if today in all_dates else [])
+    dates += [day for day in all_dates if day != today][:max(0, 2 - len(dates))]
+    for day in dates:
+        try:
+            ltv_rows.extend(fetch_ltv_daily(day))
+        except Exception as exc:
+            failed_dates.add(day)
+            errors.append(f"Live Soccer TV channel listings unavailable — using FotMob channel listings ({exc})")
+    missing = []
+    for fixture in fixtures:
+        fday = str(fixture.get("start") or "")[:10]
+        found = None
+        for row in ltv_rows:
+            if fday != str(row.get("start") or "")[:10]:
+                continue
+            if (_team_names_equivalent(fixture.get("home"), row.get("home")) and
+                    _team_names_equivalent(fixture.get("away"), row.get("away"))):
+                found = row
+                break
+        if found:
+            fixture["by_country"] = dict(found.get("by_country") or {})
+            fixture["listing_source"] = "LTV"
+        else:
+            missing.append(fixture)
+    if missing:
+        fallback_errors = add_tv_listings(missing, countries)
+        errors.extend(fallback_errors)
+        for fixture in missing:
+            if fixture.get("by_country"):
+                fixture["listing_source"] = "FotMob fallback"
+    return errors
+
 def _overlay_fixture_rows(fixtures, overlay_rows, append_missing=False):
     """Overlay status/listing data without allowing it to remove fixtures."""
     for overlay in overlay_rows or []:
@@ -3347,10 +3464,8 @@ def _current_and_upcoming_fixtures(fixtures, now=None):
     return kept
 
 def complete_team_fixtures(term, team_id, countries):
-    """Return the team schedule; country guides only enrich, never filter it."""
+    """Return FotMob's team schedule; listing sources only enrich it."""
     errors = []
-    tv_fixtures, tv_errors = search_fixtures(term, countries)
-    errors.extend(tv_errors)
     if not team_id:
         try:
             team_id = resolve_fotmob_team_id(term)
@@ -3362,22 +3477,16 @@ def complete_team_fixtures(term, team_id, countries):
     except Exception as e:
         errors.append(f"{term}: {e}")
         fixtures = []
-    # Only fall back to guide fixtures when the authoritative team feed failed.
-    authoritative = bool(fixtures)
-    if not authoritative:
-        fixtures = [dict(row, is_live=False, status_known=False)
-                    for row in tv_fixtures]
-    else:
-        fixtures = [dict(row) for row in fixtures]
-        _overlay_fixture_rows(fixtures, tv_fixtures, append_missing=False)
+    fixtures = [dict(row) for row in fixtures]
     try:
         _overlay_fixture_rows(fixtures, search_daily_matches(term),
-                              append_missing=not authoritative)
+                              append_missing=True)
     except Exception as e:
         errors.append(f"{term} live status: {e}")
     for fixture in fixtures:
         fixture.setdefault("by_country", {})
     fixtures = _current_and_upcoming_fixtures(fixtures)
+    errors.extend(add_primary_tv_listings(fixtures, countries))
     fixtures.sort(key=lambda row: row.get("start") or "")
     return fixtures, errors, str(team_id or "")
 
@@ -3553,7 +3662,8 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     # Build (broadcaster, country, normtokens) list.
     srcs = []
     for country, names in (by_country or {}).items():
-        allowed = _COUNTRY_MATCH.get(country.upper(), {country.lower()})
+        allowed = (None if country.upper() == "LTV" else
+                   _COUNTRY_MATCH.get(country.upper(), {country.lower()}))
         for s in names:
             ns = normalise(s)
             toks = set(ns.split())
@@ -3575,7 +3685,7 @@ def match_channels(by_country, xtream_channels, cats, threshold):
         for orig, bcountry, allowed, sn, sset in srcs:
             # Country rule: if the channel HAS a recognised country prefix and
             # it isn't in this broadcaster's allowed set -> skip (wrong country).
-            if ch_cc is not None and ch_cc not in allowed:
+            if allowed is not None and ch_cc is not None and ch_cc not in allowed:
                 continue
             if _numbers_conflict(xn, sn):
                 continue
@@ -3617,7 +3727,8 @@ def match_channels(by_country, xtream_channels, cats, threshold):
                 # an exact normalized name, and carry the provider's country.
                 # Streaming platforms such as TV 2 Play remain category-only.
                 best_exact_provider = bool(
-                    compact_exact and (ch_cc in allowed or
+                    compact_exact and ((allowed is None and ch_cc is not None) or
+                                       (allowed is not None and ch_cc in allowed) or
                                        (ch_cc is None and _is_4k_category(category))) and
                     not _is_streaming(orig))
         best = round(max(0.0, min(1.0, best)), 3)
@@ -5246,10 +5357,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       <div class="settingsgroup" data-settings-panel="general" hidden>
       <div class="colh" data-i18n="Sports Search">Sports Search</div>
-      <div class="muted" data-i18n="Choose which regional TV listings Sports Search uses to find broadcasters for matches.">Choose which regional TV listings Sports Search uses to find broadcasters for matches.</div>
-      <div id="countryPicker" class="countrygrid"></div>
+      <div class="muted">FotMob provides fixtures and team details. Live Soccer TV supplies worldwide channel listings, with FotMob listings used automatically as fallback.</div>
       <input id="s_cc" type="hidden">
-      <div class="muted" style="margin-top:9px" data-i18n="Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.">Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.</div>
       </div>
       <div class="settingsgroup" data-settings-panel="iptv" hidden>
       <div class="colh" data-i18n="Playback">Playback</div>
@@ -5379,7 +5488,7 @@ const _I18N={
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
   "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Loading channel matches...":"Laster kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
-  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører",
+  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører","Other broadcaster listings":"Andre TV-oppføringer",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
@@ -6150,7 +6259,7 @@ const _TV_GUIDE_COUNTRIES=[
   ['ch','🇨🇭','Switzerland'],['pl','🇵🇱','Poland'],['ca','🇨🇦','Canada'],
   ['au','🇦🇺','Australia'],['br','🇧🇷','Brazil'],['mx','🇲🇽','Mexico']
 ];
-function selectedTvGuideCountries(){return String(s_cc.value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);}
+function selectedTvGuideCountries(){const v=String(s_cc.value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);return v.length?v:['no','gb','us','pt','ie','es','de','it','fr','nl','be','dk','se'];}
 function renderCountryPicker(values){
   const selected=new Set((values||[]).map(v=>String(v).toLowerCase()==='uk'?'gb':String(v).toLowerCase()));
   const known=new Set(_TV_GUIDE_COUNTRIES.map(row=>row[0]));
@@ -6174,7 +6283,8 @@ async function loadSettings(){
   s_host.value=c.xtream_host||'';
   s_user.value=c.xtream_user||'';s_pass.value=c.xtream_pass||'';
   s_ext.value=c.stream_ext||'ts';
-  renderCountryPicker(c.countries||['no','gb','us']);
+  s_cc.value=(c.countries||['no','gb','us','pt','ie','es','de','it','fr','nl','be','dk','se']).join(',');
+  renderCountryPicker(c.countries||selectedTvGuideCountries());
   s_start.value=c.start_section||'mylist';
   s_checkshows.checked=!!c.check_shows_on_startup;
   s_refreshiptv.checked=!!c.refresh_iptv_on_startup;
@@ -6291,7 +6401,7 @@ async function refreshOtherContent(btn,quiet){
   return withRefreshButton(btn,'Refreshing content...',async function(){
     const c=await api('/api/config'),parts=[],failures=[];refreshMessage('Refreshing sports, racing and games...');
     if(c.f1_enabled!==false){const racing=await api('/api/refresh_racing',{method:'POST'});if(!racing.error&&racing.ok)parts.push((racing.series||0)+' racing series');else failures.push('racing');}
-    if(c.football_enabled!==false){const sports=await api('/api/refresh_football',{method:'POST'});if(!sports.error&&sports.ok)parts.push((sports.matches||0)+' matches, '+(sports.teams||0)+' teams, '+(sports.guides||0)+' TV guides');else failures.push('sports');}
+    if(c.football_enabled!==false){const sports=await api('/api/refresh_football',{method:'POST'});if(!sports.error&&sports.ok){parts.push((sports.matches||0)+' matches, '+(sports.teams||0)+' teams, '+(sports.guides||0)+' TV guides');if(sports.listing_notice)toast(sports.listing_notice,7000);}else failures.push('sports');}
     if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
       const steam=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(!steam.error&&steam.ok)parts.push((steam.imported||0)+' Steam games');else failures.push('games');
     }
@@ -6317,7 +6427,7 @@ async function refreshEverything(btn,quiet){
     }
     if(c.football_enabled!==false){
       const football=await run('Sports',async function(){const r=await api('/api/refresh_football',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'sports refresh failed');return r;});
-      if(football)parts.push('Sports '+football.teams+' teams, '+football.guides+' guides');
+      if(football){parts.push('Sports '+football.teams+' teams, '+football.guides+' guides');if(football.listing_notice)toast(football.listing_notice,7000);}
     }
     if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
       const steam=await run('Steam',async function(){const r=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(r.error||!r.ok)throw new Error(r.error||'Steam refresh failed');return r;});
@@ -6435,7 +6545,16 @@ function channelLocalePriority(ch){
   const text=[ch&&ch.category,ch&&ch.xtream_name,ch&&ch.quality].filter(Boolean).join(' ');
   const is4k=/\\b(4k|uhd)\\b/i.test(text);
   const isNorwegian=/(^|[^a-z0-9])(no|norway|norge)([^a-z0-9]|$)/i.test(text);
-  return (is4k?2:0)+(isNorwegian?1:0);
+  const prefix=String((ch&&ch.category)||'').match(/^\\s*([a-z]{2,4})\\s*[:|\\-]/i)||String((ch&&ch.xtream_name)||'').match(/^\\s*([a-z]{2,4})\\s*[:|\\-]/i);
+  const cc=prefix?prefix[1].toLowerCase():'';
+  if(isNorwegian&&is4k)return 700;
+  if(isNorwegian)return 600;
+  if(is4k)return 500;
+  if(cc==='uk'||cc==='gb')return 400;
+  if(cc==='swe'||cc==='se')return 390;
+  if(cc==='den'||cc==='dk')return 380;
+  const known=new Set(['us','pt','es','de','it','fr','ie','be','nl','fi','at','ch','pl','cz','sk','hu','ro','bg','gr','hr','si','rs','ba','mk','al','tr','ca','au','br','mx','hk','cr']);
+  return known.has(cc)?200:300;
 }
 function preferredChannelSort(a,b){
   return channelLocalePriority(b)-channelLocalePriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
@@ -6492,10 +6611,12 @@ function renderFixtureCard(f,fi){
   }
   // Broadcaster rows are sorted country then broadcaster.
   if(rows.length){
+    const unmatchedListings=rows.filter(row=>!(f.matches||[]).some(m=>m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase())));
     html+='<div class="bcastlist">';
     rows.forEach(function(row,ri){
       // channels matched to this broadcaster
       const chans=(f.matches||[]).filter(function(m){return m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase());}).sort(function(a,b){const rank=fixtureChannelRank(b,f)-fixtureChannelRank(a,f);return rank||preferredChannelSort(a,b);});
+      if(!chans.length)return;
       const rid='f'+fi+'b'+ri;
       html+='<div class="bcrow" data-exp="'+rid+'">'
         +'<div class="bchead"><span class="cc">'+esc(row.cc)+'</span> <span class="bcname">'+esc(row.bcast)+'</span>'
@@ -6509,11 +6630,15 @@ function renderFixtureCard(f,fi){
             +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
         }
         if(chans.length>10)html+='<button class="ghost bcchanexpand" onclick="toggleBroadcasterCandidates(this)" data-more="'+(chans.length-10)+'">'+esc(tr('Show more channels'))+' ('+(chans.length-10)+')</button>';
-      }else{
-        html+='<div class="muted" style="padding:6px 10px">No channels in your list match this broadcaster.</div>';
       }
       html+='</div></div>';
     });
+    if(unmatchedListings.length){
+      const rid='f'+fi+'unmatched';
+      html+='<div class="bcrow" data-exp="'+rid+'"><div class="bchead"><span class="bcname">'+esc(tr('Other broadcaster listings'))+'</span> <span class="muted exphint">'+unmatchedListings.length+' · '+esc(f.listing_source||'')+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide" id="'+rid+'">';
+      unmatchedListings.forEach(row=>{html+='<div class="chline"><span class="matchchan"><span class="cc">'+esc(row.cc)+'</span><span class="chn">'+esc(row.bcast)+'</span></span></div>';});
+      html+='</div></div>';
+    }
     html+='</div>';
   }
   if(!rows.length&&!strictResults.length){
@@ -8276,6 +8401,7 @@ def test_external_source(key):
     probes = {
         "fotmob": lambda: http_get_json(FOTMOB_DAILY_MATCHES.format(
             date=time.strftime("%Y%m%d", time.localtime())), timeout=15),
+        "ltv": lambda: fetch_ltv_daily(datetime.date.today().isoformat()),
         "tvmaze": lambda: _tvmaze_episode_schedule("Breaking Bad", force=True),
         "cinemeta": lambda: http_get_json(
             "https://v3-cinemeta.strem.io/catalog/movie/top/search=matrix.json", timeout=15),
@@ -9520,7 +9646,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if u.path == "/api/my_teams":
                 cfg = load_config()
-                countries = cfg.get("countries") or ["no", "uk", "us"]
+                countries = list(FOTMOB_FALLBACK_COUNTRIES)
                 fav_data = load_favorites()
                 favorites = fav_data.get("teams", [])
                 favorites_changed = False
@@ -9533,22 +9659,6 @@ class Handler(BaseHTTPRequestHandler):
                                   else "").strip()
                     if not team_name:
                         continue
-                    tv_fixtures, src_err = search_fixtures(team_name, countries)
-                    errors.extend(src_err)
-                    if not team_id:
-                        wanted = _expand_terms(team_name.lower())
-                        for fixture in tv_fixtures:
-                            for side_name, side_id in (
-                                    (fixture.get("home", ""), fixture.get("home_id", "")),
-                                    (fixture.get("away", ""), fixture.get("away_id", ""))):
-                                low = side_name.lower().strip()
-                                if side_id and (team_name.lower() in low or low in wanted or
-                                                any(alias in low or low in alias
-                                                    for alias in wanted if len(alias) >= 3)):
-                                    team_id = str(side_id)
-                                    break
-                            if team_id:
-                                break
                     if not team_id:
                         team_id = resolve_fotmob_team_id(team_name)
                     if team_id and isinstance(favorite, dict) and not favorite.get("team_id"):
@@ -9562,10 +9672,6 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception as e:
                         errors.append(f"{team_name}: {e}")
                         fixtures = []
-                    # Fall back to TV-guide fixtures if the team feed is unavailable.
-                    if not fixtures:
-                        fixtures = [dict(row, is_live=False, status_known=False)
-                                    for row in tv_fixtures]
                     # A week-long schedule cache is fine for future fixtures, but live
                     # state must come from today's short-lived feed on every render.
                     try:
@@ -9595,19 +9701,7 @@ class Handler(BaseHTTPRequestHandler):
                             duplicate["home_id"] = duplicate.get("home_id") or daily.get("home_id", "")
                             duplicate["away_id"] = duplicate.get("away_id") or daily.get("away_id", "")
                             duplicate["status_known"] = True
-                    # Overlay broadcaster listings without using them as the fixture source.
-                    for fixture in fixtures:
-                        fday = str(fixture.get("start") or "")[:10]
-                        for tvrow in tv_fixtures:
-                            if fday and str(tvrow.get("start") or "")[:10] != fday:
-                                continue
-                            home_ok = (normalise(fixture.get("home", "")) == normalise(tvrow.get("home", "")) or
-                                       tvrow.get("home", "").lower() in _expand_terms(fixture.get("home", "").lower()))
-                            away_ok = (normalise(fixture.get("away", "")) == normalise(tvrow.get("away", "")) or
-                                       tvrow.get("away", "").lower() in _expand_terms(fixture.get("away", "").lower()))
-                            if home_ok and away_ok:
-                                fixture["by_country"] = tvrow.get("by_country", {})
-                                break
+                    errors.extend(add_primary_tv_listings(fixtures, countries))
                     for fixture in fixtures:
                         key = "|".join((str(fixture.get("home", "")).lower(),
                                         str(fixture.get("away", "")).lower(),
@@ -9630,7 +9724,7 @@ class Handler(BaseHTTPRequestHandler):
                 fixtures = sorted(merged.values(), key=lambda row: row.get("start") or "")
                 try:
                     top_fixtures = featured_daily_fixtures()
-                    errors.extend(add_tv_listings(top_fixtures, countries))
+                    errors.extend(add_primary_tv_listings(top_fixtures, countries))
                 except Exception as e:
                     top_fixtures = []
                     errors.append(f"FotMob featured fixtures: {e}")
@@ -9658,7 +9752,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not term:
                     return self._send(200, {"fixtures": [], "logged_in": False})
                 cfg = load_config()
-                countries = cfg.get("countries") or ["no", "uk", "us"]
+                countries = list(FOTMOB_FALLBACK_COUNTRIES)
                 fixtures, src_err, resolved_team_id = complete_team_fixtures(
                     term, selected_team_id, countries)
                 if selected_team_id:
@@ -9707,6 +9801,7 @@ class Handler(BaseHTTPRequestHandler):
                                 "home_id": f.get("home_id", ""),
                                 "away_id": f.get("away_id", ""),
                                 "by_country": f["by_country"], "matches": matches,
+                                "listing_source": f.get("listing_source", ""),
                                 "ppv_hits": ppv_hits, "streaming_only": streaming_only,
                                 "is_live": bool(f.get("is_live")),
                                 "is_finished": bool(f.get("is_finished")),
@@ -10089,13 +10184,23 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 _DAILY_MATCH_CACHE.update({"date": "", "ts": 0, "matches": []})
                 _TV_CACHE.clear()
+                _LTV_CACHE.clear()
                 _remove_data_cache_prefix("fotmob-daily")
-                _remove_data_cache_prefix("tv-guide-")
+                _remove_data_cache_prefix("ltv-daily-")
                 daily = fetch_fotmob_daily_matches()
                 guides = 0
-                for country in cfg.get("countries", ["no", "gb", "us"]):
-                    fetch_country_fixtures(country)
-                    guides += 1
+                listing_source = "LTV"
+                listing_notice = ""
+                try:
+                    fetch_ltv_daily(datetime.date.today().isoformat())
+                    guides = 1
+                except Exception as exc:
+                    listing_source = "FotMob fallback"
+                    listing_notice = "Live Soccer TV channel listings unavailable — using FotMob channel listings"
+                    _remove_data_cache_prefix("tv-guide-")
+                    for country in FOTMOB_FALLBACK_COUNTRIES:
+                        fetch_country_fixtures(country)
+                        guides += 1
                 fav_data = load_favorites()
                 _TEAM_FIXTURE_CACHE.clear()
                 _TEAM_PROFILE_CACHE.clear()
@@ -10127,7 +10232,9 @@ class Handler(BaseHTTPRequestHandler):
                 if changed:
                     save_favorites(fav_data)
                 return self._send(200, {"ok": True, "teams": teams, "guides": guides,
-                                        "matches": len(daily), "errors": errors})
+                                        "matches": len(daily), "errors": errors,
+                                        "listing_source": listing_source,
+                                        "listing_notice": listing_notice})
             except Exception as e:
                 return self._send(502, {"error": str(e)})
 
@@ -10894,8 +11001,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b365") > _parse_ver("0.777.b364"))
-    check("version equality", _parse_ver("v0.777.b365") == _parse_ver("0.777.b365"))
+    check("version ordering", _parse_ver("0.777.b366") > _parse_ver("0.777.b365"))
+    check("version equality", _parse_ver("v0.777.b366") == _parse_ver("0.777.b366"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10911,6 +11018,10 @@ def run_self_tests():
     check("TV listings enrich without reducing team schedule",
           len(schedule_test) == 2 and
           schedule_test[0]["by_country"] == {"PT": ["Sport TV 5"]})
+    ltv_test = _parse_ltv_daily('''<tr class="matchrow"><td><a href="/match/x/">Hearts vs Benfica</a></td><td id="channels"><a data-country="Portugal">Sport TV5</a><a data-country="United Kingdom">Hearts TV</a></td></tr>''', "2026-08-13")
+    check("LTV parser extracts channels without creating fixtures",
+          len(ltv_test) == 1 and ltv_test[0]["home"] == "Hearts" and
+          ltv_test[0]["by_country"] == {"PT": ["Sport TV5"], "UK": ["Hearts TV"]})
     unrelated_test = [dict(schedule_test[0])]
     _overlay_fixture_rows(unrelated_test, [{
         "home": "Portland Hearts of Pine", "away": "Forward Madison",
