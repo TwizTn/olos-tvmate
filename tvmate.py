@@ -3222,23 +3222,30 @@ def _team_names_equivalent(a, b):
         return False
     return a == b or b in _expand_terms(a) or a in _expand_terms(b)
 
+def _fetch_country_guides(countries, max_workers=6):
+    """Fetch regional guides using modules available in the bundled runtime."""
+    seen, normalized = set(), []
+    for value in countries or []:
+        country = _norm_cc(value)
+        if country and country not in seen:
+            seen.add(country)
+            normalized.append(country)
+    if not normalized:
+        return [], []
+    rows, errors = [], []
+    for country in normalized:
+        try:
+            rows.append((country, fetch_country_fixtures(country)))
+        except Exception as e:
+            errors.append(f"{_display_cc(country)}: {e}")
+    return rows, errors
+
 def search_fixtures(term, countries):
     term_l = term.lower().strip()
     want = _expand_terms(term_l)
     merged, errors = {}, []
-    # normalise (uk->gb) and dedupe while keeping order
-    seen_cc, norm_countries = set(), []
-    for c in countries:
-        nc = _norm_cc(c)
-        if nc and nc not in seen_cc:
-            seen_cc.add(nc)
-            norm_countries.append(nc)
-    for country in norm_countries:
-        try:
-            fx = fetch_country_fixtures(country)
-        except Exception as e:
-            errors.append(f"{_display_cc(country)}: {e}")
-            continue
+    guides, errors = _fetch_country_guides(countries)
+    for country, fx in guides:
         for f in fx:
             hay = " ".join([
                 f.get("home", ""), f.get("away", ""),
@@ -3268,16 +3275,9 @@ def search_fixtures(term, countries):
 def add_tv_listings(fixtures, countries):
     """Overlay configured-country FotMob TV listings onto known fixtures."""
     tv_rows, errors = [], []
-    seen_cc = set()
-    for country in countries:
-        country = _norm_cc(country)
-        if not country or country in seen_cc:
-            continue
-        seen_cc.add(country)
-        try:
-            tv_rows.extend(fetch_country_fixtures(country))
-        except Exception as e:
-            errors.append(f"{_display_cc(country)}: {e}")
+    guides, errors = _fetch_country_guides(countries)
+    for _country, rows in guides:
+        tv_rows.extend(rows)
     for fixture in fixtures:
         fday = str(fixture.get("start") or "")[:10]
         by_country = fixture.setdefault("by_country", {})
@@ -3297,7 +3297,7 @@ def add_tv_listings(fixtures, countries):
                     current.append(channel)
     return errors
 
-def _overlay_fixture_rows(fixtures, overlay_rows):
+def _overlay_fixture_rows(fixtures, overlay_rows, append_missing=False):
     """Overlay status/listing data without allowing it to remove fixtures."""
     for overlay in overlay_rows or []:
         oday = str(overlay.get("start") or "")[:10]
@@ -3310,7 +3310,8 @@ def _overlay_fixture_rows(fixtures, overlay_rows):
                 duplicate = fixture
                 break
         if duplicate is None:
-            fixtures.append(dict(overlay))
+            if append_missing:
+                fixtures.append(dict(overlay))
             continue
         for key in ("home_id", "away_id", "league_name", "league_id"):
             duplicate[key] = duplicate.get(key) or overlay.get(key, "")
@@ -3327,6 +3328,23 @@ def _overlay_fixture_rows(fixtures, overlay_rows):
             duplicate["live_minute"] = overlay.get("live_minute")
             duplicate["status_known"] = bool(overlay.get("status_known", True))
     return fixtures
+
+def _current_and_upcoming_fixtures(fixtures, now=None):
+    """Exclude completed historical rows while retaining live/recent fixtures."""
+    now = float(now if now is not None else time.time())
+    kept = []
+    for fixture in fixtures:
+        if fixture.get("is_live"):
+            kept.append(fixture)
+            continue
+        try:
+            kickoff = datetime.datetime.fromisoformat(str(
+                fixture.get("start") or "").replace("Z", "+00:00")).timestamp()
+        except Exception:
+            continue
+        if kickoff >= now - 6 * 3600:
+            kept.append(fixture)
+    return kept
 
 def complete_team_fixtures(term, team_id, countries):
     """Return the team schedule; country guides only enrich, never filter it."""
@@ -3345,18 +3363,21 @@ def complete_team_fixtures(term, team_id, countries):
         errors.append(f"{term}: {e}")
         fixtures = []
     # Only fall back to guide fixtures when the authoritative team feed failed.
-    if not fixtures:
+    authoritative = bool(fixtures)
+    if not authoritative:
         fixtures = [dict(row, is_live=False, status_known=False)
                     for row in tv_fixtures]
     else:
         fixtures = [dict(row) for row in fixtures]
-        _overlay_fixture_rows(fixtures, tv_fixtures)
+        _overlay_fixture_rows(fixtures, tv_fixtures, append_missing=False)
     try:
-        _overlay_fixture_rows(fixtures, search_daily_matches(term))
+        _overlay_fixture_rows(fixtures, search_daily_matches(term),
+                              append_missing=not authoritative)
     except Exception as e:
         errors.append(f"{term} live status: {e}")
     for fixture in fixtures:
         fixture.setdefault("by_country", {})
+    fixtures = _current_and_upcoming_fixtures(fixtures)
     fixtures.sort(key=lambda row: row.get("start") or "")
     return fixtures, errors, str(team_id or "")
 
@@ -9472,9 +9493,7 @@ class Handler(BaseHTTPRequestHandler):
                 term = (q.get("q", [""])[0]).strip()
                 if not term:
                     return self._send(200, {"teams": []})
-                cfg = load_config()
-                countries = cfg.get("countries") or ["no", "uk", "us"]
-                fixtures, src_err = search_fixtures(term, countries)
+                src_err = []
                 term_l = term.lower()
                 wanted = _expand_terms(term_l)
                 found = []
@@ -9487,17 +9506,6 @@ class Handler(BaseHTTPRequestHandler):
                             found.append(team)
                 except Exception as e:
                     src_err.append(f"FotMob team search: {e}")
-                for fixture in fixtures:
-                    sides = ((fixture.get("home", ""), fixture.get("home_id", "")),
-                             (fixture.get("away", ""), fixture.get("away_id", "")))
-                    for name, team_id in sides:
-                        low = name.lower().strip()
-                        matches = (term_l in low or low in wanted or
-                                   any(alias in low or low in alias for alias in wanted
-                                       if len(alias) >= 3))
-                        if matches and low and low not in seen:
-                            seen.add(low)
-                            found.append({"name": name, "team_id": team_id})
                 return self._send(200, {"teams": found, "source_errors": src_err})
 
             if u.path == "/api/team_profile":
@@ -10903,9 +10911,23 @@ def run_self_tests():
     check("TV listings enrich without reducing team schedule",
           len(schedule_test) == 2 and
           schedule_test[0]["by_country"] == {"PT": ["Sport TV 5"]})
+    unrelated_test = [dict(schedule_test[0])]
+    _overlay_fixture_rows(unrelated_test, [{
+        "home": "Portland Hearts of Pine", "away": "Forward Madison",
+        "start": "2026-08-16T18:30:00Z", "by_country": {"US": ["ESPN Select"]}}])
+    check("team schedule overlay cannot append partial-name fixtures",
+          len(unrelated_test) == 1)
+    current_test = _current_and_upcoming_fixtures([
+        {"home": "Old", "away": "May", "start": "2026-05-01T12:00:00Z"},
+        {"home": "Hearts", "away": "Benfica", "start": "2026-08-13T18:45:00Z"}],
+        datetime.datetime(2026, 8, 13, 12, tzinfo=datetime.timezone.utc).timestamp())
+    check("historical team fixtures excluded from search",
+          len(current_test) == 1 and current_test[0]["home"] == "Hearts")
     check("country picker uses labeled Portugal code",
           "['pt','🇵🇹','Portugal']" in PAGE and
           'id="s_cc" type="hidden"' in PAGE)
+    check("country guides avoid optional bundled modules",
+          "concurrent.futures" not in sys.modules)
     profile_backup = create_profile_backup("profile", {"filter": "all"})
     check("profile backup omits Xtream credentials",
           _PROFILE_SECRET_KEYS.isdisjoint(profile_backup["config"]))
