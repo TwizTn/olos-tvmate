@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b366"
+VERSION = "0.777.b367"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -8469,12 +8469,17 @@ class Handler(BaseHTTPRequestHandler):
         if isinstance(body, (dict, list)):
             body = json.dumps(body)
         data = body.encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", ctype + "; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype + "; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            # Browsers routinely cancel obsolete API requests during reloads,
+            # navigation and app updates. The response has nowhere to go.
+            return
 
     def _send_image_file(self, path, ctype=None, cache_control="public, max-age=31536000, immutable"):
         with open(path, "rb") as f:
@@ -10560,9 +10565,16 @@ class Handler(BaseHTTPRequestHandler):
                                   'del "%~f0"\r\n'])
                     with open(helper, "w", encoding="utf-8", newline="") as f:
                         f.writelines(lines)
-                    flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0x00000010)
+                    # The helper must survive this server exiting, but it does
+                    # not need a visible console. A new console also gets
+                    # inherited by legacy launchers and exposes harmless HTTP
+                    # disconnect tracebacks in a second command window.
+                    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
                     subprocess.Popen(["cmd.exe", "/d", "/c", helper],
                                      cwd=app_dir(), creationflags=flags,
+                                     stdin=subprocess.DEVNULL,
+                                     stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL,
                                      close_fds=True)
                 else:
                     helper = os.path.join(app_dir(), "_update.sh")
@@ -11001,8 +11013,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b366") > _parse_ver("0.777.b365"))
-    check("version equality", _parse_ver("v0.777.b366") == _parse_ver("0.777.b366"))
+    check("version ordering", _parse_ver("0.777.b367") > _parse_ver("0.777.b366"))
+    check("version equality", _parse_ver("v0.777.b367") == _parse_ver("0.777.b367"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
