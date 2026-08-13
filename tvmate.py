@@ -118,7 +118,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b362"
+VERSION = "0.777.b363"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -10954,16 +10954,11 @@ def main():
         return
     cfg = load_config()
     hide_console = True
-    hidden_child = os.environ.get("TVMATE_HIDDEN_CHILD") == "1"
-    if sys.platform.startswith("win") and not hidden_child:
-        # Launcher updates are deliberately never attempted during application
-        # startup. An old but working OTVM.exe may launch every newer script;
-        # replacing it here previously allowed a launcher migration failure to
-        # stop an otherwise valid tvmate.py before its server had even started.
-        if not _launcher_is_current() and hide_console:
-            if _launch_without_console():
-                _close_launcher_console()
-                return
+    # The process which successfully loaded this script always starts the
+    # server directly. Never relaunch, replace, inspect, or terminate OTVM.exe
+    # during startup: older bundled launchers may expose a temporary executable
+    # as sys.executable, which made the former hidden-child relaunch loop or exit
+    # before binding the TVMate port.
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     _STOP_EVENT.clear()
     _mark_app_activity()
@@ -10995,10 +10990,7 @@ def main():
             webbrowser.open(url)
         except Exception:
             pass
-        # CREATE_NO_WINDOW children are already hidden. This is only a
-        # fallback for platforms/launchers where the relaunch was unavailable.
-        if not hidden_child:
-            _set_console_visible(False)
+        _set_console_visible(False)
     else:
         # Normal mode keeps the familiar pancake prompt and waits for Enter.
         import random as _rnd
@@ -11032,8 +11024,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b362") > _parse_ver("0.777.b361"))
-    check("version equality", _parse_ver("v0.777.b362") == _parse_ver("0.777.b362"))
+    check("version ordering", _parse_ver("0.777.b363") > _parse_ver("0.777.b362"))
+    check("version equality", _parse_ver("v0.777.b363") == _parse_ver("0.777.b363"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11272,6 +11264,11 @@ def run_self_tests():
           "New TVMate did not start. Restoring the previous version" in source and
           "Invoke-RestMethod" in source and
           "Previous TVMate restored" in source)
+    main_source = source[source.index("def main():"):source.index("def _t_sleep")]
+    check("startup has no launcher relaunch or stale hidden child",
+          "_launch_without_console" not in main_source and
+          "_start_launcher_migration" not in main_source and
+          "hidden_child" not in main_source)
     return checks
 
 if __name__ == "__main__":
