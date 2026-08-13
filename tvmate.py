@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b369"
+VERSION = "0.777.b370"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1703,7 +1703,7 @@ def _display_cc(cc):
     return _CC_DISPLAY.get(cc.lower(), cc)
 _TV_CACHE = {}          # country -> {"ts": float, "fixtures": [...]}
 _TV_TTL = 6 * 3600      # broadcaster listings persist for 6 hours
-_LTV_TTL = 3 * 3600     # one light daily-page request, reused by every search
+_LTV_TTL = 26 * 3600    # daily listing; date-keyed cache survives the whole day
 _LTV_CACHE = {}         # date -> {ts, rows}; FotMob remains the fixture source
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
@@ -2805,7 +2805,7 @@ def search_daily_matches(term):
         home_obj = match.get("home") or {}
         away_obj = match.get("away") or {}
         status = match.get("status") or {}
-        if status.get("cancelled") or status.get("finished"):
+        if status.get("cancelled"):
             continue
         home = str(home_obj.get("name") or "")
         away = str(away_obj.get("name") or "")
@@ -2813,7 +2813,9 @@ def search_daily_matches(term):
         if not any(value in hay for value in wanted):
             continue
         start = str(status.get("utcTime") or match.get("startDate") or "")
-        is_live = bool(status.get("started") or status.get("ongoing") or status.get("live"))
+        is_finished = bool(status.get("finished"))
+        is_live = bool((status.get("started") or status.get("ongoing") or
+                        status.get("live")) and not is_finished)
         live_minute = None
         live_time = status.get("liveTime") or {}
         if isinstance(live_time, dict):
@@ -2826,7 +2828,7 @@ def search_daily_matches(term):
                     "home_id": str(home_obj.get("id") or ""),
                     "away_id": str(away_obj.get("id") or ""),
                     "is_live": is_live, "live_minute": live_minute,
-                    "is_finished": bool(status.get("finished")),
+                    "is_finished": is_finished,
                     "league_name": str(match.get("_league_name") or ""),
                     "league_id": str(match.get("_league_id") or ""),
                     "by_country": {}, "all_channels": []})
@@ -2961,11 +2963,11 @@ def _parse_ltv_daily(page, date):
     return rows
 
 def fetch_ltv_daily(date):
-    """Fetch at most one LTV schedule per date and reuse it for three hours."""
+    """Fetch at most one LTV schedule per date and reuse it through that day."""
     date = str(date or "")[:10]
     now = time.time()
     cached = _LTV_CACHE.get(date)
-    if cached and now - cached["ts"] < _LTV_TTL:
+    if cached:
         return cached["rows"]
     disk = _load_timed_data_cache(f"ltv-daily-{date}.json", _LTV_TTL)
     if isinstance(disk, list) and disk:
@@ -5859,6 +5861,14 @@ function applyProfileConfig(c){
 
 let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_sportsVisibleFixtures=[],_sportsAvailabilityTimer=null,_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
 function sportsFixtureKey(f){return [String(f.home||'').trim().toLowerCase(),String(f.away||'').trim().toLowerCase(),String(f.start||'').slice(0,16)].join('|');}
+function fixtureElapsedMinutes(f){const ts=f&&f.start?new Date(f.start).getTime():NaN;return Number.isFinite(ts)?(Date.now()-ts)/60000:null;}
+function fixtureIsLive(f){
+  if(!f||f.is_finished)return false;const mins=fixtureElapsedMinutes(f);if(mins===null||mins<0)return false;
+  // Never let a stale provider flag or kickoff estimate create 3–4 hour games.
+  if(f.is_live)return mins<=150;
+  return !f.status_known&&mins<=135;
+}
+function fixtureIsRecent(f){const mins=fixtureElapsedMinutes(f);return mins!==null&&mins>=0&&mins<=360&&!fixtureIsLive(f);}
 function favoriteTeamRow(t){return {name:String(typeof t==='string'?t:(t.name||'')),team_id:String(typeof t==='string'?'':(t.team_id||'')),logo:String(typeof t==='string'?'':(t.logo||''))};}
 function renderTeamFavoriteRail(){
   const rail=document.getElementById('teamFavList');if(!rail)return;
@@ -5867,14 +5877,14 @@ function renderTeamFavoriteRail(){
 }
 function selectedTeamNextFixture(){
   const name=String(_selectedTeamName||'');if(!name)return null;const now=Date.now();
-  return _myTeamFixtures.filter(f=>{const belongs=(f.favorite_teams||[]).some(owner=>_teamNamesEquivalentForUi(owner,name))||_teamNamesEquivalentForUi(f.home,name)||_teamNamesEquivalentForUi(f.away,name);if(!belongs)return false;const ts=f.start?new Date(f.start).getTime():0;return f.is_live||(ts&&ts>now-3*3600000);}).sort((a,b)=>{if(!!a.is_live!==!!b.is_live)return a.is_live?-1:1;return new Date(a.start||0)-new Date(b.start||0);})[0]||null;
+  return _myTeamFixtures.filter(f=>{const belongs=(f.favorite_teams||[]).some(owner=>_teamNamesEquivalentForUi(owner,name))||_teamNamesEquivalentForUi(f.home,name)||_teamNamesEquivalentForUi(f.away,name);if(!belongs)return false;const ts=f.start?new Date(f.start).getTime():0;return fixtureIsLive(f)||fixtureIsRecent(f)||(ts&&ts>now);}).sort((a,b)=>{const rank=f=>fixtureIsLive(f)?0:(fixtureIsRecent(f)?1:2),d=rank(a)-rank(b);if(d)return d;if(rank(a)===1)return new Date(b.start||0)-new Date(a.start||0);return new Date(a.start||0)-new Date(b.start||0);})[0]||null;
 }
 function renderSelectedTeamProfile(profile){
   const el=document.getElementById('teamProfileDetail');if(!el)return;const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase())||(_selectedTeamRow&&String(_selectedTeamRow.name).toLowerCase()===String(_selectedTeamName).toLowerCase()?_selectedTeamRow:null);if(!row){el.innerHTML='<span class="muted">'+esc(tr('Choose a team to see details.'))+'</span>';return;}
   profile=profile||_selectedTeamProfile||{};const src=profile.logo||row.logo||(row.team_id?'/api/team_logo?id='+encodeURIComponent(row.team_id):''),meta=[profile.country,profile.league].filter(Boolean).join(' · ');
   const facts=[['Home ground',profile.stadium||'—'],['Head coach',profile.coach||'—'],['League',profile.league||'—'],['Country',profile.country||'—']];
   const next=selectedTeamNextFixture();let nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(tr('Next match'))+'</div><span class="muted">'+esc(tr('No upcoming fixture found.'))+'</span></div>';
-  if(next){const kick=next.start?new Date(next.start):null,when=next.is_live?tr('Live now'):(kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'');nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(next.is_live?tr('Live now'):tr('Next match'))+'</div><b>'+esc(next.home||'')+' v '+esc(next.away||'')+'</b><span class="muted">'+esc(when)+(next.league_name?' · '+esc(next.league_name):'')+'</span></div>';}
+  if(next){const kick=next.start?new Date(next.start):null,live=fixtureIsLive(next),recent=fixtureIsRecent(next),when=live?tr('Live now'):(kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'');nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(live?tr('Live now'):(recent?'Recent match':tr('Next match')))+'</div><b>'+esc(next.home||'')+' v '+esc(next.away||'')+'</b><span class="muted">'+esc(when)+(recent?' · ended':'')+(next.league_name?' · '+esc(next.league_name):'')+'</span></div>';}
   el.innerHTML='<div class="teamprofilehero"><div class="teamprofilebadge">'+(src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</div><div class="teamprofileidentity"><h2>'+esc(profile.name||row.name)+'</h2><div class="muted">'+esc(meta||tr('Football'))+'</div></div></div><div class="teamprofilefacts">'+facts.map(f=>'<div class="teamprofilefact"><span>'+esc(tr(f[0]))+'</span><b title="'+escAttr(f[1])+'">'+esc(f[1])+'</b></div>').join('')+'</div>'+nextHtml;
 }
 async function loadSelectedTeamProfile(row){
@@ -5896,7 +5906,7 @@ function teamFixtureCard(f,live,deepLink){
     const hasClock=f.live_minute!==null&&f.live_minute!==undefined&&Number.isFinite(Number(f.live_minute));
     const mins=hasClock?Number(f.live_minute):estimated;
     status='<span class="live">&#9679; LIVE '+mins+' min</span>';
-  }
+  }else if(fixtureIsRecent(f))status='<span class="ended">ended / earlier today</span>';
   const owners=(f.favorite_teams||[]).join(', ');
   const query=(f.home||'')+' '+(f.away||''),matchQuery=(f.favorite_teams||[])[0]||f.home||f.away||'';
   const homeLogo=f.home_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.home_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
@@ -5921,30 +5931,33 @@ async function loadMyTeams(){
   const upcoming=document.getElementById('teamUpcomingList'), liveList=document.getElementById('teamLiveList'), liveSection=document.getElementById('teamLiveSection');
   const topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
   if(!teams.length){liveSection.classList.add('hide');upcoming.innerHTML='<span class="muted">Add a favorite team to see its fixtures.</span>';}
-  upcoming.innerHTML='<span class="muted">Loading fixtures...</span>';
+  if(!_myTeamFixtures.length)upcoming.innerHTML='<span class="muted">Loading fixtures...</span>';
   const r=await api('/api/my_teams');
   if(r.error){upcoming.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
   _myTeamFixtures=r.fixtures||[];_sportsVisibleFixtures=[..._myTeamFixtures,...(r.top_fixtures||[])];renderSelectedTeamProfile(_selectedTeamProfile);
-  const live=[], future=[];
+  const live=[], recent=[], future=[];
   for(const f of (r.fixtures||[])){
     const ts=f.start?new Date(f.start).getTime():0, mins=ts?(Date.now()-ts)/60000:null;
-    if(f.is_live||(!f.is_finished&&mins!==null&&mins>=0&&mins<=240))live.push(f);
+    if(fixtureIsLive(f))live.push(f);
+    else if(fixtureIsRecent(f))recent.push(f);
     else if(mins!==null&&mins<0)future.push(f);
   }
   if(live.length){liveList.innerHTML=live.map(f=>teamFixtureCard(f,true)).join('');liveSection.classList.remove('hide');}
   else{liveList.innerHTML='';liveSection.classList.add('hide');}
   const topFixtures=r.top_fixtures||[];
   if(topFixtures.length){
-    topList.innerHTML='<div class="topfixturegrid">'+topFixtures.map((f,i)=>'<div class="topfixtureitem'+(i>=12?' topfixtureextra hide':'')+'">'+teamFixtureCard(f,!!f.is_live)+'</div>').join('')+'</div>'
+    topList.innerHTML='<div class="topfixturegrid">'+topFixtures.map((f,i)=>'<div class="topfixtureitem'+(i>=12?' topfixtureextra hide':'')+'">'+teamFixtureCard(f,fixtureIsLive(f))+'</div>').join('')+'</div>'
       +(topFixtures.length>12?'<div class="topfixturemore"><button class="ghost" onclick="toggleTopFixtures(this)">'+tr('Show more matches')+'</button></div>':'');
     topSection.classList.remove('hide');
   }else{topList.innerHTML='';topSection.classList.add('hide');}
   let upcomingHtml='';
   for(const team of teams){
     const name=String(typeof team==='string'?team:team.name||''), key=name.toLowerCase();
-    const teamFixtures=future.filter(f=>(f.favorite_teams||[]).some(owner=>String(owner).toLowerCase()===key)).slice(0,4);
+    const recentFixtures=recent.filter(f=>(f.favorite_teams||[]).some(owner=>String(owner).toLowerCase()===key)).sort((a,b)=>new Date(b.start)-new Date(a.start));
+    const futureFixtures=future.filter(f=>(f.favorite_teams||[]).some(owner=>String(owner).toLowerCase()===key));
+    const teamFixtures=[...recentFixtures,...futureFixtures].slice(0,4);
     if(!teamFixtures.length)continue;
-    upcomingHtml+='<div class="teamupcominggroup"><div class="teamupcomingname">'+esc(name)+'</div><div class="teamfixturegrid">'+teamFixtures.map(f=>teamFixtureCard(f,false)).join('')+'</div></div>';
+    upcomingHtml+='<div class="teamupcominggroup"><div class="teamupcomingname">'+esc(name)+'</div><div class="teamfixturegrid">'+teamFixtures.map(f=>teamFixtureCard(f,fixtureIsLive(f))).join('')+'</div></div>';
   }
   upcoming.innerHTML=upcomingHtml||(teams.length?'<span class="muted">No upcoming fixtures found.</span>':'<span class="muted">Add a favorite team to see its fixtures.</span>');
   loadSportsAvailability(false);
@@ -6598,12 +6611,12 @@ function renderFixtureCard(f,fi){
     const kick=new Date(f.start);
     const mins=Math.floor((Date.now()-kick.getTime())/60000);
     const sameDay=kick.toDateString()===new Date().toDateString();
-    if(f.is_live||(!f.is_finished&&mins>=0&&mins<=240)){
+    if(fixtureIsLive(f)){
       const hasClock=f.live_minute!==null&&f.live_minute!==undefined&&Number.isFinite(Number(f.live_minute));
       const liveMins=hasClock?Number(f.live_minute):Math.max(0,mins);
       badge=' <span class="live">\u25CF LIVE '+(hasClock?'':'~')+liveMins+"'</span>";
     }
-    else if(f.is_finished||(mins>240&&(mins<360||sameDay)))badge=' <span class="ended">ended / earlier today</span>';
+    else if(fixtureIsRecent(f)||(mins>150&&(mins<360||sameDay)))badge=' <span class="ended">ended / earlier today</span>';
     else if(mins<0&&mins>-60)badge=' <span class="soon">starts in '+(-mins)+" min</span>";
   }
   const rows=[];
@@ -11044,8 +11057,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b369") > _parse_ver("0.777.b368"))
-    check("version equality", _parse_ver("v0.777.b369") == _parse_ver("0.777.b369"))
+    check("version ordering", _parse_ver("0.777.b370") > _parse_ver("0.777.b369"))
+    check("version equality", _parse_ver("v0.777.b370") == _parse_ver("0.777.b370"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11307,8 +11320,10 @@ def run_self_tests():
     check("generic PPV candidate retained", ranked[0]["fixture_match"] == "generic")
     check("wrong one-team event ranked last", ranked[-1]["fixture_match"] == "partial")
     check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
-    check("live fallback requires explicit finished state",
-          "!f.is_finished&&mins!==null&&mins>=0&&mins<=240" in PAGE)
+    check("live fallback is bounded and recent results remain visible",
+          "if(f.is_live)return mins<=150" in PAGE and
+          "mins<=360&&!fixtureIsLive(f)" in PAGE and
+          "if(!_myTeamFixtures.length)upcoming.innerHTML" in PAGE)
     return checks
 
 if __name__ == "__main__":
