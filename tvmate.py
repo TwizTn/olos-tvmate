@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b376"
+VERSION = "0.777.b377"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1707,6 +1707,7 @@ _LTV_TTL = 26 * 3600    # daily listing; date-keyed cache survives the whole day
 _LTV_CACHE = {}         # date -> {ts, rows}; FotMob remains the fixture source
 _LTV_CACHE_LOCK = threading.Lock()
 _LTV_DATE_LOCKS = {}
+_LTV_MATCH_CACHE = {}   # match URL -> complete international broadcaster map
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
 _TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
@@ -2938,6 +2939,60 @@ def _ltv_listing_country(attrs, name):
             country = _display_cc(named_cc)
     return country
 
+def _ltv_match_url(attrs):
+    match = re.search(r'href=["\']([^"\']*/match/[^"\']*)', str(attrs or ""), re.I)
+    if not match:
+        return ""
+    path = html.unescape(match.group(1)).strip()
+    return urllib.parse.urljoin("https://www.livesoccertv.com/", path)
+
+def _parse_ltv_match_listings(page):
+    """Parse the country table on one LTV match page."""
+    text = str(page or "")
+    marker = re.search(r'International\s+(?:TV|Coverage)', text, re.I)
+    if marker:
+        text = text[marker.end():]
+    end = re.search(r'(?:Content disclaimer|Match Details|Head to Head)', text, re.I)
+    if end:
+        text = text[:end.start()]
+    by_country = {}
+    for row in re.finditer(r'<tr\b[^>]*>(.*?)</tr>', text, re.I | re.S):
+        cells = re.findall(r'<t[dh]\b[^>]*>(.*?)</t[dh]>', row.group(1), re.I | re.S)
+        if len(cells) < 2:
+            continue
+        cc = _cc_from_name(_plain_html(cells[0]))
+        if not cc:
+            continue
+        display = _display_cc(cc)
+        for link in re.finditer(r'<a\b([^>]*)>(.*?)</a>', " ".join(cells[1:]), re.I | re.S):
+            name = _plain_html(link.group(2))
+            if not name or name == "…":
+                continue
+            current = by_country.setdefault(display, [])
+            if name not in current:
+                current.append(name)
+    return by_country
+
+def fetch_ltv_match_listings(match_url):
+    """Fetch and cache one complete international match listing."""
+    url = str(match_url or "").strip()
+    if not re.match(r'^https://(?:www\.)?livesoccertv\.com/match/', url, re.I):
+        return {}
+    cached = _LTV_MATCH_CACHE.get(url)
+    if isinstance(cached, dict):
+        return cached
+    cache_id = hashlib.sha1(url.encode("utf-8")).hexdigest()[:20]
+    disk = _load_timed_data_cache(f"ltv-match-v1-{cache_id}.json", _LTV_TTL)
+    if isinstance(disk, dict) and disk:
+        _LTV_MATCH_CACHE[url] = disk
+        return disk
+    rows = _parse_ltv_match_listings(http_get_text(url, timeout=15))
+    if not rows:
+        raise RuntimeError("Live Soccer TV returned no international match listings")
+    _LTV_MATCH_CACHE[url] = rows
+    _save_timed_data_cache(f"ltv-match-v1-{cache_id}.json", rows)
+    return rows
+
 def _parse_ltv_daily(page, date):
     """Parse LTV's public daily table. It enriches existing FotMob rows only."""
     rows = []
@@ -2947,8 +3002,10 @@ def _parse_ltv_daily(page, date):
         game = ""
         game_link = re.search(r'<a\b[^>]*(?:/match/|class=["\'][^"\']*(?:match|game))[^>]*>(.*?)</a>',
                               body, re.I | re.S)
+        match_url = ""
         if game_link:
             game = _plain_html(game_link.group(1))
+            match_url = _ltv_match_url(game_link.group(0))
         if not game:
             anchors = re.findall(r'<a\b[^>]*>(.*?)</a>', body, re.I | re.S)
             game = next((_plain_html(a) for a in anchors
@@ -2970,7 +3027,8 @@ def _parse_ltv_daily(page, date):
                 by_country[cc].append(name)
         if by_country:
             rows.append({"home": teams[0].strip(), "away": teams[1].strip(),
-                         "start": str(date), "by_country": by_country})
+                         "start": str(date), "by_country": by_country,
+                         "match_url": match_url})
     if rows:
         return rows
     # Current LTV pages render match cards/rows without the legacy `matchrow`
@@ -2981,6 +3039,7 @@ def _parse_ltv_daily(page, date):
         page or "", re.I | re.S))
     for index, match in enumerate(anchors):
         game = _plain_html(match.group(2))
+        match_url = _ltv_match_url(match.group(1))
         teams = re.split(r'\s+(?:vs?\.?|–|—)\s+', game, maxsplit=1, flags=re.I)
         if len(teams) != 2:
             continue
@@ -3003,7 +3062,8 @@ def _parse_ltv_daily(page, date):
                 by_country[cc].append(name)
         if by_country:
             rows.append({"home": teams[0].strip(), "away": teams[1].strip(),
-                         "start": str(date), "by_country": by_country})
+                         "start": str(date), "by_country": by_country,
+                         "match_url": match_url})
     return rows
 
 def fetch_ltv_daily(date):
@@ -3022,7 +3082,7 @@ def fetch_ltv_daily(date):
             cached = _LTV_CACHE.get(date)
         if cached:
             return cached["rows"]
-        disk = _load_timed_data_cache(f"ltv-daily-v2-{date}.json", _LTV_TTL)
+        disk = _load_timed_data_cache(f"ltv-daily-v3-{date}.json", _LTV_TTL)
         if isinstance(disk, list) and disk:
             with _LTV_CACHE_LOCK:
                 _LTV_CACHE[date] = {"ts": now, "rows": disk}
@@ -3033,7 +3093,7 @@ def fetch_ltv_daily(date):
             raise RuntimeError("Live Soccer TV returned no readable listings")
         with _LTV_CACHE_LOCK:
             _LTV_CACHE[date] = {"ts": now, "rows": rows}
-        _save_timed_data_cache(f"ltv-daily-v2-{date}.json", rows)
+        _save_timed_data_cache(f"ltv-daily-v3-{date}.json", rows)
         return rows
 
 def _team_profile_from_data(data, team_id, team_name=""):
@@ -3489,7 +3549,13 @@ def add_primary_tv_listings(fixtures, countries):
                 found = row
                 break
         if found:
-            fixture["by_country"] = dict(found.get("by_country") or {})
+            detailed = {}
+            if found.get("match_url"):
+                try:
+                    detailed = fetch_ltv_match_listings(found["match_url"])
+                except Exception as exc:
+                    errors.append(f"Live Soccer TV match listings unavailable ({exc})")
+            fixture["by_country"] = dict(detailed or found.get("by_country") or {})
             fixture["listing_source"] = "LTV"
         else:
             missing.append(fixture)
@@ -3802,6 +3868,16 @@ def match_channels(by_country, xtream_channels, cats, threshold):
                     _COUNTRY_MATCH.get(country.upper(), {canonical_country})})
         for s in names:
             ns = normalise(s)
+            # LTV often appends the already-separate country to a linear feed
+            # ("V Sport 1 Norway"). IPTV catalogues normally express it in the
+            # category/prefix instead ("NO: V Sport 1"). Compare channel names
+            # without that redundant suffix so the linear feed is exact.
+            suffixes = {"NO": ("norway", "norge", "norwegian"),
+                        "SE": ("sweden", "swedish"),
+                        "DK": ("denmark", "danish"),
+                        "FI": ("finland", "finnish")}.get(country.upper(), ())
+            for suffix in suffixes:
+                ns = re.sub(r"\s+" + re.escape(suffix) + r"$", "", ns)
             toks = set(ns.split())
             if toks:
                 srcs.append((s, country.upper(), allowed, ns, toks))
@@ -4001,7 +4077,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v12|" + _vod_cache_key(x) + "|" + str(
+    return "football-v13|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11181,8 +11257,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b376") > _parse_ver("0.777.b375"))
-    check("version equality", _parse_ver("v0.777.b376") == _parse_ver("0.777.b376"))
+    check("version ordering", _parse_ver("0.777.b377") > _parse_ver("0.777.b376"))
+    check("version equality", _parse_ver("v0.777.b377") == _parse_ver("0.777.b377"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11213,6 +11289,27 @@ def run_self_tests():
           {"Viaplay Denmark", "Viaplay Sweden", "Viaplay Norway"}.issubset(
               {name for names in ltv_current_test[0]["by_country"].values()
                for name in names}))
+    ltv_match_detail_test = _parse_ltv_match_listings('''
+      <h2>International TV</h2><table>
+      <tr><td>Norway</td><td><a href="/channels/viaplay-norway/">Viaplay Norway</a>
+      <a href="/channels/tv2-play-norway/">TV 2 Play</a>
+      <a href="/channels/v-sport-1-norway/">V Sport 1 Norway</a></td></tr>
+      <tr><td>Sweden</td><td><a href="/channels/viaplay-sweden/">Viaplay Sweden</a></td></tr>
+      </table><h2>Match Details</h2>''')
+    check("LTV match page extracts complete Norwegian channel row",
+          ltv_match_detail_test == {
+              "NO": ["Viaplay Norway", "TV 2 Play", "V Sport 1 Norway"],
+              "SE": ["Viaplay Sweden"]})
+    check("LTV daily row retains detail URL",
+          ltv_current_test[0].get("match_url") ==
+          "https://www.livesoccertv.com/match/nottingham-forest-vs-leeds/")
+    v_sport_exact = match_channels(
+        {"NO": ["V Sport 1 Norway"]},
+        [{"name": "NO: V Sport 1 HD", "stream_id": 129, "category_id": "no"}],
+        {"no": "NO | NORWAY"}, 0.62)
+    check("country-suffixed V Sport feed is exact Norwegian provider",
+          len(v_sport_exact) == 1 and v_sport_exact[0]["score"] == 1.0 and
+          v_sport_exact[0]["provider_exact"] is True)
     unrelated_test = [dict(schedule_test[0])]
     _overlay_fixture_rows(unrelated_test, [{
         "home": "Portland Hearts of Pine", "away": "Forward Madison",
