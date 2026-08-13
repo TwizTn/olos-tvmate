@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 181449)
-Total output lines: 11258
-
 #!/usr/bin/env python3
 """
 Olo's TVMate
@@ -4260,7 +4257,3530 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mydash.layout-timeline{display:grid;width:100%;max-width:2200px;grid-template-columns:clamp(460px,31vw,650px) minmax(0,1fr);grid-template-rows:auto auto 1fr;gap:0 30px;align-items:start}
  .mydash.layout-timeline #myListProfile{grid-column:1;grid-row:1;flex-direction:row;align-items:center;gap:12px;margin:0 0 20px;padding:4px 0 18px}
  .mydash.layout-timeline #myListProfile .mylistprofileemblem{width:52px;height:52px;flex-basis:52px}
- .mydash.layout-timeline #myListProfile .mylistprofileemblem svg{width:52px;height:…81449 tokens truncated…lse,data:{movie:{name:'Example Movie',year:new Date().getFullYear(),cover:setupDemoCover('EXAMPLE MOVIE','#164a72'),stream_found:false}}});
+ .mydash.layout-timeline #myListProfile .mylistprofileemblem svg{width:52px;height:52px}
+ .mydash.layout-timeline #myListProfile .mylistprofilename{font-size:20px;line-height:1.15;min-width:0;overflow-wrap:anywhere}
+ .mydash.layout-timeline #myListTeamsBlock{grid-column:1;grid-row:2;margin-bottom:24px}
+ .mydash.layout-timeline #myListChannelsBlock{grid-column:1;grid-row:3;margin-bottom:0}
+ .mydash.layout-timeline #myListTimelineBlock{grid-column:2;grid-row:1/4;margin:0;min-width:0}
+ .mydash.layout-timeline #myListTeams{grid-template-columns:1fr;gap:0}
+ .mydash.layout-timeline .mydashfixture{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:10px 0}
+ .mydash.layout-timeline .mydashteamonly{display:flex;align-items:center;gap:14px;border:1px solid var(--line);background:var(--card);border-radius:9px;padding:10px 12px;min-height:82px;margin-bottom:8px;cursor:pointer;transition:border-color .12s,background .12s}
+ .mydash.layout-timeline .mydashteamonly:hover{border-color:var(--line2);background:var(--card2)}
+ .mydash.layout-timeline .mydashteamonly img{width:58px;height:58px;object-fit:contain;flex:0 0 58px}
+ .mydash.layout-timeline .mydashteamonly img.driver{width:58px;height:74px;object-fit:cover;object-position:top center;flex-basis:58px;border-radius:6px}
+ .mydash.layout-timeline .mydashteamonly img.driver.car{object-fit:contain;object-position:center;background:#0d1014;padding:3px;box-sizing:border-box}
+ .mydashsportinfo{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0;flex:1}
+ .mydashsportname{font-size:14px;font-weight:700;line-height:1.2}
+ .mydashsportmeta{font-size:11px;color:var(--mut);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mydashsportevent{display:flex;flex-direction:column;justify-content:center;gap:3px;width:205px;flex:0 0 205px;min-height:58px;padding-left:8px;min-width:0}
+ .mydashsportevent .series{font-size:11px;color:var(--mut);line-height:1.2}
+ .mydashsportevent .team{font-size:11px;color:var(--mut);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mydashsportnext{font-size:13px;color:var(--fg);font-weight:650;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mydashsportcount{font-size:13px;color:var(--acc);line-height:1.25}
+ .mydashsportphotos{display:flex;align-items:center;gap:5px;flex:0 0 auto}
+ .mydashsportphotos img.driver{width:52px;height:74px;flex-basis:52px}
+ .mydashsportnames{display:flex;flex-direction:column;gap:7px;min-width:115px;flex:1}
+ .mydashsportnames .mydashsportname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mydashsportsingle{display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:0;flex:1}
+ .mydashsportsingletop{display:grid;grid-template-columns:minmax(120px,1fr) minmax(200px,260px);align-items:center;gap:16px;min-width:0}
+ .mydashsportsingletop .mydashsportname,.mydashsportsingletop .mydashsportnext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mydashsporteventline{display:flex;align-items:baseline;justify-content:center;justify-self:end;width:100%;gap:6px;min-width:0;text-align:center}
+ .mydashsporteventline .mydashsportnext{flex:0 1 auto}
+ .mydashsporteventline .mydashsportcount{flex:0 0 auto;white-space:nowrap}
+ .mydashf1names{display:flex;flex-direction:column;gap:5px;min-width:0;align-self:start}
+ .mydashf1names .mydashsportname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mydashf1card .mydashsporteventline{align-self:center}
+ .mydashsportheading{font-size:10px;font-weight:750;letter-spacing:.75px;text-transform:uppercase}
+ .mydashsportheading.sport{color:#70c987}
+ .mydashsportsubhead{font-size:10px;font-weight:750;letter-spacing:.75px;text-transform:uppercase;margin:15px 0 8px;padding-left:2px}
+ .mydashsportsubhead.racing{color:#ef7777}
+ .mydashliveheading{cursor:pointer}
+ .mydashliveheading:hover{color:var(--acc)}
+ .mydash.layout-timeline .mydashchannels{grid-template-columns:1fr;gap:8px}
+ .mydash.layout-timeline .mydashchannel{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-height:70px;display:grid;grid-template-columns:44px minmax(0,1fr) auto;grid-template-rows:1fr;gap:10px;align-items:center;transition:border-color .12s,background .12s}
+ .mydash.layout-timeline .mydashchannel:hover{border-color:var(--line2);background:var(--card2)}
+ .mydash.layout-timeline .mydashchannel .chanlogo{grid-column:1;grid-row:1;width:44px;height:44px;object-fit:contain}
+ .mydash.layout-timeline .mydashchannelname{grid-column:2;grid-row:1;font-size:12px;line-height:1.3;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ .mydash.layout-timeline .mydashchannel .btnvlc{grid-column:3;grid-row:1;justify-self:end;padding:5px 9px;font-size:11px;margin:0}
+ .mydash.layout-timeline .mydashchannel.muted{display:flex;align-items:center;justify-content:center;text-align:center;font-size:10px}
+ .mytimelinecontrols{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:26px;margin:-30px 0 14px;padding-right:2px}
+ .mytimelinefilter{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--mut);padding:4px 1px 5px;font:inherit;font-size:11px;font-weight:650;cursor:pointer}
+ .mytimelinefilter:hover{color:var(--fg)}
+ .mytimelinefilter.on.all{color:var(--fg);border-bottom-color:var(--acc)}
+ .mytimelinefilter.on.show{color:#e5a25f;border-bottom-color:#c8752c}
+ .mytimelinefilter.on.movie{color:#72aee8;border-bottom-color:#3e82c5}
+ .mytimelinefilter.on.game{color:#b695e8;border-bottom-color:#7651b7}
+ .mytimelinefilter.on.sport{color:#70c987;border-bottom-color:#38a85d}
+ .mytimelinefilter.on.f1{color:#ef7777;border-bottom-color:#d83a3a}
+ .mytimelinefilter.settings{margin-left:18px;color:var(--mut)}
+ .mytimelinefilter.settings.changed{color:var(--fg);border-bottom-color:var(--acc)}
+ .mytimelinefilterpanel{position:absolute;z-index:30;right:0;top:32px;width:270px;background:var(--card2);border:1px solid var(--line2);border-radius:9px;padding:12px 14px;box-shadow:0 14px 38px #0009}
+ .mytimelinefilterpanel h4{margin:0 0 10px;font-size:12px;color:var(--fg)}
+ .mytimelinefilterpanel label{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--mut);font-size:11px;padding:5px 0}
+ .mytimelinefilterpanel .timelinechecks{display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:6px}
+ .mytimelinefilterpanel .timelinechecks label{justify-content:flex-start;gap:5px;padding:2px 0}
+ .mytimelinefilterpanel select{min-width:112px;background:var(--bg);color:var(--fg);border:1px solid var(--line2);border-radius:6px;padding:5px 7px}
+ .timelinefilterreset{width:100%;margin-top:8px;background:transparent;border:1px solid var(--line2);color:var(--mut);border-radius:6px;padding:6px;cursor:pointer}
+ @media(max-width:900px){.mytimelinecontrols{margin:0 0 14px;justify-content:flex-start;gap:10px;flex-wrap:wrap}.mytimelinefilter.settings{margin-left:0}.mytimelinefilterpanel{left:0;right:auto}}
+ .mylisttimeline{border-left:1px solid var(--line2);margin-left:9px;padding-left:22px;display:flex;flex-direction:column;gap:0}
+ .mylisttimelinesection{position:relative;margin:2px 0 11px;font-size:10px;font-weight:750;letter-spacing:.8px;text-transform:uppercase;color:var(--mut)}
+ .mylisttimelinesection:before{content:"";position:absolute;left:-27px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--line2);box-shadow:0 0 0 3px var(--bg)}
+ .mylisttimelinesection.live{margin:2px 0 11px;background:transparent;border:0;border-radius:0;padding:0;color:#ff6570;font-size:10px;box-shadow:none}
+ .mylisttimelinesection.live:before{left:-27px;top:4px;background:#e44752;box-shadow:0 0 0 3px var(--bg),0 0 10px #e44752}
+ .mylisttimelinesection.upcoming{color:var(--acc)}
+ .mylisttimelineentry{position:relative;padding:0 0 20px;min-width:0}
+ .mylisttimelineentry.is-live .mylisttimelinebody{border-color:#713039;background:linear-gradient(90deg,rgba(62,19,25,.32),var(--card) 28%);box-shadow:inset 3px 0 0 #d43b46}
+ .mylisttimelineentry.is-live:before{background:#e44752;box-shadow:0 0 0 3px var(--bg),0 0 9px rgba(228,71,82,.7)}
+ .mylisttimelineentry:before{content:"";position:absolute;left:-27px;top:8px;width:9px;height:9px;border-radius:50%;background:var(--acc)}
+ .mylisttimelinewhen{font-size:11px;color:var(--acc);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+ .mylisttimelinebody{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:11px 13px}
+ .mylisttimelinebody .teamfixture{border:0;background:transparent;padding:0}
+ .mylisttimelineepisode{display:flex;align-items:center;gap:10px;cursor:pointer}
+ .mylisttimelineepisode img{width:46px;height:69px;object-fit:cover;border-radius:5px;flex:0 0 46px}
+ .mylisttimelineavail{margin-left:auto;align-self:center;flex:0 0 auto}
+ .mylisttimelinegame{display:flex;align-items:center;gap:10px;cursor:pointer}
+ .mylisttimelinef1{cursor:pointer}
+ .mylisttimelinegame>img{width:112px;height:52px;object-fit:cover;border-radius:6px;flex:0 0 112px}
+ .mylisttimelinecontent{display:flex;align-items:center;gap:12px;min-width:0}
+ .mylisttimelinecontent>.teamfixture{flex:1;min-width:0}
+ .mylisttimelineart{width:58px;height:58px;flex:0 0 58px;object-fit:contain;border-radius:7px;background:#0d1014;padding:5px;box-sizing:border-box}
+ .mylisttimelineart.driver{height:72px;object-fit:cover;object-position:center top;padding:0}
+ .mylisttimelineart.driver.car{object-fit:contain;object-position:center;padding:3px}
+ .mylisttimelinedrivers{width:72px;height:72px;flex:0 0 72px;display:flex;align-items:flex-end;justify-content:center;gap:2px;overflow:hidden;border-radius:7px;background:#0d1014;padding:3px 2px 0;box-sizing:border-box}
+ .mylisttimelinedrivers img{width:34px;height:68px;object-fit:contain;object-position:center bottom;min-width:0}
+ .mylisttimelinekind{flex:0 0 50px;width:50px;color:var(--mut);font-size:10px;font-weight:650;letter-spacing:.7px;text-transform:uppercase;text-align:center;padding:8px 0 5px;align-self:center;border-bottom:2px solid transparent}
+ .mylisttimelinekind.sport{color:#70c987;border-bottom-color:#38a85d}
+ .mylisttimelinekind.show{color:#e5a25f;border-bottom-color:#c8752c}
+ .mylisttimelinekind.movie{color:#72aee8;border-bottom-color:#3e82c5}
+ .mylisttimelinekind.f1{color:#ef7777;border-bottom-color:#d83a3a}
+ .mylisttimelinekind.game{color:#b695e8;border-bottom-color:#7651b7}
+ .mytimelinepage{max-width:1120px;margin:0 auto;padding:4px 0 28px}
+ .mytimelinepage>.colh{margin-bottom:18px}
+ @media(min-width:2200px){
+   header{padding:16px 28px;gap:20px}
+   header h1{font-size:17px}
+   header a{font-size:15px}
+   .slogan{font-size:14px}
+   .mydash{max-width:1720px;padding:14px 12px 44px}
+   .mydash.layout-timeline{grid-template-columns:650px minmax(0,1fr);gap:0 44px}
+   .mydash.layout-timeline #myListProfile{gap:15px;margin-bottom:24px;padding-bottom:20px}
+   .mydash.layout-timeline #myListProfile .mylistprofileemblem{width:62px;height:62px;flex-basis:62px}
+   .mydash.layout-timeline #myListProfile .mylistprofileemblem svg{width:62px;height:62px}
+   .mydash.layout-timeline #myListProfile .mylistprofilename{font-size:23px}
+   .mydash.layout-timeline .mydashteamonly{gap:16px;padding:12px 14px;min-height:94px}
+   .mydash.layout-timeline .mydashteamonly img{width:66px;height:66px;flex-basis:66px}
+   .mydash.layout-timeline .mydashteamonly img.driver{width:66px;height:84px;flex-basis:66px}
+   .mydash.layout-timeline .mydashsportname{font-size:15px}
+   .mydash.layout-timeline .mydashsportmeta,.mydash.layout-timeline .mydashsportevent .series,.mydash.layout-timeline .mydashsportevent .team{font-size:12px}
+   .mydash.layout-timeline .mydashsportnext,.mydash.layout-timeline .mydashsportcount{font-size:14px}
+   .mydash.layout-timeline .mydashsportevent{width:225px;flex-basis:225px;padding-left:10px}
+   .mydash.layout-timeline .mydashsportphotos img.driver{width:58px;height:84px;flex-basis:58px}
+   .mydash.layout-timeline .mydashchannels{gap:10px}
+   .mydash.layout-timeline .mydashchannel{min-height:82px;padding:12px 14px;grid-template-columns:50px minmax(0,1fr) auto;gap:12px}
+   .mydash.layout-timeline .mydashchannel .chanlogo{width:50px;height:50px}
+   .mydash.layout-timeline .mydashchannelname{font-size:13px}
+   .mydash.layout-timeline .mydashchannel .btnvlc{font-size:11px;padding:5px 9px}
+   .mylisttimeline{padding-left:28px}
+   .mylisttimelineentry{padding-bottom:24px}
+   .mylisttimelineentry:before{left:-33px;width:10px;height:10px}
+   .mylisttimelinewhen{font-size:12px;margin-bottom:6px}
+   .mylisttimelinebody{border-radius:10px;padding:14px 16px}
+   .mylisttimelineepisode{gap:13px}
+   .mylisttimelineepisode img{width:54px;height:81px;flex-basis:54px}
+   .mylisttimelinegame{gap:13px}
+   .mylisttimelinegame>img{width:130px;height:60px;flex-basis:130px}
+   .mylisttimelinecontent{gap:15px}
+   .mylisttimelineart{width:68px;height:68px;flex-basis:68px}
+   .mylisttimelineart.driver{height:84px}
+   .mylisttimelinedrivers{width:84px;height:84px;flex-basis:84px}
+   .mylisttimelinedrivers img{width:40px;height:80px}
+   .mylisttimelinekind{flex-basis:58px;width:58px;font-size:11px;padding:9px 0 6px}
+ }
+ @media(max-width:900px){.mydashchannels{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ @media(max-width:900px){.mydash.layout-spotlight,.mydash.layout-hub,.mydash.layout-timeline{display:block}.mydash.layout-hub #myListProfile,.mydash.layout-timeline #myListProfile{display:flex;flex-direction:row;align-items:center;border-right:0;border-bottom:1px solid var(--line);padding:0 0 16px;min-height:0}.mydash.layout-hub .mydashepisodes{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}.mydash.layout-timeline #myListTimelineBlock{margin-top:28px}}
+ /* My TV */
+ .tvwrap{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:11px;overflow:hidden;height:min(82vh,920px);min-height:520px;background:#0d1015;box-shadow:0 12px 34px rgba(0,0,0,.12)}
+ .tvrail{width:136px;flex-shrink:0;border-right:1px solid var(--line);overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;background:#11151b;scrollbar-width:thin}
+ .tvsrc{padding:8px 9px;font-size:11.5px;border:1px solid var(--line2);border-radius:7px;cursor:pointer;text-align:center;color:var(--mut);background:none;transition:all .1s;line-height:1.25}
+ .tvsrc:hover{border-color:var(--acc);color:var(--fg)}
+ .tvsrc.on{border-color:var(--acc);background:#16233d;color:#cfe0ff}
+ .tvguide{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
+ .tvguidehead{display:flex;flex-shrink:0;border-bottom:1px solid #343a46;background:#14181f;height:44px;padding-right:10px;box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:4}
+ .tvchancol{width:286px;flex-shrink:0;border-right:1px solid #343a46;padding:6px 8px;display:flex;align-items:center}
+ .tvchancol button{width:100%}
+ .tvtimeline{flex:1;display:flex;overflow:hidden;position:relative;min-width:0}
+ .tvtimeslot{flex:1 1 20%;min-width:0;border-right:1px solid #343a46;padding:0 10px;display:flex;align-items:center;font-size:10.5px;color:#8f98a8;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+ .tvnowhead{position:absolute;top:0;bottom:0;width:2px;background:#e1535c;z-index:3;pointer-events:none;box-shadow:0 0 7px rgba(225,83,92,.38)}
+ .tvnowhead:before{content:"";position:absolute;top:4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#e1535c}
+ .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
+ .tvplayerslot.on{display:block}
+ .tvplayerslot.mini{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
+ .tvplayerslot.mini .tvplayerbar{background:#111720}
+ .tvplayerslot.sectionmax{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:500;border:0;border-radius:0;overflow:hidden;box-shadow:none}
+ .tvplayeractions{display:flex;align-items:center;gap:6px}
+ .tvminbtn{background:#202733;border:1px solid #3a4554;color:#dce5f2;border-radius:6px;padding:3px 8px;font-size:12px;line-height:1.1;cursor:pointer}
+ .tvminbtn:hover{border-color:#6d86a8;filter:none}
+ .tvvideohit{position:absolute;left:0;right:0;top:34px;bottom:46px;z-index:2;border:0;border-radius:0;padding:0;background:transparent;cursor:zoom-out}
+ .tvvideohit:hover,.tvvideohit:active{background:transparent;filter:none;transform:none}
+ .tvplayerslot.mini .tvvideohit{cursor:zoom-in}
+ .tvguidebody{flex:1;overflow-y:auto;position:relative;scrollbar-gutter:stable}
+ .tvchan{width:286px;flex-shrink:0;border-right:1px solid #303642;display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;font-size:12px;transition:background .1s;background:#11151b}
+ .tvchan:hover{background:var(--card2)}
+ .tvchan.playing{background:#16233d}
+ .tvchan .tvvlc{flex-shrink:0;background:#e8701a;border:0;color:#fff;border-radius:5px;padding:3px 7px;font-size:11px;cursor:pointer;order:0}
+ .tvchan .tvflag{flex-shrink:0;font-size:15px;width:20px;text-align:center}
+ .tvchan .tvname{flex:1;min-width:0;line-height:1.2;word-break:break-word;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .tvchan .favstar{margin-right:0}
+ .tvdrag{display:inline-flex;align-items:center;color:#737b89;cursor:grab;font-size:16px;line-height:1;user-select:none}
+ .tvdrag:active{cursor:grabbing}
+ .tvprog{flex:1;position:relative;min-width:0;overflow:hidden;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(20% - 1px),rgba(55,62,75,.44) calc(20% - 1px),rgba(55,62,75,.44) 20%)}
+ .tvrow:nth-child(even) .tvprog{background-color:rgba(255,255,255,.008)}
+ .tvprog:after{content:"";position:absolute;top:0;bottom:0;left:var(--nowpct,-20%);width:2px;background:rgba(225,83,92,.66);z-index:6;pointer-events:none}
+ .epgnone{position:absolute;inset:0;display:flex;align-items:center;padding:0 11px;font-size:10.5px;color:#515966;font-style:italic;opacity:.8}
+ .epgprog{position:absolute;top:5px;bottom:5px;display:flex;align-items:center;gap:6px;min-width:3px;padding:4px 8px;border:1px solid #303744;border-radius:6px;background:#171c24;color:#bec5d0;overflow:hidden;white-space:nowrap;z-index:2;transition:border-color .12s,background .12s}
+ .epgprog:hover{border-color:#546174;background:#1c232e;color:#e3e7ed;z-index:5}
+ .epgprog.live{border-color:#3f7651;background:linear-gradient(90deg,#183022,#19251f);color:#f0f6f2;font-weight:600;box-shadow:inset 3px 0 0 #58b573}
+ .epgprog.live:after{content:"NOW";font-size:8px;line-height:1;border:1px solid #3c7e51;border-radius:4px;color:#6ed78a;padding:2px 3px;margin-left:auto;flex:0 0 auto}
+ .epgprog .epgt{color:#7aa9ef;font-size:10px;flex:0 0 auto;font-variant-numeric:tabular-nums}
+ .epgprog .epgtitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+ .epgprog.compact{padding-left:5px;padding-right:5px}.epgprog.compact .epgt{display:none}
+ .epgfallback{position:absolute;inset:0;display:flex;align-items:center;gap:7px;padding:0 11px;overflow:hidden;color:#7d8593;white-space:nowrap}.epgfallback .epgtitle{overflow:hidden;text-overflow:ellipsis}
+ .epgloadback{position:fixed;inset:0;z-index:130;background:rgba(5,7,10,.68);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px}
+ .epgloadbox{width:min(440px,calc(100vw - 32px));background:#12171f;border:1px solid #3b4655;border-radius:13px;padding:22px 24px;box-shadow:0 24px 70px rgba(0,0,0,.48)}
+ .epgloadtitle{font-size:18px;font-weight:700;margin-bottom:7px}.epgloadstage{color:#aab4c1;font-size:12px;min-height:19px}
+ .epgloadbar{height:8px;border-radius:99px;background:#252d38;overflow:hidden;margin:16px 0 9px}.epgloadbar>span{display:block;height:100%;width:0;background:linear-gradient(90deg,#0b55bc,#4b9cff);border-radius:inherit;transition:width .2s ease}
+ .epgloadmeta{display:flex;justify-content:space-between;gap:12px;color:#7f8a99;font-size:11px;font-variant-numeric:tabular-nums}
+ .tvrow{display:flex;border-bottom:1px solid #292f3a;height:50px;min-height:50px;align-items:stretch;transition:background .12s}.tvrow:hover{background:rgba(255,255,255,.016)}
+ .tvrow.tvdragging{opacity:.4}
+ .tvrow.tvdragover{box-shadow:inset 0 2px 0 var(--acc)}
+ @media(max-width:1100px){.tvrail{width:110px}.tvchancol,.tvchan{width:230px}.tvplayerslot{left:230px}.tvchan{gap:6px;padding-left:7px;padding-right:7px}.tvchan .tvvlc{padding:3px 5px}.tvtimeslot{padding-left:7px}}
+ @media(max-width:760px){.tvrail{width:92px;padding:6px}.tvsrc{padding:7px 5px;font-size:10.5px}.tvchancol,.tvchan{width:205px}.tvplayerslot{left:205px}.tvwrap{height:78vh;min-height:440px}.tvchan .tvname{font-size:11px}}
+ /* player fills the timeline area when active */
+ #tvPlayerSlot .tvplayerbar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#0c0e12;font-size:13px}
+ #tvVideo{width:100%;height:calc(100% - 34px);background:#000;display:block;object-fit:cover;cursor:zoom-out}
+ .favcat .chname{flex:1;min-width:0}
+ .favcat .chev{color:var(--acc);font-size:12px;flex-shrink:0}
+ main{max-width:960px;margin:0 auto;padding:26px 22px 42px;position:relative;z-index:1}
+ main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}
+ @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,38vw) + 70px)}}
+ @media(min-width:2200px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,40vw) + 70px)}}
+ @media(min-width:1800px) and (max-width:2199px){
+   .tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,38vw);height:min(650px,23.75vw,68vh)}
+   body.tvsectionplay .mydash.layout-timeline{grid-template-columns:minmax(330px,40%) minmax(0,1fr);gap:0 20px}
+   body.tvsectionplay .mydashsportsingletop{grid-template-columns:minmax(100px,1fr) minmax(150px,1fr);gap:10px}
+   body.tvsectionplay .movieswrap,body.tvsectionplay .showswrap{grid-template-columns:190px minmax(0,1fr);gap:18px}
+   body.tvsectionplay .gameslayout{grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:18px}
+   body.tvsectionplay .teamswrap,body.tvsectionplay .racinglayout{grid-template-columns:minmax(250px,300px) minmax(0,1fr);gap:18px;padding-left:0;padding-right:0}
+   body.tvsectionplay .moviegrid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+   body.tvsectionplay .showgrid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+   body.tvsectionplay .gamegrid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+   body.tvsectionplay .racinggrid{grid-template-columns:1fr}
+ }
+ @media(min-width:2200px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
+ input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px;cursor:pointer}
+ .row{display:flex;gap:8px}
+ input,select,button{font:inherit}
+ input[type=text],input[type=password],select{background:#101318;border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:9px 12px;transition:border-color .13s,box-shadow .13s,background .13s}
+ input[type=text]:focus,input[type=password]:focus,select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(79,140,255,.11);background:#0d1116}
+ input[type=text]{flex:1}
+ button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:9px 15px;cursor:pointer;font-weight:500;transition:filter .12s,background .12s,border-color .12s,transform .12s}
+ button:hover{filter:brightness(1.08)}
+ button:active:not(:disabled){transform:translateY(1px)}
+ button:disabled{opacity:.48;cursor:not-allowed;filter:none}
+ button:focus-visible,a:focus-visible,.favstar:focus-visible{outline:2px solid #76a7ff;outline-offset:2px}
+ button.stopbtn{background:#7a1f26;color:#fff}
+ button.ghost{background:var(--card2);border:1px solid var(--line2);color:var(--fg);font-weight:400}
+ button.ghost:hover{border-color:var(--acc);filter:none}
+ .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
+ .muted{color:var(--mut);font-size:13px}
+ table{width:100%;border-collapse:collapse;margin-top:6px}
+ th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}
+ th{color:var(--mut);font-weight:500}
+ .tag{display:inline-block;background:#22262f;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12px;color:var(--mut);margin-left:4px}
+ .cc{display:inline-block;background:#1d2b1f;border:1px solid #2b4a30;color:#8fce9a;border-radius:6px;padding:0 6px;font-size:11px;margin-right:4px}
+ .url{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--mut);word-break:break-all;margin-top:3px}
+ .copy{background:#3a3f49;border:1px solid #555c68;color:#f4f4f4;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer}
+ .copy:hover{background:#4a505c}
+ .err{color:#ff7676}
+ label{display:block;margin:10px 0 4px;color:var(--mut);font-size:13px}
+ .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+ .hide{display:none}
+ .bcast{margin:2px 0 10px}
+ .live{background:#3b1114;border:1px solid #7a1f26;color:#ff6b74;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:600}
+ .ended{background:#22262f;border:1px solid var(--line);color:var(--mut);border-radius:6px;padding:1px 7px;font-size:12px}
+ .soon{background:#132a1a;border:1px solid #24512f;color:#7fd79a;border-radius:6px;padding:1px 7px;font-size:12px}
+ .split{display:flex;gap:20px;align-items:flex-start}
+ .col{flex:1;min-width:0}
+ .playlistsearch{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:0 0 18px;padding:15px 18px;border:1px solid var(--line);border-radius:10px;background:rgba(18,22,28,.72)}
+ .playlistsearch .col{min-width:0}.playlistsearch .col+.col{border-left:1px solid var(--line);padding-left:22px}.playlistsearch .row{margin-bottom:7px}
+ .colh{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 10px;font-weight:600}
+ .srchealth{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .srcrow{display:grid;grid-template-columns:9px minmax(130px,.8fr) minmax(0,1.2fr);align-items:center;gap:9px;padding:10px 11px;font-size:13px;border:1px solid rgba(255,255,255,.055);border-radius:8px;background:rgba(255,255,255,.018)}
+ .srcdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+ .dot-ok{background:#3fb950}
+ .dot-bad{background:#f85149}
+ .dot-unknown{background:#6e7681}
+ .srcname{min-width:0;font-weight:500}
+ .srcstat{font-size:12px;overflow-wrap:anywhere;line-height:1.35}
+ .sectionsearch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.sectionsearch input{min-height:42px}.sectionsearch button{min-width:82px}
+ *{scrollbar-color:#4e5868 #171b22;scrollbar-width:thin}
+ *::-webkit-scrollbar{width:10px;height:10px}*::-webkit-scrollbar-track{background:#171b22;border-radius:8px}*::-webkit-scrollbar-thumb{background:#4e5868;border:2px solid #171b22;border-radius:8px}*::-webkit-scrollbar-thumb:hover{background:#69778b}
+ main>section:not(.hide){animation:viewfade .14s ease-out}@keyframes viewfade{from{opacity:.55;transform:translateY(2px)}to{opacity:1;transform:none}}
+ @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+ @media(max-width:760px){.split{flex-direction:column}.playlistsearch{grid-template-columns:1fr}.playlistsearch .col+.col{border-left:0;border-top:1px solid var(--line);padding:16px 0 0}}
+ @media(max-width:760px){#teamFixtures{width:calc(100vw - 44px)}#teamFixtures>.card{flex-basis:min(280px,calc(100vw - 56px))}}
+ .chname{flex:1;min-width:0;font-size:13.5px;word-break:break-word;line-height:1.35}
+ .ch4{display:flex;gap:0;align-items:stretch;flex-wrap:nowrap;height:82vh;min-height:480px}
+ .ch4group{position:relative;display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;padding:0;margin-left:20px;align-self:stretch;overflow:hidden}
+ .ch4col{position:relative;z-index:1;width:250px;flex-shrink:0;display:flex;flex-direction:column;padding:14px 16px}
+ .ch4col+.ch4col{border-left:1px solid var(--line)}
+ .ch4group .colh{border-bottom:1px solid var(--line);padding-bottom:10px;display:flex;align-items:center;gap:8px}
+ .clrbtn{margin-left:auto;background:none;border:1px solid var(--line2);color:var(--mut);border-radius:6px;padding:2px 9px;font-size:11px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0}
+ .clrbtn:hover{border-color:#ff7676;color:#ff7676;filter:none}
+ .plbtns{margin-top:12px;padding-top:12px;flex-wrap:wrap}
+ .ch4cats{flex-shrink:0;align-self:stretch;display:flex;flex-direction:column;padding:0 20px 0 0;min-height:0}
+ input.catsearch[type=text]{width:100%;height:38px;min-height:38px;flex:0 0 38px;margin-bottom:10px;background:var(--bg);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:8px 11px;font-size:13px}
+ .catsearch:focus{outline:none;border-color:var(--acc)}
+ #catlist{border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--bg);flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(4,190px);grid-auto-flow:column;grid-template-rows:repeat(var(--catrows,20),auto);gap:2px 14px;align-content:start}
+ .colh{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin:0 0 12px;font-weight:600;display:flex;align-items:center;gap:6px}
+ .colh .muted{text-transform:none;letter-spacing:0;font-weight:400}
+ .catitem{display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:11.5px;cursor:pointer;border:0;background:none}
+ .catitem:hover .cn{color:var(--fg)}
+ .catitem .tick{flex-shrink:0;width:16px;height:16px;border:2px solid var(--line2);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;transition:all .1s}
+ .catitem.on .tick{border-color:var(--acc);background:var(--acc);color:#fff}
+ .catitem .flag{flex-shrink:0;font-size:13px;line-height:1;width:18px;text-align:center}
+ .catitem .cn{flex:1;min-width:0;color:var(--mut);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .1s}
+ .catitem.on .cn{color:#cfe0ff}
+ .catitem .cnt{display:none}
+ .catitem .pc{color:#5a6070;font-size:10px;font-variant-numeric:tabular-nums}
+ .catitem.on .pc{color:#7f93bd}
+ .pcol{flex:1;min-height:60px;max-height:70vh;overflow:auto}
+ .selcat{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:13px;cursor:pointer;border-radius:7px;margin-bottom:2px;transition:background .1s}
+ .selcat:hover{background:var(--card2)}
+ .selcat.active{background:#1b2540;box-shadow:inset 0 0 0 1px #33406b}
+ .selcat .cnt{margin-left:auto;color:var(--mut);font-size:11px;font-variant-numeric:tabular-nums}
+ .selcat .chev{color:var(--acc);font-size:12px}
+ .plitem{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:13px;border-radius:6px}
+ .plitem:hover{background:var(--card2)}
+ .plitem .x{color:var(--mut);cursor:pointer;flex-shrink:0;font-size:12px;line-height:1}
+ .plitem .x:hover{color:#ff7676}
+ .chrow{display:flex;align-items:center;gap:10px;padding:8px;border-radius:7px;transition:background .1s}
+ .chrow:hover{background:var(--card2)}
+ .chrow+.chrow{border-top:1px solid var(--line)}
+ @media(max-width:900px){.ch4{height:auto;min-height:0;flex-wrap:wrap}.ch4cats{height:70vh;flex:1 1 100%}.ch4group{margin:20px 0 0;width:100%}.ch4col{width:100%}#catlist{grid-template-columns:repeat(2,1fr)}}
+ .footline{border-top:1px solid var(--line);margin:30px calc(50% - 50vw) 0;width:100vw}
+ /* floating pancakes on the search page side margins */
+ .pancakes{position:fixed;top:70px;bottom:0;width:calc((100vw - 960px)/2);pointer-events:none;overflow:hidden;z-index:0}
+ .pancakes.left{left:0}
+ .pancakes.right{right:0}
+ @media(max-width:1200px){.pancakes{display:none}}
+ .pcake{position:absolute;opacity:.5;animation:floaty linear infinite}
+ @keyframes floaty{0%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-22px) rotate(4deg)}100%{transform:translateY(0) rotate(0deg)}}
+ .globaldecor{position:fixed;inset:64px 0 0;pointer-events:none;overflow:hidden;z-index:0;opacity:.17}
+ .globaldecor .pcake{opacity:.75}
+ .globaldecor.asciibg{opacity:1;font-family:Consolas,"Courier New",monospace;color:#7894bd}
+ .asciimotif{position:absolute;margin:0;white-space:pre;font:600 clamp(8px,.58vw,13px)/1.08 Consolas,"Courier New",monospace;letter-spacing:.02em;color:#7894bd;opacity:.075;text-shadow:0 0 18px rgba(57,110,184,.12);user-select:none}
+ .asciimotif.a1{left:2.5%;top:9%;transform:rotate(-2deg)}.asciimotif.a2{right:2.2%;top:32%;transform:scale(.82) rotate(2deg);opacity:.055}.asciimotif.a3{left:7%;bottom:7%;transform:scale(.7);opacity:.045}
+ @media(max-width:1050px){.asciimotif.a2,.asciimotif.a3{display:none}.asciimotif.a1{opacity:.04}}
+ /* settings branding block */
+ .brandblock{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;width:220px;flex-shrink:0}
+ .brandblock .bname{font-size:22px;font-weight:600;color:var(--fg)}
+ .brandblock .btag{font-size:13px;color:var(--mut)}
+ .settingswrap{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start;max-width:1580px;margin:0 auto;padding:18px 20px 42px}
+ .settingswrap .brandblock{width:auto;display:grid;grid-template-columns:58px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:14px;row-gap:2px;align-items:center;justify-content:stretch;text-align:left;padding:13px 18px;border:1px solid var(--line2);border-radius:12px;background:linear-gradient(100deg,rgba(24,30,39,.96),rgba(15,18,23,.84))}
+ .settingswrap .brandblock svg{width:58px;height:58px;grid-row:1/3}
+ .settingswrap .brandblock .bname{font-size:18px;grid-column:2;align-self:end}
+ .settingswrap .brandblock .btag{grid-column:2;align-self:start}
+ .settingswrap .brandblock .btag:last-child{grid-column:3;grid-row:1/3;align-self:center;margin:0!important;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--bg)}
+ .settingswrap .settingscard{width:100%;max-width:none;min-width:0;background:none;border:0;padding:0;margin:0}
+ .settingstabs{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:16px;padding:0 0 9px;border-bottom:1px solid var(--line)}
+ .settingstab{border:0;border-radius:6px 6px 0 0;background:transparent;color:var(--mut);padding:9px 13px;box-shadow:none}
+ .settingstab:hover{background:var(--card2);color:var(--fg)}
+ .settingstab.on{color:var(--fg);background:var(--card);box-shadow:inset 0 -2px var(--acc)}
+ .settingspanels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+ .settingspanel{display:contents}
+ .settingsgroup[data-settings-panel="profile"],.settingsgroup[data-settings-panel="general"],.settingsgroup[data-settings-panel="maintenance"],.settingsgroup[data-settings-panel="health"]{grid-column:1/-1}
+ .settingspanel input[type=text],.settingspanel input[type=password]{width:100%}
+ #settingsProfile .grid2{grid-template-columns:1fr 1fr}
+ #settingsProfile select{width:100%}
+ .settingsgroup{border:1px solid var(--line2);border-radius:12px;background:linear-gradient(180deg,var(--card),#11151b);padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+ .settingsgroup .colh{margin:0 -2px 13px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.07);color:#aeb9c9}.settingsgroup .colh+.muted{margin-top:-5px;margin-bottom:14px;line-height:1.45}
+ .settingschecks{display:grid;gap:9px}.settingscheck{display:flex;align-items:flex-start;gap:9px;padding:8px 9px;border-radius:8px;background:rgba(255,255,255,.018)}.settingscheck input{width:auto;margin:2px 0 0}.settingscheck span{line-height:1.35}
+ .settingsdisplay{display:grid;grid-template-columns:1fr;gap:12px;margin-top:13px}
+ .settingsactions{position:sticky;bottom:10px;z-index:4;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding:11px 13px;border:1px solid var(--line2);border-radius:11px;background:rgba(17,21,27,.96);box-shadow:0 12px 30px rgba(0,0,0,.3);backdrop-filter:blur(10px)}.settingsactions .push{margin-left:auto}
+ .emblempicker{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px}
+ .emblemchoice{width:48px;height:48px;padding:5px;border:1px solid var(--line2);border-radius:9px;background:var(--bg);opacity:.65}
+ .emblemchoice:hover{opacity:1;border-color:var(--acc)}
+ .emblemchoice.on{opacity:1;border:2px solid var(--acc);background:#16233d}
+ .emblemchoice svg{width:100%;height:100%;display:block}
+ #settingsSetup .row{flex-wrap:wrap}
+ .settingshealthgroup{grid-column:1/-1}.settingshealthgroup>.row{justify-content:flex-end}
+ .settingsgroup[hidden]{display:none!important}
+ @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay #settingsView .settingswrap{padding-left:8px;padding-right:8px}body.tvsectionplay #settingsView .settingspanels{grid-template-columns:1fr}body.tvsectionplay #settingsView .settingsgroup .grid2{grid-template-columns:1fr 1fr}body.tvsectionplay #settingsView .srcrow{grid-template-columns:9px minmax(110px,.8fr) minmax(0,1.2fr)}}
+ @media(max-width:1150px){.settingswrap{max-width:900px}.settingspanels{grid-template-columns:1fr}.srchealth{grid-template-columns:1fr}}
+ @media(max-width:650px){#settingsProfile .grid2{grid-template-columns:1fr}.settingswrap{padding:8px}.settingsgroup{padding:13px}.settingswrap .brandblock{grid-template-columns:48px 1fr}.settingswrap .brandblock svg{width:48px;height:48px}.settingswrap .brandblock .btag:last-child{display:none}.settingsactions .muted{display:none}.settingstabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.settingstab{text-align:left}}
+ /* playlist builder logo */
+ .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+ .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
+ .movieswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .moviefavs{padding:0 16px 0 0;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
+ .moviefavlist{display:flex;flex-direction:column;gap:8px}
+ .moviefav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);min-height:100px;cursor:pointer}
+ .moviefav:hover .moviefavname{color:var(--acc)}
+ .moviefavposter{position:relative;width:64px;height:96px;flex-shrink:0;border-radius:5px;background:#20242c;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#737b89;font-size:24px}
+ .moviefavposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .moviefavinfo{min-width:0;flex:1;display:flex;justify-content:center;padding:8px 6px 31px 0}
+ .moviefavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center;word-break:break-word}
+ .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
+ .moviesmain{width:100%;max-width:1500px;min-width:0;margin:0 auto}
+ .moviecatalogs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:20px;align-items:start}
+ .moviecatalogs.noxtream{grid-template-columns:minmax(0,1200px);justify-content:center}
+ .moviecatalogs.noxtream #recentMoviesSection{display:none}
+ .moviecatalogs.noxtream .moviecatalogcolumn+.moviecatalogcolumn{padding-left:0;border-left:0}
+ .moviecatalogs.noxtream .moviegrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .moviecatalogcolumn{min-width:0}
+ .moviecatalogcolumn+.moviecatalogcolumn{padding-left:24px;border-left:1px solid var(--line)}
+ .moviecataloghead{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:42px;margin-bottom:12px}
+ .moviecataloghead .colh{margin:0}
+ .moviecatalogtabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+ .moviecatalogtab{background:transparent;color:var(--mut);border-color:var(--line2);box-shadow:none}
+ .moviecatalogtab.on{background:var(--card2);color:var(--fg);border-color:var(--acc)}
+ .moviecatalogcolumn .moviegrid{grid-template-columns:1fr}
+ .moviegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:16px}
+ .moviecard{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px;transition:border-color .13s,background .13s,transform .13s}
+ .recentmovie{cursor:pointer}
+ .recentmovie:hover{border-color:#496b9f;background:var(--card2);transform:translateY(-1px)}
+ .latestshowcard{cursor:pointer}
+ .latestshowcard:hover{border-color:var(--acc)}
+ .movieposter{width:92px;height:138px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;color:#737b89;font-size:30px}
+ .movieposter img{width:100%;height:100%;object-fit:cover;display:block}
+ .movieinfo{display:flex;flex:1;min-width:0;flex-direction:column;gap:9px}
+ .movietitle{font-weight:600;line-height:1.3}
+ .gameswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .gamefavs{max-height:82vh;overflow-y:auto}
+ .gamefav{position:relative;padding:8px 0 30px;border-bottom:1px solid var(--line)}
+ .gamefav img{width:100%;max-width:190px;aspect-ratio:460/215;object-fit:cover;border-radius:6px;display:block;margin-bottom:7px}
+ .gamefavname{font-size:13px;font-weight:600;line-height:1.3}
+ .gameslayout{display:grid;grid-template-columns:380px minmax(0,1fr);gap:24px;width:100%;max-width:1600px;margin:0 auto;align-items:start}
+ .gamesmain{width:100%;max-width:none;min-width:0;margin:0}
+ .steamprofile{position:sticky;top:76px;background:linear-gradient(145deg,#1b2838 0%,#172331 52%,#101822 100%);border:0;border-top:2px solid #66c0f4;border-radius:3px;padding:22px;min-height:320px;box-shadow:0 14px 38px rgba(0,0,0,.25)}
+ .steamprofileempty{color:var(--mut);font-size:12px;line-height:1.5}
+ .steamprofilehead{display:flex;align-items:center;gap:16px}
+ .steamprofileavatar{width:132px;height:132px;object-fit:cover;border-radius:2px;flex:0 0 132px;background:#202936;border:2px solid #57a5d3;box-shadow:0 0 0 3px #0d151e}
+ .steamprofilename{font-size:24px;font-weight:500;line-height:1.15;color:#fff}
+ .steamprofilereal{font-size:14px;color:#bac4cf;margin-top:6px}
+ .steamprofileloc{font-size:12px;color:#8f98a0;margin-top:5px;line-height:1.4}
+ .steamprofilemeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px}
+ .steamlevel{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 9px;border:2px solid #7f65bb;border-radius:50%;font-size:13px;font-weight:700;color:#ddd0ff}
+ .steamyears{font-size:12px;color:#c7d5e0;border-left:1px solid #34536b;padding-left:11px}
+ .steamprofilesummary{margin-top:17px;padding-top:14px;border-top:1px solid #314452;font-size:12.5px;line-height:1.6;color:#c7d5e0;white-space:pre-line;max-height:220px;overflow:auto;scrollbar-width:thin}
+ .steamprofilelink{display:block;color:inherit;text-decoration:none}.steamprofilelink:hover .steamprofilename{color:#66c0f4}
+ .gamegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:10px;margin-top:14px}
+ .gamecard{background:linear-gradient(135deg,#1b2838,#16202c);border:1px solid #2a3f51;border-radius:3px;padding:8px;min-width:0;box-shadow:0 4px 14px rgba(0,0,0,.14)}
+ .wishlistgame{display:block;color:inherit;text-decoration:none;cursor:pointer;transition:border-color .12s,background .12s}
+ .wishlistgame:hover{border-color:#66c0f4;background:linear-gradient(135deg,#22384b,#1b2d3d);box-shadow:0 0 0 1px rgba(102,192,244,.12)}
+ .wishlisthelp{margin-top:18px;padding:16px 18px;border:1px solid var(--line);border-radius:9px;background:var(--card);max-width:720px;color:var(--mut)}
+ .wishlisthelp b{color:var(--fg)}
+ .wishlisthelp ul{margin:10px 0 0;padding-left:20px}
+ .wishlisthelp li{margin:5px 0}
+ .wishlisthelp a{color:var(--acc);text-decoration:none}
+ .wishlisthelpsection{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+ .wishlistexample{display:block;margin-top:10px;padding:8px 10px;border-radius:6px;background:#0f1115;color:#a9c8ff;font:12px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+ .gamecard img{width:100%;aspect-ratio:460/215;object-fit:cover;border-radius:2px;background:#20242c;display:block}
+ .gamecardbody{display:flex;align-items:center;gap:10px;margin-top:9px;min-height:38px}
+ .gamecardname{font-weight:600;line-height:1.3;flex:1;min-width:0}
+ .gameshead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px;padding:11px 13px;background:linear-gradient(90deg,#1b2838,#131d27);border-bottom:1px solid #31516a}.gameshead .colh{margin:0;color:#c7d5e0}.gamesheadactions{display:flex;gap:7px;align-items:center}.gamesheadactions .ghost{border-color:#34556d;background:#182838;color:#c7d5e0}.gamesheadactions .ghost:hover{border-color:#66c0f4;color:#fff}
+ .gameswishlistsettings{margin:10px 0 14px;padding:12px;border:1px solid #2c4559;border-radius:3px;background:#172431}
+ .gamecardrelease{margin-left:auto;text-align:right;flex:0 0 auto}.gamecountdown{display:inline-block;margin-top:4px;color:#70b3ff;background:#102038;border:1px solid #274e7d;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:700;white-space:nowrap}
+ @media(max-width:900px){.gameslayout{grid-template-columns:270px minmax(0,1fr);gap:22px}.steamprofile{padding:17px}.steamprofileavatar{width:82px;height:82px;flex-basis:82px}.steamprofilename{font-size:19px}}
+ @media(max-width:820px){.gameslayout{grid-template-columns:1fr}.steamprofile{position:static;max-width:none;min-height:0}.steamprofileinner{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px}.steamprofilesummary{grid-column:1/-1}.steamprofilemeta{align-self:end}}
+ .moviemeta{font-size:12px;color:var(--mut)}
+ .movieactions{display:flex;gap:7px;margin-top:auto;flex-wrap:wrap}
+ .movieresultback{text-align:center;margin-top:14px;margin-bottom:24px}
+ .movieresultstatus{margin-bottom:4px}
+ .latestsourceexpand{min-width:108px;padding:9px 15px;font-size:inherit;margin-right:0}
+ .latestsources{display:flex;gap:7px;flex-wrap:wrap;width:100%}
+ .showswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .showrefresh{position:fixed;top:68px;right:18px;z-index:30;font-size:12px;padding:7px 13px;box-shadow:0 5px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08)}
+ .showfavs{padding-right:16px;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
+ .showfavlist{display:flex;flex-direction:column;gap:8px}
+ .showfav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;min-height:100px}
+ .showfav:hover .showfavname{color:var(--acc)}
+ .showfavposter{position:relative;width:64px;height:96px;flex-shrink:0;border-radius:5px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center}
+ .showfavposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .showfavinfo{min-width:0;flex:1;display:flex;justify-content:center;padding:8px 6px 27px 0}
+ .showfavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center}
+ .showremove{position:absolute;right:0;bottom:8px;padding:3px 7px}
+ .showsmain{width:100%;max-width:1250px;min-width:0;margin:0 auto}
+ .showgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:16px}
+ .showcard{display:flex;gap:10px;min-height:140px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;transition:border-color .13s,background .13s,transform .13s}
+ .showcard:hover{border-color:#496b9f;background:var(--card2);transform:translateY(-1px)}
+ .showposter{position:relative;width:82px;height:123px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;font-size:28px;color:#737b89}
+ .showposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .showname{font-weight:600;line-height:1.3}
+ .showdetails{margin-top:16px}
+ .showhero{display:flex;align-items:flex-end;gap:18px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+ .showheroart{position:relative;width:150px;height:225px;flex-shrink:0;border-radius:9px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;font-size:38px}
+ .showheroart img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .showhero h2{font-size:28px;margin:0 0 8px;display:flex;align-items:center;gap:10px}
+ .showhero h2 .favstar{font-size:22px;margin-right:0}
+ .showbackbtn{margin-left:auto;align-self:center;white-space:nowrap}
+ .showresultback{text-align:center;margin-top:14px;margin-bottom:24px}
+ .seasonblock{margin-bottom:16px;border-top:1px solid var(--line);padding-top:10px}
+ .seasonlayout{display:flex;gap:14px;align-items:flex-start}
+ .seasonart{position:relative;width:105px;height:158px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;font-size:30px;color:#737b89}
+ .seasonart img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+ .seasoncontent{min-width:0;flex:1}
+ .seasonhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+ .episodes{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px;scrollbar-color:#697487 #20242c;scrollbar-width:auto}
+ .episodes::-webkit-scrollbar{height:12px}
+ .episodes::-webkit-scrollbar-track{background:#20242c;border-radius:8px}
+ .episodes::-webkit-scrollbar-thumb{background:#697487;border:2px solid #20242c;border-radius:8px}
+ .episodes::-webkit-scrollbar-thumb:hover{background:var(--acc)}
+ .episode{flex:0 0 calc((100% - 72px)/10);min-width:100px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:7px}
+ .episodename{font-size:12px;line-height:1.3;min-height:31px}
+.episode .btnvlc{margin-top:auto}
+ .episodequalities{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
+ .episodequalities .btnvlc{flex:1 1 auto;padding-left:7px;padding-right:7px;font-size:11px}
+ .teamswrap{display:grid;grid-template-columns:minmax(320px,380px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
+ .teamfavs{padding-right:18px;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
+ .teamfavlist{display:flex;flex-direction:column;gap:4px}
+ .teamfavitem{position:relative;padding:8px 34px 8px 8px;border-bottom:1px solid var(--line);font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;min-height:48px}
+ .teamfavitem[data-team-search]{cursor:pointer;border-radius:7px;transition:background .12s,border-color .12s}.teamfavitem[data-team-search]:hover{background:var(--card2);border-bottom-color:var(--line2)}
+ .teamfavitem.selected{background:rgba(31,73,124,.17);border-bottom-color:#33577c}
+ .teamfavlogo{width:34px;height:34px;flex:0 0 34px;object-fit:contain}
+ .teamfavname{min-width:0;line-height:1.25}
+ .teamfavitem .teamremove{position:absolute;right:8px;top:50%;transform:translateY(-50%);margin:0}
+ .teamsmain{width:100%;max-width:1250px;min-width:0;margin:0}
+ .teamprofiledetail{min-height:230px;margin-bottom:17px}
+ .teamprofilehero{display:flex;align-items:center;gap:15px;margin:0 0 16px}
+ .teamprofilebadge{width:104px;height:104px;flex:0 0 104px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,rgba(72,96,132,.34),rgba(20,24,31,.76) 70%);border:1px solid var(--line2);box-shadow:inset 0 0 25px rgba(255,255,255,.025)}
+ .teamprofilebadge img{width:82px;height:82px;object-fit:contain;filter:drop-shadow(0 5px 8px rgba(0,0,0,.32))}
+ .teamprofileidentity{min-width:0}.teamprofileidentity h2{margin:0 0 5px;font-size:22px;line-height:1.12}.teamprofileidentity .muted{font-size:12px}
+ .teamprofilefacts{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 0 14px}
+ .teamprofilefact{min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(24,27,34,.55)}
+ .teamprofilefact span{display:block;color:var(--mut);font-size:9px;letter-spacing:.65px;text-transform:uppercase;margin-bottom:4px}.teamprofilefact b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .teamprofilenext{border-top:1px solid var(--line);padding-top:12px}.teamprofilenextlabel{color:var(--mut);font-size:9px;letter-spacing:.7px;text-transform:uppercase;margin-bottom:6px}.teamprofilenext b{display:block;font-size:13px;margin-bottom:3px}.teamprofilenext .muted{font-size:11px}
+ .teamfavdivider{height:1px;background:var(--line);margin:0 0 17px}
+ .teammatchfinder{background:linear-gradient(180deg,rgba(24,28,36,.76),rgba(18,21,27,.58));border:1px solid var(--line);border-radius:12px;padding:17px 18px;margin:0 0 22px}
+ .matchfinderhead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:12px}.matchfindertitle{font-size:15px;font-weight:650;color:var(--fg)}.matchfindersub{font-size:11px;color:var(--mut);margin-top:2px}
+ .matchfindercontrols{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-top:8px}.matchfindercontrols .matchstrict{margin:0}.matchfinderhint{font-size:10px;color:var(--mut)}
+ .sportssearchrow{grid-template-columns:minmax(0,7fr) auto minmax(150px,3fr)}.sportschannelsearch{width:100%;white-space:nowrap}
+.matchresultslabel{font-size:9px;letter-spacing:.75px;text-transform:uppercase;color:var(--mut);margin:13px 0 7px}
+ .sportssearchback{text-align:center;margin:14px 0 2px}.sportssearchback button{padding:7px 16px}
+ .teammatchresults:empty{display:none}
+ .teammatchresults{margin-top:14px}
+ .teammatchresults #teamFixtures>.card{background:var(--card2)}
+ .teammatchresults #teamFixtures>.card.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
+ .teamsearchresults{margin-top:10px}.teamsearchresults:empty{display:none}.teamsearchchips{display:flex;gap:8px;flex-wrap:wrap}
+ .teamsearchhit{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;transition:border-color .13s,background .13s}.teamsearchhit:hover{border-color:var(--line2);background:var(--card2)}
+ .teamsearchhit[data-team-select]{cursor:pointer}.teamsearchlogo{width:25px;height:25px;object-fit:contain;flex:0 0 25px}
+ .teamsearchhit .teamfindfixtures{margin-left:auto;padding:5px 9px;font-size:11px;white-space:nowrap}
+ .teamfixturegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+ .topfixturegrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+ .topfixturemore{text-align:center;margin:14px 0 4px}
+ @media(max-width:1150px){.topfixturegrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ @media(max-width:720px){.topfixturegrid{grid-template-columns:1fr}}
+ .teamupcominggroup{margin-bottom:24px}
+ .teamupcomingname{font-size:14px;font-weight:600;margin:0 0 9px;color:var(--fg)}
+ .teamfixture{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:12px;transition:border-color .13s,background .13s,transform .13s}
+ .teamfixture.hastv{cursor:pointer}
+ .teamfixture.hastv:hover{border-color:#397348;background:#172019;transform:translateY(-1px)}
+ .teamfixture.livefixture{border-color:#7a1f26;background:#171012}
+ .teamfixtureteams{font-size:15px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+ .teamfixtureside{display:inline-flex;align-items:center;gap:6px;min-width:0}
+ .teamfixturelogo{width:24px;height:24px;flex:0 0 24px;object-fit:contain}
+ .teamfixturevs{color:var(--mut);font-weight:400}
+ .teamfixtureowner{font-size:11px;color:var(--acc);margin-top:7px}
+ .teamfixturecompetition{font-size:11px;color:var(--mut);margin-bottom:4px}
+ .teamfixturetv{margin-left:auto}
+ .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
+ .teamfixture.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
+ .teamfixturebroadcasts.hide{display:none}
+ .matchstrict{display:flex;align-items:center;gap:9px;margin-top:9px;color:var(--mut);font-size:11px}
+ .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
+ .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
+ #recentMovieList>.muted,#latestEpisodeList>.muted,#upcomingEpisodeList>.muted,#teamUpcomingList>.muted,#gameWishlist>.muted{display:block;padding:22px 14px;border:1px dashed var(--line2);border-radius:10px;text-align:center;background:rgba(24,27,34,.45)}
+ @media(max-width:1100px){.moviecatalogs{grid-template-columns:1fr}.moviecatalogcolumn+.moviecatalogcolumn{padding:20px 0 0;border-left:0;border-top:1px solid var(--line)}}
+ @media(max-width:850px){.moviecatalogs.noxtream .moviegrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ @media(max-width:600px){.moviecatalogs.noxtream .moviegrid{grid-template-columns:1fr}}
+ @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}.matchfindercontrols{align-items:flex-start;flex-direction:column}main.wide{padding-left:18px;padding-right:18px}}
+ @media(max-width:560px){main,main.wide{padding:18px 12px 34px}.sectionsearch,.sportssearchrow{grid-template-columns:1fr}.sectionsearch button{width:100%}.moviegrid,.showgrid,.teamfixturegrid{grid-template-columns:1fr}.showhero{align-items:flex-start}.showheroart{width:110px;height:165px}.showhero h2{font-size:21px}}
+ .racinglayout{display:grid;grid-template-columns:minmax(320px,480px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
+ .racingwrap{width:100%;min-width:0;margin:0}
+ .racingsidebar{min-width:0}
+ .racingteamcontrol{width:100%;display:flex;flex-direction:column;align-items:flex-start;margin:0 0 16px}
+ .racingteamcontrol.hide{display:none}
+ .racingteamselect{display:flex;align-items:center;gap:10px;min-width:190px;justify-content:flex-start;text-align:left}
+ .racingteamselect img{width:34px;height:34px;object-fit:contain;flex:0 0 34px}
+ .racingteamselect.readonly{cursor:default;pointer-events:none;background:var(--card);color:var(--fg)}
+ .racingteampicker{display:grid;grid-template-columns:1fr;gap:7px;width:100%;margin-top:8px;padding:8px}
+ .racingteampicker.hide{display:none}
+ .racingteampicker .f1choice{display:flex;align-items:center;gap:8px;justify-content:flex-start;text-align:left;min-width:0}
+ .racingteampicker .f1choice img{width:28px;height:28px;object-fit:contain;flex:0 0 28px}
+ .racingseries{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0 22px}
+ .racingtoggle{background:var(--card);border:1px solid var(--line2);color:var(--mut);padding:8px 14px;border-radius:8px;cursor:pointer}
+ .racingtoggle.on{border-color:#d83a3a;background:#2a1719;color:#f39a9a}
+ .racinggrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+ .racingdrivers{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 24px}
+ .racingdriver{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;min-height:118px;cursor:pointer;transition:border-color .12s,background .12s,transform .12s}
+ .racingdriver:hover{border-color:#8a4549;background:#171416;transform:translateY(-1px)}
+ .racingdriver.selected{border-color:#a84a50;background:#1a1416}
+ .racingdriver img{width:72px;height:94px;object-fit:cover;object-position:top center;border-radius:7px;background:var(--card2)}
+ .racingdriver.racingdriverpair{grid-template-columns:154px minmax(0,1fr)}
+ .racingdriverpairpics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .racingdriverpairperson{min-width:0;text-align:center}
+ .racingdriverpairperson img{display:block;width:72px;height:82px;object-fit:cover;object-position:top center;margin:0 auto 4px}
+ .racingdriverpairperson span{display:block;font-size:10px;line-height:1.15;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .racingdriverinfo{display:flex;flex-direction:column;min-width:0}
+ .racingdrivername{font-size:16px;font-weight:650;line-height:1.25}
+ .racingdriverteam{font-size:11px;color:var(--mut);margin-top:3px}
+ .racingdrivernext{border-top:1px solid var(--line);margin-top:auto;padding-top:8px;font-size:11px;color:var(--mut);line-height:1.35}
+ .racingdrivernext b{display:block;color:var(--fg);font-size:12px;margin-top:2px}
+ .racingdetail{border-top:1px solid var(--line);padding-top:16px;min-height:390px}
+ .racingdetailhero{display:grid;grid-template-columns:132px minmax(0,1fr);gap:16px;align-items:center}
+ .racingdetailhero>img{width:132px;height:168px;object-fit:cover;object-position:top center;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+ .racingdetailhero>img.car{object-fit:contain;object-position:center;padding:5px}
+ .racingdetailseries{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#ef7777;margin-bottom:5px}
+ .racingdetail h2{font-size:22px;line-height:1.15;margin:0 0 5px}
+ .racingdetailteam{color:var(--mut);font-size:12px;line-height:1.4}
+ .racingdetailnext{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+ .racingdetailnextlabel{font-size:10px;color:var(--mut);letter-spacing:.7px;text-transform:uppercase;margin-bottom:6px}
+ .racingdetailnextgrid{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:14px;align-items:start}
+ .racingeventvisual{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+ .racingeventvisual img{display:block;width:180px;height:102px;object-fit:contain;border-radius:8px;background:#0b0d10;padding:5px;box-sizing:border-box}
+ .racingeventfallback{width:180px;height:102px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#0b0d10}
+ .racingeventfallback .racingserieslogo{width:150px;height:74px}
+ .racingdetailcountdown{display:inline-block;color:#f08b8b;background:#271416;border:1px solid #6f292e;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;margin:0}
+ .racingdetailnext b{display:block;font-size:16px;margin-bottom:5px}
+ .racingdetailmeta{font-size:12px;color:var(--mut);line-height:1.5}
+ .racingdetailactions{display:flex;gap:8px;margin-top:14px}
+ .racingdetailactions a{text-decoration:none}
+ .racingdetailf1hero{display:flex;align-items:center;gap:14px;margin-bottom:15px}
+ .racingdetailf1hero>img{width:100px;height:68px;object-fit:contain;background:var(--card);border-radius:9px;padding:7px}
+ .racingdetailpeople{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .racingdetailperson{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px;min-width:0}
+ .racingdetailperson img{width:48px;height:62px;object-fit:cover;object-position:top center;border-radius:6px;flex:0 0 48px}
+ .racingdetailperson b{font-size:12px;line-height:1.25}
+ @media(max-width:440px){.racingdetailnextgrid{grid-template-columns:1fr}.racingeventvisual{align-items:flex-start}}
+ .driverlive{display:inline-block;background:#102c19;border:1px solid #2f7e48;color:#70d18a;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:7px;vertical-align:1px}
+ .mydashdriverlive{margin-left:auto}
+ .racingcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+ .racingcard h3{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:10px}
+ .racingcard h3>span{position:relative;padding-bottom:6px}
+ .racingcard.selected h3>span:after{content:"";position:absolute;left:0;right:0;bottom:0;width:100%;height:2px;border-radius:2px;background:var(--series-accent,#747b86);opacity:.92}
+ .racingcard.series-f1{--series-accent:#050505}.racingcard.series-f1.selected h3>span:after{box-shadow:0 1px 0 rgba(255,255,255,.16)}
+ .racingcard.series-f2{--series-accent:#20aee5}.racingcard.series-f3{--series-accent:#e86c32}.racingcard.series-indycar{--series-accent:#d8212a}
+ .racingcard.series-wec{--series-accent:#7da65a}.racingcard.series-formulae{--series-accent:#19a7b8}.racingcard.series-motogp{--series-accent:#b7bcc4}.racingcard.series-wrc{--series-accent:#f06a22}
+ .racingserieslogo{display:block;width:58px;height:28px;object-fit:contain;object-position:left center;flex:0 0 auto;border:0;background:transparent}
+ .racingevent{padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
+ .racingevent:hover b{color:var(--acc)}
+ .racingevent:first-of-type{border-top:0}
+ .racingeventtop{display:flex;align-items:center;gap:8px}.racingeventtv{margin-left:auto;background:#17351e;border-color:#327443;color:#70d889}.racingeventchannels{margin-top:9px;padding:8px;border:1px solid #294535;border-radius:7px;background:#101814}.racingeventchannels.hide{display:none}.racingeventchannel{display:flex;align-items:center;gap:8px;padding:6px 4px;border-top:1px solid rgba(255,255,255,.055)}.racingeventchannel:first-child{border-top:0}.racingeventchannel .chn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.racingeventchannel .chbtns{flex:0 0 auto}
+ @media(max-width:1600px){.racinglayout{grid-template-columns:320px minmax(0,1fr);gap:24px}}
+ @media(max-width:1000px){.racinglayout{grid-template-columns:1fr}.racingsidebar{max-width:520px}.racinggrid{grid-template-columns:1fr}.racingdetail{min-height:0}}
+ .setupoverlay{position:fixed;inset:0;z-index:3000;background:rgba(5,7,10,.84);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px}
+ .setupoverlay.hide{display:none}
+ .setupwizard{width:min(860px,100%);max-height:calc(100vh - 48px);overflow:auto;background:linear-gradient(160deg,#11161d 0%,#0d1116 100%);border:1px solid #4a515d;border-radius:18px;box-shadow:0 28px 100px rgba(0,0,0,.64);padding:0}
+ .editprofiledialog{width:min(620px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#101318;border:1px solid var(--line2);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.55);padding:22px 24px}.editprofiledialog h2{margin:0 0 5px}.editprofileactions{display:flex;align-items:center;gap:8px;margin-top:20px;padding-top:15px;border-top:1px solid var(--line)}.editprofileactions .spacer{flex:1}
+ .setupbrand{display:flex;align-items:center;gap:11px;padding:20px 28px 13px}.setupbrand svg{width:42px;height:42px}.setupbrand b{font-size:18px}.setupstepmeta{margin-left:auto;color:#7f8a99;font-size:11px;letter-spacing:.75px;text-transform:uppercase}
+ .setupsteps{display:flex;gap:7px;margin:0 28px 27px}.setupdot{height:4px;flex:1;border-radius:5px;background:#242b35;transition:background .18s}.setupdot.on{background:linear-gradient(90deg,#0b55c8,#2b80ff)}
+ .setupstep{padding:0 28px 4px;min-height:330px}.setupstep.hide{display:none}.setupstep h2{font-size:25px;margin:0 0 8px;letter-spacing:-.2px}.setupintro{color:var(--mut);margin-bottom:22px;line-height:1.55;max-width:700px}
+ .setupfields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.setupfields .full{grid-column:1/-1}.setupfields input,.setupfields select{width:100%}
+ .setupemblems{display:flex;gap:8px;flex-wrap:wrap}.setupemblems .emblemchoice{width:58px;height:58px}
+ .setupfeatures{display:grid;grid-template-columns:1fr 1fr;gap:11px}.setupfeature{display:flex;align-items:center;gap:11px;border:1px solid var(--line);background:rgba(20,25,32,.9);border-radius:11px;padding:15px;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}.setupfeature:hover{border-color:#566276;transform:translateY(-1px)}.setupfeature:has(input:checked){border-color:#2869c9;background:#12223a}.setupfeature input{width:auto;margin:0}.setupfeature b{display:block}.setupfeature small{display:block;color:var(--mut);margin-top:3px;line-height:1.4}
+ .setupoptional{border:1px solid var(--line);background:rgba(20,25,32,.72);border-radius:11px;padding:14px 15px;margin-top:15px;color:var(--mut);font-size:12px;line-height:1.5}
+ .setupchoices{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.setupchoice{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;padding:9px 13px}.setupchoice.on{border-color:#2768d8;background:#102347;color:#dbeaff}
+ .countrygrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:13px}.countrychoice{display:flex;align-items:center;gap:9px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);cursor:pointer;user-select:none}.countrychoice:hover{border-color:#4a586c}.countrychoice.on{border-color:#2768d8;background:#102347}.countrychoice input{width:auto;margin:0}.countryflag{font-size:18px}.countryname{min-width:0;flex:1}.countrycode{font-size:10px;color:var(--muted);font-weight:700}.countrychoice.unsupported{border-color:#765c2b;background:#241e13}
+ .setupsearch{display:grid;grid-template-columns:1fr auto;gap:8px;margin:10px 0}.setupresults{display:grid;gap:7px;margin-top:8px;max-height:210px;overflow:auto}.setupresult{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 11px}.setupresult img{width:38px;height:50px;object-fit:cover;border-radius:5px}.setupresult .grow{flex:1}.setupresult button{min-width:64px}.setupselected{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}.setupchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:var(--card)}
+ .setupstartergrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.setupstartergrid h3{margin:0 0 7px}.setupfinishopts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.setupfinishopt{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:16px}.setupfinishopt b{display:block;margin-bottom:5px}.setupfinishopt button{margin-top:13px}
+ .setupactions{display:flex;align-items:center;gap:9px;margin:22px 28px 0;padding:17px 0 23px;border-top:1px solid var(--line)}.setupactions .setupspacer{flex:1}.setupactions button{min-width:94px}
+ .setuptest{font-size:12px;color:var(--mut);min-height:18px;margin-top:8px}.setuptest.ok{color:#70d18a}.setuptest.err{color:#ff7676}
+ @media(max-width:650px){.setupfields,.setupfeatures,.setupstartergrid,.setupfinishopts{grid-template-columns:1fr}.setupfields .full{grid-column:1}.setupbrand{padding:17px 18px 12px}.setupsteps{margin:0 18px 22px}.setupstep{padding:0 18px;min-height:0}.setupactions{margin:20px 18px 0;flex-wrap:wrap}}
+</style></head><body>
+<div id="globalDecor" class="globaldecor"></div>
+<header>
+  <h1><svg width="38" height="38" viewBox="0 0 240 240" style="vertical-align:-11px;margin-right:8px" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="139" rx="44" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="127" rx="42" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><ellipse cx="101" cy="115" rx="40" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>Olo's TVMate</h1>
+  <a id="navMylist" onclick="showMylist()" data-i18n="Profile">Profile</a>
+  <a id="navMytimeline" class="hide" onclick="showMytimeline()" data-i18n="Timeline">Timeline</a>
+  <a id="navChannels" onclick="showChannels()" data-i18n="Playlists">Playlists</a>
+  <a id="navMytv" onclick="showMytv()" data-i18n="Live TV">Live TV</a>
+  <a id="navMovies" onclick="showMovies()" data-i18n="Movies">Movies</a>
+  <a id="navShows" onclick="showShows()" data-i18n="Shows">Shows</a>
+  <a id="navGames" onclick="showGames()" data-i18n="Games">Games</a>
+  <a id="navRacing" onclick="showRacing()" data-i18n="Racing">Racing</a>
+  <a id="navTeams" onclick="showTeams()" data-i18n="Sports">Sports</a>
+  <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
+  <span id="slogan" class="slogan"></span>
+  <span id="status" class="muted"></span>
+  <button type="button" class="stopbtn headerstop" onclick="stopTVMate()" data-i18n="Stop TVMate" title="Stop TVMate">Stop TVMate</button>
+  <div class="langsel">
+    <button class="langflag on" id="langEN" onclick="setLang('en')" title="English">&#127468;&#127463;</button>
+    <button class="langflag" id="langNO" onclick="setLang('no')" title="Norsk">&#127475;&#127476;</button>
+  </div>
+</header>
+<div id="profileSetupOverlay" class="setupoverlay hide">
+  <div class="setupwizard" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+    <div class="setupbrand"><span id="setupBrandEmblem"></span><b>Olo's TVMate</b><span id="setupStepMeta" class="setupstepmeta"></span></div>
+    <div id="setupProgress" class="setupsteps"></div>
+    <div class="setupstep" data-key="profile">
+      <h2 id="setupTitle" data-i18n="Welcome to TVMate">Welcome to TVMate</h2>
+      <div class="setupintro" data-i18n="Let's make it yours. Everything here can be changed later from Settings or Edit Profile.">Let's make it yours. Everything here can be changed later from Settings or Edit Profile.</div>
+      <div class="setupfields">
+        <div><label data-i18n="Profile name">Profile name</label><input id="setupName" type="text" placeholder="Your name" data-i18n-ph="Your name"></div>
+        <div><label data-i18n="Preferred language">Preferred language</label><select id="setupLang" onchange="setLang(this.value)"><option value="en">English</option><option value="no">Norsk</option></select></div>
+        <div class="full"><label data-i18n="Pick an emblem">Pick an emblem</label><div id="setupEmblems" class="setupemblems"></div></div>
+        <div class="full"><label data-i18n="Background style">Background style</label><select id="setupBackground"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div>
+      </div>
+    </div>
+    <div class="setupstep hide" data-key="follow">
+      <h2 data-i18n="What do you want to follow?">What do you want to follow?</h2>
+      <div class="setupintro" data-i18n="Movies and shows are always available. Turn the extra sections on or off here.">Movies and shows are always available. Turn the extra sections on or off here.</div>
+      <div class="setupfeatures">
+        <label class="setupfeature"><input id="setupFootball" type="checkbox"><span><b data-i18n="Football">Football</b><small data-i18n="Matchfinder, Sports and fixtures">Matchfinder, Sports and fixtures</small></span></label>
+        <label class="setupfeature"><input id="setupRacing" type="checkbox"><span><b data-i18n="Racing">Racing</b><small data-i18n="Racing schedules and followed drivers">Racing schedules and followed drivers</small></span></label>
+        <label class="setupfeature"><input id="setupGames" type="checkbox"><span><b data-i18n="Games">Games</b><small data-i18n="Steam wishlist and game releases">Steam wishlist and game releases</small></span></label>
+      </div>
+    </div>
+    <div class="setupstep hide" data-key="football">
+      <h2 data-i18n="Choose your football teams">Choose your football teams</h2>
+      <div class="setupintro" data-i18n="Pick the teams you want fixtures for. You can add or remove teams later in Sports.">Pick the teams you want fixtures for. You can add or remove teams later in Sports.</div>
+      <div id="setupTeamSelected" class="setupselected"></div>
+      <div class="setupsearch"><input id="setupTeamQuery" type="text" placeholder="Search for a team, e.g. Brann" data-i18n-ph="Search for a team, e.g. Brann" onkeydown="if(event.key==='Enter')setupSearchTeams()"><button type="button" onclick="setupSearchTeams()" data-i18n="Search">Search</button></div>
+      <div id="setupTeamResults" class="setupresults"></div>
+    </div>
+    <div class="setupstep hide" data-key="racing">
+      <h2 data-i18n="Choose your racing">Choose your racing</h2>
+      <div class="setupintro" data-i18n="Select the series you want in Racing and your timeline.">Select the series you want in Racing and your timeline.</div>
+      <div id="setupRacingSeries" class="setupchoices"></div>
+      <div id="setupF1TeamWrap" class="setupfields">
+        <div class="full"><label data-i18n="Favorite Formula 1 team">Favorite Formula 1 team</label><select id="setupF1TeamSelect" onchange="setupSelectF1Team(this.value)"><option value="" data-i18n="Choose a Formula 1 team">Choose a Formula 1 team</option></select></div>
+      </div>
+    </div>
+    <div class="setupstep hide" data-key="content">
+      <h2 data-i18n="Add something to watch">Add something to watch</h2>
+      <div class="setupintro" data-i18n="Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what Profile looks like.">Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what Profile looks like.</div>
+      <div class="setupstartergrid">
+        <div><h3 data-i18n="Shows">Shows</h3><div class="setupsearch"><input id="setupShowQuery" type="text" placeholder="Search shows" data-i18n-ph="Search shows" onkeydown="if(event.key==='Enter')setupSearchContent('show')"><button type="button" onclick="setupSearchContent('show')" data-i18n="Search">Search</button></div><div id="setupShowResults" class="setupresults"></div></div>
+        <div><h3 data-i18n="Movies">Movies</h3><div class="setupsearch"><input id="setupMovieQuery" type="text" placeholder="Search movies" data-i18n-ph="Search movies" onkeydown="if(event.key==='Enter')setupSearchContent('movie')"><button type="button" onclick="setupSearchContent('movie')" data-i18n="Search">Search</button></div><div id="setupMovieResults" class="setupresults"></div></div>
+      </div>
+      <div class="setupoptional" data-i18n="If you don't add anything yet, TVMate will add a couple of demo items. They disappear permanently when you favorite your first real movie or show.">If you don't add anything yet, TVMate will add a couple of demo items. They disappear permanently when you favorite your first real movie or show.</div>
+    </div>
+    <div class="setupstep hide" data-key="launch">
+      <h2 data-i18n="How should TVMate open?">How should TVMate open?</h2>
+      <div class="setupintro" data-i18n="TVMate opens straight in your browser. Use Stop TVMate in the top-right when you want to shut the app down.">TVMate opens straight in your browser. Use Stop TVMate in the top-right when you want to shut the app down.</div>
+      <div class="setupfeatures"><div class="setupfeature"><span><b data-i18n="Modern TVMate">Modern TVMate</b><small data-i18n="TVMate opens straight in your browser with no CMD window.">TVMate opens straight in your browser with no CMD window.</small></span></div></div>
+      <div id="setupBookmarkHelp" class="setupoptional"><b style="display:block;color:var(--fg);margin-bottom:6px" data-i18n="Bookmark TVMate">Bookmark TVMate</b><span data-i18n="Press Ctrl+D to bookmark TVMate for an easy way back.">Press Ctrl+D to bookmark TVMate for an easy way back.</span><div class="row" style="margin-top:10px"><code id="setupLocalUrl"></code><button type="button" class="ghost" onclick="copySetupLocalUrl(this)" data-i18n="Copy address">Copy address</button></div></div>
+      <div id="setupAutoShutdownWrap" class="setupoptional"><b style="display:block;color:var(--fg);margin-bottom:7px" data-i18n="Auto shutdown when inactive">Auto shutdown when inactive</b><label><span data-i18n="Stop TVMate after">Stop TVMate after</span> <select id="setupAutoShutdown" style="width:auto;margin-left:7px"><option value="0" data-i18n="Keep running — uses approximately three crumbs and your calculator works harder">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label><div style="margin-top:6px" data-i18n="Activity in TVMate resets the timer.">Activity in TVMate resets the timer.</div></div>
+    </div>
+    <div class="setupstep hide" data-key="finish">
+      <h2 data-i18n="You're ready">You're ready</h2>
+      <div class="setupintro" data-i18n="TVMate is set up around what you follow. A streaming login is only needed for your own channels, movies and shows.">TVMate is set up around what you follow. A streaming login is only needed for your own channels, movies and shows.</div>
+      <div class="setupfinishopts"><div class="setupfinishopt"><b data-i18n="Want playback too?">Want playback too?</b><span class="muted" data-i18n="Set up your Xtream login for your own channels, movies and shows.">Set up your Xtream login for your own channels, movies and shows.</span><br><button type="button" class="ghost" onclick="finishProfileSetup(this,true)" data-i18n="Set up Xtream">Set up Xtream</button></div><div class="setupfinishopt"><b data-i18n="All done">All done</b><span class="muted" data-i18n="Head straight to Profile and start using TVMate.">Head straight to Profile and start using TVMate.</span><br><button type="button" onclick="finishProfileSetup(this,false)" data-i18n="Let's go, I'm ready">Let's go, I'm ready</button></div></div>
+    </div>
+    <div class="setupactions">
+      <button id="setupSkip" type="button" class="ghost" onclick="skipProfileSetup()" data-i18n="Skip setup">Skip setup</button>
+      <div class="setupspacer"></div>
+      <button id="setupBack" type="button" class="ghost hide" onclick="setupStep(-1)" data-i18n="Back">Back</button>
+      <button id="setupNext" type="button" onclick="setupStep(1)" data-i18n="Next">Next</button>
+    </div>
+  </div>
+</div>
+<div id="editProfileOverlay" class="setupoverlay hide" onclick="if(event.target===this)closeEditProfile()">
+  <div class="editprofiledialog" role="dialog" aria-modal="true" aria-labelledby="editProfileTitle">
+    <h2 id="editProfileTitle" data-i18n="Edit Profile">Edit Profile</h2>
+    <div class="setupintro" data-i18n="Your everyday TVMate preferences. Run the setup guide to change what you follow.">Your everyday TVMate preferences. Run the setup guide to change what you follow.</div>
+    <div class="setupfields">
+      <div><label data-i18n="Profile name">Profile name</label><input id="ep_name" type="text"></div>
+      <div><label data-i18n="Preferred language">Preferred language</label><select id="ep_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
+      <div class="full"><label data-i18n="Emblem">Emblem</label><div id="ep_emblems" class="setupemblems"></div></div>
+      <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="Profile">Profile</option><option value="mytimeline" data-i18n="Timeline">Timeline</option><option value="channels" data-i18n="Playlists">Playlists</option><option value="mytv" data-i18n="Live TV">Live TV</option><option value="movies" data-i18n="Movies">Movies</option><option value="shows" data-i18n="Shows">Shows</option><option value="games" data-i18n="Games">Games</option><option value="racing" data-i18n="Racing">Racing</option><option value="teams" data-i18n="Sports">Sports</option></select></div>
+      <div><label data-i18n="Profile layout">Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
+      <label class="setupfeature full"><input id="ep_checkshows" type="checkbox"><span><b data-i18n="Check favorite shows on startup">Check favorite shows on startup</b><small data-i18n="Look for newly available episodes when TVMate starts.">Look for newly available episodes when TVMate starts.</small></span></label>
+      <label class="setupfeature full"><input id="ep_refreshiptv" type="checkbox"><span><b data-i18n="Refresh IPTV & EPG on startup">Refresh IPTV &amp; EPG on startup</b><small data-i18n="Refresh Xtream channels, movies, shows and TV guide data.">Refresh Xtream channels, movies, shows and TV guide data.</small></span></label>
+      <label class="setupfeature full"><input id="ep_refreshsports" type="checkbox"><span><b data-i18n="Refresh sports, racing & games on startup">Refresh sports, racing &amp; games on startup</b><small data-i18n="Refresh matches, regional TV listings, racing and your Steam wishlist.">Refresh matches, regional TV listings, racing and your Steam wishlist.</small></span></label>
+      <div class="full"><label data-i18n="Background style">Background style</label><select id="ep_background"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div>
+    </div>
+    <div class="editprofileactions"><button type="button" class="ghost" onclick="runSetupGuideFromProfile()" data-i18n="Run setup guide">Run setup guide</button><div class="spacer"></div><button type="button" class="ghost" onclick="closeEditProfile()" data-i18n="Cancel">Cancel</button><button type="button" onclick="saveEditProfile(this)" data-i18n="Save">Save</button></div>
+  </div>
+</div>
+<main>
+  <section id="channelsView" class="hide">
+    <div class="playlistsearch">
+      <div class="col">
+        <div class="colh"><span data-i18n="Find Channels">Find Channels</span><button type="button" class="clrbtn" onclick="resetPlaylistSearch()" data-i18n="Reset">Reset</button></div>
+        <div class="row"><input id="cq" type="text" placeholder="Find a channel, e.g. tv2 play" data-i18n-ph="Find a channel, e.g. tv2 play" onkeydown="if(event.key==='Enter')doChannelSearch('cq','cresults')"><button onclick="doChannelSearch('cq','cresults')" data-i18n="Search">Find</button></div>
+        <div id="cresults"></div>
+      </div>
+      <div class="col">
+        <div class="colh"><span data-i18n="Find Categories">Find Categories</span><button type="button" class="clrbtn" onclick="resetPlaylistSearch()" data-i18n="Reset">Reset</button></div>
+        <div class="row"><input id="catq" type="text" placeholder="Search a category, e.g. Norway" data-i18n-ph="Search a category, e.g. Norway" onkeydown="if(event.key==='Enter')doCategorySearch()"><button onclick="doCategorySearch()" data-i18n="Search">Find</button></div>
+        <div id="catresults"></div>
+      </div>
+    </div>
+    <div class="ch4">
+      <div class="ch4cats">
+        <div class="colh"><span data-i18n="All Categories">All Categories</span></div>
+        <input id="catfilter" type="text" placeholder="Filter categories..." data-i18n-ph="Filter categories..." oninput="renderCatList()" class="catsearch">
+        <div id="catlist"></div>
+      </div>
+
+      <div class="ch4group">
+      <div class="pancakes-pl" id="pcakePL"></div>
+      <div class="ch4col">
+        <div class="colh"><span data-i18n="Selected categories">Selected categories</span><button class="clrbtn" onclick="clearSelectedCats()" data-i18n="Clear">Clear</button></div>
+        <div id="selcats" class="pcol"><span class="muted" data-i18n="Tick categories on the left.">Tick categories on the left.</span></div>
+        <div class="row plbtns" style="flex-direction:column;align-items:stretch;gap:6px">
+          <button class="ghost" onclick="favSelectedCats()"><span data-i18n="★ Add to Favorites">&#9733; Add to Favorites</span></button>
+          <button onclick="buildM3U('categories')" data-i18n="Make Playlist (Categories)">Make Playlist (Categories)</button>
+        </div>
+      </div>
+
+      <div class="ch4col">
+        <div class="colh" id="ccHead"><span data-i18n="Filter Channels">Filter Channels</span></div>
+        <div id="ccList" class="pcol"><span class="muted" data-i18n="Click a selected category to see its channels.">Click a selected category to see its channels.</span></div>
+        <div class="row plbtns">
+          <button class="ghost" onclick="ccTick(true)" data-i18n="Tick all">Tick all</button>
+          <button class="ghost" onclick="ccTick(false)" data-i18n="Untick all">Untick all</button>
+          <button onclick="addTickedToPlaylist()"><span data-i18n="Add ticked">Add ticked</span> &raquo;</button>
+        </div>
+      </div>
+
+      <div class="ch4col">
+        <div class="colh"><span data-i18n="Playlist">Playlist</span> <span id="plCount" class="muted"></span><button class="clrbtn" onclick="clearPlaylist()" data-i18n="Clear">Clear</button></div>
+        <div id="plList" class="pcol"><span class="muted" data-i18n="Ticked channels land here.">Ticked channels land here.</span></div>
+        <div class="row plbtns" style="flex-direction:column;align-items:stretch;gap:6px">
+          <button class="ghost" onclick="favPlaylist()"><span data-i18n="★ Add to Favorites">&#9733; Add to Favorites</span></button>
+          <button onclick="buildPlaylistM3U()" data-i18n="Make Playlist (Channels)">Make Playlist (Channels)</button>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="footline"></div>
+  </section>
+
+  <section id="mytvView" class="hide">
+    <div class="tvwrap">
+      <div class="tvrail" id="tvRail"></div>
+      <div class="tvguide">
+        <div class="tvguidehead">
+          <div class="tvchancol"><button class="ghost" id="epgRefresh" onclick="epgRefresh()" title="Reload EPG"><span data-i18n="EPG Refresh">&#128197; EPG</span></button></div>
+          <div class="tvtimeline" id="tvTimeHead"></div>
+        </div>
+        <div class="tvguidebody" id="tvGuideBody"></div>
+        <div class="tvplayerslot" id="tvPlayerSlot"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mylistView" class="hide">
+    <div class="mydash">
+      <div id="myListProfile" class="mylistprofile"></div>
+      <div class="mydashblock" id="myListTeamsBlock">
+        <div class="mydashhead" id="myListSportHeading"><div class="mydashsportheading sport">Sport</div></div>
+        <div id="myListTeams" class="mydashgrid"><span class="muted">Loading...</span></div>
+      </div>
+      <div class="mydashblock" id="myListShowsBlock">
+        <div class="mydashhead"><div class="colh" data-i18n="Shows">Shows</div></div>
+        <div id="myListShows" class="mydashepisodes"><span class="muted">Loading...</span></div>
+      </div>
+      <div class="mydashblock hide" id="myListTimelineBlock">
+        <div class="mydashhead"><div class="colh" data-i18n="Now & Next">Now &amp; Next</div></div>
+        <div id="myListTimeline"></div>
+      </div>
+      <div class="mydashblock" id="myListChannelsBlock">
+        <div class="mydashhead"><div class="colh mydashliveheading" onclick="toggleMyListChannelPicker()" title="Choose channels" data-i18n="Live TV">Live TV</div></div>
+        <div id="myListChannels" class="mydashchannels"></div>
+        <div id="myListChannelPicker" class="mydashchooser hide"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mytimelineView" class="hide">
+    <div class="mytimelinepage">
+      <h2 class="colh" data-i18n="Timeline">Timeline</h2>
+      <div id="myTimelineStandalone"></div>
+    </div>
+  </section>
+
+  <section id="moviesView" class="hide">
+    <button id="movieRefreshBtn" class="showrefresh" onclick="checkMovies(this)">&#8635; <span data-i18n="Check for new movies">Check for new movies</span></button>
+    <div class="movieswrap">
+      <aside class="moviefavs">
+        <div class="colh">&#9733; <span data-i18n="Favorite Movies">Favorite Movies</span></div>
+        <div id="movieFavList" class="moviefavlist"><span class="muted">No favorite movies yet.</span></div>
+      </aside>
+      <div class="moviesmain">
+        <h2 class="colh" data-i18n="Movies">Movies</h2>
+        <div class="row sectionsearch">
+          <input id="movieQ" type="text" placeholder="Search your movies..." data-i18n-ph="Search your movies..." onkeydown="if(event.key==='Enter')searchMovies()">
+          <button onclick="searchMovies()" data-i18n="Search">Search</button>
+        </div>
+        <div id="movieCatalogs" class="moviecatalogs">
+          <section id="recentMoviesSection" class="moviecatalogcolumn">
+            <header class="moviecataloghead"><div class="colh" data-i18n="Recently Added">Recently Added</div></header>
+            <div id="recentMovieList"><span class="muted">Loading...</span></div>
+            <div style="text-align:center;margin-top:14px"><button id="recentMovieMore" class="ghost hide" onclick="expandRecentMovies(this)" data-i18n="See what else is new">See what else is new</button></div>
+          </section>
+          <section class="moviecatalogcolumn">
+            <header class="moviecataloghead">
+              <div class="colh" data-i18n="Discover Movies">Discover Movies</div>
+              <nav class="moviecatalogtabs" aria-label="Movie catalog">
+                <button class="moviecatalogtab on" data-movie-catalog="popular" onclick="loadCinemetaMovies('popular')" data-i18n="Popular">Popular</button>
+                <button class="moviecatalogtab" data-movie-catalog="new" onclick="loadCinemetaMovies('new')" data-i18n="New Releases">New Releases</button>
+                <button class="moviecatalogtab" data-movie-catalog="featured" onclick="loadCinemetaMovies('featured')" data-i18n="Featured">Featured</button>
+              </nav>
+            </header>
+            <div id="cinemetaMovieList"><span class="muted">Loading...</span></div>
+          </section>
+        </div>
+        <div id="movieResults"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="showsView" class="hide">
+    <button id="showRefreshBtn" class="showrefresh" onclick="checkAllShows(this)">&#8635; <span data-i18n="Check for new episodes">Check for new episodes</span></button>
+    <div class="showswrap">
+      <aside class="showfavs">
+        <div class="colh">&#9733; <span data-i18n="Favorite Shows">Favorite Shows</span></div>
+        <div id="showFavList" class="showfavlist"><span class="muted">No favorite shows yet.</span></div>
+      </aside>
+      <div class="showsmain">
+        <h2 class="colh" data-i18n="Shows">Shows</h2>
+        <div class="row sectionsearch">
+          <input id="showQ" type="text" placeholder="Search your shows..." data-i18n-ph="Search your shows..." onkeydown="if(event.key==='Enter')searchShows()">
+          <button onclick="searchShows()" data-i18n="Search">Search</button>
+        </div>
+        <div id="latestEpisodesSection">
+          <div class="colh" style="margin-top:20px" data-i18n="Your Latest Episodes">Your Latest Episodes</div>
+          <div id="latestEpisodeList"><span class="muted">Loading...</span></div>
+          <div style="text-align:center;margin-top:14px"><button id="latestEpisodeMore" class="ghost hide" onclick="expandLatestEpisodes(this)" data-i18n="See more latest episodes">See more latest episodes</button></div>
+          <div id="upcomingEpisodesSection" class="hide">
+            <div class="colh" style="margin-top:24px" data-i18n="Upcoming Episodes">Upcoming Episodes</div>
+            <div id="upcomingEpisodeList"></div>
+          </div>
+        </div>
+        <div id="showResults"></div>
+        <div id="showDetails" class="showdetails"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="gamesView" class="hide">
+    <div class="gameslayout">
+      <aside id="steamProfile" class="steamprofile"><div class="steamprofileempty">Steam profile</div></aside>
+      <div class="gamesmain">
+        <div class="gameshead">
+          <div><h2 class="colh" data-i18n="Games">Games</h2><div id="steamWishlistStatus" class="moviemeta"></div></div>
+          <div class="gamesheadactions"><button id="steamWishlistQuickBtn" class="ghost" onclick="syncSteamWishlist(this)">&#8635; <span data-i18n="Refresh wishlist">Refresh wishlist</span></button><button class="ghost" onclick="toggleSteamWishlistSettings()">&#9881; <span data-i18n="Wishlist settings">Wishlist settings</span></button></div>
+        </div>
+        <div id="steamWishlistSettings" class="gameswishlistsettings hide"><div class="row sectionsearch"><input id="steamWishlistQ" type="text" placeholder="Steam wishlist URL..." data-i18n-ph="Steam wishlist URL..."><button id="steamWishlistBtn" class="ghost" onclick="syncSteamWishlist(this)" data-i18n="Sync wishlist">Sync wishlist</button></div></div>
+        <div id="steamWishlistHelp" class="wishlisthelp hide">
+          <b>Steps to Make Your Wishlist Public</b>
+          <ul>
+            <li>Open the <b>Steam</b> app or website.</li>
+            <li>Click your <b>Profile name</b> at the top right and select <b>Profile</b>.</li>
+            <li>Click the <b>Edit Profile</b> button on the right side.</li>
+            <li>Select <b>Privacy Settings</b> from the menu on the left.</li>
+            <li>Set <b>My Profile</b> and <b>Game details</b> to <b>Public</b>.</li>
+          </ul>
+          <div class="wishlisthelpsection">
+            <b>How to Share Your Wishlist Link</b>
+            <ul>
+              <li>Go back to your profile page.</li>
+              <li>Hover over <b>Store</b> and click <b>Wishlist</b>.</li>
+              <li>Copy the URL from your browser or the top right of the wishlist page and paste it into TVMate.</li>
+            </ul>
+            <span class="wishlistexample">https://store.steampowered.com/wishlist/profiles/76561198000000000/</span>
+          </div>
+        </div>
+        <div id="gameWishlistFilterRow" class="row hide" style="margin-top:14px">
+          <input id="gameWishlistFilter" type="text" placeholder="Filter wishlist..." data-i18n-ph="Filter wishlist..." oninput="renderGameWishlist()">
+        </div>
+        <div id="gameWishlist" class="gamegrid" style="margin-top:18px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="racingView" class="hide">
+    <div class="racinglayout">
+      <aside class="racingsidebar">
+        <div id="racingF1TeamControl" class="racingteamcontrol f1Feature">
+          <div id="racingTeamLabel" class="colh">Formula 1 Team</div>
+          <button id="racingF1ChooseBtn" class="ghost racingteamselect" onclick="toggleRacingF1Picker()"><span data-i18n="Choose F1 team">Choose F1 team</span></button>
+          <div id="racingF1Picker" class="mydashchooser racingteampicker hide"></div>
+        </div>
+        <div id="racingDriverDetail" class="racingdetail"><span class="muted">Choose a driver to see details.</span></div>
+      </aside>
+      <div class="racingwrap">
+        <h2 class="colh" data-i18n="Racing">Racing</h2>
+        <div class="muted" data-i18n="Choose the racing series you want to follow.">Choose the racing series you want to follow.</div>
+        <div id="racingSeries" class="racingseries"></div>
+        <div id="racingDrivers" class="racingdrivers"></div>
+        <div id="racingInfo" class="racinggrid"><span class="muted">Loading...</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="teamsView" class="hide">
+    <button id="teamRefreshBtn" class="showrefresh" onclick="checkTeamFixtures(this)">&#8635; <span data-i18n="Refresh fixtures">Refresh fixtures</span></button>
+    <div class="teamswrap">
+      <aside class="teamfavs">
+        <div id="teamProfileDetail" class="teamprofiledetail"><span class="muted" data-i18n="Choose a team to see details.">Choose a team to see details.</span></div>
+        <div class="teamfavdivider"></div>
+        <div class="colh">&#9733; <span data-i18n="Favorite Teams">Favorite Teams</span></div>
+        <div id="teamFavList" class="teamfavlist"><span class="muted">No favorite teams yet.</span></div>
+      </aside>
+      <div class="teamsmain">
+        <h2 class="colh" data-i18n="Sports">Sports</h2>
+        <div class="teammatchfinder">
+          <div class="matchfinderhead"><div><div class="matchfindertitle" data-i18n="Find a match">Find a match</div><div class="matchfindersub" data-i18n="Search for a team, then choose Find fixtures when you want Matchfinder and TV results.">Search for a team, then choose Find fixtures when you want Matchfinder and TV results.</div></div></div>
+          <div class="row sectionsearch sportssearchrow">
+            <input id="q" type="text" placeholder="Search a team, e.g. Leeds" data-i18n-ph="Search a team, e.g. Leeds" onkeydown="if(event.key==='Enter')searchTeamHub()">
+            <button onclick="searchTeamHub()" data-i18n="Find team">Find team</button>
+            <button class="ghost sportschannelsearch" onclick="openSportsChannelSearch()" data-i18n="Search channels">Search channels</button>
+          </div>
+          <div class="matchfindercontrols"><div class="matchstrict"><span data-i18n="Match strictness">Match strictness</span>
+              <input id="matchStrict" type="range" min="0.40" max="0.80" step="0.01" value="0.62" oninput="document.getElementById('matchStrictValue').textContent=this.value" onchange="saveMatchStrictness(this.value)">
+              <span id="matchStrictValue" class="matchstrictvalue">0.62</span>
+            </div><span class="matchfinderhint" data-i18n="Lower strictness only if a known channel is being missed.">Lower strictness only if a known channel is being missed.</span>
+          </div>
+          <div id="sportsSearchBack" class="sportssearchback hide"><button type="button" class="ghost" onclick="clearSportsSearch()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button></div>
+          <div id="teamSearchResults" class="teamsearchresults"></div>
+          <div id="results" class="teammatchresults"></div>
+        </div>
+        <div id="teamLiveSection" class="hide">
+          <div class="colh" style="margin-top:22px" data-i18n="Live Matches">Live Matches</div>
+          <div id="teamLiveList" class="teamfixturegrid"></div>
+        </div>
+        <div id="teamTopSection" class="hide">
+          <div class="colh" style="margin-top:22px" data-i18n="Today's Top Fixtures">Today's Top Fixtures</div>
+          <div id="teamTopList"></div>
+        </div>
+        <div class="colh" style="margin-top:22px" data-i18n="Upcoming Fixtures">Upcoming Fixtures</div>
+        <div id="teamUpcomingList"><span class="muted">Loading...</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="settingsView" class="hide">
+    <div class="settingswrap">
+    <div class="brandblock">
+      <svg width="120" height="120" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="139" rx="44" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="127" rx="42" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><ellipse cx="101" cy="115" rx="40" ry="11" fill="none" stroke="#b9762d" stroke-width="2"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>
+      <div class="bname">Olo's TVMate</div>
+      <div class="btag">Find your match. Build your playlist.</div>
+      <div class="btag" style="opacity:.6;font-size:11px;margin-top:4px">v__VERSION__</div>
+    </div>
+    <div class="card settingscard">
+      <nav class="settingstabs" aria-label="Settings categories">
+        <button type="button" class="settingstab on" data-settings-tab="profile" onclick="setSettingsTab('profile')" data-i18n="Profile">Profile</button>
+        <button type="button" class="settingstab" data-settings-tab="general" onclick="setSettingsTab('general')" data-i18n="General">General</button>
+        <button type="button" class="settingstab" data-settings-tab="iptv" onclick="setSettingsTab('iptv')" data-i18n="IPTV & EPG">IPTV &amp; EPG</button>
+        <button type="button" class="settingstab" data-settings-tab="maintenance" onclick="setSettingsTab('maintenance')" data-i18n="Maintenance">Maintenance</button>
+        <button type="button" class="settingstab" data-settings-tab="health" onclick="setSettingsTab('health')" data-i18n="Health">Health</button>
+      </nav>
+      <div class="settingspanels">
+      <div id="settingsProfile" class="settingspanel">
+       <div class="settingsgroup" data-settings-panel="profile">
+        <div class="colh" data-i18n="Profile">Profile</div>
+        <div class="muted" data-i18n="Personalize TVMate and choose what opens when the app starts.">Personalize TVMate and choose what opens when the app starts.</div>
+        <div class="grid2">
+          <div><label data-i18n="Profile name">Profile name</label><input id="s_profile" type="text" maxlength="40"></div>
+          <div><label data-i18n="Profile emblem">Profile emblem</label><div id="s_emblems" class="emblempicker"></div></div>
+          <div><label data-i18n="Profile layout">Profile layout</label>
+            <select id="s_mylistlayout"><option value="balanced" data-i18n="Balanced">Balanced</option><option value="spotlight" data-i18n="Spotlight">Spotlight</option><option value="timeline" data-i18n="Now Timeline">Now Timeline</option><option value="hub" data-i18n="Profile Hub">Profile Hub</option></select>
+            <div class="muted" style="margin-top:6px" data-i18n="Changes the arrangement of your Profile page only.">Changes the arrangement of your Profile page only.</div></div>
+          <div><label data-i18n="Preferred language">Preferred language</label>
+            <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
+          <div><label data-i18n="Default start section">Default start section</label>
+            <select id="s_start"><option value="mylist">Profile</option><option id="startTimelineOption" value="mytimeline">Timeline</option><option value="channels">Playlists</option><option value="mytv">Live TV</option><option value="movies">Movies</option><option value="shows">Shows</option><option id="startGamesOption" value="games">Games</option><option id="startRacingOption" value="racing">Racing</option><option value="teams">Sports</option></select></div>
+          <div><label data-i18n="Background style">Background style</label><select id="s_background"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div>
+        </div>
+        <div style="margin-top:14px"><button type="button" class="ghost" onclick="openProfileSetup(false)" data-i18n="Run setup guide">Run setup guide</button></div>
+       </div>
+       <div class="settingsgroup" data-settings-panel="profile">
+        <div class="colh" data-i18n="Backup & Import">Backup &amp; Import</div>
+        <div class="muted" data-i18n="Download a portable backup or merge one into this profile. Caches and artwork are never included.">Download a portable backup or merge one into this profile. Caches and artwork are never included.</div>
+        <div class="row settingsrefreshbuttons" style="margin-top:13px">
+          <button type="button" class="ghost" onclick="exportProfileBackup(false)" data-i18n="Export profile">Export profile</button>
+          <button type="button" class="ghost" onclick="exportProfileBackup(true)" data-i18n="Export full backup">Export full backup</button>
+          <button type="button" onclick="document.getElementById('profileImportFile').click()" data-i18n="Import backup">Import backup</button>
+          <input id="profileImportFile" type="file" accept="application/json,.json" class="hide" onchange="importProfileBackup(this)">
+        </div>
+        <div class="muted" style="margin-top:9px" data-i18n="Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.">Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.</div>
+        <div id="profileBackupMsg" class="muted" style="margin-top:9px"></div>
+       </div>
+       <div class="settingsgroup" data-settings-panel="general" hidden>
+        <div class="colh" data-i18n="Content startup">Content startup</div>
+        <div class="muted" data-i18n="Choose which content TVMate updates automatically after it opens.">Choose which content TVMate updates automatically after it opens.</div>
+        <div class="settingschecks">
+        <label class="settingscheck">
+          <input id="s_checkshows" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Check favorite shows on startup">Check favorite shows on startup</span>
+        </label>
+        <label class="settingscheck">
+          <input id="s_refreshiptv" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Refresh IPTV & EPG on startup">Refresh IPTV &amp; EPG on startup</span>
+        </label>
+        <label class="settingscheck">
+          <input id="s_refreshsports" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Refresh sports, racing & games on startup">Refresh sports, racing &amp; games on startup</span>
+        </label>
+        </div>
+       </div>
+       <div class="settingsgroup" data-settings-panel="general" hidden>
+        <div class="colh" data-i18n="Features & Display">Features &amp; Display</div>
+        <div class="muted" data-i18n="Show or hide optional sections. Disabling one also skips it during external-content refreshes.">Show or hide optional sections. Disabling one also skips it during external-content refreshes.</div>
+        <div class="settingschecks">
+        <label class="settingscheck">
+          <input id="s_football" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Show football features">Show football features</span>
+        </label>
+        <label class="settingscheck">
+          <input id="s_f1" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Show racing features">Show racing features</span>
+        </label>
+        <label class="settingscheck">
+          <input id="s_games" type="checkbox" style="width:auto;margin:0">
+          <span data-i18n="Show game features">Show game features</span>
+        </label>
+        </div>
+       </div>
+      </div>
+      <div id="settingsSetup" class="settingspanel">
+      <div class="settingsgroup" data-settings-panel="iptv" hidden>
+      <div class="colh" data-i18n="Connection">Connection</div>
+      <div class="muted" data-i18n="Your Xtream login stays in your local config.json and is only sent to your own provider.">Your Xtream login stays in your local config.json and is only sent to your own provider.</div>
+      <div class="grid2">
+        <div><label data-i18n="Username">Username</label><input id="s_user" type="text"></div>
+        <div><label data-i18n="Password">Password</label><input id="s_pass" type="password"></div>
+        <div><label data-i18n="Host (e.g. http://example.com:8080)">Host (e.g. http://example.com:8080)</label><input id="s_host" type="text"></div>
+        <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="testLogin()" data-i18n="Test login">Test login</button></div>
+      </div>
+      <div id="s_connmsg" class="muted" style="margin-top:10px"></div>
+      </div>
+      <div class="settingsgroup" data-settings-panel="iptv" hidden>
+      <div class="colh" data-i18n="Data & Refresh">Data &amp; Refresh</div>
+      <div class="muted" data-i18n="Choose exactly which TVMate data should be updated.">Choose exactly which TVMate data should be updated.</div>
+      <div class="row settingsrefreshbuttons" style="margin-top:13px">
+        <button class="ghost" onclick="refreshIptvContent(this).catch(()=>{})" data-i18n="Refresh IPTV & EPG">Refresh IPTV &amp; EPG</button>
+      </div>
+      </div>
+      <div class="settingsgroup" data-settings-panel="general" hidden>
+      <div class="colh" data-i18n="Sports Search">Sports Search</div>
+      <div class="muted">FotMob provides fixtures and team details. Live Soccer TV supplies worldwide channel listings, with FotMob listings used automatically as fallback.</div>
+      <input id="s_cc" type="hidden">
+      </div>
+      <div class="settingsgroup" data-settings-panel="iptv" hidden>
+      <div class="colh" data-i18n="Playback">Playback</div>
+      <div class="muted" data-i18n="Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.">Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.</div>
+      <div style="margin-top:13px"><label data-i18n="Stream extension">Stream extension</label><select id="s_ext"><option value="ts">ts</option><option value="m3u8">m3u8</option></select></div>
+      </div>
+      <div class="settingsgroup" data-settings-panel="maintenance" hidden>
+      <div class="colh" data-i18n="Maintenance">Maintenance</div>
+      <div class="muted" data-i18n="Control automatic updates of local data and manage TVMate's local files.">Control automatic updates of local data and manage TVMate's local files.</div>
+      <div style="margin-top:13px"><label data-i18n="Auto shutdown when inactive">Auto shutdown when inactive</label><select id="s_autoshutdown"><option value="0" data-i18n="Keep running — uses approximately three crumbs and your calculator works harder">Keep running — uses approximately three crumbs and your calculator works harder</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></div>
+      <div class="muted" style="margin-top:7px" data-i18n="Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.">Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.</div>
+      <div class="row settingsrefreshbuttons" style="margin-top:14px"><button class="ghost" onclick="refreshOtherContent(this).catch(()=>{})" data-i18n="Refresh sports, racing & games">Refresh sports, racing &amp; games</button><button onclick="refreshEverything(this).catch(()=>{})" data-i18n="Refresh everything">Refresh everything</button></div>
+      <div class="muted" style="margin-top:14px"><span data-i18n="Artwork cache">Artwork cache</span>: <b id="s_artsize" data-i18n="Checking...">Checking...</b></div>
+      <div class="row" style="margin-top:14px"><button class="ghost" onclick="clearArtworkCache()" data-i18n="Clear artwork cache">Clear artwork cache</button><button class="ghost" onclick="openConfigFolder()" data-i18n="Open config folder">Open config folder</button></div>
+      <div class="row" style="margin-top:10px"><button class="ghost" onclick="checkForUpdate(true)" id="checkUpdateBtn" data-i18n="Check for updates">Check for updates</button></div>
+      <div id="s_msg" class="muted" style="margin-top:10px"></div>
+      </div>
+      <div class="settingsgroup settingshealthgroup" data-settings-panel="health" hidden>
+        <div class="colh" data-i18n="Source health">Source health</div>
+        <div class="muted" style="margin-bottom:8px" data-i18n="Shows whether the external data sources responded last time they were used.">Shows whether the external data sources responded last time they were used.</div>
+        <div id="sourceHealth" class="srchealth"></div>
+        <div class="row" style="margin-top:10px"><button class="ghost" onclick="testSources(this)" id="testSrcBtn" data-i18n="Test all sources">Test all sources</button></div>
+      </div>
+      <div id="devSettings" class="settingsgroup hide" data-settings-panel="maintenance" hidden>
+        <div class="colh" data-i18n="Developer tools">Developer tools</div>
+        <div class="muted" data-i18n="Testing controls that clear temporary performance data.">Testing controls that clear temporary performance data.</div>
+        <div class="row" style="margin-top:10px">
+          <button class="ghost" onclick="resetColdStart(this)" data-i18n="Reset for cold-start test">Reset for cold-start test</button>
+        </div>
+      </div>
+      </div>
+      </div>
+      <div class="settingsactions"><span id="s_refreshmsg" class="muted"></span><span class="muted" data-i18n="Changes are kept locally on this device.">Changes are kept locally on this device.</span><button class="push" onclick="saveSettings()" data-i18n="Save">Save changes</button></div>
+    </div>
+    </div>
+  </section>
+</main>
+<div id="updateBanner" class="updatebanner hide">
+  <span id="updateMsg"></span>
+  <button onclick="doUpdateNow()" id="updateNowBtn" data-i18n="Update now">Update now</button>
+  <button class="ghost" onclick="dismissUpdate()" data-i18n="Later">Later</button>
+</div>
+<div id="playerModal" class="pmodal hide" onclick="if(event.target===this)closePlayer()">
+  <div class="pbox">
+    <div class="pbar"><span id="pTitle" data-i18n="Player">Player</span><div class="tvplayeractions"><button type="button" class="tvminbtn" id="pMinBtn" title="Maximize player" aria-label="Maximize player" onclick="togglePopupPlayerSize()">&#8598;</button><button class="pclose" onclick="closePlayer()">&times;</button></div></div>
+    <video id="pVideo" controls autoplay playsinline></video>
+    <button type="button" class="tvvideohit" id="pVideoHit" aria-label="Maximize player" onclick="togglePopupPlayerSize()"></button>
+    <div id="pMsg" class="muted" style="padding:8px 12px"></div>
+  </div>
+</div>
+<script>
+// --- pancake decorations (inline SVG, no assets) ---
+const SVG_STACK='<svg viewBox="0 0 100 70" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="52" rx="34" ry="9" fill="#e7a94e"/><ellipse cx="50" cy="51" rx="34" ry="9" fill="none" stroke="#b9762d" stroke-width="1.6"/><ellipse cx="50" cy="42" rx="32" ry="9" fill="#f0b95e"/><ellipse cx="50" cy="41" rx="32" ry="9" fill="none" stroke="#b9762d" stroke-width="1.6"/><ellipse cx="50" cy="32" rx="30" ry="9" fill="#f5c56e"/><ellipse cx="50" cy="31" rx="30" ry="9" fill="none" stroke="#b9762d" stroke-width="1.6"/><path d="M22 26 q6 10 12 3 q6 10 14 2 q6 10 14 2 q6 9 12 2 l0 5 q-6 5 -12 1 q-8 7 -14 0 q-8 7 -14 0 q-7 6 -12 -3 z" fill="#a8541f"/><rect x="38" y="12" width="24" height="11" rx="4" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.3"/></svg>';
+const SVG_ONE='<svg viewBox="0 0 80 34" xmlns="http://www.w3.org/2000/svg"><ellipse cx="40" cy="20" rx="32" ry="10" fill="#f2bd63"/><ellipse cx="40" cy="19" rx="32" ry="10" fill="none" stroke="#b9762d" stroke-width="1.6"/><rect x="28" y="8" width="22" height="10" rx="4" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.3"/></svg>';
+const SVG_TV='<svg viewBox="0 0 240 210" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f" stroke="#241a12" stroke-width="4"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/><path d="M64 110 q6 12 14 4 q6 12 16 3 q7 12 16 3 q7 11 15 2 q6 10 12 3 l0 6 q-6 6 -12 2 q-8 8 -15 1 q-8 8 -16 1 q-8 8 -16 0 q-8 7 -14 -3 z" fill="#a8541f"/><rect x="86" y="86" width="30" height="14" rx="5" fill="#ffd77a" stroke="#e0a83e" stroke-width="1.5"/><circle cx="192" cy="86" r="8" fill="#2a2a2a"/><circle cx="192" cy="112" r="8" fill="#2a2a2a"/><rect x="186" y="132" width="12" height="30" rx="3" fill="#2a2a2a"/><rect x="52" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="136" y="178" width="14" height="20" rx="3" fill="#241a12"/><rect x="150" y="40" width="4" height="24" fill="#241a12"/><rect x="118" y="40" width="4" height="24" fill="#241a12" transform="rotate(-28 120 52)"/><circle cx="152" cy="38" r="6" fill="#f5c56e"/><circle cx="116" cy="34" r="6" fill="#f5c56e"/></svg>';
+const _PROFILE_EMBLEMS={
+  tvstack:SVG_TV,
+  stack:'<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="#182744" stroke="#4f8cff" stroke-width="4"/><ellipse cx="50" cy="67" rx="29" ry="8" fill="#e7a94e"/><ellipse cx="50" cy="57" rx="27" ry="8" fill="#f0b95e"/><ellipse cx="50" cy="47" rx="25" ry="8" fill="#f5c56e"/><rect x="40" y="31" width="20" height="10" rx="4" fill="#ffd77a"/></svg>',
+  shield:'<svg viewBox="0 0 100 100"><path d="M50 7 86 20v27c0 23-14 38-36 47C28 85 14 70 14 47V20z" fill="#17233d" stroke="#4f8cff" stroke-width="4"/><ellipse cx="50" cy="63" rx="23" ry="7" fill="#e7a94e"/><ellipse cx="50" cy="53" rx="21" ry="7" fill="#f5c56e"/><circle cx="50" cy="35" r="7" fill="#ffd77a"/></svg>',
+  night:'<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="#111a2b" stroke="#68799e" stroke-width="3"/><path d="M68 21a28 28 0 1 0 9 51A34 34 0 0 1 68 21z" fill="#f1c76b"/><ellipse cx="45" cy="69" rx="22" ry="7" fill="#e7a94e"/><ellipse cx="45" cy="60" rx="20" ry="7" fill="#f5c56e"/></svg>',
+  bolt:'<svg viewBox="0 0 100 100"><rect x="9" y="9" width="82" height="82" rx="22" fill="#17325c" stroke="#4f8cff" stroke-width="4"/><path d="m57 18-29 42h20l-6 24 30-43H52z" fill="#ffd469" stroke="#e3a93d" stroke-width="2"/></svg>'
+};
+function makePancakes(el,count){
+  const kinds=[SVG_STACK,SVG_ONE,SVG_TV];
+  const widths=[70,64,72];
+  let html='';
+  const n=count||7;
+  for(let i=0;i<n;i++){
+    const k=i%3;
+    const w=widths[k]*(0.7+Math.random()*0.7);
+    const top=4+Math.random()*90;
+    const left=2+Math.random()*90;
+    const dur=(9+Math.random()*8).toFixed(1);
+    const delay=(-Math.random()*8).toFixed(1);
+    html+='<div class="pcake" style="width:'+w.toFixed(0)+'px;top:'+top.toFixed(1)+'%;left:'+left.toFixed(1)+'%;animation-duration:'+dur+'s;animation-delay:'+delay+'s">'+kinds[k]+'</div>';
+  }
+  el.innerHTML=html;
+}
+let _backgroundStyle='float',_decorationsEnabled=true;
+const _ASCII_TV='&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#92; | /<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.----------------.<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;__________&nbsp;&nbsp;&nbsp;| o<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#92;&nbsp;&nbsp;| o<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;| [______] |&nbsp;&nbsp;| |<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;| (======) |&nbsp;&nbsp;|<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;| (======) |&nbsp;&nbsp;|<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;|&nbsp;&nbsp;&#92;____/&nbsp;&nbsp;|&nbsp;&nbsp;|<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&#92;__________/&nbsp;&nbsp;|<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#39;----------------&#39;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;||&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;||';
+function applyBackgroundStyle(style){
+  _backgroundStyle=['float','ascii','off'].includes(style)?style:'float';
+  _decorationsEnabled=_backgroundStyle!=='off';
+  const global=document.getElementById('globalDecor');
+  const l=document.getElementById('pcakeL'),r=document.getElementById('pcakeR'),pl=document.getElementById('pcakePL');
+  if(l)l.innerHTML='';if(r)r.innerHTML='';if(pl)pl.innerHTML='';
+  if(!global)return;
+  global.innerHTML='';global.classList.toggle('asciibg',_backgroundStyle==='ascii');
+  if(_backgroundStyle==='off')return;
+  if(_backgroundStyle==='ascii'){
+    global.innerHTML='<pre class="asciimotif a1">'+_ASCII_TV+'</pre><pre class="asciimotif a2">'+_ASCII_TV+'</pre><pre class="asciimotif a3">'+_ASCII_TV+'</pre>';
+    return;
+  }
+  makePancakes(global,18);
+}
+function initPancakes(){applyBackgroundStyle(_backgroundStyle);}
+function initPlPancakes(){applyBackgroundStyle(_backgroundStyle);}
+function setNav(id){['navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'].forEach(function(n){const el=document.getElementById(n);if(el)el.classList.toggle('on',n===id);});}
+const _SLOGANS={
+  search:["Find the match. Pick a channel. Pour the syrup."],
+  mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
+  movies:["Movie night, now serving pancakes."],
+  shows:["One more episode. One more pancake."],
+  channels:["Putting the \u201Cpan\u201D in channel planning.","Plan your viewing. Prepare your pancakes."],
+  settings:["Powered by pancakes and questionable decisions.","Built with code, football, and pancake batter."],
+  mylist:["Curate your channels. Butter generously.","Pancakes on standby."]
+};
+function setSlogan(section){
+  const el=document.getElementById('slogan');
+  if(!el)return;
+  const list=_SLOGANS[section]||[];
+  if(!list.length){el.textContent='';return;}
+  el.textContent=list[Math.floor(Math.random()*list.length)];
+}
+let _lang='en';
+const _I18N={
+  "Search":"Søk","Playlist Builder":"Lag spilleliste","Playlists":"Spillelister","Timeline":"Tidslinje","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger","Stop TVMate":"Stopp TVMate",
+  "Welcome to TVMate":"Velkommen til TVMate","Let's make it yours. Everything here can be changed later from Settings or Edit Profile.":"La oss gjøre TVMate til ditt. Alt her kan endres senere i Innstillinger eller Rediger profil.","Your name":"Navnet ditt","Pick an emblem":"Velg et emblem","Emblem":"Emblem",
+  "Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what My Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Min profil ser ut.","Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Profil ser ut.","If you don't add anything yet, TVMate will add a couple of demo items. They disappear permanently when you favorite your first real movie or show.":"Hvis du ikke legger til noe ennå, legger TVMate inn et par demo-elementer. De forsvinner permanent når du favorittmerker din første ekte film eller serie.",
+  "How should TVMate open?":"Hvordan skal TVMate åpnes?","TVMate opens straight in your browser. Use Stop TVMate in the top-right when you want to shut the app down.":"TVMate åpnes rett i nettleseren. Bruk Stopp TVMate øverst til høyre når du vil avslutte appen.","Modern TVMate":"Moderne TVMate","TVMate opens straight in your browser with no CMD window.":"Tvmate åpnes rett i nettleseren","Bookmark TVMate":"Bokmerk TVMate","Press Ctrl+D to bookmark TVMate for an easy way back.":"Trykk Ctrl+D for å bokmerke TVMate, så finner du enkelt tilbake.","Copy address":"Kopier adresse","Stop TVMate after":"Stopp TVMate etter","Activity in TVMate resets the timer.":"Aktivitet i TVMate nullstiller tidsuret.",
+  "You're ready":"Du er klar","TVMate is set up around what you follow. A streaming login is only needed for your own channels, movies and shows.":"TVMate er satt opp rundt det du følger. Strømmeinnlogging trengs bare for dine egne kanaler, filmer og serier.","Want playback too?":"Vil du også spille av?","Set up your Xtream login for your own channels, movies and shows.":"Sett opp Xtream-innlogging for dine egne kanaler, filmer og serier.","Set up Xtream":"Sett opp Xtream","All done":"Alt klart","Head straight to My Profile and start using TVMate.":"Gå rett til Min profil og begynn å bruke TVMate.","Head straight to Profile and start using TVMate.":"Gå rett til Profil og begynn å bruke TVMate.","Let's go, I'm ready":"Kjør på, jeg er klar",
+  "Background style":"Bakgrunnsstil","Floating pancakes & TVs":"Flytende pannekaker og TV-er","Off":"Av","What do you want to follow?":"Hva vil du følge?","Movies and shows are always available. Turn the extra sections on or off here.":"Filmer og serier er alltid tilgjengelige. Slå ekstraseksjonene av eller på her.",
+  "Football":"Fotball","Games":"Spill","Movies":"Filmer","Matchfinder, My Teams and fixtures":"Kampfinner, Mine lag og kamper","Matchfinder, Sports and fixtures":"Kampfinner, Sport og kamper","My Racing, schedules and followed drivers":"Min racing, terminlister og førere du følger","Racing schedules and followed drivers":"Racingterminlister og førere du følger","Steam wishlist and game releases":"Steam-ønskeliste og spillanseringer",
+  "Choose your football teams":"Velg fotballagene dine","Pick the teams you want fixtures for. You can add or remove teams later in My Teams.":"Velg lagene du vil se kamper for. Du kan legge til eller fjerne lag senere i Mine lag.","Pick the teams you want fixtures for. You can add or remove teams later in Sports.":"Velg lagene du vil se kamper for. Du kan legge til eller fjerne lag senere under Sport.","Search for a team, e.g. Brann":"Søk etter et lag, f.eks. Brann",
+  "Choose your racing":"Velg racing","Select the series you want on My Racing and your timeline.":"Velg seriene du vil ha i Min racing og på tidslinjen.","Select the series you want in Racing and your timeline.":"Velg seriene du vil ha i Racing og på tidslinjen.","Favorite Formula 1 team":"Favorittlag i Formel 1","Choose a Formula 1 team":"Velg et Formel 1-lag","Add something to watch":"Legg til noe å se på","Search shows":"Søk etter serier","Search movies":"Søk etter filmer",
+  "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
+  "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
+  "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Upcoming Fixtures":"Kommende kamper","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
+  "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Loading channel matches...":"Laster kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
+  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører","Other broadcaster listings":"Andre TV-oppføringer",
+  "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
+  "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
+  "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
+  "No favorite teams yet.":"Ingen favorittlag ennå.","No upcoming fixture found.":"Ingen kommende kamp funnet.","Could not load team fixtures.":"Kunne ikke laste lagkamper.",
+  "No F1 team selected.":"Ingen F1-lag valgt.","Could not load Formula 1 calendar.":"Kunne ikke laste Formel 1-kalenderen.",
+  "Nothing airing close to now from your favorite shows.":"Ingenting sendes nær nåtid fra favorittseriene dine.","Could not load your shows.":"Kunne ikke laste seriene dine.",
+  "Airs in":"Sendes om","Released":"Utgitt","Releases":"Lanseres","Just released":"Nettopp utgitt","ago":"siden","Stream found in playlist":"Strøm funnet i spillelisten",
+  "Live now":"Direkte nå","Next match":"Neste kamp","Next race":"Neste løp","No upcoming race found.":"Ingen kommende løp funnet.",
+  "Choose a driver to see details.":"Velg en fører for å se detaljer.","Driver profile":"Førerprofil","Loading drivers and next race...":"Laster førere og neste løp...","Loading racing schedules...":"Laster racingterminlister...","Loading fixture...":"Laster kamp...","Loading next race...":"Laster neste løp...","Nothing happening around now.":"Ingenting skjer rundt nå.","Play":"Spill av","No upcoming events found.":"Ingen kommende arrangementer funnet.","Choose at least one racing series above.":"Velg minst én racingserie ovenfor.","Could not load racing schedules.":"Kunne ikke laste racingterminlistene.","Definite event matches":"Sikre arrangementstreff","Dedicated series channels":"Dedikerte seriekanaler","Possible channels by category":"Mulige kanaler etter kategori","Other possible channels":"Andre mulige kanaler",
+  "Recently":"Nylig","Upcoming":"Kommende","Right now":"Akkurat nå",
+  "Favorite Channels":"Favorittkanaler","EPG Refresh":"Oppdater EPG","Channels":"Kanaler",
+  "All Categories":"Alle kategorier","Selected categories":"Valgte kategorier","Filter Channels":"Kanaler","Playlist":"Spilleliste",
+  "Add to Favorites":"Legg til favoritter","Tick all":"Velg alle","Untick all":"Fjern alle","Add ticked":"Legg til valgte",
+  "Make Playlist (Categories)":"Lag spilleliste (kategorier)","Make Playlist (Channels)":"Lag spilleliste (kanaler)","Clear":"Fjern","Reset":"Nullstill",
+  "Ticked channels land here.":"Valgte kanaler vises her.",
+  "Click a selected category to see its channels.":"Trykk på en kategori for å vise kanaler",
+  "Tick categories on the left.":"Velg kategorier på venstre side.",
+  "Favorite Categories":"Favorittkategorier","Categories":"Kategorier",
+  "Matchfinder - Get Live / Next Match":"Kampfinner - Live / Neste kamp",
+  "Match strictness":"Treffnøyaktighet",
+  "Save":"Lagre","Reload channels":"Last inn kanaler","Test login":"Test innlogging",
+  "Connection":"Tilkobling","Preferences":"Innstillinger","Search Options":"Søkealternativer","General":"Generelt","Content":"Innhold","Playback":"Avspilling","Maintenance":"Vedlikehold","Health":"Status","Content startup":"Innhold ved oppstart","Sports Search":"Sportssøk",
+  "Personalize TVMate and choose what opens when the app starts.":"Tilpass TVMate og velg hva som åpnes når appen starter.","Checks your favorite series for newly available episodes after TVMate opens.":"Ser etter nylig tilgjengelige episoder i favorittseriene dine etter at TVMate åpnes.","Show or hide optional sections. Disabling one also skips it during external-content refreshes.":"Vis eller skjul valgfrie seksjoner. Deaktiverte seksjoner hoppes også over ved oppdatering av eksternt innhold.",
+  "Choose which regional TV listings Sports Search uses to find broadcasters for matches.":"Velg hvilke regionale TV-oversikter Sportssøk bruker for å finne kanaler som viser kampene.","Select the regional guides to search. Countries add broadcaster information but never limit which fixtures are shown.":"Velg regionale TV-guider. Landene legger til kanalinformasjon, men begrenser aldri hvilke kamper som vises.","Unsupported saved code":"Ikke støttet lagret kode",
+  "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","Choose which content TVMate updates automatically after it opens.":"Velg hvilket innhold TVMate oppdaterer automatisk etter oppstart.","Refresh IPTV & EPG on startup":"Oppdater IPTV og EPG ved oppstart","Refresh sports, racing & games on startup":"Oppdater sport, racing og spill ved oppstart","Refresh Xtream channels, movies, shows and TV guide data.":"Oppdater Xtream-kanaler, filmer, serier og TV-guide.","Refresh matches, regional TV listings, racing and your Steam wishlist.":"Oppdater kamper, regionale TV-oversikter, racing og Steam-ønskelisten din.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
+  "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem","Backup & Import":"Sikkerhetskopi og import","Download a portable backup or merge one into this profile. Caches and artwork are never included.":"Last ned en flyttbar sikkerhetskopi eller slå en sammen med denne profilen. Mellomlager og omslagskunst tas aldri med.","Export profile":"Eksporter profil","Export full backup":"Eksporter full sikkerhetskopi","Import backup":"Importer sikkerhetskopi","Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.":"Profilsikkerhetskopien utelater innlogging. Full sikkerhetskopi inkluderer Xtream-innlogging; oppbevar den sikkert.","Backup downloaded.":"Sikkerhetskopien er lastet ned.","Backup imported and merged.":"Sikkerhetskopien er importert og slått sammen.","Full backup restored.":"Full sikkerhetskopi er gjenopprettet.","Could not import this backup.":"Kunne ikke importere denne sikkerhetskopien.",
+  "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
+  "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
+  "Features & Display":"Funksjoner og visning","Show football features":"Vis fotballfunksjoner","Show Formula 1 features":"Vis Formel 1-funksjoner","Show racing features":"Vis racingfunksjoner","Show game features":"Vis spillfunksjoner","Animated background decorations":"Animerte bakgrunnsdekorasjoner","Choose the racing series you want to follow.":"Velg racingseriene du vil følge.",
+  "Preferred language":"Foretrukket språk",
+  "Profile layout":"Profiloppsett","Your everyday TVMate preferences. Run the setup guide to change what you follow.":"Dine vanlige TVMate-innstillinger. Kjør oppsettsveiviseren for å endre hva du følger.","Look for newly available episodes when TVMate starts.":"Se etter nylig tilgjengelige episoder når TVMate starter.","Refresh channels, movies, shows and episode data when TVMate starts.":"Oppdater kanaler, filmer, serier og episodedata når TVMate starter.",
+  "Startup":"Oppstart","Your Xtream login stays in your local config.json and is only sent to your own provider.":"Xtream-innloggingen lagres lokalt i config.json og sendes bare til din egen leverandør.","Auto shutdown when inactive":"Avslutt automatisk ved inaktivitet","Keep running — uses approximately three crumbs and your calculator works harder":"Fortsett å kjøre — bruker omtrent tre smuler, og kalkulatoren din jobber hardere","Changes are kept locally on this device.":"Endringer lagres lokalt på denne enheten.",
+  "Recently Added":"Nylig lagt til","See what else is new":"Se hva mer som er nytt","Discover Movies":"Oppdag filmer","Popular":"Populært","New Releases":"Nye utgivelser","Featured":"Fremhevet",
+  "Check for new movies":"Se etter nye filmer",
+  "Back to My Movies":"Tilbake til Mine filmer","Back to Movies":"Tilbake til Filmer",
+  "Your Latest Episodes":"Dine nyeste episoder","See more latest episodes":"Se flere nyeste episoder",
+  "Back to My Shows":"Tilbake til Mine serier","Back to Shows":"Tilbake til Serier",
+  "Upcoming Episodes":"Kommende episoder","Airs":"Sendes",
+  "Today":"i dag","Tomorrow":"i morgen","in":"om","day":"dag","days":"dager",
+  "hour":"time","hours":"timer","minute":"minutt","minutes":"minutter",
+  "Not available":"Ikke tilgjengelig",
+  "Maintenance & Playback":"Vedlikehold og avspilling","Refresh all content":"Oppdater alt innhold",
+  "Data & Refresh":"Data og oppdatering","Choose exactly which TVMate data should be updated.":"Velg nøyaktig hvilke TVMate-data som skal oppdateres.",
+  "Refresh IPTV & EPG":"Oppdater IPTV og EPG","Refresh sports, racing & games":"Oppdater sport, racing og spill","Refresh everything":"Oppdater alt",
+  "Startup refresh":"Oppdatering ved oppstart","IPTV & EPG":"IPTV og EPG","Other content":"Annet innhold","Everything":"Alt",
+  "Check favorite shows on startup":"Se etter nye episoder i favorittserier ved oppstart",
+  "Refresh all content on startup":"Oppdater alt innhold ved oppstart",
+  "Artwork cache":"Mellomlagret omslagskunst","Clear artwork cache":"Tøm omslagskunst",
+  "Reset for cold-start test":"Nullstill for kaldstarttest",
+  "Developer tools":"Utviklerverktøy",
+  "Testing controls that clear temporary performance data.":"Testverktøy som tømmer midlertidige ytelsesdata.",
+  "Remove":"Fjern","Copy URL":"Kopier URL",
+  "Match strictness (0.40–0.80)":"Treffnøyaktighet (0.40–0.80)",
+  "Listings countries (comma separated: no, uk, us)":"Land for TV-guide (kommaseparert: no, uk, us)",
+  "No channels here.":"Ingen kanaler her.","No program info":"Ingen programinfo",
+  "channels":"kanaler","channels checked":"kanaler kontrollert","channels updated.":"kanaler oppdatert.",
+  "One bulk guide download":"Én samlet guide-nedlasting","Downloading and processing the provider TV guide...":"Laster ned og behandler leverandørens TV-guide...",
+  "Parsing programme information...":"Behandler programinformasjon...","Matching guide data to favorite channels...":"Kobler guidedata til favorittkanaler...",
+  "Large provider guides may take a little while...":"Store guider fra leverandøren kan ta litt tid...","Fallback":"Reserveløsning",
+  "Loading EPG...":"Laster EPG...","EPG loaded":"EPG lastet","EPG failed":"EPG feilet","Loading...":"Laster...",
+  "Updated":"Oppdatert","No EPG":"Ingen EPG","Failed":"Feilet",
+  "No favorites to load EPG for.":"Ingen favoritter å laste EPG for.",
+  "Updating TV guide":"Oppdaterer TV-guide","Finding channels in your favorites...":"Finner kanaler i favorittene dine...",
+  "Loading programme information...":"Laster programinformasjon...","TV guide is ready.":"TV-guiden er klar.","with programme data":"med programdata",
+  "Compatibility mode: loading one channel at a time...":"Kompatibilitetsmodus: laster én kanal om gangen...",
+  "Retrying this batch one channel at a time...":"Prøver denne gruppen på nytt, én kanal om gangen...","channels could not be refreshed.":"kanaler kunne ikke oppdateres.",
+  "Channels available":"Kanaler tilgjengelig",
+  "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...",
+  "Update downloaded. Restart now to finish updating?":"Oppdatering lastet ned. Start på nytt for å fullføre?",
+  "Restart now":"Start på nytt","Update now":"Oppdater nå","Later":"Senere","Player":"Spiller","Restarting...":"Starter på nytt...",
+  "Updating... this window will reload shortly.":"Oppdaterer... vinduet lastes inn på nytt snart.",
+  "Update failed. Try again later.":"Oppdatering feilet. Prøv igjen senere.",
+  "Restart failed. Please close and reopen the app.":"Omstart feilet. Lukk og åpne appen igjen.",
+  "Update installed. Please close this window and open Olo’s TVMate again.":"Oppdatering installert. Lukk dette vinduet og åpne Olo’s TVMate igjen.",
+  "Check for updates":"Se etter oppdateringer","Checking...":"Sjekker...",
+  "You are on the latest version":"Du har den nyeste versjonen",
+  "Could not check for updates. Check your internet connection.":"Kunne ikke sjekke for oppdateringer. Sjekk internettforbindelsen.",
+  "Open config folder":"Åpne konfigurasjonsmappe","Could not open folder.":"Kunne ikke åpne mappen.",
+  "Source health":"Kildestatus","Test all sources":"Test alle kilder","Testing sources...":"Tester kilder...",
+  "Shows whether the external data sources responded last time they were used.":"Viser om de eksterne datakildene svarte sist de ble brukt.",
+  "not checked yet":"ikke sjekket enda","Not configured":"Ikke konfigurert","just now":"akkurat nå","min ago":"min siden","h ago":"t siden","d ago":"d siden",
+  "working":"fungerer","failed":"feilet","items":"elementer","No sources.":"Ingen kilder.","Could not test sources.":"Kunne ikke teste kilder.",
+  "Host (e.g. http://example.com:8080)":"Vert (f.eks. http://example.com:777)",
+  "Username":"Brukernavn","Password":"Passord","Stream extension":"Strøm-format",
+  "Default start section":"Standard oppstartseksjon","Search a team, e.g. Leeds":"Søk etter lag, f.eks. Leeds",
+  "Find a channel, e.g. tv2 play":"Finn en kanal, f.eks. tv2 play",
+  "Search a category, e.g. Norway":"Søk kategori, f.eks. Norge","Filter categories...":"Filtrer kategorier...",
+  "Search your movies...":"Søk i filmene dine...",
+  "Search your shows...":"Søk i seriene dine...",
+  "Search Steam games...":"Søk etter Steam-spill...","Steam wishlist URL...":"Steam-ønskeliste-URL...","Filter wishlist...":"Filtrer ønskeliste...","Sync wishlist":"Synkroniser ønskeliste","Refresh wishlist":"Oppdater ønskeliste","Wishlist settings":"Ønskelisteinnstillinger","Game":"Spill",
+  "Check for new episodes":"Se etter nye episoder",
+  "★ Add to Favorites":"★ Legg til favoritter","★ Favorite Channels":"★ Favorittkanaler"
+};
+function tr(s){ if(_lang==='no'&&_I18N[s])return _I18N[s]; return s; }
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    const key=el.getAttribute('data-i18n');
+    el.textContent=tr(key);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){
+    const key=el.getAttribute('data-i18n-ph');
+    el.setAttribute('placeholder',tr(key));
+  });
+}
+function setLang(l){
+  _lang=l;
+  document.getElementById('langEN').classList.toggle('on',l==='en');
+  document.getElementById('langNO').classList.toggle('on',l==='no');
+  applyLang();
+  try{localStorage.setItem('tvmate_lang',l);}catch(e){}
+}
+function hideAll(keepMytv){
+  // Live TV playback persists across sections. Capture the source state first,
+  // then move the player only after the Live TV view has been hidden.
+  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);
+  const popupPlayer=document.getElementById('playerModal');
+  const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));
+  const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
+  const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
+  if(!keepMytv&&hasPlayback){
+    if(leavingLiveTv)tvSetMini(true);
+    document.body.classList.add('tvsectionplay');
+  }else{
+    document.body.classList.remove('tvsectionplay');
+  }
+}
+let _historyReady=false,_historyRestoring=false,_historySection='';
+function rememberLocation(section,extra){
+  _historySection=section;
+  if(!_historyReady||_historyRestoring)return;
+  const state=Object.assign({tvmate:true,section:section},extra||{});
+  history.pushState(state,'','#'+section);
+}
+function showMytv(){rememberLocation('mytv');hideAll(true);mytvView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytv');setSlogan('mytv');initMytv();}
+function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.remove('hide');document.getElementById('movieCatalogs').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();loadCinemetaMovies(_movieCatalog);}
+function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
+function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
+function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
+function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));}
+function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
+function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
+// Backward compatibility for old bookmarks/configs that still point at Search.
+// Search now lives inside Playlists.
+function showSearch(){showChannels();}
+function showChannels(){rememberLocation('channels');hideAll();channelsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navChannels');setSlogan('channels');loadCategories();initPlPancakes();}
+function openSportsChannelSearch(){showChannels();setTimeout(function(){const input=document.getElementById('cq');if(input)input.focus();},60);}
+let _settingsTab='profile';
+function setSettingsTab(tab){
+  const migrated={content:'general',playback:'iptv'};
+  tab=migrated[tab]||tab;
+  const allowed=['profile','iptv','general','maintenance','health'];
+  _settingsTab=allowed.includes(tab)?tab:'profile';
+  document.querySelectorAll('#settingsView [data-settings-panel]').forEach(function(panel){panel.hidden=panel.dataset.settingsPanel!==_settingsTab||panel.classList.contains('hide');});
+  document.querySelectorAll('#settingsView [data-settings-tab]').forEach(function(button){const active=button.dataset.settingsTab===_settingsTab;button.classList.toggle('on',active);button.setAttribute('aria-selected',String(active));});
+  try{localStorage.setItem('tvmateSettingsTab',_settingsTab);}catch(e){}
+  if(_settingsTab==='health')loadSourceHealth();
+}
+function showSettings(){rememberLocation('settings');loadSettings();hideAll();settingsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navSettings');setSlogan('settings');let saved='profile';try{saved=localStorage.getItem('tvmateSettingsTab')||'profile';}catch(e){}setSettingsTab(saved);}
+function updateProfileName(name){
+  // Profile identity lives inside My Profile now. The permanent top-right
+  // action is Stop TVMate, so profile names no longer occupy header space.
+}
+let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
+let _selectedEmblem='tvstack',_footballEnabled=true,_f1Enabled=true,_gamesEnabled=true,_myListLayout='timeline';
+function profileEmblemSvg(key){return _PROFILE_EMBLEMS[key]||_PROFILE_EMBLEMS.tvstack;}
+function renderEmblemPicker(){
+  const el=document.getElementById('s_emblems');if(!el)return;
+  el.innerHTML=Object.keys(_PROFILE_EMBLEMS).map(key=>'<button type="button" class="emblemchoice'+(key===_selectedEmblem?' on':'')+'" data-key="'+key+'" onclick="selectProfileEmblem(this.dataset.key)" title="'+key+'">'+profileEmblemSvg(key)+'</button>').join('');
+}
+function selectProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_selectedEmblem=key;renderEmblemPicker();}
+let _setupIndex=0,_setupEmblem='tvstack',_setupFirstRun=false,_setupTeams=[],_setupInitialTeams=[],_setupRacingSeries=new Set(['f1']),_setupF1Team=null,_setupContentResults={show:[],movie:[]},_setupDemoContent=false;
+function renderSetupEmblems(){
+  const el=document.getElementById('setupEmblems');if(!el)return;
+  el.innerHTML=Object.keys(_PROFILE_EMBLEMS).map(key=>'<button type="button" class="emblemchoice'+(key===_setupEmblem?' on':'')+'" data-key="'+key+'" onclick="selectSetupEmblem(this.dataset.key)" title="'+key+'">'+profileEmblemSvg(key)+'</button>').join('');
+  const brand=document.getElementById('setupBrandEmblem');if(brand)brand.innerHTML=profileEmblemSvg(_setupEmblem);
+}
+function selectSetupEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_setupEmblem=key;renderSetupEmblems();}
+function setupStepKeys(){
+  const keys=['profile','follow'];if(setupFootball.checked)keys.push('football');if(setupRacing.checked)keys.push('racing');keys.push('content','launch','finish');return keys;
+}
+function renderSetupStep(){
+  const keys=setupStepKeys();_setupIndex=Math.max(0,Math.min(keys.length-1,_setupIndex));const active=keys[_setupIndex];
+  document.querySelectorAll('.setupstep').forEach(el=>el.classList.toggle('hide',el.dataset.key!==active));
+  const total=keys.length,progress=document.getElementById('setupProgress');
+  if(progress)progress.innerHTML=Array.from({length:total},(_,i)=>'<span class="setupdot'+(i<=_setupIndex?' on':'')+'"></span>').join('');
+  const meta=document.getElementById('setupStepMeta');if(meta)meta.textContent=tr('Step')+' '+(_setupIndex+1)+' '+tr('of')+' '+total;
+  setupBack.classList.toggle('hide',_setupIndex===0);setupNext.classList.toggle('hide',active==='finish');
+  setupSkip.classList.toggle('hide',!_setupFirstRun||_setupIndex===0);
+  if(active==='football')renderSetupTeams();if(active==='racing')renderSetupRacing();if(active==='launch')renderSetupLaunchHelp();
+}
+function setupLocalAddress(){return location.protocol+'//localhost'+(location.port?':'+location.port:'');}
+function renderSetupLaunchHelp(){const url=document.getElementById('setupLocalUrl');if(url)url.textContent=setupLocalAddress();}
+async function copySetupLocalUrl(btn){const value=setupLocalAddress();try{await navigator.clipboard.writeText(value);const old=btn.textContent;btn.textContent=tr('Copied');setTimeout(()=>btn.textContent=old,1200);}catch(e){prompt(tr('Copy this TVMate address:'),value);}}
+function setupStep(delta){
+  const keys=setupStepKeys(),active=keys[_setupIndex];
+  if(delta>0&&active==='profile'&&!setupName.value.trim()){
+    setupName.focus();toast(tr('Enter a profile name to continue.'));return;
+  }
+  _setupIndex=Math.max(0,Math.min(keys.length-1,_setupIndex+delta));renderSetupStep();
+}
+async function openProfileSetup(firstRun,cfg){
+  _setupFirstRun=!!firstRun;_setupIndex=0;
+  let c=cfg||null;try{if(!c)c=await api('/api/config');}catch(e){c={};}
+  c=c||{};setupName.value=c.profile_name||'';setupLang.value=c.preferred_language||'en';setupBackground.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
+  _setupEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderSetupEmblems();
+  setupFootball.checked=c.football_enabled!==false;setupRacing.checked=c.f1_enabled!==false;setupGames.checked=c.games_enabled!==false;_setupDemoContent=_setupFirstRun?true:!!c.setup_demo_content;
+  setupAutoShutdown.value=String(c.auto_shutdown_minutes||0);
+  _setupRacingSeries=new Set(c.racing_series||['f1']);_setupTeams=[];_setupInitialTeams=[];_setupF1Team=null;_setupContentResults={show:[],movie:[]};
+  setupTeamResults.innerHTML='';setupShowResults.innerHTML='';setupMovieResults.innerHTML='';
+  try{const fav=await api('/api/favorites');_setupTeams=(fav.teams||[]).map(t=>typeof t==='string'?{name:t,team_id:''}:{name:t.name||'',team_id:String(t.team_id||'')}).filter(t=>t.name);_setupInitialTeams=_setupTeams.map(t=>Object.assign({},t));_setupF1Team=(fav.f1_teams||[])[0]||null;if((fav.shows||[]).length||(fav.movies||[]).length)_setupDemoContent=false;}catch(e){}
+  profileSetupOverlay.classList.remove('hide');renderSetupStep();setTimeout(()=>setupName.focus(),50);
+}
+function closeProfileSetup(){profileSetupOverlay.classList.add('hide');}
+async function skipProfileSetup(){
+  const body={profile_name:setupName.value.trim(),preferred_language:setupLang.value,profile_emblem:_setupEmblem,background_style:setupBackground.value,decorations_enabled:setupBackground.value!=='off',setup_complete:true};
+  if(!body.profile_name){_setupIndex=0;renderSetupStep();setupName.focus();toast(tr('Enter a profile name to continue.'));return;}
+  try{
+    const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error('save failed');setLang(body.preferred_language);applyProfileConfig(body);closeProfileSetup();toast(tr('Profile saved.'));
+  }catch(e){toast('Could not save profile.');}
+}
+function renderSetupTeams(){
+  setupTeamSelected.innerHTML=_setupTeams.length?_setupTeams.map((t,i)=>'<span class="setupchip">'+esc(t.name)+' <button type="button" class="ghost" style="padding:1px 5px" data-i="'+i+'" onclick="setupRemoveTeam(Number(this.dataset.i))">&times;</button></span>').join(''):'<span class="muted">'+esc(tr('No favorite teams selected yet.'))+'</span>';
+}
+function setupRemoveTeam(i){_setupTeams.splice(i,1);renderSetupTeams();}
+async function setupSearchTeams(){
+  const q=setupTeamQuery.value.trim();if(!q){setupTeamResults.innerHTML='';return;}setupTeamResults.innerHTML='<span class="muted">'+esc(tr('Searching...'))+'</span>';
+  try{const r=await api('/api/team_search?q='+encodeURIComponent(q));setupTeamResults.innerHTML=(r.teams||[]).map((t,i)=>{const team=typeof t==='string'?{name:t,team_id:''}:t;return '<div class="setupresult"><div class="grow"><b>'+esc(team.name||'')+'</b></div><button type="button" class="ghost" data-i="'+i+'" onclick="setupAddTeamFromResult(Number(this.dataset.i))">'+esc(tr('Add'))+'</button></div>';}).join('')||'<span class="muted">'+esc(tr('No teams found.'))+'</span>';_setupTeamSearchRows=r.teams||[];}catch(e){setupTeamResults.innerHTML='<span class="err">'+esc(tr('Could not search teams.'))+'</span>';}
+}
+let _setupTeamSearchRows=[];
+function setupAddTeamFromResult(i){const raw=_setupTeamSearchRows[i];if(!raw)return;const t=typeof raw==='string'?{name:raw,team_id:''}:{name:raw.name||'',team_id:String(raw.team_id||'')};if(t.name&&!_setupTeams.some(x=>x.name.toLowerCase()===t.name.toLowerCase()))_setupTeams.push(t);renderSetupTeams();}
+function renderSetupRacing(){
+  setupRacingSeries.innerHTML=_RACING_SERIES.map(row=>'<button type="button" class="setupchoice'+(_setupRacingSeries.has(row[0])?' on':'')+'" data-key="'+row[0]+'" onclick="setupToggleRacing(this.dataset.key)">'+esc(row[1])+'</button>').join('');
+  setupF1TeamWrap.classList.toggle('hide',!_setupRacingSeries.has('f1'));if(_setupRacingSeries.has('f1'))loadSetupF1Teams();
+}
+function setupToggleRacing(key){if(_setupRacingSeries.has(key))_setupRacingSeries.delete(key);else _setupRacingSeries.add(key);renderSetupRacing();}
+async function loadSetupF1Teams(){
+  if(setupF1TeamSelect.dataset.loaded==='1'){setupF1TeamSelect.value=String((_setupF1Team||{}).id||'');return;}
+  try{const r=await api('/api/f1_teams');setupF1TeamSelect.innerHTML='<option value="">'+esc(tr('Choose a Formula 1 team'))+'</option>'+(r.teams||[]).map(t=>'<option value="'+escAttr(String(t.id||''))+'" data-name="'+escAttr(t.name||'')+'">'+esc(t.name||'')+'</option>').join('');setupF1TeamSelect.dataset.loaded='1';setupF1TeamSelect.value=String((_setupF1Team||{}).id||'');}catch(e){}
+}
+function setupSelectF1Team(id){const opt=Array.from(setupF1TeamSelect.options).find(o=>o.value===id);_setupF1Team=id?{id:id,name:(opt&&opt.dataset.name)||((opt&&opt.textContent)||'')}:null;}
+async function setupSearchContent(kind){
+  const isShow=kind==='show',input=isShow?setupShowQuery:setupMovieQuery,out=isShow?setupShowResults:setupMovieResults,q=input.value.trim();if(!q){out.innerHTML='';return;}out.innerHTML='<span class="muted">'+esc(tr('Searching...'))+'</span>';
+  try{const r=await api((isShow?'/api/shows?q=':'/api/movies?q=')+encodeURIComponent(q)),rows=isShow?(r.shows||[]):(r.movies||[]);_setupContentResults[kind]=rows;out.innerHTML=rows.slice(0,8).map((item,i)=>'<div class="setupresult">'+(item.cover?'<img src="'+escAttr(item.cover)+'" alt="" onerror="this.remove()">':'')+'<div class="grow"><b>'+esc(item.name||'')+'</b><div class="muted">'+esc(item.year||'')+'</div></div><button type="button" class="ghost" data-kind="'+kind+'" data-i="'+i+'" onclick="setupFavoriteContent(this.dataset.kind,Number(this.dataset.i),this)">'+esc(tr('Favorite'))+'</button></div>').join('')||'<span class="muted">'+esc(tr('No results found.'))+'</span>';}catch(e){out.innerHTML='<span class="err">'+esc(tr('Could not search.'))+'</span>';}
+}
+async function setupFavoriteContent(kind,i,btn){
+  const item=(_setupContentResults[kind]||[])[i];if(!item)return;btn.disabled=true;
+  try{if(kind==='show')await favPost({action:'toggle_show',show:item});else await favPost({action:'toggle_movie',movie:item});_setupDemoContent=false;btn.textContent=tr('Added');toast((item.name||tr('Item'))+' '+tr('added to favorites.'));}catch(e){btn.disabled=false;toast(tr('Could not add favorite.'));}
+}
+async function syncSetupTeams(){
+  const before=new Map(_setupInitialTeams.map(t=>[t.name.toLowerCase(),t])),after=new Map(_setupTeams.map(t=>[t.name.toLowerCase(),t]));
+  for(const [key,t] of before)if(!after.has(key))await favPost({action:'toggle_team',team:t});
+  for(const [key,t] of after)if(!before.has(key))await favPost({action:'toggle_team',team:t});
+}
+async function finishProfileSetup(btn,openXtream){
+  const body={profile_name:setupName.value.trim(),preferred_language:setupLang.value,profile_emblem:_setupEmblem,background_style:setupBackground.value,decorations_enabled:setupBackground.value!=='off',
+    football_enabled:setupFootball.checked,f1_enabled:setupRacing.checked,games_enabled:setupGames.checked,setup_demo_content:_setupDemoContent,hide_cmd_window:true,auto_shutdown_minutes:Number(setupAutoShutdown.value||0),setup_complete:true};
+  if(!body.profile_name){_setupIndex=0;renderSetupStep();setupName.focus();toast(tr('Enter a profile name to continue.'));return;}
+  btn.disabled=true;btn.textContent='Saving...';
+  try{
+    const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('save failed');
+    if(body.football_enabled)await syncSetupTeams();
+    if(body.f1_enabled){await api('/api/racing_series',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({series:Array.from(_setupRacingSeries)})});if(_setupRacingSeries.has('f1'))await favPost({action:'set_f1_team',team:_setupF1Team||{}});}
+    setLang(body.preferred_language);applyProfileConfig(Object.assign({},body,{racing_series:Array.from(_setupRacingSeries)}));closeProfileSetup();toast(tr('Profile saved.'));
+    if(openXtream){showSettings();setSettingsTab('iptv');}else showMylist();
+  }catch(e){toast('Could not save profile.');}
+  btn.disabled=false;btn.textContent=openXtream?'Set up Xtream':"Let's go, I'm ready";
+}
+function renderMyListProfile(){
+  const el=document.getElementById('myListProfile');if(!el)return;
+  const name=String(_profileConfig.profile_name||'').trim()||tr('Profile');
+  el.innerHTML='<div class="mylistprofileemblem">'+profileEmblemSvg(_profileConfig.profile_emblem)+'</div><div class="mylistprofilename">'+esc(name)+'</div><button type="button" class="ghost editprofilebtn" onclick="openEditProfile()" data-i18n="Edit Profile">'+esc(tr('Edit Profile'))+'</button>';
+}
+let _editProfileEmblem='tvstack';
+function renderEditProfileEmblems(){const el=document.getElementById('ep_emblems');if(!el)return;el.innerHTML=Object.keys(_PROFILE_EMBLEMS).map(key=>'<button type="button" class="emblemchoice'+(key===_editProfileEmblem?' on':'')+'" data-key="'+key+'" onclick="selectEditProfileEmblem(this.dataset.key)" title="'+key+'">'+profileEmblemSvg(key)+'</button>').join('');}
+function selectEditProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_editProfileEmblem=key;renderEditProfileEmblems();}
+async function openEditProfile(){
+  let c={};try{c=await api('/api/config');}catch(e){c=_profileConfig||{};}
+  ep_name.value=c.profile_name||'';ep_lang.value=c.preferred_language||'en';_editProfileEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEditProfileEmblems();
+  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshiptv.checked=!!c.refresh_iptv_on_startup;ep_refreshsports.checked=!!c.refresh_sports_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
+  editProfileOverlay.classList.remove('hide');setTimeout(()=>ep_name.focus(),30);
+}
+function closeEditProfile(){editProfileOverlay.classList.add('hide');}
+function runSetupGuideFromProfile(){closeEditProfile();openProfileSetup(false);}
+async function saveEditProfile(btn){
+  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,refresh_iptv_on_startup:ep_refreshiptv.checked,refresh_sports_on_startup:ep_refreshsports.checked,background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
+  if(!body.profile_name){ep_name.focus();toast(tr('Enter a profile name.'));return;}if(body.mylist_layout==='timeline'&&body.start_section==='mytimeline')body.start_section='mylist';if(!_gamesEnabled&&body.start_section==='games')body.start_section='mylist';if(!_f1Enabled&&body.start_section==='racing')body.start_section='mylist';if(!_footballEnabled&&body.start_section==='teams')body.start_section='mylist';
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Saving...';
+  try{const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('save failed');setLang(body.preferred_language);applyProfileConfig(body);closeEditProfile();toast(tr('Profile saved.'));}catch(e){toast(tr('Could not save profile.'));}
+  btn.disabled=false;btn.textContent=old;
+}
+function applyMyListLayout(){
+  const dash=document.querySelector('#mylistView .mydash');if(!dash)return;
+  const allowed=['balanced','spotlight','timeline','hub'];
+  _myListLayout=allowed.includes(_profileConfig.mylist_layout)?_profileConfig.mylist_layout:'timeline';
+  dash.classList.remove('layout-balanced','layout-spotlight','layout-timeline','layout-hub');
+  dash.classList.add('layout-'+_myListLayout);
+  const timeline=document.getElementById('myListTimelineBlock');
+  const shows=document.getElementById('myListShowsBlock'),teams=document.getElementById('myListTeamsBlock');
+  if(timeline)timeline.classList.toggle('hide',_myListLayout!=='timeline');
+  if(shows)shows.classList.toggle('hide',_myListLayout==='timeline');
+  if(teams)teams.classList.toggle('hide',!(_footballEnabled||_f1Enabled));
+  const timelineNav=document.getElementById('navMytimeline'),timelineStart=document.getElementById('startTimelineOption');
+  if(timelineNav)timelineNav.classList.toggle('hide',_myListLayout==='timeline');
+  if(timelineStart)timelineStart.classList.toggle('hide',_myListLayout==='timeline');
+  renderMyListTimeline();
+}
+function applyProfileConfig(c){
+  const prevFootball=_footballEnabled,prevRacing=_f1Enabled,prevGames=_gamesEnabled;
+  _profileConfig=Object.assign({},_profileConfig,c||{});
+  _selectedEmblem=_PROFILE_EMBLEMS[_profileConfig.profile_emblem]?_profileConfig.profile_emblem:'tvstack';
+  _myListLayout=['balanced','spotlight','timeline','hub'].includes(_profileConfig.mylist_layout)?_profileConfig.mylist_layout:'timeline';
+  _footballEnabled=_profileConfig.football_enabled!==false;
+  _f1Enabled=_profileConfig.f1_enabled!==false;
+  _gamesEnabled=_profileConfig.games_enabled!==false;
+  const featureChanged=prevFootball!==_footballEnabled||prevRacing!==_f1Enabled||prevGames!==_gamesEnabled;
+  if(featureChanged)_myListLoaded=false;
+  if(!_footballEnabled)_myListTeamMoments=[];
+  if(!_f1Enabled){_myListF1Moments=[];_myListRacingDrivers=[];}
+  if(!_gamesEnabled)_myListGameMoments=[];
+  const nav=document.getElementById('navTeams'),teamBlock=document.getElementById('myListTeamsBlock'),sportHeading=document.getElementById('myListSportHeading'),gamesNav=document.getElementById('navGames'),gamesStart=document.getElementById('startGamesOption'),racingNav=document.getElementById('navRacing'),racingStart=document.getElementById('startRacingOption');
+  if(nav)nav.classList.toggle('hide',!_footballEnabled);
+  if(teamBlock)teamBlock.classList.toggle('hide',!(_footballEnabled||_f1Enabled));
+  if(sportHeading)sportHeading.classList.toggle('hide',!_footballEnabled);
+  if(gamesNav)gamesNav.classList.toggle('hide',!_gamesEnabled);
+  if(gamesStart)gamesStart.classList.toggle('hide',!_gamesEnabled);
+  if(racingNav)racingNav.classList.toggle('hide',!_f1Enabled);
+  if(racingStart)racingStart.classList.toggle('hide',!_f1Enabled);
+
+  document.querySelectorAll('.f1Feature').forEach(el=>el.classList.toggle('hide',!_f1Enabled));
+  updateProfileName(_profileConfig.profile_name);
+  applyBackgroundStyle(_profileConfig.background_style||(_profileConfig.decorations_enabled===false?'off':'float'));
+  renderMyListProfile();
+  applyMyListLayout();
+}
+
+let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_sportsVisibleFixtures=[],_sportsAvailabilityTimer=null,_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
+function sportsFixtureKey(f){return [String(f.home||'').trim().toLowerCase(),String(f.away||'').trim().toLowerCase(),String(f.start||'').slice(0,16)].join('|');}
+function favoriteTeamRow(t){return {name:String(typeof t==='string'?t:(t.name||'')),team_id:String(typeof t==='string'?'':(t.team_id||'')),logo:String(typeof t==='string'?'':(t.logo||''))};}
+function renderTeamFavoriteRail(){
+  const rail=document.getElementById('teamFavList');if(!rail)return;
+  if(!_favTeamRows.length){rail.innerHTML='<span class="muted">'+esc(tr('No favorite teams yet.'))+'</span>';return;}
+  rail.innerHTML=_favTeamRows.map(t=>{const src=t.logo||(t.team_id?'/api/team_logo?id='+encodeURIComponent(t.team_id):''),selected=String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase();return '<div class="teamfavitem'+(selected?' selected':'')+'" data-team-search="'+escAttr(t.name)+'" data-team-id="'+escAttr(t.team_id)+'" data-team-logo="'+escAttr(t.logo)+'">'+(src?'<img class="teamfavlogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span class="teamfavname">'+esc(t.name)+'</span><span class="favstar on teamremove" data-team-name="'+escAttr(t.name)+'" title="Remove from favorites">&#9733;</span></div>';}).join('');
+}
+function selectedTeamNextFixture(){
+  const name=String(_selectedTeamName||'');if(!name)return null;const now=Date.now();
+  return _myTeamFixtures.filter(f=>{const belongs=(f.favorite_teams||[]).some(owner=>_teamNamesEquivalentForUi(owner,name))||_teamNamesEquivalentForUi(f.home,name)||_teamNamesEquivalentForUi(f.away,name);if(!belongs)return false;const ts=f.start?new Date(f.start).getTime():0;return f.is_live||(ts&&ts>now-3*3600000);}).sort((a,b)=>{if(!!a.is_live!==!!b.is_live)return a.is_live?-1:1;return new Date(a.start||0)-new Date(b.start||0);})[0]||null;
+}
+function renderSelectedTeamProfile(profile){
+  const el=document.getElementById('teamProfileDetail');if(!el)return;const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase())||(_selectedTeamRow&&String(_selectedTeamRow.name).toLowerCase()===String(_selectedTeamName).toLowerCase()?_selectedTeamRow:null);if(!row){el.innerHTML='<span class="muted">'+esc(tr('Choose a team to see details.'))+'</span>';return;}
+  profile=profile||_selectedTeamProfile||{};const src=profile.logo||row.logo||(row.team_id?'/api/team_logo?id='+encodeURIComponent(row.team_id):''),meta=[profile.country,profile.league].filter(Boolean).join(' · ');
+  const facts=[['Home ground',profile.stadium||'—'],['Head coach',profile.coach||'—'],['League',profile.league||'—'],['Country',profile.country||'—']];
+  const next=selectedTeamNextFixture();let nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(tr('Next match'))+'</div><span class="muted">'+esc(tr('No upcoming fixture found.'))+'</span></div>';
+  if(next){const kick=next.start?new Date(next.start):null,when=next.is_live?tr('Live now'):(kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'');nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(next.is_live?tr('Live now'):tr('Next match'))+'</div><b>'+esc(next.home||'')+' v '+esc(next.away||'')+'</b><span class="muted">'+esc(when)+(next.league_name?' · '+esc(next.league_name):'')+'</span></div>';}
+  el.innerHTML='<div class="teamprofilehero"><div class="teamprofilebadge">'+(src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</div><div class="teamprofileidentity"><h2>'+esc(profile.name||row.name)+'</h2><div class="muted">'+esc(meta||tr('Football'))+'</div></div></div><div class="teamprofilefacts">'+facts.map(f=>'<div class="teamprofilefact"><span>'+esc(tr(f[0]))+'</span><b title="'+escAttr(f[1])+'">'+esc(f[1])+'</b></div>').join('')+'</div>'+nextHtml;
+}
+async function loadSelectedTeamProfile(row){
+  row=row||_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase());if(!row)return;const req=++_teamProfileReq;_selectedTeamProfile={name:row.name,team_id:row.team_id,logo:row.logo};renderSelectedTeamProfile(_selectedTeamProfile);
+  try{const r=await api('/api/team_profile?id='+encodeURIComponent(row.team_id||'')+'&name='+encodeURIComponent(row.name));if(req!==_teamProfileReq)return;_selectedTeamProfile=Object.assign({},r.profile||{}, {logo:(r.profile||{}).logo||row.logo});renderSelectedTeamProfile(_selectedTeamProfile);}catch(e){}
+}
+function selectMyTeam(name,teamId,logo){
+  // Selecting a team is navigation, not a Matchfinder search. Keep the two
+  // actions separate so browsing favorite/team-result cards stays instant and
+  // does not unexpectedly replace the explicit search results below.
+  _selectedTeamName=String(name||'');const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===_selectedTeamName.toLowerCase())||{name:_selectedTeamName,team_id:String(teamId||''),logo:String(logo||'')};_selectedTeamRow=row;renderTeamFavoriteRail();loadSelectedTeamProfile(row);
+}
+function teamFixtureCard(f,live,deepLink){
+  const kick=f.start?new Date(f.start):null;
+  const when=kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+  let status='';
+  if(live&&kick){
+    const estimated=Math.max(0,Math.floor((Date.now()-kick.getTime())/60000));
+    const hasClock=f.live_minute!==null&&f.live_minute!==undefined&&Number.isFinite(Number(f.live_minute));
+    const mins=hasClock?Number(f.live_minute):estimated;
+    status='<span class="live">&#9679; LIVE '+mins+' min</span>';
+  }
+  const owners=(f.favorite_teams||[]).join(', ');
+  const query=(f.home||'')+' '+(f.away||''),matchQuery=(f.favorite_teams||[])[0]||f.home||f.away||'';
+  const homeLogo=f.home_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.home_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+  const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+  const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
+  const knownChannels=[...(f.matches||[]),...(f.ppv_hits||[])],hasChannels=knownChannels.length>0;
+  const channelHtml=(hasChannels||f.availability_checked)?fixtureStoredChannelsHtml(Object.assign({logged_in:true},f)):'<span class="muted">'+esc(tr('Checking your channels...'))+'</span>';
+  const details='<div class="teamfixturebroadcasts hide"><div class="fixturechannelresults" style="width:100%">'+channelHtml+'</div></div>';
+  const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-event-key="'+escAttr(sportsFixtureKey(f))+'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
+  return '<div class="teamfixture hastv'+(live?' livefixture':'')+(hasChannels?' haschannels':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
+    +(hasChannels?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
+    +competition+'<div class="muted">'+esc(when)+' '+status+'</div>'+(owners?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')+details+'</div>';
+}
+async function loadMyTeams(){
+  const fav=await api('/api/favorites'), teams=fav.teams||[];
+  _favTeamSet=new Set(teams.map(t=>String(typeof t==='string'?t:t.name).toLowerCase()));
+  _favTeamRows=teams.map(favoriteTeamRow).filter(t=>t.name);
+  if(_favTeamRows.length&&!_favTeamRows.some(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase()))_selectedTeamName=_favTeamRows[0].name;
+  if(!_favTeamRows.length)_selectedTeamName='';
+  renderTeamFavoriteRail();
+  const selectedRow=_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase());_selectedTeamRow=selectedRow||null;if(selectedRow)loadSelectedTeamProfile(selectedRow);else renderSelectedTeamProfile(null);
+  const upcoming=document.getElementById('teamUpcomingList'), liveList=document.getElementById('teamLiveList'), liveSection=document.getElementById('teamLiveSection');
+  const topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
+  if(!teams.length){liveSection.classList.add('hide');upcoming.innerHTML='<span class="muted">Add a favorite team to see its fixtures.</span>';}
+  upcoming.innerHTML='<span class="muted">Loading fixtures...</span>';
+  const r=await api('/api/my_teams');
+  if(r.error){upcoming.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
+  _myTeamFixtures=r.fixtures||[];_sportsVisibleFixtures=[..._myTeamFixtures,...(r.top_fixtures||[])];renderSelectedTeamProfile(_selectedTeamProfile);
+  const live=[], future=[];
+  for(const f of (r.fixtures||[])){
+    const ts=f.start?new Date(f.start).getTime():0, mins=ts?(Date.now()-ts)/60000:null;
+    if(f.is_live||(!f.is_finished&&mins!==null&&mins>=0&&mins<=240))live.push(f);
+    else if(mins!==null&&mins<0)future.push(f);
+  }
+  if(live.length){liveList.innerHTML=live.map(f=>teamFixtureCard(f,true)).join('');liveSection.classList.remove('hide');}
+  else{liveList.innerHTML='';liveSection.classList.add('hide');}
+  const topFixtures=r.top_fixtures||[];
+  if(topFixtures.length){
+    topList.innerHTML='<div class="topfixturegrid">'+topFixtures.map((f,i)=>'<div class="topfixtureitem'+(i>=12?' topfixtureextra hide':'')+'">'+teamFixtureCard(f,!!f.is_live)+'</div>').join('')+'</div>'
+      +(topFixtures.length>12?'<div class="topfixturemore"><button class="ghost" onclick="toggleTopFixtures(this)">'+tr('Show more matches')+'</button></div>':'');
+    topSection.classList.remove('hide');
+  }else{topList.innerHTML='';topSection.classList.add('hide');}
+  let upcomingHtml='';
+  for(const team of teams){
+    const name=String(typeof team==='string'?team:team.name||''), key=name.toLowerCase();
+    const teamFixtures=future.filter(f=>(f.favorite_teams||[]).some(owner=>String(owner).toLowerCase()===key)).slice(0,4);
+    if(!teamFixtures.length)continue;
+    upcomingHtml+='<div class="teamupcominggroup"><div class="teamupcomingname">'+esc(name)+'</div><div class="teamfixturegrid">'+teamFixtures.map(f=>teamFixtureCard(f,false)).join('')+'</div></div>';
+  }
+  upcoming.innerHTML=upcomingHtml||(teams.length?'<span class="muted">No upcoming fixtures found.</span>':'<span class="muted">Add a favorite team to see its fixtures.</span>');
+  loadSportsAvailability(false);
+}
+
+function applySportsAvailability(availability){
+  const map=availability||{};
+  for(const fixture of _sportsVisibleFixtures){const found=map[sportsFixtureKey(fixture)];if(found)Object.assign(fixture,found);}
+  for(const card of document.querySelectorAll('#teamsView .teamfixture[data-event-key]')){
+    const result=map[card.getAttribute('data-event-key')||''];if(!result)continue;
+    const channels=[...(result.matches||[]),...(result.ppv_hits||[])],top=card.querySelector('.teamfixtureteams'),old=top&&top.querySelector('.teamfixturetv');
+    card.classList.toggle('haschannels',channels.length>0);
+    if(channels.length&&!old)top.insertAdjacentHTML('beforeend','<span class="cc teamfixturetv">TV</span>');else if(!channels.length&&old)old.remove();
+    const panel=card.querySelector('.fixturechannelresults');if(panel)panel.innerHTML=fixtureStoredChannelsHtml(result);
+  }
+}
+async function loadSportsAvailability(force){
+  if(_sportsAvailabilityTimer){clearTimeout(_sportsAvailabilityTimer);_sportsAvailabilityTimer=null;}
+  const unique=new Map();for(const f of _sportsVisibleFixtures){if(f&&f.home&&f.away)unique.set(sportsFixtureKey(f),f);}
+  if(unique.size){try{const r=await api('/api/sports_availability',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixtures:Array.from(unique.values()),force:!!force})});if(!r.error){if(r.logged_in===false){const unavailable={};for(const [key] of unique)unavailable[key]={logged_in:false,matches:[],ppv_hits:[]};applySportsAvailability(unavailable);}else applySportsAvailability(r.availability||{});}}catch(e){}}
+  _sportsAvailabilityTimer=setTimeout(()=>{if(!document.getElementById('teamsView').classList.contains('hide'))loadSportsAvailability(true);},15*60*1000);
+}
+async function checkTeamFixtures(btn){
+  const old=btn.innerHTML;
+  btn.disabled=true;btn.textContent='Refreshing fixtures...';
+  try{
+    const j=await api('/api/check_team_fixtures',{method:'POST'});
+    if(j.error)throw new Error(j.error||'Refresh failed');
+    await loadMyTeams();
+    toast('Successfully refreshed favorite-team fixtures.',7000);
+  }catch(e){toast('Could not refresh team fixtures.',7000);}
+  finally{btn.disabled=false;btn.innerHTML=old;applyLang();}
+}
+function toggleTopFixtures(btn){
+  const extras=document.querySelectorAll('#teamTopList .topfixtureextra');
+  if(!extras.length)return;
+  const opening=extras[0].classList.contains('hide');
+  extras.forEach(el=>el.classList.toggle('hide',!opening));
+  btn.textContent=tr(opening?'Show fewer matches':'Show more matches');
+}
+async function searchTeams(){
+  const q=(document.getElementById('q').value||'').trim(), el=document.getElementById('teamSearchResults');
+  if(!q){el.innerHTML='';return;}
+  el.innerHTML='<span class="muted">Searching FotMob...</span>';
+  const r=await api('/api/team_search?q='+encodeURIComponent(q));
+  if(r.error){el.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
+  if(!r.teams.length){el.innerHTML='<span class="muted">No team found in current FotMob listings.</span>';return;}
+  el.innerHTML='<div class="matchresultslabel">'+esc(tr('Teams'))+'</div><div class="teamsearchchips">'+r.teams.map(team=>{const name=typeof team==='string'?team:team.name,id=typeof team==='string'?'':(team.team_id||''),logo=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return '<div class="teamsearchhit" data-team-select="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'">'+(logo?'<img class="teamsearchlogo" src="'+escAttr(logo)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span><button type="button" class="ghost teamfindfixtures" data-team-fixtures="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'">'+esc(tr('Find fixtures'))+'</button><span class="favstar teamstar'+(_favTeamSet.has(name.toLowerCase())?' on':'')+'" data-team-name="'+escAttr(name)+'" data-team-id="'+escAttr(id)+'" title="Favorite">&#9733;</span></div>';}).join('')+'</div>';
+}
+async function searchTeamHub(query){
+  const input=document.getElementById('q');if(query!==undefined&&input)input.value=String(query||'');
+  if(!input||!input.value.trim()){clearSportsSearch();return;}
+  const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
+  _teamDeepLink=null;
+  _fixtureSearchTeamId='';
+  const results=document.getElementById('results');if(results)results.innerHTML='';
+  await searchTeams();
+}
+async function findSportsFixtures(name,teamId){
+  const input=document.getElementById('q');if(input)input.value=String(name||'');
+  if(!String(name||'').trim())return;
+  const back=document.getElementById('sportsSearchBack');if(back)back.classList.remove('hide');
+  _teamDeepLink=null;_fixtureSearchTeamId=String(teamId||'');selectMyTeam(name,teamId||'','');
+  await doSearch();
+}
+function clearSportsSearch(){
+  const input=document.getElementById('q'),teams=document.getElementById('teamSearchResults'),results=document.getElementById('results'),back=document.getElementById('sportsSearchBack');
+  if(input)input.value='';if(teams)teams.innerHTML='';if(results)results.innerHTML='';if(back)back.classList.add('hide');
+  _searchData=null;_teamGroups=[];_activeTeam=0;_teamDeepLink=null;_fixtureSearchTeamId='';
+}
+function openMyTeamsFixture(target){
+  if(!target)return;
+  const read=(name)=>target instanceof Element?target.getAttribute(name):target[name.replace(/^data-/,'').replace(/-([a-z])/g,(_,c)=>c.toUpperCase())];
+  _teamDeepLink={home:String(read('data-home')||target.home||''),away:String(read('data-away')||target.away||''),start:String(read('data-start')||target.start||'')};
+  const query=String(read('data-search')||target.search||target.owner||_teamDeepLink.home||_teamDeepLink.away||'');
+  _selectedTeamName=query;const favorite=_favTeamRows.find(t=>_teamNamesEquivalentForUi(t.name,query));if(favorite){_selectedTeamRow=favorite;renderTeamFavoriteRail();loadSelectedTeamProfile(favorite);}
+  _fixtureSearchTeamId=String((favorite&&favorite.team_id)||'');
+  const input=document.getElementById('q'),results=document.getElementById('results'),teams=document.getElementById('teamSearchResults'),back=document.getElementById('sportsSearchBack');
+  if(input)input.value='';if(results)results.innerHTML='';if(teams)teams.innerHTML='';if(back)back.classList.add('hide');
+  const cards=Array.from(document.querySelectorAll('#teamsView .teamfixture[data-fixture-card="1"]'));
+  const selected=cards.find(card=>_teamNamesEquivalentForUi(card.getAttribute('data-home'),_teamDeepLink.home)&&_teamNamesEquivalentForUi(card.getAttribute('data-away'),_teamDeepLink.away)&&(!_teamDeepLink.start||!card.getAttribute('data-start')||Math.abs(new Date(card.getAttribute('data-start'))-new Date(_teamDeepLink.start))<6*3600000));
+  cards.forEach(card=>card.classList.toggle('selectedfixture',card===selected));
+  if(selected){const details=selected.querySelector('.teamfixturebroadcasts');if(details)details.classList.remove('hide');selected.scrollIntoView({behavior:'smooth',block:'center'});}
+}
+function fixtureStoredChannelsHtml(f){
+  if(!f.logged_in)return '<span class="muted">'+esc(tr('Log in via Settings first.'))+'</span>';
+  const all=[...(f.matches||[]),...(f.ppv_hits||[])],seen=new Set(),definite=[],other=[];
+  for(const ch of all){const id=String(ch.stream_id||'');if(!id||seen.has(id))continue;seen.add(id);if(fixtureChannelRank(ch,f)===3||ch.provider_exact===true)definite.push(ch);else other.push(ch);}
+  definite.sort(preferredChannelSort);other.sort(preferredChannelSort);
+  const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
+  let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+definite.map(line).join('');
+  if(other.length){const groups=new Map();for(const ch of other){const key=String(ch.category||tr('Other possible channels'));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ch);}h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(line).join('')+'</div></div>';}
+  return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
+}
+async function loadStoredFixtureChannels(card){
+  const panel=card&&card.querySelector('.fixturechannelresults');if(!card||!panel||panel.innerHTML.trim())return;
+  const fixture={home:card.getAttribute('data-home')||'',away:card.getAttribute('data-away')||'',start:card.getAttribute('data-start')||'',by_country:{}};
+  try{const result=await api('/api/sports_event_channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixture:fixture,cached_only:true})});if(result.cached){Object.assign(fixture,result);panel.innerHTML=fixtureStoredChannelsHtml(fixture);}}catch(e){}
+}
+async function toggleTeamFavorite(name,star,teamId){
+  const r=await favPost({action:'toggle_team',team:{name:name,team_id:teamId||''}});
+  _favTeamSet=new Set((r.team_names||[]).map(name=>String(name).toLowerCase()));
+  if(star)star.classList.toggle('on',_favTeamSet.has(String(name).toLowerCase()));
+  await loadMyTeams();
+}
+async function removeTeamFavorite(name){
+  await favPost({action:'remove_team',name:name});
+  _favTeamSet.delete(String(name).toLowerCase());
+  await loadMyTeams();
+}
+
+let _catsLoaded=false;
+let _allCats=[];
+// Build icons from Unicode code points instead of embedding emoji bytes in the
+// source. This keeps flags intact if a Windows editor repacks the script.
+const _COUNTRY_CODES={
+  no:'NO',se:'SE',dk:'DK',fi:'FI',uk:'GB',gb:'GB',us:'US',ca:'CA',de:'DE',fr:'FR',
+  it:'IT',es:'ES',pt:'PT',nl:'NL',be:'BE',ch:'CH',at:'AT',ie:'IE',pl:'PL',gr:'GR',
+  tr:'TR',ru:'RU',ua:'UA',ro:'RO',bg:'BG',hr:'HR',si:'SI',rs:'RS',cz:'CZ',sk:'SK',
+  hu:'HU',al:'AL',ba:'BA',mk:'MK',in:'IN',pk:'PK',ir:'IR',sa:'SA',eg:'EG',il:'IL',
+  br:'BR',mx:'MX',au:'AU',ag:'AF'
+};
+const _ICONS={ar:0x1f310,afr:0x1f30d,asia:0x1f30f,ex:0x1f310,'ex-yu':0x1f310,
+  am:0x1f310,mena:0x1f310,'4k':0x1f4fa,uhd:0x1f4fa,ppv:0x1f3ab,
+  vip:0x2b50,sport:0x26bd,sports:0x26bd};
+function _countryFlag(code){
+  return String.fromCodePoint(...code.split('').map(c=>0x1f1e6+c.charCodeAt(0)-65));
+}
+function _flagFor(name){
+  const m=(name||'').match(/^\\s*([a-z0-9-]{1,5})\\s*\\|/i);
+  if(!m)return String.fromCodePoint(0x1f310);
+  const key=m[1].toLowerCase();
+  if(_COUNTRY_CODES[key])return _countryFlag(_COUNTRY_CODES[key]);
+  return String.fromCodePoint(_ICONS[key]||0x1f310);
+}
+let _selCats=new Set();
+let _activeCat=null;
+let _ccChannels=[];      // channels currently shown in Category Channels
+let _playlist=new Map(); // stream_id -> {name,url,category}
+
+async function loadCategories(force){
+  if(_catsLoaded&&!force)return;
+  const r=await api('/api/categories');
+  if(!r.logged_in){document.getElementById('catlist').innerHTML='<span class="muted">Log in via Settings first.</span>';return;}
+  if(r.error){document.getElementById('catlist').innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
+  _allCats=r.categories||[];
+  _catsLoaded=true;
+  renderCatList();renderSelected();renderPlaylist();
+}
+function renderCatList(){
+  const fEl=document.getElementById('catfilter');
+  const f=(fEl?fEl.value:'').toLowerCase();
+  const shown=_allCats.filter(function(c){return !f||c.name.toLowerCase().indexOf(f)>=0;});
+  let html='';
+  for(const c of shown){
+    const on=_selCats.has(c.name)?' on':'';
+    html+='<div class="catitem'+on+'" onclick="toggleCat(this.getAttribute(\\'data-c\\'))" data-c="'+escAttr(c.name)+'">'
+      +'<span class="tick">\u2713</span>'
+      +'<span class="flag">'+_flagFor(c.name)+'</span>'
+      +'<span class="cn">'+esc(c.name)+' <span class="pc">'+c.count+'</span></span></div>';
+  }
+  const box=document.getElementById('catlist');
+  const rows=Math.ceil(shown.length/4)||1;
+  box.style.setProperty('--catrows',rows);
+  box.innerHTML=html||'<span class="muted">No categories match.</span>';
+}
+function toggleCat(name){
+  if(_selCats.has(name))_selCats.delete(name); else _selCats.add(name);
+  if(!_selCats.has(_activeCat))_activeCat=null;
+  renderCatList();renderSelected();
+}
+function renderSelected(){
+  const sel=Array.from(_selCats);
+  const box=document.getElementById('selcats');
+  if(!sel.length){box.innerHTML='<span class="muted">Tick categories on the left.</span>';return;}
+  const byName={};for(const c of _allCats)byName[c.name]=c.count;
+  let html='';
+  for(const s of sel){
+    const active=(s===_activeCat)?' active':'';
+    html+='<div class="selcat'+active+'" onclick="openCategory(this.getAttribute(\\'data-c\\'))" data-c="'+escAttr(s)+'">'
+      +'<span>'+esc(s)+'</span><span class="cnt">'+(byName[s]||0)+'</span><span class="chev">\u203A</span></div>';
+  }
+  box.innerHTML=html;
+}
+
+async function openCategory(cat){
+  _activeCat=cat;
+  renderSelected();
+  document.getElementById('ccHead').textContent=tr('Filter Channels');
+  const el=document.getElementById('ccList');
+  el.innerHTML='<span class="muted">Loading...</span>';
+  const r=await api('/api/channels?q=&cat='+encodeURIComponent(cat));
+  if(!r.logged_in||!r.channels){el.innerHTML='<span class="muted">Could not load.</span>';return;}
+  _ccChannels=r.channels;
+  document.getElementById('ccHead').innerHTML=tr('Filter Channels')+' <span class="muted">('+esc(cat)+')</span>';
+  renderCC();
+}
+function renderCC(){
+  const el=document.getElementById('ccList');
+  if(!_ccChannels.length){el.innerHTML='<span class="muted">No channels in this category.</span>';return;}
+  let html='';
+  for(const c of _ccChannels){
+    const inpl=_playlist.has(String(c.stream_id))?' checked':'';
+    html+='<label class="chrow"><input type="checkbox" class="ccck" data-sid="'+escAttr(String(c.stream_id))+'"'+inpl+'>'
+      +channelLogo(c,'mini')+'<span class="chname">'+esc(c.name)+(c.quality?'<span class="tag">'+esc(c.quality)+'</span>':'')+'</span></label>';
+  }
+  el.innerHTML=html;
+}
+function ccTick(on){document.querySelectorAll('.ccck').forEach(function(c){c.checked=on;});}
+
+function addTickedToPlaylist(){
+  const ticked=new Set(Array.from(document.querySelectorAll('.ccck:checked')).map(function(c){return c.getAttribute('data-sid');}));
+  for(const c of _ccChannels){
+    const sid=String(c.stream_id);
+    if(ticked.has(sid))_playlist.set(sid,{name:c.name,url:c.url,category:c.category,logo:c.logo||''});
+  }
+  renderPlaylist();
+}
+function renderPlaylist(){
+  const el=document.getElementById('plList');
+  const cnt=document.getElementById('plCount');
+  cnt.textContent=_playlist.size?('('+_playlist.size+')'):'';
+  if(!_playlist.size){el.innerHTML='<span class="muted">Ticked channels land here.</span>';return;}
+  let html='';
+  for(const [sid,c] of _playlist){
+    html+='<div class="plitem"><span class="x" onclick="plRemove(\\''+escAttr(sid)+'\\')">\u2715</span>'
+      +channelLogo({stream_id:sid,logo:c.logo},'mini')+'<div class="chname">'+esc(c.name)+'</div></div>';
+  }
+  el.innerHTML=html;
+}
+function plRemove(sid){
+  _playlist.delete(sid);renderPlaylist();
+  // also untick in the CC list if visible
+  document.querySelectorAll('.ccck').forEach(function(c){if(c.getAttribute('data-sid')===sid)c.checked=false;});
+}
+function clearPlaylist(){_playlist.clear();renderPlaylist();ccTick(false);}
+function clearSelectedCats(){_selCats.clear();_activeCat=null;renderCatList();renderSelected();document.getElementById('ccList').innerHTML='<span class="muted">Click a selected category to see its channels.</span>';document.getElementById('ccHead').textContent=tr('Filter Channels');}
+
+async function buildM3U(mode){
+  const cats=Array.from(_selCats);
+  if(!cats.length){alert('Tick at least one category on the left first.');return;}
+  const resp=await fetch('/api/m3u',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({mode:'categories',categories:cats})});
+  if(!resp.ok){alert('Failed to build M3U.');return;}
+  const blob=await resp.blob();
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='categories.m3u';document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);a.remove();},500);
+}
+
+async function buildPlaylistM3U(){
+  if(!_playlist.size){alert('Playlist is empty. Tick channels and click "Add ticked".');return;}
+  const ids=Array.from(_playlist.keys());
+  const resp=await fetch('/api/m3u',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({mode:'channels',stream_ids:ids})});
+  if(!resp.ok){alert('Failed to build M3U.');return;}
+  const blob=await resp.blob();
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='playlist.m3u';document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);a.remove();},500);
+}
+
+// Reset only the temporary Playlist searches; keep the user's builder selections intact.
+function resetPlaylistSearch(){
+  const cq=document.getElementById('cq'),catq=document.getElementById('catq');
+  const cr=document.getElementById('cresults'),ctr=document.getElementById('catresults');
+  if(cq)cq.value='';if(catq)catq.value='';if(cr)cr.innerHTML='';if(ctr)ctr.innerHTML='';
+  const builder=document.querySelector('#channelsView .ch4');
+  if(builder)builder.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// Right-column channel search on the Search page (simple version)
+async function doCategorySearch(){
+  const q=(document.getElementById('catq').value||'').trim().toLowerCase();
+  const el=document.getElementById('catresults');
+  el.innerHTML='<div class="muted">'+tr('Loading...')+'</div>';
+  const r=await api('/api/categories');
+  if(!r.logged_in){el.innerHTML='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to search categories.</div>';return;}
+  let cats=(r.categories||[]);
+  if(q)cats=cats.filter(function(c){return c.name.toLowerCase().indexOf(q)>=0;});
+  if(!cats.length){el.innerHTML='<div class="muted">No categories found'+(q?' for "'+esc(q)+'"':'')+'.</div>';return;}
+  await refreshFavState();
+  let h='<div class="muted" style="margin:6px 0">'+cats.length+' '+tr('Categories').toLowerCase()+'</div>';
+  for(const c of cats){
+    const fav=_favCatSet.has(c.name)?' on':'';
+    h+='<div class="chrow">'
+      +'<span class="favstar'+fav+'" data-favcat="'+escAttr(c.name)+'" title="Favorite">\u2605</span>'
+      +'<span class="chname">'+_flagFor(c.name)+' '+esc(c.name)+' <span class="muted">'+c.count+'</span></span></div>';
+  }
+  el.innerHTML=h;
+}
+async function toggleFavCat(name,starEl){
+  let r;
+  if(_favCatSet.has(name)){r=await favPost({action:'remove_cat',category:name});_favCatSet.delete(name);}
+  else{r=await favPost({action:'add_cats',categories:[name]});_favCatSet.add(name);}
+  if(starEl)starEl.classList.toggle('on',_favCatSet.has(name));
+}
+async function doChannelSearch(inputId, targetId){
+  const q=document.getElementById(inputId).value.trim();
+  const el=document.getElementById(targetId);
+  el.innerHTML='<span class="muted">Searching your channels...</span>';
+  const r=await api('/api/channels?q='+encodeURIComponent(q)+'&cat=');
+  if(r.error){el.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
+  if(!r.logged_in){el.innerHTML='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to search your channels.</div>';return;}
+  if(!r.channels.length){el.innerHTML='<div class="muted">No channels found'+(q?' for "'+esc(q)+'"':'')+'.</div>';return;}
+  await refreshFavState();
+  let html='<div class="muted" style="margin:6px 0">'+r.shown+(r.total>r.shown?(' of '+r.total+' (type more to narrow)'):'')+' channel'+(r.total===1?'':'s')+'</div>';
+  for(const c of r.channels){
+    const fav=_favChanSet.has(String(c.stream_id))?' on':'';
+    html+='<div class="chrow">'
+      +'<span class="favstar'+fav+'" data-sid="'+escAttr(String(c.stream_id))+'" data-name="'+escAttr(c.name)+'" data-cat="'+escAttr(c.category||'')+'" title="Favorite">&#9733;</span>'
+      +channelLogo(c)+'<div class="chname">'+esc(c.name)+(c.quality?'<span class="tag">'+esc(c.quality)+'</span>':'')
+      +(c.category?' <span class="muted">'+esc(c.category)+'</span>':'')
+      +'<div class="churl">'+esc(c.url)+'</div></div>'
+      +'<div style="display:flex;flex-shrink:0">'+playbtns(c.stream_id,c.name,c.url)+'</div></div>';
+  }
+  el.innerHTML=html;
+}
+async function api(p,o){
+  const r=await fetch(p,o);let j;
+  try{j=await r.json();}catch(e){return {error:'Invalid server response',status:r.status};}
+  if(!j||typeof j!=='object')j={data:j};
+  if(!r.ok&&!j.error)j.error='HTTP '+r.status;
+  j._httpStatus=r.status;j._httpOk=r.ok;
+  return j;
+}
+async function favPost(body){return api('/api/favorites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+async function refreshStatus(){
+  const s=await api('/api/status');
+  status.innerHTML=!s.configured?'<span class="err">Not configured &mdash; open Settings</span>'
+    :(s.channel_count!=null?s.channel_count+' channels loaded':'configured');
+  const slider=document.getElementById('matchStrict'), value=document.getElementById('matchStrictValue');
+  if(slider&&s.match_threshold!=null){slider.value=Number(s.match_threshold).toFixed(2);value.textContent=slider.value;}
+}
+const _TV_GUIDE_COUNTRIES=[
+  ['no','🇳🇴','Norway'],['gb','🇬🇧','United Kingdom'],['us','🇺🇸','United States'],
+  ['pt','🇵🇹','Portugal'],['ie','🇮🇪','Ireland'],['es','🇪🇸','Spain'],
+  ['de','🇩🇪','Germany'],['it','🇮🇹','Italy'],['fr','🇫🇷','France'],
+  ['nl','🇳🇱','Netherlands'],['be','🇧🇪','Belgium'],['dk','🇩🇰','Denmark'],
+  ['se','🇸🇪','Sweden'],['fi','🇫🇮','Finland'],['at','🇦🇹','Austria'],
+  ['ch','🇨🇭','Switzerland'],['pl','🇵🇱','Poland'],['ca','🇨🇦','Canada'],
+  ['au','🇦🇺','Australia'],['br','🇧🇷','Brazil'],['mx','🇲🇽','Mexico']
+];
+function selectedTvGuideCountries(){const v=String(s_cc.value||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);return v.length?v:['no','gb','us','pt','ie','es','de','it','fr','nl','be','dk','se'];}
+function renderCountryPicker(values){
+  const selected=new Set((values||[]).map(v=>String(v).toLowerCase()==='uk'?'gb':String(v).toLowerCase()));
+  const known=new Set(_TV_GUIDE_COUNTRIES.map(row=>row[0]));
+  const rows=_TV_GUIDE_COUNTRIES.map(row=>({code:row[0],flag:row[1],name:row[2],unsupported:false}));
+  for(const code of selected)if(!known.has(code))rows.push({code:code,flag:'⚠️',name:tr('Unsupported saved code'),unsupported:true});
+  const el=document.getElementById('countryPicker');if(!el)return;
+  el.innerHTML=rows.map(row=>'<label class="countrychoice'+(selected.has(row.code)?' on':'')+(row.unsupported?' unsupported':'')+'"><input type="checkbox" value="'+escAttr(row.code)+'"'+(selected.has(row.code)?' checked':'')+' onchange="syncCountryPicker()"><span class="countryflag">'+row.flag+'</span><span class="countryname">'+esc(row.name)+'</span><span class="countrycode">'+esc(row.code.toUpperCase())+'</span></label>').join('');
+  syncCountryPicker();
+}
+function syncCountryPicker(){
+  const checked=Array.from(document.querySelectorAll('#countryPicker input:checked')).map(input=>input.value);
+  s_cc.value=checked.join(',');
+  document.querySelectorAll('#countryPicker .countrychoice').forEach(label=>label.classList.toggle('on',label.querySelector('input').checked));
+}
+async function saveMatchStrictness(value){
+  const strict=Math.max(0.40,Math.min(0.80,parseFloat(value)||0.62));
+  try{await api('/api/match_strictness',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({match_threshold:strict})});}catch(e){}
+}
+async function loadSettings(){
+  const c=await api('/api/config');
+  s_host.value=c.xtream_host||'';
+  s_user.value=c.xtream_user||'';s_pass.value=c.xtream_pass||'';
+  s_ext.value=c.stream_ext||'ts';
+  s_cc.value=(c.countries||['no','gb','us','pt','ie','es','de','it','fr','nl','be','dk','se']).join(',');
+  renderCountryPicker(c.countries||selectedTvGuideCountries());
+  s_start.value=c.start_section||'mylist';
+  s_checkshows.checked=!!c.check_shows_on_startup;
+  s_refreshiptv.checked=!!c.refresh_iptv_on_startup;
+  s_refreshsports.checked=!!c.refresh_sports_on_startup;
+  s_profile.value=c.profile_name||'';
+  s_lang.value=c.preferred_language||'en';
+  _selectedEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEmblemPicker();
+  s_mylistlayout.value=['balanced','spotlight','timeline','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';
+  s_football.checked=c.football_enabled!==false;
+  s_f1.checked=c.f1_enabled!==false;
+  s_games.checked=c.games_enabled!==false;
+  s_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
+  s_autoshutdown.value=String(c.auto_shutdown_minutes||0);
+  loadArtworkCacheSize();
+}
+async function saveSettings(){
+  const body={xtream_host:s_host.value,xtream_user:s_user.value,
+    xtream_pass:s_pass.value,stream_ext:s_ext.value,
+    countries:selectedTvGuideCountries(),
+    start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
+    refresh_iptv_on_startup:s_refreshiptv.checked,refresh_sports_on_startup:s_refreshsports.checked,
+    profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
+    profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
+    f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0)};
+  if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
+  if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
+  if(!body.football_enabled&&body.start_section==='teams')body.start_section='mylist';
+  const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  s_msg.textContent=r.ok?'Saved.':'Error saving.';
+  if(r.ok){setLang(body.preferred_language);applyProfileConfig(body);toast('Saved.');if(!body.football_enabled&&!teamsView.classList.contains('hide'))showMylist();if(!body.games_enabled&&!gamesView.classList.contains('hide'))showMylist();if(!body.f1_enabled&&!racingView.classList.contains('hide'))showMylist();}
+  refreshStatus();
+}
+function formatBytes(n){
+  n=Number(n)||0;if(n<1024)return n+' B';
+  const units=['KB','MB','GB'];let i=-1;
+  do{n/=1024;i++;}while(n>=1024&&i<units.length-1);
+  return n.toFixed(n>=10?1:2)+' '+units[i];
+}
+async function loadArtworkCacheSize(){
+  try{const r=await api('/api/artwork_cache');s_artsize.textContent=formatBytes(r.bytes);}
+  catch(e){s_artsize.textContent='Unavailable';}
+}
+async function clearArtworkCache(){
+  if(!confirm('Clear all downloaded show artwork?'))return;
+  try{
+    const r=await api('/api/clear_artwork_cache',{method:'POST'});
+    if(!r.ok)throw new Error(r.error||'clear failed');
+    s_artsize.textContent='0 B';toast('Artwork cache cleared.');
+  }catch(e){toast('Could not clear artwork cache.');}
+}
+async function stopTVMate(){
+  if(!confirm('Stop TVMate? Streaming links and the local TVMate page will stop until you start the app again.'))return;
+  try{
+    const j=await api('/api/shutdown',{method:'POST'});if(j.error||!j.ok)throw new Error('shutdown failed');
+    document.body.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;background:#0d1013;color:#e7e7e7;font-family:system-ui,sans-serif"><div style="text-align:center"><div style="font-size:54px">📺</div><h1>TVMate has stopped</h1><p style="color:#999">You can close this tab. Start TVMate again whenever you are ready.</p></div></div>';
+  }catch(e){toast('Could not stop TVMate.');}
+}
+let _lastActivityPing=0;
+function markTVMateActivity(){const now=Date.now();if(now-_lastActivityPing<20000)return;_lastActivityPing=now;fetch('/api/activity',{method:'POST',keepalive:true}).catch(()=>{});}
+document.addEventListener('pointerdown',markTVMateActivity,{passive:true});
+document.addEventListener('keydown',markTVMateActivity,{passive:true});
+document.addEventListener('touchstart',markTVMateActivity,{passive:true});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)markTVMateActivity();});
+setInterval(function(){
+  const popup=document.getElementById('pVideo'),live=document.getElementById('tvVideo');
+  if((popup&&!popup.paused&&!popup.ended)||(live&&!live.paused&&!live.ended))markTVMateActivity();
+},30000);
+markTVMateActivity();
+async function resetColdStart(btn){
+  if(!confirm('Clear performance caches and reload TVMate for a cold-start test?'))return;
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Resetting...';
+  try{
+    const r=await api('/api/reset_cold_start',{method:'POST'});
+    if(!r.ok)throw new Error(r.error||'reset failed');
+    toast('Cold-start caches cleared. Reloading...',1800);
+    setTimeout(()=>location.reload(),1100);
+  }catch(e){
+    toast('Could not reset cold-start caches.');btn.disabled=false;btn.textContent=old;
+  }
+}
+let _devSequence='';
+document.addEventListener('keydown',function(e){
+  const settings=document.getElementById('settingsView');
+  if(!settings||settings.classList.contains('hide')){_devSequence='';return;}
+  if(e.key==='7')_devSequence=(_devSequence+'7').slice(-3);else _devSequence='';
+  if(_devSequence==='777'){
+    document.getElementById('devSettings').classList.remove('hide');
+    _devSequence='';setSettingsTab('maintenance');toast('Developer tools unlocked.');
+  }
+});
+async function testLogin(){
+  const msg=document.getElementById('s_connmsg');msg.textContent=tr('Testing...');
+  const r=await api('/api/test_credentials',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({xtream_host:s_host.value,xtream_user:s_user.value,xtream_pass:s_pass.value})});
+  msg.innerHTML=r.ok?('<span class="ok">'+tr('Login successful.')+'</span>'):('<span class="err">'+esc(r.error||tr('Login failed.'))+'</span>');
+}
+function refreshMessage(text){const el=document.getElementById('s_refreshmsg');if(el)el.textContent=text;}
+async function withRefreshButton(btn,label,work){
+  const old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent=label;}
+  try{return await work();}catch(e){if(btn){const message='Refresh failed: '+String(e&&e.message||e);refreshMessage(message);toast(message,7000);}throw e;}finally{if(btn){btn.disabled=false;btn.textContent=old;applyLang();}}
+}
+async function refreshIptvContent(btn,quiet){
+  return withRefreshButton(btn,'Refreshing IPTV...',async function(){
+    refreshMessage('Refreshing Xtream channels, movies, shows and episodes...');
+    const catalog=await api('/api/refresh_xtream',{method:'POST'});if(catalog.error||!catalog.ok)throw new Error(catalog.error||'IPTV refresh failed');
+    refreshMessage('IPTV catalogues ready. Updating EPG...');
+    const epg=await api('/api/epg?force=1&favorites=1');if(epg.error)throw new Error(epg.error||'EPG refresh failed');
+    _tvEpg=Object.assign({},_tvEpg,epg.epg||{});_latestEpisodesLoaded=false;refreshStatus();
+    if(!mytvView.classList.contains('hide'))renderTvGuide();
+    const stats=epg.stats||{},summary='IPTV: '+catalog.channels+' channels, '+catalog.movies+' movies, '+catalog.shows+' shows · EPG: '+(stats.updated||0)+' channels';
+    refreshMessage(summary);if(!quiet)toast(summary,7000);return {catalog:catalog,epg:epg,summary:summary};
+  });
+}
+async function refreshOtherContent(btn,quiet){
+  return withRefreshButton(btn,'Refreshing content...',async function(){
+    const c=await api('/api/config'),parts=[],failures=[];refreshMessage('Refreshing sports, racing and games...');
+    if(c.f1_enabled!==false){const racing=await api('/api/refresh_racing',{method:'POST'});if(!racing.error&&racing.ok)parts.push((racing.series||0)+' racing series');else failures.push('racing');}
+    if(c.football_enabled!==false){const sports=await api('/api/refresh_football',{method:'POST'});if(!sports.error&&sports.ok){parts.push((sports.matches||0)+' matches, '+(sports.teams||0)+' teams, '+(sports.guides||0)+' TV guides');if(sports.listing_notice)toast(sports.listing_notice,7000);}else failures.push('sports');}
+    if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
+      const steam=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(!steam.error&&steam.ok)parts.push((steam.imported||0)+' Steam games');else failures.push('games');
+    }
+    const summary='Sports, racing & games: '+(parts.length?parts.join(' · '):'nothing enabled')+(failures.length?' · Failed: '+failures.join(', '):'');refreshMessage(summary);if(!quiet)toast(summary,7000);return {summary:summary,failures:failures};
+  });
+}
+async function refreshEverything(btn,quiet){
+  return withRefreshButton(btn,'Refreshing everything...',async function(){
+    const c=await api('/api/config'),parts=[],failures=[];
+    const run=async function(label,work){try{return await work();}catch(e){failures.push(label);return null;}};
+    const xtreamConfigured=!!(String(c.xtream_host||'').trim()&&String(c.xtream_user||'').trim()&&String(c.xtream_pass||'').trim());
+    refreshMessage('Refreshing enabled content...');
+    if(xtreamConfigured){
+      const catalog=await run('IPTV',async function(){const r=await api('/api/refresh_xtream',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'IPTV refresh failed');return r;});
+      if(catalog)parts.push('IPTV '+catalog.channels+' channels, '+catalog.movies+' movies, '+catalog.shows+' shows');
+      const currentId=(_tvPlaying&&(_tvPlaying.stream_id||_tvPlaying.id||_tvPlaying))||'';
+      const epg=await run('EPG',async function(){const r=await api('/api/epg?force=1&favorites=1'+(currentId?'&ids='+encodeURIComponent(String(currentId)):''));if(r.error)throw new Error(r.error);return r;});
+      if(epg)parts.push('EPG '+((epg.stats&&epg.stats.updated)||0)+' channels');
+    }else parts.push('IPTV skipped');
+    if(c.f1_enabled!==false){
+      const racing=await run('Racing',async function(){const r=await api('/api/refresh_racing',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'racing refresh failed');return r;});
+      if(racing)parts.push('Racing '+racing.series+' series');
+    }
+    if(c.football_enabled!==false){
+      const football=await run('Sports',async function(){const r=await api('/api/refresh_football',{method:'POST'});if(r.error||!r.ok)throw new Error(r.error||'sports refresh failed');return r;});
+      if(football){parts.push('Sports '+football.teams+' teams, '+football.guides+' guides');if(football.listing_notice)toast(football.listing_notice,7000);}
+    }
+    if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
+      const steam=await run('Steam',async function(){const r=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(r.error||!r.ok)throw new Error(r.error||'Steam refresh failed');return r;});
+      if(steam)parts.push('Steam '+steam.imported+' games');
+    }
+    const episodes=await run('Show schedules',async function(){const r=await api('/api/latest_episodes?refresh=1&limit=9');if(r.error)throw new Error(r.error);return r;});
+    if(episodes){_latestEpisodesLoaded=false;parts.push('Show schedules updated');}
+    for(const category of ['popular','new','featured']){
+      const movies=await run('Cinemeta '+category,async function(){const r=await api('/api/movie_catalog?catalog='+category+'&limit=10');if(r.error)throw new Error(r.error);return r;});
+      if(movies)_movieCatalogCache[category]={movies:movies.movies||[],logged_in:!!movies.logged_in};
+    }
+    parts.push('Cinemeta cache checked');
+    refreshStatus();if(!mytvView.classList.contains('hide'))renderTvGuide();
+    const summary=parts.join(' · ')+(failures.length?' · Failed: '+failures.join(', '):'');
+    refreshMessage(summary);if(!quiet)toast(failures.length?'Refresh finished with some errors.':'Everything refreshed successfully.',7000);return {summary:summary,failures:failures};
+  });
+}
+let _searchData=null;   // {fixtures, logged_in, ppv_categories}
+let _teamGroups=[];      // [{team, fixtures:[...]}]
+let _activeTeam=0;
+
+async function doSearch(){
+  if(!_footballEnabled)return;
+  const q=document.getElementById('q').value.trim(),resultEl=document.getElementById('results');
+  if(!resultEl)return;
+  resultEl.innerHTML='';
+  if(!q)return;
+  resultEl.innerHTML='<span class="muted">Searching listings...</span>';
+  const strict=document.getElementById('matchStrict').value;
+  const r=await api('/api/search?q='+encodeURIComponent(q)+'&strictness='+encodeURIComponent(strict)+(_fixtureSearchTeamId?'&team_id='+encodeURIComponent(_fixtureSearchTeamId):''));
+  if(r.error){resultEl.innerHTML='<span class="err">'+r.error+'</span>';return;}
+  _searchData=r;
+  if(r.logged_in)await refreshFavState();
+  let head='';
+  if(r.source_errors&&r.source_errors.length)
+    head+='<div class="muted err">Some listings failed: '+r.source_errors.join('; ')+'</div>';
+  if(!r.fixtures.length){resultEl.innerHTML=head+'<div class="muted">No current or upcoming match found for "'+esc(q)+'".</div>';return;}
+  // Group fixtures by the team that matches the query (home or away).
+  _teamGroups=groupByTeam(r.fixtures,q);
+  _activeTeam=0;
+  resultEl.innerHTML=head+'<div class="matchresultslabel">'+esc(tr('Matches'))+' · '+r.fixtures.length+'</div><div id="teamSwitch"></div><div id="teamFixtures"></div>';
+  renderTeamSwitch();
+  renderActiveTeam();
+}
+
+function groupByTeam(fixtures,q){
+  // Determine, per fixture, which side matched the query; group under that team name.
+  const ql=q.toLowerCase();
+  const groups={};      // teamName -> [fixtures]
+  const order=[];
+  for(const f of fixtures){
+    // pick the team whose name/slug best contains the query; default home
+    let team=f.home, other=f.away;
+    const h=(f.home||'').toLowerCase(), a=(f.away||'').toLowerCase();
+    // crude: if away contains the query fragment and home doesn't, group under away
+    const hHit=h.includes(ql)||wordsOverlap(ql,h);
+    const aHit=a.includes(ql)||wordsOverlap(ql,a);
+    if(aHit&&!hHit){team=f.away;}
+    if(!groups[team]){groups[team]=[];order.push(team);}
+    groups[team].push(f);
+  }
+  return order.map(function(t){return {team:t,fixtures:groups[t]};});
+}
+function wordsOverlap(q,name){
+  const qs=q.split(/\\s+/).filter(Boolean);
+  return qs.some(function(w){return w.length>=3&&name.includes(w);});
+}
+
+function renderTeamSwitch(){
+  const el=document.getElementById('teamSwitch');
+  if(!el)return;
+  if(_teamGroups.length<2){el.innerHTML='';return;}   // only show when 2+ teams
+  let h='<div class="teamtabs">';
+  _teamGroups.forEach(function(g,i){
+    h+='<button class="teamtab'+(i===_activeTeam?' on':'')+'" data-team="'+i+'">'+esc(g.team)+' <span class="muted">('+g.fixtures.length+')</span></button>';
+  });
+  h+='</div>';
+  el.innerHTML=h;
+}
+
+function renderActiveTeam(){
+  const el=document.getElementById('teamFixtures');
+  if(!el)return;
+  const g=_teamGroups[_activeTeam];
+  if(!g){el.innerHTML='';return;}
+  let html='';
+  const rows=g.fixtures.slice().sort((a,b)=>Number(fixtureMatchesDeepLink(b))-Number(fixtureMatchesDeepLink(a)));
+  rows.forEach(function(f,fi){
+    html+=renderFixtureCard(f,fi);
+  });
+  el.innerHTML=html;
+}
+
+function fixtureMatchesDeepLink(f){
+  if(!_teamDeepLink||!f)return false;
+  const teams=_teamNamesEquivalentForUi(f.home,_teamDeepLink.home)&&_teamNamesEquivalentForUi(f.away,_teamDeepLink.away);
+  if(!teams)return false;
+  if(!_teamDeepLink.start||!f.start)return true;
+  const a=new Date(f.start).getTime(),b=new Date(_teamDeepLink.start).getTime();return Number.isFinite(a)&&Number.isFinite(b)?Math.abs(a-b)<6*3600000:true;
+}
+function _teamNamesEquivalentForUi(a,b){const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').trim();const x=clean(a),y=clean(b);return !!x&&!!y&&(x===y||x.includes(y)||y.includes(x));}
+function fixtureChannelRank(m,f){
+  const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').replace(/\\s+/g,' ').trim();
+  const name=clean(m&&m.xtream_name),home=clean(f&&f.home),away=clean(f&&f.away);
+  const homeHit=!!home&&name.includes(home),awayHit=!!away&&name.includes(away);
+  // Visible two-team text is definitive and must override stale/mistaken
+  // backend metadata before the broadcaster list is sorted.
+  if(homeHit&&awayHit)return 3;
+  if(m&&m.fixture_match==='exact')return 3;
+  if(m&&m.fixture_match==='generic')return 2;
+  if(m&&m.fixture_match==='partial')return 1;
+  return homeHit||awayHit?1:2;
+}
+function channelLocalePriority(ch){
+  const text=[ch&&ch.category,ch&&ch.xtream_name,ch&&ch.quality].filter(Boolean).join(' ');
+  const is4k=/\\b(4k|uhd)\\b/i.test(text);
+  const isNorwegian=/(^|[^a-z0-9])(no|norway|norge)([^a-z0-9]|$)/i.test(text);
+  const prefix=String((ch&&ch.category)||'').match(/^\\s*([a-z]{2,4})\\s*[:|\\-]/i)||String((ch&&ch.xtream_name)||'').match(/^\\s*([a-z]{2,4})\\s*[:|\\-]/i);
+  const cc=prefix?prefix[1].toLowerCase():'';
+  if(isNorwegian&&is4k)return 700;
+  if(isNorwegian)return 600;
+  if(is4k)return 500;
+  if(cc==='uk'||cc==='gb')return 400;
+  if(cc==='swe'||cc==='se')return 390;
+  if(cc==='den'||cc==='dk')return 380;
+  const known=new Set(['us','pt','es','de','it','fr','ie','be','nl','fi','at','ch','pl','cz','sk','hu','ro','bg','gr','hr','si','rs','ba','mk','al','tr','ca','au','br','mx','hk','cr']);
+  return known.has(cc)?200:300;
+}
+function preferredChannelSort(a,b){
+  return channelLocalePriority(b)-channelLocalePriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
+}
+
+function renderFixtureCard(f,fi){
+  const when=f.start?new Date(f.start).toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+  let badge='';
+  if(f.start){
+    const kick=new Date(f.start);
+    const mins=Math.floor((Date.now()-kick.getTime())/60000);
+    const sameDay=kick.toDateString()===new Date().toDateString();
+    if(f.is_live||(!f.is_finished&&mins>=0&&mins<=240)){
+      const hasClock=f.live_minute!==null&&f.live_minute!==undefined&&Number.isFinite(Number(f.live_minute));
+      const liveMins=hasClock?Number(f.live_minute):Math.max(0,mins);
+      badge=' <span class="live">\u25CF LIVE '+(hasClock?'':'~')+liveMins+"'</span>";
+    }
+    else if(f.is_finished||(mins>240&&(mins<360||sameDay)))badge=' <span class="ended">ended / earlier today</span>';
+    else if(mins<0&&mins>-60)badge=' <span class="soon">starts in '+(-mins)+" min</span>";
+  }
+  const rows=[];
+  for(const cc of Object.keys(f.by_country||{}))for(const b of f.by_country[cc])rows.push({cc:cc,bcast:b});
+  rows.sort(function(x,y){const xp=x.cc.toUpperCase()==='NO'?1:0,yp=y.cc.toUpperCase()==='NO'?1:0;return yp-xp||(x.cc===y.cc?x.bcast.localeCompare(y.bcast):x.cc.localeCompare(y.cc));});
+  // Pull every definite fixture-title hit into one visible section before
+  // the broader broadcaster/provider categories. Keep those categories broad.
+  const strictSeen=new Set(),strictResults=[];
+  [...(f.ppv_hits||[]),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true)].forEach(function(m){
+    const key=String(m.stream_id||'');
+    if(key&&!strictSeen.has(key)){strictSeen.add(key);strictResults.push(m);}
+  });
+  strictResults.sort(preferredChannelSort);
+  const matchedIds=new Set([...(f.matches||[]),...(f.ppv_hits||[])].map(m=>String(m.stream_id||'' )).filter(Boolean));
+  const availText=matchedIds.size?(matchedIds.size+' '+tr(matchedIds.size===1?'channel':'channels')):(rows.length?tr('TV listed'):tr('No TV'));
+  const availClass=(matchedIds.size||rows.length)?'':' none';
+  const homeLogo=f.home_id?'<img class="matchfixtureteamlogo" src="/api/team_logo?id='+encodeURIComponent(String(f.home_id))+'" alt="" loading="lazy" onerror="this.remove()">':'';
+  const awayLogo=f.away_id?'<img class="matchfixtureteamlogo" src="/api/team_logo?id='+encodeURIComponent(String(f.away_id))+'" alt="" loading="lazy" onerror="this.remove()">':'';
+  let html='<div class="card matchfixture'+(fixtureMatchesDeepLink(f)?' selectedfixture':'')+'"><div class="matchfixturehead"><div class="matchfixtureteamsline"><div class="matchfixtureteam">'+homeLogo+'<span>'+esc(f.home)+'</span></div><span class="matchfixtureversus">v</span><div class="matchfixtureteam">'+awayLogo+'<span>'+esc(f.away)+'</span></div></div><div class="matchfixturemeta"><span>'+esc(when)+'</span>'+(badge||'')+'<span class="matchfixtureavailability'+availClass+'">'+esc(availText)+'</span></div></div><div class="matchfixturebody">';
+  if(!_searchData.logged_in){
+    html+='<div class="muted">Log in via <a onclick="showSettings()" style="color:var(--acc);cursor:pointer">Settings</a> to see which of your Xtream channels match.</div></div></div>';
+    return html;
+  }
+  // Exact fixture/team event hits are the strongest results, so show them
+  // before broader linear-broadcaster suggestions.
+  if(strictResults.length){
+    html+='<div class="muted" style="margin-bottom:8px">'+esc(tr('Definite channel matches'))+':</div><div class="bcastlist besteventmatches">';
+    for(const [ppvIndex,m] of strictResults.entries()){
+      const fav=_favChanSet.has(String(m.stream_id))?' on':'';
+      html+='<div class="chline'+(ppvIndex>=7?' ppvextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
+        +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
+        +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
+    }
+    html+='</div>';
+    if(strictResults.length>7)html+='<button class="ghost ppvexpand" onclick="togglePpv(this)" data-more="'+(strictResults.length-7)+'">Show '+(strictResults.length-7)+' more</button>';
+  }
+  // Broadcaster rows are sorted country then broadcaster.
+  if(rows.length){
+    const unmatchedListings=rows.filter(row=>!(f.matches||[]).some(m=>m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase())));
+    html+='<div class="bcastlist">';
+    rows.forEach(function(row,ri){
+      // channels matched to this broadcaster
+      const chans=(f.matches||[]).filter(function(m){return m.matched===row.bcast&&(!m.country||m.country===row.cc.toUpperCase());}).sort(function(a,b){const rank=fixtureChannelRank(b,f)-fixtureChannelRank(a,f);return rank||preferredChannelSort(a,b);});
+      if(!chans.length)return;
+      const rid='f'+fi+'b'+ri;
+      html+='<div class="bcrow" data-exp="'+rid+'">'
+        +'<div class="bchead"><span class="cc">'+esc(row.cc)+'</span> <span class="bcname">'+esc(row.bcast)+'</span>'
+        +' <span class="muted exphint">'+(chans.length?(chans.length+' '+tr(chans.length===1?'channel':'channels')):tr('No matching channels'))+'</span><span class="bcchevron">&#9662;</span></div>'
+        +'<div class="bcchans hide" id="'+rid+'">';
+      if(chans.length){
+        for(const [channelIndex,m] of chans.entries()){
+          const fav=_favChanSet.has(String(m.stream_id))?' on':'';
+          html+='<div class="chline'+(channelIndex>=10?' bcchanextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
+            +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(fixtureChannelRank(m,f)===3?'<span class="tag">'+esc(tr('Best match'))+'</span>':'')+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
+            +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
+        }
+        if(chans.length>10)html+='<button class="ghost bcchanexpand" onclick="toggleBroadcasterCandidates(this)" data-more="'+(chans.length-10)+'">'+esc(tr('Show more channels'))+' ('+(chans.length-10)+')</button>';
+      }
+      html+='</div></div>';
+    });
+    if(unmatchedListings.length){
+      const rid='f'+fi+'unmatched';
+      html+='<div class="bcrow" data-exp="'+rid+'"><div class="bchead"><span class="bcname">'+esc(tr('Other broadcaster listings'))+'</span> <span class="muted exphint">'+unmatchedListings.length+' · '+esc(f.listing_source||'')+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide" id="'+rid+'">';
+      unmatchedListings.forEach(row=>{html+='<div class="chline"><span class="matchchan"><span class="cc">'+esc(row.cc)+'</span><span class="chn">'+esc(row.bcast)+'</span></span></div>';});
+      html+='</div></div>';
+    }
+    html+='</div>';
+  }
+  if(!rows.length&&!strictResults.length){
+    if(!Object.keys(f.by_country||{}).length)html+='<div class="muted">No TV channels found.</div>';
+    else html+='<div class="muted">No Xtream channels matched. Try lowering strictness.</div>';
+  }
+  html+='</div></div>';
+  return html;
+}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function togglePpv(btn){
+  const list=btn.previousElementSibling, extras=list?list.querySelectorAll('.ppvextra'):[];
+  if(!extras.length)return;
+  const opening=extras[0].classList.contains('hide');
+  extras.forEach(el=>el.classList.toggle('hide',!opening));
+  btn.textContent=opening?'Show less':'Show '+btn.dataset.more+' more';
+}
+function escAttr(s){return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function channelLogo(c,extra){
+  if(!c||!c.logo||c.stream_id===undefined||c.stream_id===null)return '';
+  return '<img class="chanlogo'+(extra?' '+extra:'')+'" src="/api/channel_logo?id='+encodeURIComponent(String(c.stream_id))+'" alt="" loading="lazy" onerror="this.remove()">';
+}
+function playbtns(sid,name,url,showCopy){
+  const s=escAttr(String(sid)), n=escAttr(name||''), u=escAttr(url);
+  return '<button class="btnplay" data-sid="'+s+'" data-name="'+n+'">&#9658; Play</button>'
+    +'<button class="btnvlc" data-sid="'+s+'">&#9658; VLC</button>'
+    +(showCopy?'<button class="copy" data-url="'+u+'">'+tr('Copy URL')+'</button>':'');
+}
+let _hls=null,_mpegts=null;
+function destroyMpegtsPlayer(p){
+  if(!p)return;
+  try{p.pause();}catch(e){}try{p.unload();}catch(e){}try{p.detachMediaElement();}catch(e){}try{p.destroy();}catch(e){}
+}
+function startSmartStream(video,urls,setStatus,setEngine){
+  let stopped=false,hls=null,tsPlayer=null,mediaRecoveries=0;
+  function status(s){if(!stopped&&setStatus)setStatus(s||'');}
+  function clear(){if(hls){try{hls.destroy();}catch(e){}hls=null;}if(tsPlayer){destroyMpegtsPlayer(tsPlayer);tsPlayer=null;}}
+  function publish(){if(setEngine)setEngine(hls,tsPlayer);}
+  function startTs(reason){
+    clear();publish();
+    if(stopped)return;
+    if(!(window.mpegts&&mpegts.isSupported&&mpegts.isSupported())||!urls.ts){status('Could not play this stream in the browser. Try VLC.');return;}
+    status(reason?'HLS unavailable — trying MPEG-TS...':'Trying MPEG-TS...');
+    try{
+      tsPlayer=mpegts.createPlayer({type:'mpegts',isLive:true,url:'/api/proxy?u='+encodeURIComponent(urls.ts)},
+        {enableWorker:true,lazyLoad:false,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
+      tsPlayer.attachMediaElement(video);publish();
+      let failed=false;
+      tsPlayer.on(mpegts.Events.ERROR,function(){if(failed||stopped)return;failed=true;status('Could not play this stream in the browser. Try VLC.');});
+      tsPlayer.load();
+      const played=tsPlayer.play();if(played&&played.catch)played.catch(()=>{});
+      video.addEventListener('playing',function onTsPlaying(){video.removeEventListener('playing',onTsPlaying);status('');},{once:true});
+    }catch(e){status('Could not play this stream in the browser. Try VLC.');}
+  }
+  function startHls(src,viaProxy){
+    clear();publish();if(stopped)return;
+    if(window.Hls&&Hls.isSupported()){
+      status(viaProxy?'Routing HLS through local relay...':'Loading HLS...');
+      hls=new Hls({manifestLoadingTimeOut:12000,levelLoadingTimeOut:12000,fragLoadingTimeOut:20000,backBufferLength:30,maxBufferLength:45});publish();
+      hls.on(Hls.Events.ERROR,function(ev,data){
+        if(stopped||!data.fatal)return;
+        if(data.type===Hls.ErrorTypes.MEDIA_ERROR&&mediaRecoveries<2){mediaRecoveries++;status('Recovering browser playback...');try{hls.recoverMediaError();return;}catch(e){}}
+        if(!viaProxy){startHls('/api/proxy?u='+encodeURIComponent(urls.hls),true);return;}
+        startTs(true);
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED,function(){status('');const p=video.play();if(p&&p.catch)p.catch(()=>{});});
+      hls.loadSource(src);hls.attachMedia(video);return;
+    }
+    if(video.canPlayType('application/vnd.apple.mpegurl')){
+      status('Loading HLS...');video.src=src;
+      const nativeError=function(){video.removeEventListener('error',nativeError);if(!viaProxy)startHls('/api/proxy?u='+encodeURIComponent(urls.hls),true);else startTs(true);};
+      video.addEventListener('error',nativeError,{once:true});
+      const p=video.play();if(p&&p.catch)p.catch(()=>{});return;
+    }
+    startTs(true);
+  }
+  startHls(urls.hls,false);
+  return {stop:function(){stopped=true;clear();publish();try{video.pause();video.removeAttribute('src');video.load();}catch(e){}}};
+}
+async function playBrowser(sid,name){
+  const modal=document.getElementById('playerModal');
+  const video=document.getElementById('pVideo');
+  const msg=document.getElementById('pMsg');
+  document.getElementById('pTitle').textContent=name||'Player';
+  msg.textContent='Loading...';
+  modal.classList.remove('hide');
+  setPopupPlayerMax(false);
+  document.body.classList.add('tvsectionplay');
+  syncSectionPlayerLayout();
+  // get the hls url
+  if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
+  if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
+  let urls;
+  try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){msg.textContent='Could not build stream URL.';return;}
+  const controller=startSmartStream(video,urls,s=>msg.textContent=s,function(h,t){_hls=h;_mpegts=t;});
+  modal._playbackController=controller;
+}
+function playerFullscreenElement(){
+  return document.fullscreenElement||document.webkitFullscreenElement||null;
+}
+function toggleBroadcasterCandidates(btn){
+  const box=btn.parentElement,extras=box?box.querySelectorAll('.bcchanextra'):[];
+  if(!extras.length)return;
+  const opening=extras[0].classList.contains('hide');
+  extras.forEach(el=>el.classList.toggle('hide',!opening));
+  btn.textContent=opening?tr('Show fewer channels'):(tr('Show more channels')+' ('+btn.dataset.more+')');
+}
+function syncSectionPlayerLayout(){
+  // Force the already-open section to adopt its constrained player layout on
+  // the first frame. Previously this happened reliably only after navigating
+  // away and back, especially at 1920x1080.
+  void document.body.offsetWidth;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    if(!racingView.classList.contains('hide')){
+      const drivers=document.getElementById('racingDrivers');
+      if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);
+      renderRacingScheduleCards();
+    }
+    window.dispatchEvent(new Event('resize'));
+  }));
+}
+function requestPlayerFullscreen(el){
+  if(!el)return false;
+  const fn=el.requestFullscreen||el.webkitRequestFullscreen;
+  if(!fn)return false;
+  try{const p=fn.call(el);if(p&&p.catch)p.catch(()=>{});return true;}catch(e){return false;}
+}
+function exitPlayerFullscreen(){
+  const fn=document.exitFullscreen||document.webkitExitFullscreen;
+  if(!fn)return false;
+  try{const p=fn.call(document);if(p&&p.catch)p.catch(()=>{});return true;}catch(e){return false;}
+}
+function setPopupPlayerMax(maximized){
+  const modal=document.getElementById('playerModal'),btn=document.getElementById('pMinBtn'),hit=document.getElementById('pVideoHit');
+  modal.classList.toggle('sectionmax',!!maximized);
+  const label=maximized?'Exit fullscreen':'Fullscreen player';
+  if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=maximized?'\u2198':'\u2196';}
+  if(hit)hit.setAttribute('aria-label',label);
+}
+function togglePopupPlayerSize(){
+  const modal=document.getElementById('playerModal');
+  if(playerFullscreenElement()===modal){setPopupPlayerMax(false);exitPlayerFullscreen();return;}
+  setPopupPlayerMax(true);
+  requestPlayerFullscreen(modal);
+}
+function syncPlayerFullscreenExit(){
+  if(playerFullscreenElement())return;
+  const modal=document.getElementById('playerModal');
+  if(modal&&modal.classList.contains('sectionmax'))setPopupPlayerMax(false);
+  const slot=document.getElementById('tvPlayerSlot');
+  if(slot&&slot.classList.contains('sectionmax')&&mytvView.classList.contains('hide'))tvSetMini(true);
+}
+document.addEventListener('fullscreenchange',syncPlayerFullscreenExit);
+document.addEventListener('webkitfullscreenchange',syncPlayerFullscreenExit);
+function closePlayer(){
+  const modal=document.getElementById('playerModal');
+  const video=document.getElementById('pVideo');
+  if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
+  if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
+  video.pause();video.removeAttribute('src');video.load();
+  modal.classList.add('hide');
+  modal.classList.remove('sectionmax');
+  const liveAway=(_tvPlaying!==null||window._tvPlaybackController)&&mytvView.classList.contains('hide');
+  if(!liveAway)document.body.classList.remove('tvsectionplay');
+}
+async function playVLC(sid,btn){
+  const old=btn?btn.textContent:'';
+  if(btn){btn.textContent='Opening...';}
+  try{
+    const j=await api('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:sid})});
+    if(j.error){alert(j.error||'Could not launch VLC.');}
+  }catch(e){alert('Could not launch VLC.');}
+  if(btn){setTimeout(()=>{btn.textContent=old;},1200);}
+}
+let _favMovieSet=new Set();
+function cleanMovieSearchTitle(name){
+  return String(name||'')
+    .replace(/^\\s*.+?\\s+-\\s+/,'')
+    .replace(/^\\s*.{1,40}?\\s*\\|\\s*/,'')
+    .replace(/\\s*\\((?:US|UK|GB|NO|EN|SE|DK|FI)\\)\\s*$/i,'')
+    .replace(/\\s*\\((?:19|20)\\d{2}\\)\\s*$/,'')
+    .trim();
+}
+function movieCard(m,showYear,recent){
+  const sid=escAttr(String(m.stream_id==null?'':m.stream_id)), ext=escAttr(m.extension||'mp4'), key=String(m.catalog_id||m.stream_id||'');
+  const fav=_favMovieSet.has(key)?' on':'';
+  const displayName=recent?cleanMovieSearchTitle(m.name):m.name;
+  const poster=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(127916)">':'&#127916;';
+  let meta='';
+  if(showYear&&m.year)meta+=esc(m.year);
+  if(m.rating)meta+=(meta?' &nbsp; ':'')+'Rating: '+esc(m.rating);
+  const cardClass='moviecard'+(recent?' recentmovie':'');
+  const cardData=recent?' data-query="'+escAttr(cleanMovieSearchTitle(m.name))+'"':'';
+  return '<div class="'+cardClass+'"'+cardData+'><div class="movieposter">'+poster+'</div><div class="movieinfo"><div class="movietitle">'+esc(displayName)+'</div>'
+    +(meta?'<div class="moviemeta">'+meta+'</div>':'')
+    +'<div class="movieactions"><span class="favstar moviestar'+fav+'" data-key="'+escAttr(key)+'" data-catalog="'+escAttr(m.catalog_id||'')+'" data-sid="'+sid+'" data-name="'+escAttr(m.name||'')+'" data-ext="'+ext+'" data-year="'+escAttr(m.year||'')+'" data-rating="'+escAttr(m.rating||'')+'" data-cover="'+escAttr(m.cover||'')+'" title="Favorite">&#9733;</span>'
+    +(recent?'':(m.stream_found?'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button>':'<button class="ghost" disabled>'+tr('Not available')+'</button>'))+'</div></div></div>';
+}
+async function loadRecentMovies(limit){
+  limit=limit||9;
+  const el=document.getElementById('recentMovieList');
+  const more=document.getElementById('recentMovieMore');
+  el.innerHTML='<span class="muted">Loading...</span>';
+  more.classList.add('hide');
+  const r=await api('/api/recent_movies?limit='+limit);
+  if(typeof r.logged_in==='boolean')setMovieProviderLayout(r.logged_in);
+  if(r.error){el.innerHTML='<span class="muted">Could not load recently added movies.</span>';return false;}
+  if(!r.logged_in){el.innerHTML='<span class="muted">Log in via Settings first.</span>';return false;}
+  if(!r.movies.length){el.innerHTML='<span class="muted">No recent movies found.</span>';return false;}
+  await loadMovieFavorites();
+  el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,false,true)).join('')+'</div>';
+  if(limit<36&&r.has_more)more.classList.remove('hide');
+  return true;
+}
+let _movieCatalog='popular',_movieCatalogCache={};
+function setMovieProviderLayout(loggedIn){
+  const catalogs=document.getElementById('movieCatalogs');
+  if(catalogs)catalogs.classList.toggle('noxtream',!loggedIn);
+  const refresh=document.getElementById('movieRefreshBtn');
+  if(refresh)refresh.classList.toggle('hide',!loggedIn);
+}
+async function loadCinemetaMovies(catalog){
+  _movieCatalog=['popular','new','featured'].includes(catalog)?catalog:'popular';
+  document.querySelectorAll('[data-movie-catalog]').forEach(function(btn){btn.classList.toggle('on',btn.dataset.movieCatalog===_movieCatalog);});
+  const el=document.getElementById('cinemetaMovieList');
+  if(!el)return;
+  const cached=_movieCatalogCache[_movieCatalog];
+  if(cached){
+    setMovieProviderLayout(cached.logged_in);
+    el.innerHTML='<div class="moviegrid" style="margin-top:0">'+cached.movies.map(m=>movieCard(m,true,false)).join('')+'</div>';
+    return;
+  }
+  el.innerHTML='<span class="muted">Loading...</span>';
+  try{
+    const r=await api('/api/movie_catalog?catalog='+encodeURIComponent(_movieCatalog)+'&limit=10');
+    if(typeof r.logged_in==='boolean')setMovieProviderLayout(r.logged_in);
+    if(r.error)throw new Error(r.error);
+    if(!r.movies.length){el.innerHTML='<span class="muted">No movies found.</span>';return;}
+    _movieCatalogCache[_movieCatalog]={movies:r.movies,logged_in:!!r.logged_in};
+    await loadMovieFavorites();
+    el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,true,false)).join('')+'</div>';
+  }catch(e){el.innerHTML='<span class="muted">Could not load movie catalog.</span>';}
+}
+async function checkMovies(btn){
+  const old=btn.innerHTML;btn.disabled=true;btn.textContent='Checking for new movies...';
+  try{
+    const j=await api('/api/check_movie_updates',{method:'POST'});
+    if(j.error)throw new Error(j.error||'movie refresh failed');
+    await loadRecentMovies(9);
+    if(j.new_movies>0)toast('Found '+j.new_movies+' new movie'+(j.new_movies===1?'':'s'),7000);
+    else toast('Movie library is up to date.',7000);
+  }catch(e){toast('Could not refresh movie library.',7000);}
+  btn.disabled=false;btn.innerHTML=old;
+}
+async function expandRecentMovies(btn){
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Loading...';
+  await loadRecentMovies(36);
+  btn.disabled=false;btn.textContent=old;btn.classList.add('hide');
+}
+async function loadMovieFavorites(){
+  const r=await api('/api/favorites');
+  const movies=r.movies||[];
+  _favMovieSet=new Set(movies.map(m=>String(m.catalog_id||m.stream_id)));
+  const el=document.getElementById('movieFavList');
+  if(!movies.length){el.innerHTML='<span class="muted">No favorite movies yet.</span>';return;}
+  let h='';
+  for(const m of movies){
+    const key=escAttr(String(m.catalog_id||m.stream_id));
+    const cleanName=cleanMovieSearchTitle(m.name);
+    const poster='<span class="moviefavposter">&#127916;'+(m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</span>';
+    h+='<div class="moviefav" data-query="'+escAttr(cleanName)+'">'+poster+'<div class="moviefavinfo"><div class="moviefavname">'+esc(cleanName)+'</div></div>'
+      +'<span class="favstar on movieremove" data-key="'+key+'" title="Remove from favorites">&#9733;</span></div>';
+  }
+  el.innerHTML=h;
+}
+async function toggleMovieFavorite(movie,starEl){
+  const r=await favPost({action:'toggle_movie',movie:movie});
+  _favMovieSet=new Set((r.movie_ids||[]).map(String));
+  if(_favMovieSet.has(String(movie.catalog_id||movie.stream_id)))_profileConfig.setup_demo_content=false;
+  if(starEl)starEl.classList.toggle('on',_favMovieSet.has(String(movie.catalog_id||movie.stream_id)));
+  await loadMovieFavorites();
+}
+async function removeMovieFavorite(key){
+  await favPost({action:'remove_movie',favorite_key:key});
+  _favMovieSet.delete(String(key));
+  document.querySelectorAll('.moviestar').forEach(el=>{if(el.getAttribute('data-key')===String(key))el.classList.remove('on');});
+  await loadMovieFavorites();
+}
+async function searchMovies(){
+  const q=(document.getElementById('movieQ').value||'').trim();
+  const el=document.getElementById('movieResults');
+  const catalogs=document.getElementById('movieCatalogs');
+  if(!q){catalogs.classList.remove('hide');el.innerHTML='<div class="muted" style="margin-top:14px">Enter a movie title.</div>';return;}
+  catalogs.classList.add('hide');
+  el.innerHTML='<div class="muted" style="margin-top:14px">Searching movies...</div>';
+  const r=await api('/api/movies?q='+encodeURIComponent(q));
+  const back='<div class="movieresultback"><button class="ghost" onclick="backToMyMovies()">&#8592; '+tr('Back to Movies')+'</button></div>';
+  if(r.error){el.innerHTML=back+'<div class="err movieresultstatus">'+esc(r.error)+'</div>';return;}
+  if(!r.movies.length){el.innerHTML=back+'<div class="muted movieresultstatus">No movies found for &quot;'+esc(q)+'&quot;.</div>';return;}
+  await loadMovieFavorites();
+  let h=back+'<div class="muted movieresultstatus">'+r.movies.length+' result'+(r.movies.length===1?'':'s')+'</div><div class="moviegrid">';
+  for(const m of r.movies)h+=movieCard(m,true);
+  el.innerHTML=h+'</div>';
+}
+function backToMyMovies(){
+  document.getElementById('movieQ').value='';
+  document.getElementById('movieResults').innerHTML='';
+  document.getElementById('movieCatalogs').classList.remove('hide');
+}
+async function playMovieVLC(sid,ext,btn){
+  const old=btn.textContent;btn.textContent='Opening...';
+  try{
+    const j=await api('/api/play_movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:sid,extension:ext})});
+    if(j.error)alert(j.error||'Could not launch VLC.');
+  }catch(e){alert('Could not launch VLC.');}
+  setTimeout(()=>{btn.textContent=old;},1200);
+}
+let _wishlistGames=[],_wishlistLinked=false;
+async function loadSteamProfile(){
+  const el=document.getElementById('steamProfile');if(!el)return;
+  try{
+    const p=await api('/api/steam_profile');
+    if(!p||!p.linked){el.innerHTML='<div class="steamprofileempty">Link a Steam wishlist to show your Steam profile here.</div>';return;}
+    if(!p.display_name&&!p.avatar){el.innerHTML='<div class="steamprofileempty">Steam profile is linked, but its public profile details are unavailable.</div>';return;}
+    const avatarSrc=p.avatar_local||p.avatar||'',avatarFallback=(p.avatar_local&&p.avatar)?p.avatar:'';
+    const avatar=avatarSrc?'<img class="steamprofileavatar" src="'+escAttr(avatarSrc)+'" data-fallback="'+escAttr(avatarFallback)+'" alt="" referrerpolicy="no-referrer" onerror="if(this.dataset.fallback&&!this.dataset.tried){this.dataset.tried=1;this.src=this.dataset.fallback;}else this.remove()">':'';
+    const real=p.real_name?'<div class="steamprofilereal">'+esc(p.real_name)+'</div>':'';
+    const loc=p.location?'<div class="steamprofileloc">'+esc(p.location)+'</div>':'';
+    const level=(p.level!==undefined&&p.level!==null)?'<span class="steamlevel" title="Steam level">'+esc(p.level)+'</span>':'';
+    const years=(p.years_service!==undefined&&p.years_service!==null)?'<span class="steamyears">'+esc(p.years_service)+' years of service</span>':'';
+    const summary=p.summary?'<div class="steamprofilesummary">'+esc(p.summary)+'</div>':'';
+    el.innerHTML='<div class="steamprofileinner"><a class="steamprofilelink" href="'+escAttr(p.profile_url||'#')+'" target="_blank" rel="noopener noreferrer"><div class="steamprofilehead">'+avatar+'<div><div class="steamprofilename">'+esc(p.display_name||'Steam')+'</div>'+real+loc+'</div></div></a><div class="steamprofilemeta">'+level+years+'</div>'+summary+'</div>';
+  }catch(e){el.innerHTML='<div class="steamprofileempty">Steam profile details unavailable.</div>';}
+}
+function updateSteamWishlistHelp(){
+  const hasGames=_wishlistLinked&&_wishlistGames.length>0,el=document.getElementById('steamWishlistHelp'),filterRow=document.getElementById('gameWishlistFilterRow');
+  if(el)el.classList.toggle('hide',hasGames);
+  if(filterRow)filterRow.classList.toggle('hide',!hasGames);
+  const settings=document.getElementById('steamWishlistSettings'),quick=document.getElementById('steamWishlistQuickBtn');
+  if(settings&&!_wishlistLinked)settings.classList.remove('hide');
+  if(quick)quick.classList.toggle('hide',!_wishlistLinked);
+}
+function toggleSteamWishlistSettings(){const el=document.getElementById('steamWishlistSettings');if(el)el.classList.toggle('hide');}
+function renderGameWishlist(){
+  const el=document.getElementById('gameWishlist');if(!el)return;
+  const input=document.getElementById('gameWishlistFilter'),q=String((input&&input.value)||'').trim().toLowerCase();
+  const games=q?_wishlistGames.filter(g=>String(g.name||'').toLowerCase().includes(q)):_wishlistGames;
+  if(!games.length){el.innerHTML='<span class="muted">'+(q?'No matching wishlist games.':'No Steam wishlist games yet.')+'</span>';return;}
+  const now=Date.now();
+  el.innerHTML=games.map(g=>{const url=g.url||('https://store.steampowered.com/app/'+encodeURIComponent(String(g.app_id||''))+'/'),releaseTs=Date.parse(g.released||''),countdown=Number.isFinite(releaseTs)&&releaseTs>now?racingCountdown({start:g.released}):'',release=(g.release_text||countdown)?'<div class="gamecardrelease">'+(g.release_text?'<div class="moviemeta">'+esc(g.release_text)+'</div>':'')+(countdown?'<div class="gamecountdown">'+esc(countdown)+'</div>':'')+'</div>':'';return '<a class="gamecard wishlistgame" href="'+escAttr(url)+'" target="_blank" rel="noopener noreferrer">'+(g.cover?'<img src="'+escAttr(g.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<div class="gamecardbody"><div class="gamecardname">'+esc(g.name||'Game')+'</div>'+release+'</div></a>';}).join('');
+}
+async function loadGameFavorites(){
+  const r=await api('/api/favorites'),now=Date.now(),games=(r.games||[]).filter(g=>g.wishlist_imported),el=document.getElementById('gameWishlist');
+  games.sort((a,b)=>{
+    const at=Date.parse(a.released||''),bt=Date.parse(b.released||''),af=Number.isFinite(at)&&at>now,bf=Number.isFinite(bt)&&bt>now,ap=Number.isFinite(at)&&at<=now,bp=Number.isFinite(bt)&&bt<=now;
+    if(af!==bf)return af?-1:1;
+    if(af&&bf)return at-bt;
+    if(ap!==bp)return ap?-1:1;
+    if(ap&&bp)return bt-at;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+  _wishlistGames=games;renderGameWishlist();updateSteamWishlistHelp();
+}
+async function loadSteamWishlistSetting(){
+  try{
+    const c=await api('/api/config'),input=document.getElementById('steamWishlistQ'),btn=document.getElementById('steamWishlistBtn'),status=document.getElementById('steamWishlistStatus');
+    const linked=!!String(c.steam_wishlist_url||'').trim();
+    _wishlistLinked=linked;updateSteamWishlistHelp();
+    if(input){input.value=c.steam_wishlist_url||'';input.readOnly=false;}
+    if(btn){btn.textContent=tr('Sync wishlist');btn.setAttribute('data-i18n','Sync wishlist');}
+    const settings=document.getElementById('steamWishlistSettings');if(settings&&linked)settings.classList.add('hide');
+    if(linked&&status&&c.steam_wishlist_synced_at){
+      const locale=_lang==='no'?'nb-NO':undefined;
+      status.textContent='Last refreshed '+new Date(Number(c.steam_wishlist_synced_at)*1000).toLocaleString(locale);
+    }
+  }catch(e){}
+  loadSteamProfile();
+}
+async function syncSteamWishlist(btn){
+  const input=document.getElementById('steamWishlistQ'),status=document.getElementById('steamWishlistStatus'),value=(input.value||'').trim();
+  if(!value){status.textContent='Enter your public Steam wishlist URL.';return;}
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Syncing...';status.textContent='Reading Steam wishlist...';
+  try{
+    const j=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:value})});
+    if(j.error)throw new Error(j.error||'Wishlist sync failed');
+    await loadGameFavorites();loadFavorites();await loadSteamWishlistSetting();status.textContent='Synced '+j.imported+' games from Steam.';
+  }catch(e){status.textContent='Could not sync wishlist: '+e.message;}
+  btn.disabled=false;if(btn.textContent==='Syncing...')btn.textContent=old;
+}
+let _steamWishlistAutoChecked=false;
+async function maybeAutoRefreshSteamWishlist(c){
+  if(_steamWishlistAutoChecked)return;
+  _steamWishlistAutoChecked=true;
+  if(c&&c.games_enabled===false)return;
+  const url=String((c&&c.steam_wishlist_url)||'').trim(),synced=Number((c&&c.steam_wishlist_synced_at)||0)*1000;
+  if(!url||(synced&&Date.now()-synced<7*24*60*60*1000))return;
+  try{
+    const j=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})});
+    if(j.error)return;
+    if(!gamesView.classList.contains('hide')){await loadGameFavorites();await loadSteamWishlistSetting();}
+    if(!mylistView.classList.contains('hide'))loadFavorites();
+  }catch(e){}
+}
+const _RACING_SERIES=[['f1','Formula 1'],['f2','Formula 2'],['f3','Formula 3'],['indycar','IndyCar'],['wec','WEC'],['formulae','Formula E'],['motogp','MotoGP'],['wrc','WRC Rally']];
+const _RACING_LOGOS={
+  f1:'https://www.formula1.com/etc/designs/fom-website/images/f1_logo.svg',
+  f2:'https://upload.wikimedia.org/wikipedia/commons/6/64/FIA_Formula_2_Championship_logo_%282026%29.svg',
+  f3:'https://upload.wikimedia.org/wikipedia/commons/d/d9/FIA_Formula_3_Championship_logo_%282026%29.svg',
+  indycar:'https://www.indycar.com/-/media/IndyCar/News/Standard/2022/08/08-03-INDYCAR-Logo.jpg',
+  wec:'https://upload.wikimedia.org/wikipedia/commons/4/4c/FIA_WEC_Logo_2024.png',
+  formulae:'https://upload.wikimedia.org/wikipedia/commons/a/a4/FIA_Formula_E_World_Championship_Logo.svg',
+  motogp:'https://upload.wikimedia.org/wikipedia/commons/f/f9/MotoGP_logo_%282024%29.svg',
+  wrc:'https://www.canevarally.com/wp-content/uploads/2025/01/311439623_179650897941587_4314845745939251693_n-3-e1714140994320-1302x558-1.jpg'
+};
+let _racingSelected=new Set(['f1']);
+let _racingDriverRows=[],_racingEventRows=[],_racingDetailKey='';
+function racingEventIsLive(event,now){
+  now=now||Date.now();const start=new Date(event.start).getTime();if(!Number.isFinite(start))return false;
+  const explicit=event.end?new Date(event.end).getTime():NaN;
+  if(Number.isFinite(explicit))return now>=start-(event.all_day?12*3600000:0)&&now<=explicit;
+  let duration=2*3600000;
+  if(event.all_day)duration=24*3600000;
+  else if(String(event.session||'').toLowerCase()==='race')duration=4*3600000;
+  return now>=start&&now<=start+duration;
+}
+function nextDriverRace(driver,events,now){
+  now=now||Date.now();
+  return (events||[]).filter(e=>String(e.series||'')===String(driver.series||'')&&(driver.series!=='f1'||String(e.session||'').toLowerCase()==='race')).map(e=>({event:e,ts:new Date(e.start).getTime()})).filter(x=>Number.isFinite(x.ts)&&x.ts>=now-6*3600000).sort((a,b)=>a.ts-b.ts)[0]?.event||null;
+}
+function racingDetailWhen(event){
+  if(!event)return '';
+  const d=new Date(event.start),locale=_lang==='no'?'nb-NO':undefined;
+  return event.all_day?(event.date_text||d.toLocaleDateString(locale,{weekday:'long',day:'numeric',month:'long'})):d.toLocaleString(locale,{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'});
+}
+function racingCountdown(event){
+  if(!event)return '';
+  const target=new Date(event.start),now=new Date(),remaining=target-now;if(!Number.isFinite(remaining))return '';
+  if(remaining<=0&&racingEventIsLive(event,now.getTime()))return 'LIVE';
+  if(remaining<=0)return '';
+  const minutes=Math.max(1,Math.ceil(remaining/60000));
+  if(minutes<60)return tr('in')+' '+minutes+' '+tr(minutes===1?'minute':'minutes');
+  if(remaining<24*3600000){const hours=Math.ceil(minutes/60);return tr('in')+' '+hours+' '+tr(hours===1?'hour':'hours');}
+  const days=Math.max(1,Math.round(osloDayNumber(target)-osloDayNumber(now)));
+  return tr('in')+' '+days+' '+tr(days===1?'day':'days');
+}
+function racingArtError(img){
+  const fallback=String(img.dataset.fallback||'');
+  if(fallback){img.dataset.fallback='';img.src=fallback;return;}
+  img.style.display='none';const mark=img.nextElementSibling;if(mark)mark.style.display='flex';
+}
+function racingEventVisual(event,countdown){
+  const series=String((event&&event.series)||''),seriesLogo=String(_RACING_LOGOS[series]||''),eventLogo=(series==='wrc'?String((event&&event.art)||''):'');
+  const src=eventLogo||seriesLogo;
+  const fallback='<div class="racingeventfallback"'+(src?' style="display:none"':'')+'>'+racingSeriesLogo(series)+'</div>';
+  let image='';
+  if(src){const fb=eventLogo?seriesLogo:'';image='<img src="'+escAttr(src)+'" data-fallback="'+escAttr(fb)+'" alt="" loading="lazy" onerror="racingArtError(this)">';}
+  return '<div class="racingeventvisual">'+image+fallback+(countdown?'<div class="racingdetailcountdown">'+esc(countdown)+'</div>':'')+'</div>';
+}
+function racingDetailNext(event){
+  if(!event)return '<div class="racingdetailnext"><div class="racingdetailnextlabel">'+esc(tr('Next race'))+'</div><span class="muted">'+esc(tr('No upcoming race found.'))+'</span></div>';
+  const countdown=racingCountdown(event);
+  return '<div class="racingdetailnext"><div class="racingdetailnextlabel">'+esc(tr('Next race'))+'</div><div class="racingdetailnextgrid"><div><b>'+esc(event.race||event.circuit||'Race')+'</b><div class="racingdetailmeta">'+esc(racingDetailWhen(event))+(event.session?'<br>'+esc(event.session):'')+(event.circuit&&event.circuit!==event.race?'<br>'+esc(event.circuit):'')+'</div></div>'+racingEventVisual(event,countdown)+'</div></div>';
+}
+function racingSeriesLogo(key){const src=String(_RACING_LOGOS[key]||'');return src?'<img class="racingserieslogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'';}
+function renderRacingTeamControl(){
+  const control=document.getElementById('racingF1TeamControl'),label=document.getElementById('racingTeamLabel'),btn=document.getElementById('racingF1ChooseBtn'),picker=document.getElementById('racingF1Picker');if(!control||!label||!btn)return;
+  const f1=_racingDriverRows.filter(driver=>driver.series==='f1'),f1Mode=_racingDetailKey==='f1-team'||(_racingDriverRows.find(row=>String(row.key||'')===String(_racingDetailKey||''))||{}).series==='f1';
+  if(f1Mode){
+    const driver=f1[0]||{},teamId=String(driver.team_id||'');control.classList.remove('hide');label.textContent='Formula 1 Team';btn.classList.remove('readonly');btn.setAttribute('onclick','toggleRacingF1Picker()');
+    btn.innerHTML=driver.team?((teamId?'<img src="/api/f1_team_logo?id='+encodeURIComponent(teamId)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span>'+esc(driver.team)+'</span>'):'<span>'+esc(tr('Choose F1 team'))+'</span>';
+    return;
+  }
+  const driver=_racingDriverRows.find(row=>String(row.key||'')===String(_racingDetailKey||''));
+  if(!driver){control.classList.add('hide');return;}
+  control.classList.remove('hide');label.textContent=(driver.series_name||'Racing')+' Team';btn.classList.add('readonly');btn.removeAttribute('onclick');if(picker)picker.classList.add('hide');
+  const logo=String(driver.team_logo||'');btn.innerHTML=(logo?'<img src="'+escAttr(logo)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span>'+esc(driver.team||driver.series_name||'Racing')+'</span>';
+}
+function renderRacingDriverDetail(){
+  const el=document.getElementById('racingDriverDetail');if(!el)return;
+  const now=Date.now(),f1=_racingDriverRows.filter(driver=>driver.series==='f1');
+  if(_racingDetailKey==='f1-team'&&f1.length>=2){
+    const first=f1[0],teamId=String(first.team_id||''),live=_racingEventRows.filter(e=>e.series==='f1').some(e=>racingEventIsLive(e,now)),next=nextDriverRace(first,_racingEventRows,now);
+    const people=f1.slice(0,2).map(driver=>'<div class="racingdetailperson"><img src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()"><div><b>'+esc(driver.name||'')+'</b>'+(driver.url?'<div class="moviemeta"><a href="'+escAttr(driver.url)+'" target="_blank" rel="noopener noreferrer">'+esc(tr('Driver profile'))+' ↗</a></div>':'')+'</div></div>').join('');
+    el.innerHTML='<div class="racingdetailf1hero">'+(teamId?'<img src="/api/f1_team_logo?id='+encodeURIComponent(teamId)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<div><div class="racingdetailseries">Formula 1'+(live?' · LIVE':'')+'</div><h2>'+esc(first.team||'Formula 1')+'</h2><div class="racingdetailteam">'+esc(f1.slice(0,2).map(d=>d.name).join(' · '))+'</div></div></div><div class="racingdetailpeople">'+people+'</div>'+racingDetailNext(next);
+    return;
+  }
+  const driver=_racingDriverRows.find(row=>String(row.key||'')===String(_racingDetailKey||''));
+  if(!driver){el.innerHTML='<span class="muted">'+esc(tr('Choose a driver to see details.'))+'</span>';return;}
+  const live=_racingEventRows.filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),next=nextDriverRace(driver,_racingEventRows,now),car=driver.series==='f2';
+  el.innerHTML='<div class="racingdetailhero"><img class="'+(car?'car':'')+'" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="'+escAttr(driver.name||'')+'" loading="lazy" onerror="this.remove()"><div><div class="racingdetailseries">'+esc(driver.series_name||'Racing')+(live?' · LIVE':'')+'</div><h2>'+esc(driver.name||'')+'</h2><div class="racingdetailteam">'+esc(driver.team||'')+'</div></div></div>'+racingDetailNext(next)+(driver.url?'<div class="racingdetailactions"><a class="ghost" href="'+escAttr(driver.url)+'" target="_blank" rel="noopener noreferrer">'+esc(tr('Driver profile'))+' ↗</a></div>':'');
+}
+function showRacingDriverDetail(key){
+  _racingDetailKey=String(key||'');renderRacingTeamControl();renderRacingDriverDetail();
+  const drivers=document.getElementById('racingDrivers');if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);
+  renderRacingScheduleCards();
+}
+function racingDriverHtml(driver,events){
+  const now=Date.now(),seriesEvents=(events||[]).filter(e=>String(e.series||'')===String(driver.series||'')),live=seriesEvents.some(e=>racingEventIsLive(e,now)),next=nextDriverRace(driver,events,now),locale=_lang==='no'?'nb-NO':undefined;
+  let nextHtml='<span class="muted">'+tr('No upcoming race found.')+'</span>';
+  if(next){const d=new Date(next.start),when=next.all_day?(next.date_text||d.toLocaleDateString(locale,{day:'numeric',month:'short'})):d.toLocaleString(locale,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});nextHtml='<span>'+tr('Next race')+'</span><b>'+esc(next.race||next.circuit||'Race')+'</b><span>'+esc(when)+'</span>';}
+  const key=String(driver.key||''),selected=_racingDetailKey===key?' selected':'';
+  return '<div class="racingdriver'+selected+'" data-driver-key="'+escAttr(key)+'" onclick="showRacingDriverDetail(this.dataset.driverKey)"><img src="/api/racing_driver_image?id='+encodeURIComponent(key)+'" alt="'+escAttr(driver.name||'')+'" loading="lazy" onerror="this.remove()">'
+    +'<div class="racingdriverinfo"><div class="racingdrivername">'+esc(driver.name||'')+(live?'<span class="driverlive">LIVE</span>':'')+'</div><div class="racingdriverteam">'+esc(driver.series_name||'')+(driver.team?' · '+esc(driver.team):'')+'</div><div class="racingdrivernext">'+nextHtml+'</div></div></div>';
+}
+function racingF1PairHtml(pair,events){
+  const now=Date.now(),first=pair[0],seriesEvents=(events||[]).filter(e=>String(e.series||'')==='f1'),live=seriesEvents.some(e=>racingEventIsLive(e,now)),next=nextDriverRace(first,events,now),locale=_lang==='no'?'nb-NO':undefined;
+  let nextHtml='<span class="muted">'+tr('No upcoming race found.')+'</span>';
+  if(next){const d=new Date(next.start),when=d.toLocaleString(locale,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});nextHtml='<span>'+tr('Next race')+'</span><b>'+esc(next.race||next.circuit||'Race')+'</b><span>'+esc(when)+'</span>';}
+  const pics=pair.map(driver=>'<div class="racingdriverpairperson"><img src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="'+escAttr(driver.name||'')+'" loading="lazy" onerror="this.remove()"><span>'+esc(driver.name||'')+'</span></div>').join('');
+  const names=pair.map(driver=>driver.name||'').filter(Boolean).join(' · '),team=first.team||'Formula 1';
+  return '<div class="racingdriver racingdriverpair'+(_racingDetailKey==='f1-team'?' selected':'')+'" data-driver-key="f1-team" onclick="showRacingDriverDetail(this.dataset.driverKey)"><div class="racingdriverpairpics">'+pics+'</div><div class="racingdriverinfo"><div class="racingdrivername">'+esc(team)+(live?'<span class="driverlive">LIVE</span>':'')+'</div><div class="racingdriverteam">Formula 1 · '+esc(names)+'</div><div class="racingdrivernext">'+nextHtml+'</div></div></div>';
+}
+function racingDriversHtml(rows,events){
+  const list=rows||[],f1=list.filter(driver=>driver.series==='f1'),other=list.filter(driver=>driver.series!=='f1'),parts=[];
+  if(f1.length>=2)parts.push({key:'f1-team',html:racingF1PairHtml(f1.slice(0,2),events)});
+  else for(const driver of f1)parts.push({key:String(driver.key||''),html:racingDriverHtml(driver,events)});
+  for(const driver of other)parts.push({key:String(driver.key||''),html:racingDriverHtml(driver,events)});
+  parts.sort((a,b)=>(a.key===String(_racingDetailKey||'')?-1:0)-(b.key===String(_racingDetailKey||'')?-1:0));
+  return parts.map(part=>part.html).join('');
+}
+function racingChannelLine(ch){
+  return '<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
+}
+function racingChannelSections(channels){
+  const definite=channels.filter(ch=>ch.match_kind==='event').sort(preferredChannelSort),dedicated=channels.filter(ch=>ch.match_kind==='series').sort(preferredChannelSort),possible=channels.filter(ch=>ch.match_kind!=='event'&&ch.match_kind!=='series').sort(preferredChannelSort);
+  let h='';
+  if(definite.length)h+='<div class="muted">'+esc(tr('Definite event matches'))+'</div>'+definite.map(racingChannelLine).join('');
+  if(dedicated.length)h+='<div class="muted" style="margin-top:8px">'+esc(tr('Dedicated series channels'))+'</div>'+dedicated.map(racingChannelLine).join('');
+  if(possible.length){
+    const groups=new Map();for(const ch of possible){const category=String(ch.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(ch);}
+    h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';
+    for(const [category,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(category)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(racingChannelLine).join('')+'</div></div>';
+  }
+  return h;
+}
+function racingEventHtml(event){
+  const ts=new Date(event.start),locale=_lang==='no'?'nb-NO':undefined;
+  const when=event.all_day?(event.date_text||ts.toLocaleDateString(locale,{weekday:'short',day:'numeric',month:'short'})):ts.toLocaleString(locale,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  const channels=event.channels||[],tv=channels.length?'<span class="cc racingeventtv">TV</span>':'',details=channels.length?'<div class="racingeventchannels hide">'+racingChannelSections(channels)+'</div>':'';
+  return '<div class="racingevent'+(channels.length?' haschannels':'')+'" data-url="'+escAttr(event.url||'')+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+tv+'</div><div class="moviemeta">'+esc(when)+(event.session?' · '+esc(event.session):'')+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div>'+details+'</div>';
+}
+function racingAvailabilityKey(event){return [event.series||'',event.race||'',event.session||'',event.start||''].join('|');}
+function applyRacingAvailability(map,events){for(const event of (events||[]))event.channels=(map&&map[racingAvailabilityKey(event)])||[];}
+function renderRacingScheduleCards(){
+  const info=document.getElementById('racingInfo');if(!info)return;const now=Date.now(),groups=new Map();
+  const selectedDriver=_racingDriverRows.find(row=>String(row.key||'')===String(_racingDetailKey||''));
+  const selectedSeries=_racingDetailKey==='f1-team'?'f1':String((selectedDriver&&selectedDriver.series)||'');
+  for(const event of _racingEventRows){const ts=new Date(event.start).getTime();if(!Number.isFinite(ts)||ts<now-24*3600000)continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
+  let h='';const orderedSeries=_RACING_SERIES.filter(row=>_racingSelected.has(row[0])).sort((a,b)=>(a[0]===selectedSeries?-1:0)-(b[0]===selectedSeries?-1:0));
+  for(const row of orderedSeries){const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard series-'+escAttr(row[0])+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
+  info.innerHTML=h||'<span class="muted">'+esc(tr('Choose at least one racing series above.'))+'</span>';
+}
+async function loadRacingAvailability(){
+  try{const a=await api('/api/racing_availability');applyRacingAvailability(a.availability||{},_racingEventRows);renderRacingScheduleCards();renderRacingDriverDetail();const drivers=document.getElementById('racingDrivers');if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);}catch(e){}
+}
+async function loadRacing(){
+  const toggles=document.getElementById('racingSeries'),info=document.getElementById('racingInfo'),drivers=document.getElementById('racingDrivers');
+  if(drivers)drivers.innerHTML='<span class="muted">'+esc(tr('Loading drivers and next race...'))+'</span>';
+  if(info)info.innerHTML='<span class="muted">'+esc(tr('Loading racing schedules...'))+'</span>';
+  try{
+    const [r,d]=await Promise.all([api('/api/racing'),api('/api/racing_drivers')]);_racingSelected=new Set(r.selected||[]);_racingDriverRows=d.drivers||[];_racingEventRows=r.events||[];
+    toggles.innerHTML=_RACING_SERIES.map(row=>'<button class="racingtoggle'+(_racingSelected.has(row[0])?' on':'')+'" data-key="'+row[0]+'" onclick="toggleRacingSeries(this.dataset.key)">'+esc(row[1])+'</button>').join('');
+    const f1Rows=_racingDriverRows.filter(row=>row.series==='f1'),validKeys=new Set(_racingDriverRows.map(row=>String(row.key||'')));if(_racingSelected.has('f1'))validKeys.add('f1-team');
+    if(!_racingDetailKey||!validKeys.has(_racingDetailKey))_racingDetailKey=_racingSelected.has('f1')?'f1-team':String((_racingDriverRows[0]||{}).key||'');
+    renderRacingTeamControl();renderRacingDriverDetail();drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);
+    renderRacingScheduleCards();loadRacingAvailability();
+  }catch(e){drivers.innerHTML='';info.innerHTML='<span class="err">'+esc(tr('Could not load racing schedules.'))+'</span>';}
+}
+async function toggleRacingSeries(key){
+  if(_racingSelected.has(key))_racingSelected.delete(key);else _racingSelected.add(key);
+  const r=await api('/api/racing_series',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({series:Array.from(_racingSelected)})});
+  if(r.error){toast(r.error);return;}
+  _profileConfig.racing_series=r.series||[];await loadRacing();loadFavorites();
+}
+let _showSeasons={};
+let _activeSeriesId=null;
+let _favShowSet=new Set();
+let _favShowTitleSet=new Set();
+let _latestEpisodesLoaded=false;
+function latestEpisodeCard(ep){
+  const cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(128250)">':'&#128250;';
+  let action='<button class="ghost" disabled>'+tr('Not available')+'</button>';
+  if(ep.available){
+    const sources=(ep.sources&&ep.sources.length)?ep.sources:[{id:ep.id,extension:ep.extension,label:'VLC'}];
+    const sourceButtons=sources.map(src=>'<button class="btnvlc latestepisodevlc" data-id="'+escAttr(String(src.id))+'" data-ext="'+escAttr(src.extension||'mp4')+'">&#9658; '+esc(src.label)+'</button>').join('');
+    action=sources.length>3?'<button class="btnvlc latestsourceexpand">&#9658; VLC</button><div class="latestsources hide">'+sourceButtons+'</div>':sourceButtons;
+  }
+  return '<div class="moviecard latestshowcard" data-series="'+escAttr(String(ep.series_id||''))+'" data-catalog="'+escAttr(ep.catalog_id||'')+'"><div class="movieposter">'+cover+'</div><div class="movieinfo"><div class="movietitle">'+esc(ep.show_name)+'</div>'
+    +'<div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div>'
+    +'<div class="movieactions">'+action+'</div></div></div>';
+}
+function osloDayNumber(value){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Oslo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(value);
+  const p={};parts.forEach(x=>{if(x.type!=='literal')p[x.type]=parseInt(x.value,10);});
+  return Date.UTC(p.year,p.month-1,p.day)/86400000;
+}
+function friendlyAirdate(ep){
+  if(!ep.airdate&&!ep.airstamp)return '';
+  let target=ep.airstamp?new Date(ep.airstamp):new Date(ep.airdate+'T12:00:00');
+  if(Number.isNaN(target.getTime()))target=new Date(ep.airdate+'T12:00:00');
+  const now=new Date(), remaining=target-now;
+  if(remaining>0&&remaining<86400000){
+    const minutes=Math.max(1,Math.ceil(remaining/60000));
+    if(minutes<60)return tr('in')+' '+minutes+' '+tr(minutes===1?'minute':'minutes');
+    const hours=Math.ceil(minutes/60);
+    return tr('in')+' '+hours+' '+tr(hours===1?'hour':'hours');
+  }
+  const days=Math.round(osloDayNumber(target)-osloDayNumber(now));
+  if(days===0)return tr('Today');
+  if(days===1)return tr('Tomorrow');
+  const weekday=target.toLocaleDateString(_lang==='no'?'nb-NO':undefined,{weekday:'long',timeZone:'Europe/Oslo'});
+  return weekday+' \u00b7 '+tr('in')+' '+days+' '+tr(days===1?'day':'days');
+}
+function upcomingEpisodeCard(ep){
+  const cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(128250)">':'&#128250;';
+  const when=friendlyAirdate(ep);
+  return '<div class="moviecard latestshowcard" data-series="'+escAttr(String(ep.series_id||''))+'" data-catalog="'+escAttr(ep.catalog_id||'')+'"><div class="movieposter">'+cover+'</div><div class="movieinfo"><div class="movietitle">'+esc(ep.show_name)+'</div>'
+    +'<div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div>'
+    +'<div class="movieactions"><button class="ghost" disabled>'+tr('Airs')+' '+esc(when)+'</button></div></div></div>';
+}
+async function loadLatestEpisodes(limit,refresh){
+  limit=limit||9;
+  const el=document.getElementById('latestEpisodeList'), more=document.getElementById('latestEpisodeMore');
+  const upcomingSection=document.getElementById('upcomingEpisodesSection'), upcomingList=document.getElementById('upcomingEpisodeList');
+  el.innerHTML='<span class="muted">Loading latest episodes...</span>';more.classList.add('hide');
+  upcomingSection.classList.add('hide');upcomingList.innerHTML='';
+  const r=await api('/api/latest_episodes?limit='+limit+(refresh?'&refresh=1':''));
+  if(r.error){el.innerHTML='<span class="muted">Could not load latest episodes.</span>';return false;}
+  if(r.episodes.length)el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.episodes.map(latestEpisodeCard).join('')+'</div>';
+  else el.innerHTML='<span class="muted">No latest episodes found for your favorite shows.</span>';
+  if(r.upcoming&&r.upcoming.length){
+    upcomingList.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.upcoming.map(upcomingEpisodeCard).join('')+'</div>';
+    upcomingSection.classList.remove('hide');
+  }
+  if(limit<36&&r.has_more)more.classList.remove('hide');
+  _latestEpisodesLoaded=true;
+  return !!(r.episodes.length||(r.upcoming&&r.upcoming.length));
+}
+async function expandLatestEpisodes(btn){
+  const old=btn.textContent;btn.disabled=true;btn.textContent='Loading...';
+  await loadLatestEpisodes(36);
+  btn.disabled=false;btn.textContent=old;btn.classList.add('hide');
+}
+async function playLatestEpisode(id,ext,btn){
+  const old=btn.textContent;btn.textContent='Opening...';
+  try{
+    const j=await api('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:[{id:id,extension:ext}]})});
+    if(j.error)alert(j.error||'Could not launch VLC.');
+  }catch(e){alert('Could not launch VLC.');}
+  setTimeout(()=>{btn.textContent=old;},1200);
+}
+async function loadShowFavorites(){
+  const r=await api('/api/favorites'), shows=r.shows||[];
+  _favShowSet=new Set(shows.map(s=>String(s.catalog_id||s.show_key||s.series_id)));
+  _favShowTitleSet=new Set(shows.map(s=>String(s.show_key||'')).filter(Boolean));
+  const el=document.getElementById('showFavList');
+  if(!shows.length){el.innerHTML='<span class="muted">No favorite shows yet.</span>';return;}
+  let h='';
+  for(const s of shows){
+    const poster='<span class="showfavposter">&#128250;'+(s.cover?'<img src="'+escAttr(s.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</span>';
+    const ids=(s.series_ids&&s.series_ids.length?s.series_ids:[s.series_id]).join(',');
+    const key=String(s.catalog_id||s.show_key||s.series_id);
+    h+='<div class="showfav" data-series="'+escAttr(ids)+'" data-catalog="'+escAttr(s.catalog_id||'')+'">'+poster+'<div class="showfavinfo"><div class="showfavname">'+esc(s.name)+'</div></div>'
+      +'<button class="favrm showremove" data-key="'+escAttr(key)+'" title="Remove">&times;</button></div>';
+  }
+  el.innerHTML=h;
+}
+async function toggleShowFavorite(show,starEl){
+  const r=await favPost({action:'toggle_show',show:show});
+  _favShowSet=new Set((r.show_ids||[]).map(String));
+  if(_favShowSet.has(String(show.catalog_id||show.show_key||show.series_id)))_profileConfig.setup_demo_content=false;
+  if(starEl)starEl.classList.toggle('on',_favShowSet.has(String(show.catalog_id||show.show_key||show.series_id)));
+  _latestEpisodesLoaded=false;
+  await loadShowFavorites();
+}
+async function removeShowFavorite(showKey){
+  await favPost({action:'remove_show',show_key:showKey});
+  document.querySelectorAll('.showstar').forEach(el=>{if(el.getAttribute('data-key')===String(showKey))el.classList.remove('on');});
+  _latestEpisodesLoaded=false;
+  await loadShowFavorites();
+}
+async function searchShows(){
+  const q=(document.getElementById('showQ').value||'').trim(), el=document.getElementById('showResults');
+  document.getElementById('showDetails').innerHTML='';
+  const latest=document.getElementById('latestEpisodesSection');
+  if(!q){latest.classList.remove('hide');el.innerHTML='<div class="muted" style="margin-top:14px">Enter a show title.</div>';return;}
+  latest.classList.add('hide');
+  el.innerHTML='<div class="muted" style="margin-top:14px">Searching your shows...</div>';
+  const r=await api('/api/shows?q='+encodeURIComponent(q));
+  const back='<div class="showresultback"><button class="ghost" onclick="backToMyShows()">&#8592; '+tr('Back to Shows')+'</button></div>';
+  if(r.error){el.innerHTML=back+'<div class="err">'+esc(r.error)+'</div>';return;}
+  if(!r.shows.length){el.innerHTML=back+'<div class="muted">No shows found for &quot;'+esc(q)+'&quot;.</div>';return;}
+  await loadShowFavorites();
+  let h=back+'<div class="showgrid">';
+  for(const s of r.shows){
+    const fav=(_favShowSet.has(String(s.catalog_id||s.show_key))||_favShowTitleSet.has(String(s.show_key)))?' on':'';
+    const ids=(s.series_ids||[s.series_id]).join(',');
+    const cover=s.cover?'<img src="'+escAttr(s.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+    h+='<div class="showcard" data-series="'+escAttr(ids)+'" data-catalog="'+escAttr(s.catalog_id||'')+'"><div class="showposter">&#128250;'+cover+'</div>'
+      +'<div><div class="showname">'+esc(s.name)+'</div><div class="moviemeta" style="margin-top:7px">'+(s.year?esc(s.year):'')+(s.rating?(' &nbsp; Rating: '+esc(s.rating)):'')+'</div>'
+      +'<span class="favstar showstar'+fav+'" data-key="'+escAttr(s.catalog_id||s.show_key)+'" data-catalog="'+escAttr(s.catalog_id||'')+'" data-show-key="'+escAttr(s.show_key)+'" data-series="'+escAttr(String(s.series_id==null?'':s.series_id))+'" data-series-ids="'+escAttr(ids)+'" data-name="'+escAttr(s.name||'')+'" data-cover="'+escAttr(s.cover||'')+'" data-year="'+escAttr(s.year||'')+'" data-rating="'+escAttr(s.rating||'')+'" title="Favorite">&#9733;</span></div></div>';
+  }
+  el.innerHTML=h+'</div>';
+}
+function backToMyShows(){
+  document.getElementById('showQ').value='';
+  showShows();
+}
+async function loadShow(seriesId,refresh){
+  if(!refresh)rememberLocation('shows',{seriesId:String(seriesId)});
+  _activeSeriesId=seriesId;
+  document.getElementById('latestEpisodesSection').classList.add('hide');
+  const el=document.getElementById('showDetails');
+  el.innerHTML='<div class="muted">Loading seasons and episodes...</div>';
+  const r=await api('/api/show?id='+encodeURIComponent(seriesId)+(refresh?'&refresh=1':''));
+  if(r.error){el.innerHTML='<div class="err">'+esc(r.error)+'</div>';return false;}
+  await loadShowFavorites();
+  document.getElementById('showResults').innerHTML='';
+  _showSeasons={};
+  const heroCover=r.cover?'<img src="'+escAttr(r.cover)+'" alt="" onerror="this.remove()">':'';
+  const heroFav=(_favShowSet.has(String(r.show_key))||_favShowTitleSet.has(String(r.show_key)))?' on':'';
+  let h='<div class="showhero"><div class="showheroart">&#128250;'+heroCover+'</div><div><h2>'+esc(r.name||'Show')
+    +'<span class="favstar showstar'+heroFav+'" data-key="'+escAttr(r.show_key)+'" data-series="'+escAttr(String(r.series_id))+'" data-series-ids="'+escAttr((r.series_ids||[]).join(','))+'" data-name="'+escAttr(r.name||'Show')+'" data-cover="'+escAttr(r.cover||'')+'" data-year="" data-rating="" title="Favorite">&#9733;</span></h2>'
+    +'<div class="muted">'+r.seasons.length+' season'+(r.seasons.length===1?'':'s')+'</div></div><button class="ghost showbackbtn" onclick="backToMyShows()">&#8592; '+tr('Back to Shows')+'</button></div>';
+  for(const season of r.seasons){
+    _showSeasons[String(season.number)]={};
+    for(const ep of season.episodes)for(const src of (ep.sources||[])){
+      if(!_showSeasons[String(season.number)][src.label])_showSeasons[String(season.number)][src.label]=[];
+      _showSeasons[String(season.number)][src.label].push({id:src.id,extension:src.extension,episode_num:ep.episode_num});
+    }
+    const seasonCover=season.cover?'<img src="'+escAttr(season.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+    h+='<div class="seasonblock"><div class="seasonlayout"><div class="seasonart">&#128250;'+seasonCover+'</div><div class="seasoncontent"><div class="seasonhead"><b>'+esc(season.title)+'</b></div><div class="episodes">';
+    for(let ei=0;ei<season.episodes.length;ei++){
+      const ep=season.episodes[ei];
+      h+='<div class="episode"><div class="episodename"><b>E'+esc(ep.episode_num)+'</b> '+esc(ep.title||'Episode')+'</div><div class="episodequalities">';
+      for(const src of (ep.sources||[]))h+='<button class="btnvlc episodevlc" data-season="'+escAttr(String(season.number))+'" data-episode="'+escAttr(String(ep.episode_num))+'" data-source="'+escAttr(src.label)+'">&#9658; '+esc(src.label)+'</button>';
+      h+='</div></div>';
+    }
+    h+='</div></div></div></div>';
+  }
+  if(!r.seasons.length)h+='<div class="muted">No episodes found.</div>';
+  el.innerHTML=h;
+  return true;
+}
+async function loadExternalShow(catalogId,refresh){
+  if(!refresh)rememberLocation('shows',{catalogId:String(catalogId)});
+  _activeSeriesId=null;_showSeasons={};
+  document.getElementById('latestEpisodesSection').classList.add('hide');
+  const el=document.getElementById('showDetails');
+  el.innerHTML='<div class="muted">Loading show...</div>';
+  const r=await api('/api/show_external?id='+encodeURIComponent(catalogId));
+  if(r.error){el.innerHTML='<div class="err">'+esc(r.error)+'</div>';return false;}
+  if(r.provider_series_ids&&r.provider_series_ids.length)return loadShow(r.provider_series_ids.join(','),true);
+  await loadShowFavorites();document.getElementById('showResults').innerHTML='';
+  const cover=r.cover?'<img src="'+escAttr(r.cover)+'" alt="" onerror="this.remove()">':'',key=String(r.catalog_id||r.show_key),fav=_favShowSet.has(key)?' on':'';
+  let h='<div class="showhero"><div class="showheroart">&#128250;'+cover+'</div><div><h2>'+esc(r.name||'Show')
+    +'<span class="favstar showstar'+fav+'" data-key="'+escAttr(key)+'" data-catalog="'+escAttr(r.catalog_id||'')+'" data-show-key="'+escAttr(r.show_key||'')+'" data-series="" data-series-ids="" data-name="'+escAttr(r.name||'Show')+'" data-cover="'+escAttr(r.cover||'')+'" data-year="'+escAttr(r.year||'')+'" data-rating="'+escAttr(r.rating||'')+'" title="Favorite">&#9733;</span></h2>'
+    +'<div class="muted">'+r.seasons.length+' season'+(r.seasons.length===1?'':'s')+'</div></div><button class="ghost showbackbtn" onclick="backToMyShows()">&#8592; '+tr('Back to Shows')+'</button></div>';
+  for(const season of r.seasons){
+    const seasonCover=season.cover?'<img src="'+escAttr(season.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+    h+='<div class="seasonblock"><div class="seasonlayout"><div class="seasonart">&#128250;'+seasonCover+'</div><div class="seasoncontent"><div class="seasonhead"><b>'+esc(season.title)+'</b></div><div class="episodes">';
+    for(const ep of season.episodes)h+='<div class="episode"><div class="episodename"><b>E'+esc(ep.episode_num)+'</b> '+esc(ep.title||'Episode')+'</div><div class="episodequalities"><button class="ghost" disabled>'+tr('Not available')+'</button></div></div>';
+    h+='</div></div></div></div>';
+  }
+  el.innerHTML=h;return true;
+}
+async function checkAllShows(btn){
+  const old=btn.innerHTML;btn.disabled=true;btn.textContent='Checking all shows...';
+  try{
+    const j=await api('/api/check_show_updates',{method:'POST'});
+    if(j.error)throw new Error(j.error||'check failed');
+    if(_activeSeriesId)await loadShow(_activeSeriesId,true);
+    await loadShowFavorites();
+    const latest=document.getElementById('latestEpisodesSection');
+    if(latest&&!latest.classList.contains('hide'))await loadLatestEpisodes(9,true);
+    if(j.new_episodes>0)toast('Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
+    else toast('Successfully refreshed playlists, no new episodes found',7000);
+  }catch(e){toast('Could not refresh show playlists.');}
+  btn.disabled=false;btn.innerHTML=old;
+}
+async function checkShowsOnStartup(){
+  try{
+    const j=await api('/api/check_show_updates',{method:'POST'});
+    if(j.error)throw new Error(j.error||'check failed');
+    _latestEpisodesLoaded=false;
+    if(j.new_episodes>0)toast('Found '+j.new_episodes+' new episode'+(j.new_episodes===1?'':'s')+' for your shows',7000);
+    else toast('Successfully refreshed playlists, no new episodes found',7000);
+  }catch(e){toast('Could not refresh show playlists.',7000);}
+}
+async function refreshOnStartup(refreshIptv,refreshSports){
+  try{
+    if(refreshIptv)await refreshIptvContent(null,true);
+    if(refreshSports)await refreshOtherContent(null,true);
+    toast('Startup refresh finished.',5000);
+  }catch(e){toast('Startup refresh failed: '+String(e&&e.message||e),7000);}
+}
+async function playEpisodeQueue(season,episodeNum,source,btn){
+  const episodes=((_showSeasons[String(season)]||{})[source]||[]).filter(ep=>Number(ep.episode_num)>=Number(episodeNum)), old=btn.textContent;btn.textContent='Opening...';
+  try{const j=await api('/api/play_season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({episodes:episodes})});if(j.error)alert(j.error||'Could not launch VLC.');}
+  catch(e){alert('Could not launch VLC.');}
+  setTimeout(()=>btn.textContent=old,1200);
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closePlayer();});
+// ---- favorites / My List ----
+let _favCatSet=new Set();
+let _favChanSet=new Set();
+async function refreshFavState(){
+  try{const r=await api('/api/favorites');
+    _favCatSet=new Set(r.categories||[]);
+    _favChanSet=new Set((r.channels||[]).map(function(c){return String(c.stream_id);}));
+  }catch(e){}
+}
+async function loadFavorites(){
+  const r=await api('/api/favorites');
+  _favCatSet=new Set(r.categories||[]);
+  _favChanSet=new Set((r.channels||[]).map(function(c){return String(c.stream_id);}));
+  _myListFavData=r;
+  _myListLoaded=true;
+  _myListSelectedChannels=(r.mylist_channels||[]).map(String).slice(0,5);
+  _myListTeamMoments=[];_myListF1Moments=[];_myListMovieMoments=[];_myListGameMoments=[];_myListShowMoments=[];_myListRacingDrivers=[];
+  renderMyListProfile();
+  applyMyListLayout();
+  renderMyListChannels();
+  const racingDataPromise=_f1Enabled?api('/api/racing'):null;
+  if(_footballEnabled||_f1Enabled)loadMyListTeams(r,racingDataPromise);
+  if(_f1Enabled)loadMyListRacing(racingDataPromise);else{_myListF1Moments=[];scheduleMyListTimelineRender();}
+  loadMyListMovies();
+  if(_gamesEnabled)loadMyListGames(r);else{_myListGameMoments=[];scheduleMyListTimelineRender();}
+  loadMyListShows();
+}
+let _myListLoaded=false,_myListFavData={channels:[],teams:[],f1_teams:[]},_myListSelectedChannels=[],_myListTeamMoments=[],_myListF1Moments=[],_myListMovieMoments=[],_myListGameMoments=[],_myListShowMoments=[],_myListRacingDrivers=[];
+let _myTimelineFilter='all',_myTimelineSettings={recent:true,live:true,upcoming:true,maxPerCategory:0},_myTimelinePrefsLoaded=false;
+let _myListTimelineRenderPending=false;
+function scheduleMyListTimelineRender(){
+  if(_myListTimelineRenderPending)return;
+  _myListTimelineRenderPending=true;
+  requestAnimationFrame(()=>{_myListTimelineRenderPending=false;renderMyListTimeline();});
+}
+function renderMyListChannels(){
+  const el=document.getElementById('myListChannels');if(!el)return;
+  const byId=new Map((_myListFavData.channels||[]).map(c=>[String(c.stream_id),c]));
+  let h='';
+  for(let i=0;i<5;i++){
+    const c=byId.get(_myListSelectedChannels[i]||'');
+    if(c)h+='<div class="mydashchannel" data-sid="'+escAttr(String(c.stream_id))+'" data-name="'+escAttr(c.name||'')+'" title="'+escAttr(tr('Play'))+'">'+channelLogo(c)+'<span class="mydashchannelname">'+esc(c.name)+'</span><button class="btnvlc" data-sid="'+escAttr(String(c.stream_id))+'">&#9658; VLC</button></div>';
+    else h+='<div class="mydashchannel muted" onclick="toggleMyListChannelPicker()">+ '+tr('Choose channels')+'</div>';
+  }
+  el.innerHTML=h;
+}
+function toggleMyListChannelPicker(){
+  const el=document.getElementById('myListChannelPicker');
+  if(!el.classList.contains('hide')){el.classList.add('hide');return;}
+  const selected=new Set(_myListSelectedChannels);
+  if(!(_myListFavData.channels||[]).length){el.innerHTML='<span class="muted">'+tr('Star channels first, then choose up to five here.')+'</span>';}
+  else el.innerHTML=_myListFavData.channels.map(c=>'<label class="mydashchoice"><input type="checkbox" data-sid="'+escAttr(String(c.stream_id))+'" '+(selected.has(String(c.stream_id))?'checked ':'')+'onchange="setMyListChannel(this.dataset.sid,this.checked,this)">'+channelLogo(c,'mini')+'<span>'+esc(c.name)+'</span></label>').join('');
+  el.classList.remove('hide');
+}
+async function setMyListChannel(sid,checked,input){
+  sid=String(sid);let chosen=_myListSelectedChannels.slice();
+  if(checked&&!chosen.includes(sid)){
+    if(chosen.length>=5){input.checked=false;toast(tr('Choose up to five channels.'));return;}
+    chosen.push(sid);
+  }else if(!checked)chosen=chosen.filter(id=>id!==sid);
+  const r=await favPost({action:'set_mylist_channels',stream_ids:chosen});
+  _myListSelectedChannels=chosen.slice(0,5);renderMyListChannels();
+}
+async function toggleRacingF1Picker(){
+  const el=document.getElementById('racingF1Picker');if(!el)return;
+  if(!el.classList.contains('hide')){el.classList.add('hide');return;}
+  el.innerHTML='<span class="muted">'+tr('Loading...')+'</span>';el.classList.remove('hide');
+  try{
+    const r=await api('/api/f1_teams'), selected=String(((r.favorites||[])[0]||{}).id||'');
+    el.innerHTML=(r.teams||[]).map(team=>'<button class="mydashchoice f1choice'+(String(team.id)===selected?' on':'')+'" data-id="'+escAttr(team.id)+'" data-name="'+escAttr(team.name)+'" onclick="setRacingF1Team(this.dataset.id,this.dataset.name)"><img src="/api/f1_team_logo?id='+encodeURIComponent(String(team.id||''))+'" alt="" loading="lazy" onerror="this.remove()"><span>'+esc(team.name)+'</span></button>').join('')||'<span class="muted">'+tr('No F1 team selected.')+'</span>';
+  }catch(e){el.innerHTML='<span class="muted">'+tr('Could not load Formula 1 calendar.')+'</span>';}
+}
+async function setRacingF1Team(id,name){
+  let current='';try{const state=await api('/api/f1_teams');current=String(((state.favorites||[])[0]||{}).id||'');}catch(e){}
+  const clear=current===String(id);
+  await favPost({action:'set_f1_team',team:clear?{}:{id:id,name:name}});
+  document.getElementById('racingF1Picker').classList.add('hide');
+  await loadRacing();loadFavorites();
+}
+function mySportTeamMeta(fixtures){
+  const counts=new Map(),rows=(fixtures||[]).filter(f=>f&&f.league_name&&!/friendl/i.test(String(f.league_name)));
+  for(const f of rows){const name=String(f.league_name||'').trim(),key=name.toLowerCase();if(!key)continue;const old=counts.get(key)||{name:name,count:0};old.count++;counts.set(key,old);}
+  const best=Array.from(counts.values()).sort((a,b)=>b.count-a.count)[0];if(!best)return '';
+  const low=best.name.toLowerCase();let country='';
+  if(/premier league|championship|league one|league two/.test(low))country='England';
+  else if(/eliteserien|obos/.test(low))country='Norway';
+  else if(/la ?liga/.test(low))country='Spain';
+  else if(/bundesliga/.test(low))country='Germany';
+  else if(/serie a/.test(low))country='Italy';
+  else if(/ligue 1/.test(low))country='France';
+  else if(/eredivisie/.test(low))country='Netherlands';
+  else if(/primeira liga/.test(low))country='Portugal';
+  else if(/premiership/.test(low))country='Scotland';
+  return (country?country+' × ':'')+best.name;
+}
+function renderMyListSportShells(favorites){
+  const el=document.getElementById('myListTeams'),teams=(favorites.teams||[]);if(!el)return;
+  let h='';
+  if(_footballEnabled)for(const team of teams){
+    const name=String(typeof team==='string'?team:team.name||''),id=typeof team==='string'?'':String(team.team_id||''),logo=typeof team==='string'?'':(team.logo||''),src=logo||(id?'/api/team_logo?id='+encodeURIComponent(id):'');
+    if(_myListLayout==='timeline')h+='<div class="mydashteamonly" onclick="showTeams()">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsporteventline"><span class="mydashsportnext muted">'+esc(tr('Loading fixture...'))+'</span></div></div></div></div>';
+    else h+='<div class="mydashfixture"><div class="mydashteam">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span></div><span class="muted">'+esc(tr('Loading fixture...'))+'</span></div>';
+  }
+  if(_f1Enabled){
+    const selected=new Set((_profileConfig.racing_series||['f1']).map(String));
+    if(_myListLayout==='timeline')h+='<div class="mydashsportsubhead racing">Racing</div>';
+    if(selected.has('f1')){
+      const team=((favorites.f1_teams||[])[0]||{}),name=team.name||'Formula 1',src=team.logo||(team.id?'/api/f1_team_logo?id='+encodeURIComponent(String(team.id)):'');
+      h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsportmeta">Formula 1 · '+esc(tr('Loading drivers and next race...'))+'</div></div></div>';
+    }
+    const quick=[['wrc','wrc-oliver-solberg','Oliver Solberg','WRC × Toyota Gazoo Racing',false],['indycar','indycar-dennis-hauger','Dennis Hauger','IndyCar × Dale Coyne Racing',false],['f2','f2-martinius-stenshorne','Martinius Stenshorne','Formula 2 × Rodin Motorsport',true]];
+    for(const row of quick){if(!selected.has(row[0]))continue;const src='/api/racing_driver_image?id='+encodeURIComponent(row[1]);h+='<div class="mydashteamonly" data-driver-key="'+escAttr(row[1])+'" onclick="showRacing(this.dataset.driverKey)"><img class="driver'+(row[4]?' car':'')+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportname">'+esc(row[2])+'</div><div class="mydashsportmeta">'+esc(row[3])+' · '+esc(tr('Loading next race...'))+'</div></div></div>';}
+  }
+  el.innerHTML=h||'<span class="muted">'+tr(_f1Enabled?'No F1 team selected.':'No favorite teams yet.')+'</span>';
+}
+async function loadMyListTeams(favorites,racingDataPromise){
+  const el=document.getElementById('myListTeams'),teams=(favorites.teams||[]),now=Date.now();
+  _myListTeamMoments=[];let h='';
+  renderMyListSportShells(favorites);
+  const racingPromise=_f1Enabled?Promise.all([api('/api/racing_drivers'),racingDataPromise||api('/api/racing')]):null;
+  if(_footballEnabled&&teams.length){
+    try{
+      const r=await api('/api/my_teams'),fixtures=r.fixtures||[];
+      for(const team of teams){
+        const name=String(typeof team==='string'?team:team.name||''),key=name.toLowerCase();
+        const mine=fixtures.filter(f=>(f.favorite_teams||[]).some(owner=>String(owner).toLowerCase()===key));
+        const live=mine.filter(f=>f.is_live).sort((a,b)=>String(a.start).localeCompare(String(b.start)))[0];
+        const upcoming=mine.filter(f=>{const ts=f.start?new Date(f.start).getTime():0;return ts>now;}).sort((a,b)=>new Date(a.start)-new Date(b.start));
+        const next=upcoming[0];
+        const fixture=live||next,id=typeof team==='string'?'':String(team.team_id||''),logo=typeof team==='string'?'':(team.logo||''),src=logo||(id?'/api/team_logo?id='+encodeURIComponent(id):'');
+        if(live)_myListTeamMoments.push({team:name,fixture:live,live:true,logo:src,ts:Date.now()});
+        for(const future of upcoming.slice(0,4)){const ts=future.start?new Date(future.start).getTime():0;if(ts)_myListTeamMoments.push({team:name,fixture:future,live:false,logo:src,ts:ts});}
+        if(_myListLayout==='timeline'){
+          const fixtureText=fixture?((fixture.home||'')+' v '+(fixture.away||'')):tr('No upcoming fixture found.');
+          const countdown=fixture?(live?'LIVE':racingCountdown({start:fixture.start})):'';
+          const teamMeta=mySportTeamMeta(mine);
+          h+='<div class="mydashteamonly" onclick="showTeams()">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(fixtureText)+'</span>'+(countdown?'<span class="mydashsportcount">'+esc(countdown)+'</span>':'')+'</div></div>'+(teamMeta?'<div class="mydashsportmeta">'+esc(teamMeta)+'</div>':'')+'</div></div>';
+        }
+        else{h+='<div class="mydashfixture"><div class="mydashteam">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span></div>'+(fixture?teamFixtureCard(fixture,!!fixture.is_live):'<span class="muted">'+tr('No upcoming fixture found.')+'</span>')+'</div>';}
+      }
+    }catch(e){h+='<span class="muted">'+tr('Could not load team fixtures.')+'</span>';}
+  }
+  if(_f1Enabled){
+    try{
+      const [driverData,racingData]=await racingPromise;
+      if(_myListLayout==='timeline'&&(driverData.drivers||[]).length)h+='<div class="mydashsportsubhead racing">Racing</div>';
+      const allDrivers=driverData.drivers||[];_myListRacingDrivers=allDrivers;
+      const f1Drivers=allDrivers.filter(driver=>String(driver.series||'')==='f1');
+      if(_myListLayout==='timeline'){
+        const cards=[];
+        if(f1Drivers.length){const next=nextDriverRace(f1Drivers[0],racingData.events||[],now);cards.push({kind:'f1',drivers:f1Drivers,next:next,ts:next?new Date(next.start).getTime():Infinity});}
+        for(const driver of allDrivers){if(String(driver.series||'')==='f1')continue;const next=nextDriverRace(driver,racingData.events||[],now);cards.push({kind:'driver',driver:driver,next:next,ts:next?new Date(next.start).getTime():Infinity});}
+        // Racing follows the calendar: nearest next event first. Football team
+        // cards above deliberately retain the user's favorite/order sequence.
+        cards.sort((a,b)=>(Number.isFinite(a.ts)?a.ts:Infinity)-(Number.isFinite(b.ts)?b.ts:Infinity));
+        for(const card of cards){
+          const next=card.next,countdown=next?racingCountdown(next):'';
+          if(card.kind==='f1'){
+            const drivers=card.drivers,live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now)),team=drivers[0].team||'';
+            const photos=drivers.slice(0,2).map(driver=>'<img class="driver" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()">').join('');
+            const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),race=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.');
+            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(race)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div></div>';
+          }else{
+            const driver=card.driver,live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
+            const meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × '),nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
+            h+='<div class="mydashteamonly" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div></div>';
+          }
+        }
+      }else for(const driver of allDrivers){
+        const live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
+        h+='<div class="mydashfixture" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)" style="cursor:pointer"><div class="mydashteam"><img src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><span>'+esc(driver.name||'')+'</span></div><span class="muted">'+esc(driver.series_name||'Racing')+(driver.team?' · '+esc(driver.team):'')+'</span>'+(live?'<span class="mydashsportcount">'+esc(tr('Right now'))+'</span>':'')+'</div>';
+      }
+    }catch(e){}
+  }
+  el.innerHTML=h||'<span class="muted">'+tr(_f1Enabled?'No F1 team selected.':'No favorite teams yet.')+'</span>';
+  scheduleMyListTimelineRender();
+}
+async function loadMyListRacing(racingDataPromise){
+  _myListF1Moments=[];
+  try{
+    const r=await (racingDataPromise||api('/api/racing')),now=Date.now();
+    const groups=new Map();
+    for(const event of (r.events||[])){
+      const row={event:event,ts:new Date(event.start).getTime()},live=racingEventIsLive(event,now);
+      if(!Number.isFinite(row.ts)||(!live&&row.ts<=now-2*3600000))continue;
+      const key=String(event.series||'racing');
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push(row);
+    }
+    // Keep the timeline balanced when several championships are enabled:
+    // a session-heavy F1 weekend should not crowd WRC/MotoGP/etc. off it.
+    _myListF1Moments=Array.from(groups.values()).flatMap(rows=>rows.sort((a,b)=>a.ts-b.ts).slice(0,3)).sort((a,b)=>a.ts-b.ts).slice(0,18);
+    scheduleMyListTimelineRender();
+    try{const a=await api('/api/racing_availability');for(const row of _myListF1Moments)row.event.channels=(a.availability||{})[racingAvailabilityKey(row.event)]||[];}catch(e){}
+  }catch(e){}
+  scheduleMyListTimelineRender();
+}
+async function loadMyListMovies(){
+  _myListMovieMoments=[];
+  try{
+    const r=await api('/api/favorite_movie_status'),windowMs=2*24*3600000,now=Date.now();
+    _myListMovieMoments=(r.movies||[]).map(movie=>({movie:movie,ts:Date.parse(movie.released||'')})).filter(row=>Number.isFinite(row.ts)&&Math.abs(row.ts-now)<=windowMs).sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)).slice(0,4);
+  }catch(e){}
+  scheduleMyListTimelineRender();
+}
+function loadMyListGames(favorites){
+  const now=Date.now(),recentCutoff=now-7*24*3600000;
+  _myListGameMoments=(favorites.games||[]).filter(game=>game.wishlist_imported).map(game=>({game:game,ts:Date.parse(game.released||'')})).filter(row=>Number.isFinite(row.ts)&&row.ts>=recentCutoff).sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)).slice(0,4);
+  scheduleMyListTimelineRender();
+}
+function myListEpisodeWhen(ts,upcoming){
+  const delta=ts-Date.now();
+  if(upcoming){const hours=Math.max(1,Math.ceil(delta/3600000));return tr('Airs in')+' '+hours+' '+tr(hours===1?'hour':'hours');}
+  const hours=Math.max(0,Math.round(Math.abs(delta)/3600000));
+  if(hours<=12)return tr('Just released');
+  return tr('Released')+' '+hours+' '+tr(hours===1?'hour':'hours')+' '+tr('ago');
+}
+function timelineUpcomingWhen(ts,dateOnly){
+  const target=new Date(ts),now=new Date(),delta=target-now,locale=_lang==='no'?'nb-NO':undefined;
+  if(!Number.isFinite(delta))return '';
+  if(!dateOnly&&delta>0&&delta<24*3600000){
+    const minutes=Math.max(1,Math.ceil(delta/60000));
+    if(minutes<60)return tr('in')+' '+minutes+' '+tr(minutes===1?'minute':'minutes');
+    const hours=Math.ceil(minutes/60);return tr('in')+' '+hours+' '+tr(hours===1?'hour':'hours');
+  }
+  const dayDiff=Math.round(osloDayNumber(target)-osloDayNumber(now));
+  const time=target.toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Oslo'});
+  if(!dateOnly&&dayDiff===0)return tr('Today')+' · '+time;
+  if(!dateOnly&&dayDiff===1)return tr('Tomorrow')+' · '+time;
+  const date=target.toLocaleDateString(locale,{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Oslo'});
+  return dateOnly?date:(date+' · '+time);
+}
+function timelineReleasedWhen(ts){
+  const delta=Math.max(0,Date.now()-Number(ts||0)),minutes=Math.max(1,Math.round(delta/60000));
+  let amount,unit;
+  if(minutes<60){amount=minutes;unit=tr(minutes===1?'minute':'minutes');}
+  else{amount=Math.max(1,Math.round(minutes/60));unit=tr(amount===1?'hour':'hours');}
+  return tr('Released')+(_lang==='no'?' for ':' ')+amount+' '+unit+' '+tr('ago');
+}
+async function loadMyListShows(){
+  const el=document.getElementById('myListShows');
+  _myListShowMoments=[];
+  try{
+    const r=await api('/api/latest_episodes?limit=36'),now=Date.now(),recentWindow=24*3600000,upcomingWindow=7*24*3600000,candidates=[];
+    for(const ep of (r.episodes||[])){const aired=Number(ep.air_ts||0)*1000,added=Number(ep.added||0)*1000;const ts=(aired>0&&aired<=now&&now-aired<=recentWindow)?aired:(added||aired);if(ts)candidates.push({ep:ep,ts:ts,upcoming:false});}
+    for(const ep of (r.upcoming||[])){const ts=Number(ep.air_ts||0)*1000||(ep.airstamp?new Date(ep.airstamp).getTime():0);if(ts)candidates.push({ep:ep,ts:ts,upcoming:true});}
+    const nearest=new Map();
+    for(const row of candidates){const delta=row.ts-now;if(row.upcoming){if(delta<0||delta>upcomingWindow)continue;}else if(delta>0||Math.abs(delta)>recentWindow)continue;const key=String(row.ep.show_name||'').toLowerCase()+'|'+(row.upcoming?'upcoming':'recent');const old=nearest.get(key);if(!old||Math.abs(delta)<Math.abs(old.ts-now))nearest.set(key,row);}
+    const rows=Array.from(nearest.values()).sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)).slice(0,12);
+    _myListShowMoments=rows;
+    if(!rows.length){el.innerHTML='<span class="muted">'+tr('Nothing airing close to now from your favorite shows.')+'</span>';scheduleMyListTimelineRender();return;}
+    el.innerHTML=rows.map(row=>{const ep=row.ep,cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'';let action='';
+      if(!row.upcoming&&ep.available){const src=(ep.sources&&ep.sources.length)?ep.sources[0]:{id:ep.id,extension:ep.extension};if(src&&src.id!=null)action='<div class="movieactions"><button class="btnvlc latestepisodevlc" data-id="'+escAttr(String(src.id))+'" data-ext="'+escAttr(src.extension||'mp4')+'">&#9658; VLC</button></div>';}
+      return '<div class="mydashepisode mylistshowcard" data-series="'+escAttr(String(ep.series_id||''))+'" data-catalog="'+escAttr(ep.catalog_id||'')+'">'+cover+'<div class="mydashepisodeinfo"><div class="mydashepisodename">'+esc(ep.show_name)+'</div><div class="mydashwhen">'+esc(myListEpisodeWhen(row.ts,row.upcoming))+'</div><div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div>'+action+'</div></div>';}).join('');
+    scheduleMyListTimelineRender();
+  }catch(e){el.innerHTML='<span class="muted">'+tr('Could not load your shows.')+'</span>';scheduleMyListTimelineRender();}
+}
+function myListSportArtwork(fixture){
+  const id=String((fixture&&fixture.league_id)||'');
+  if(!/^\\d+$/.test(id))return '';
+  const name=String((fixture&&fixture.league_name)||tr('Sports'));
+  return '<img class="mylisttimelineart" src="/api/league_logo?id='+encodeURIComponent(id)+'" alt="'+escAttr(name)+'" title="'+escAttr(name)+'" loading="lazy" onerror="this.remove()">';
+}
+function myListRacingArtwork(event){
+  const series=String((event&&event.series)||'').toLowerCase();
+  let src='',name='',driver=false,car=false;
+  if(series==='f1'){
+    const pair=(_myListRacingDrivers||[]).filter(row=>String(row.series||'').toLowerCase()==='f1').slice(0,2);
+    if(pair.length)return '<span class="mylisttimelinedrivers" title="'+escAttr(pair.map(row=>row.name||'').filter(Boolean).join(' & '))+'">'+pair.map(row=>'<img src="/api/racing_driver_image?id='+encodeURIComponent(String(row.key||''))+'" alt="'+escAttr(row.name||'')+'" loading="lazy" onerror="this.remove()">').join('')+'</span>';
+    return '';
+  }else{
+    const drivers={wrc:['wrc-oliver-solberg','Oliver Solberg'],indycar:['indycar-dennis-hauger','Dennis Hauger'],f2:['f2-martinius-stenshorne','Martinius Stenshorne']};
+    const row=drivers[series];
+    if(row){src='/api/racing_driver_image?id='+encodeURIComponent(row[0]);name=row[1];driver=true;car=series==='f2';}
+  }
+  return src?'<img class="mylisttimelineart'+(driver?' driver':'')+(car?' car':'')+'" src="'+escAttr(src)+'" alt="'+escAttr(name)+'" title="'+escAttr(name)+'" loading="lazy" onerror="this.remove()">':'';
+}
+function myListRacingDetailKey(event){
+  const series=String((event&&event.series)||'').toLowerCase();
+  if(series==='f1')return 'f1-team';
+  const loaded=(_myListRacingDrivers||[]).find(row=>String(row.series||'').toLowerCase()===series);
+  if(loaded&&loaded.key)return String(loaded.key);
+  return ({wrc:'wrc-oliver-solberg',indycar:'indycar-dennis-hauger',f2:'f2-martinius-stenshorne'})[series]||'';
+}
+function setupDemoCover(label,color){
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="180" height="260"><rect width="180" height="260" rx="12" fill="'+color+'"/><circle cx="90" cy="92" r="42" fill="#ffffff18"/><text x="90" y="105" text-anchor="middle" font-size="50">📺</text><text x="90" y="190" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#fff">'+label+'</text><text x="90" y="216" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#ffffffaa">TVMate demo</text></svg>';
+  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+}
+function timelineLoadPrefs(){
+  if(_myTimelinePrefsLoaded)return;_myTimelinePrefsLoaded=true;
+  try{
+    const kind=localStorage.getItem('tvmateTimelineFilter');if(['all','show','movie','game','sport','f1'].includes(kind))_myTimelineFilter=kind;
+    const saved=JSON.parse(localStorage.getItem('tvmateTimelineSettings')||'{}');
+    _myTimelineSettings=Object.assign({},_myTimelineSettings,saved||{});
+  }catch(e){}
+}
+function timelineSavePrefs(){try{localStorage.setItem('tvmateTimelineFilter',_myTimelineFilter);localStorage.setItem('tvmateTimelineSettings',JSON.stringify(_myTimelineSettings));}catch(e){}}
+function timelineFilterGroup(kind){return kind==='team'?'sport':(kind==='f1'?'f1':kind);}
+function timelineSettingsChanged(){const x=_myTimelineSettings;return x.recent!==true||x.live!==true||x.upcoming!==true||Number(x.maxPerCategory||0)!==0;}
+function timelineControlsHtml(){
+  const kinds=[['all','All'],['show','Shows'],['movie','Movies'],['game','Games'],['sport','Sports'],['f1','Racing']];let h='<div class="mytimelinecontrols">';
+  for(const k of kinds)h+='<button class="mytimelinefilter '+k[0]+(_myTimelineFilter===k[0]?' on':'')+'" data-kind="'+k[0]+'" onclick="setTimelineFilter(this.dataset.kind)">'+esc(tr(k[1]))+'</button>';
+  h+='<button class="mytimelinefilter settings'+(timelineSettingsChanged()?' changed':'')+'" onclick="toggleTimelineSettings(this)">&#9881; '+esc(tr('Filter'))+'</button>';
+  h+='<div class="mytimelinefilterpanel hide"><h4>'+esc(tr('Timeline settings'))+'</h4><div class="timelinechecks">'
+    +'<label><input type="checkbox" data-setting="recent" '+(_myTimelineSettings.recent?'checked':'')+' onchange="setTimelineSetting(this)"> '+esc(tr('Recently'))+'</label>'
+    +'<label><input type="checkbox" data-setting="live" '+(_myTimelineSettings.live?'checked':'')+' onchange="setTimelineSetting(this)"> '+esc(tr('Live now'))+'</label>'
+    +'<label><input type="checkbox" data-setting="upcoming" '+(_myTimelineSettings.upcoming?'checked':'')+' onchange="setTimelineSetting(this)"> '+esc(tr('Upcoming'))+'</label></div>'
+    +'<label><span>'+esc(tr('Maximum per category'))+'</span><select data-setting="maxPerCategory" onchange="setTimelineSetting(this)">'
+    +[[0,'App default'],[2,'2'],[4,'4'],[6,'6'],[8,'8'],[12,'12']].map(x=>'<option value="'+x[0]+'"'+(Number(_myTimelineSettings.maxPerCategory||0)===x[0]?' selected':'')+'>'+esc(tr(x[1]))+'</option>').join('')+'</select></label>'
+    +'<button class="timelinefilterreset" onclick="resetTimelineSettings()">'+esc(tr('Reset to default'))+'</button></div></div>';return h;
+}
+function setTimelineFilter(kind){_myTimelineFilter=['all','show','movie','game','sport','f1'].includes(kind)?kind:'all';timelineSavePrefs();renderMyListTimeline();}
+function toggleTimelineSettings(btn){const wrap=btn.closest('.mytimelinecontrols'),panel=wrap?wrap.querySelector('.mytimelinefilterpanel'):null;if(panel)panel.classList.toggle('hide');}
+function setTimelineSetting(input){const key=input.dataset.setting;if(key==='maxPerCategory')_myTimelineSettings[key]=Math.max(0,Number(input.value||0));else _myTimelineSettings[key]=!!input.checked;timelineSavePrefs();renderMyListTimeline();}
+function resetTimelineSettings(){_myTimelineSettings={recent:true,live:true,upcoming:true,maxPerCategory:0};timelineSavePrefs();renderMyListTimeline();}
+function renderMyListTimeline(){
+  const el=document.getElementById('myListTimeline'),standalone=document.getElementById('myTimelineStandalone');if(!el&&!standalone)return;
+  const now=Date.now(),moments=[];
+  if(_footballEnabled)for(const row of _myListTeamMoments)moments.push({kind:'team',ts:row.ts,live:row.live,data:row});
+  if(_f1Enabled)for(const row of _myListF1Moments)moments.push({kind:'f1',ts:row.ts,live:racingEventIsLive(row.event,now),data:row});
+  for(const row of _myListMovieMoments)moments.push({kind:'movie',ts:row.ts,live:false,data:row});
+  for(const row of _myListGameMoments)moments.push({kind:'game',ts:row.ts,live:false,data:row});
+  for(const row of _myListShowMoments)moments.push({kind:'show',ts:row.ts,live:false,data:row});
+  const realWatch=((_myListFavData.shows||[]).length+(_myListFavData.movies||[]).length)>0;
+  if(_profileConfig.setup_demo_content&&!realWatch){
+    moments.push({kind:'show',ts:now-6*3600000,live:false,data:{upcoming:false,ep:{show_name:'Example Show',season:1,episode_num:1,title:'Welcome to TVMate',cover:setupDemoCover('EXAMPLE SHOW','#7a3d12'),available:false,series_id:'',catalog_id:''}}});
+    moments.push({kind:'movie',ts:now+36*3600000,live:false,data:{movie:{name:'Example Movie',year:new Date().getFullYear(),cover:setupDemoCover('EXAMPLE MOVIE','#164a72'),stream_found:false}}});
   }
   timelineLoadPrefs();
   const controls=timelineControlsHtml();
