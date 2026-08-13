@@ -118,7 +118,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b359"
+VERSION = "0.777.b360"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1132,29 +1132,37 @@ def check_for_update():
     return (newer, remote)
 
 def download_update():
-    """Download and validate a new tvmate.py. Return its local path or None."""
+    """Download and validate a new tvmate.py. Return (path, failure reason)."""
     remote_version, expected_sha = _update_manifest()
+    if not remote_version:
+        return None, "The update manifest could not be downloaded."
+    if not expected_sha:
+        return None, "The update manifest has no valid checksum."
     text = _fetch_text(UPDATE_SCRIPT_URL, timeout=30)
-    if not remote_version or not text or len(text.encode("utf-8")) < 100000:
-        return None
+    if not text:
+        return None, "The update script could not be downloaded."
     try:
         # Normalize line endings: strip any CR so we don't end up with \r\r\n
         # (doubled carriage returns) which makes the Windows console double-space
         # / stretch the ASCII banner. Write with newline="" so Python doesn't
         # translate again.
         text = text.replace("\r\n", "\n").replace("\r", "\n")
+        raw = text.encode("utf-8")
+        if len(raw) < 500000:
+            return None, "The downloaded update is incomplete."
         marker = re.search(r'^VERSION\s*=\s*["\']([^"\']+)["\']', text, re.MULTILINE)
         if not marker or marker.group(1).strip() != remote_version:
-            return None
+            return None, "The downloaded script version does not match the manifest."
         compile(text, "tvmate_new.py", "exec")
-        raw = text.encode("utf-8")
-        if expected_sha and hashlib.sha256(raw).hexdigest().lower() != expected_sha:
-            return None
+        if hashlib.sha256(raw).hexdigest().lower() != expected_sha:
+            return None, "The update checksum does not match. Please try again shortly."
         dest = os.path.join(app_dir(), "tvmate_new.py")
         _atomic_write_bytes(dest, raw)
-        return dest
-    except Exception:
-        return None
+        return dest, ""
+    except SyntaxError:
+        return None, "The downloaded update is incomplete or invalid."
+    except Exception as exc:
+        return None, "Update validation failed: " + str(exc)
 
 def _file_sha256(path):
     try:
@@ -8358,12 +8366,12 @@ async function doUpdateNow(){
   btn.textContent=tr('Downloading...');btn.disabled=true;
   try{
     const j=await api('/api/update_download',{method:'POST'});
-    if(!j.ok){throw new Error('dl');}
+    if(!j.ok){throw new Error(j.error||'Update download failed.');}
     document.getElementById('updateMsg').textContent=tr('Update downloaded. Restart now to finish updating?');
     btn.textContent=tr('Restart now');btn.disabled=false;
     btn.onclick=doUpdateRestart;
   }catch(e){
-    document.getElementById('updateMsg').textContent=tr('Update failed. Try again later.');
+    document.getElementById('updateMsg').textContent=tr('Update failed. Try again later.')+' '+String(e&&e.message||e);
     btn.textContent=tr('Update now');btn.disabled=false;
   }
 }
@@ -10493,10 +10501,10 @@ class Handler(BaseHTTPRequestHandler):
                                     "f1_teams": fav.get("f1_teams", [])})
 
         if u.path == "/api/update_download":
-            path = download_update()
+            path, error = download_update()
             if path:
                 return self._send(200, {"ok": True})
-            return self._send(500, {"ok": False, "error": "download failed"})
+            return self._send(500, {"ok": False, "error": error or "download failed"})
 
         if u.path == "/api/update_restart":
             # Swap tvmate_new.py -> tvmate.py and relaunch, via a small helper.
@@ -11013,8 +11021,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b359") > _parse_ver("0.777.b358"))
-    check("version equality", _parse_ver("v0.777.b359") == _parse_ver("0.777.b359"))
+    check("version ordering", _parse_ver("0.777.b360") > _parse_ver("0.777.b359"))
+    check("version equality", _parse_ver("v0.777.b360") == _parse_ver("0.777.b360"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
