@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b373"
+VERSION = "0.777.b374"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2927,6 +2927,15 @@ def _ltv_country(fragment):
             return _display_cc(_norm_cc(code))
     return "LTV"
 
+def _ltv_listing_country(attrs, name):
+    """Use link metadata first, then a country written in the listing name."""
+    country = _ltv_country(attrs)
+    if country == "LTV":
+        named_cc = _cc_from_name(name)
+        if named_cc:
+            country = _display_cc(named_cc)
+    return country
+
 def _parse_ltv_daily(page, date):
     """Parse LTV's public daily table. It enriches existing FotMob rows only."""
     rows = []
@@ -2953,7 +2962,7 @@ def _parse_ltv_daily(page, date):
             attrs = link.group(1)
             if not name or name == "…" or "/match/" in attrs.lower():
                 continue
-            cc = _ltv_country(attrs)
+            cc = _ltv_listing_country(attrs, name)
             by_country.setdefault(cc, [])
             if name not in by_country[cc]:
                 by_country[cc].append(name)
@@ -2986,10 +2995,7 @@ def _parse_ltv_daily(page, date):
             if (not name or name == "…" or "/match/" in attrs_low or
                     re.search(r'\b(?:details?|preview|lineups?|tickets?)\b', name, re.I)):
                 continue
-            cc = _ltv_country(attrs)
-            if cc == "LTV":
-                named_cc = _cc_from_name(name)
-                cc = _display_cc(named_cc) if named_cc else "LTV"
+            cc = _ltv_listing_country(attrs, name)
             by_country.setdefault(cc, [])
             if name not in by_country[cc]:
                 by_country[cc].append(name)
@@ -3005,7 +3011,7 @@ def fetch_ltv_daily(date):
     cached = _LTV_CACHE.get(date)
     if cached:
         return cached["rows"]
-    disk = _load_timed_data_cache(f"ltv-daily-{date}.json", _LTV_TTL)
+    disk = _load_timed_data_cache(f"ltv-daily-v2-{date}.json", _LTV_TTL)
     if isinstance(disk, list) and disk:
         _LTV_CACHE[date] = {"ts": now, "rows": disk}
         return disk
@@ -3014,7 +3020,7 @@ def fetch_ltv_daily(date):
     if not rows:
         raise RuntimeError("Live Soccer TV returned no readable listings")
     _LTV_CACHE[date] = {"ts": now, "rows": rows}
-    _save_timed_data_cache(f"ltv-daily-{date}.json", rows)
+    _save_timed_data_cache(f"ltv-daily-v2-{date}.json", rows)
     return rows
 
 def _team_profile_from_data(data, team_id, team_name=""):
@@ -3950,7 +3956,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v9|" + _vod_cache_key(x) + "|" + str(
+    return "football-v10|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11130,8 +11136,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b373") > _parse_ver("0.777.b372"))
-    check("version equality", _parse_ver("v0.777.b373") == _parse_ver("0.777.b373"))
+    check("version ordering", _parse_ver("0.777.b374") > _parse_ver("0.777.b373"))
+    check("version equality", _parse_ver("v0.777.b374") == _parse_ver("0.777.b374"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11151,6 +11157,10 @@ def run_self_tests():
     check("LTV parser extracts channels without creating fixtures",
           len(ltv_test) == 1 and ltv_test[0]["home"] == "Hearts" and
           ltv_test[0]["by_country"] == {"PT": ["Sport TV5"], "UK": ["Hearts TV"]})
+    ltv_legacy_country_test = _parse_ltv_daily('''<tr class="matchrow"><td><a href="/match/x/">Nottingham Forest vs Leeds United</a></td><td id="channels"><a href="/channels/viaplay-norway/">Viaplay Norway</a><a href="/channels/viaplay-finland/">Viaplay Finland</a></td></tr>''', "2026-08-22")
+    check("legacy LTV links infer countries from broadcaster names",
+          ltv_legacy_country_test[0]["by_country"] == {
+              "NO": ["Viaplay Norway"], "FI": ["Viaplay Finland"]})
     ltv_current_test = _parse_ltv_daily('''<section><a href="/match/nottingham-forest-vs-leeds/">Nottingham Forest vs Leeds United</a><a href="/channels/dazn-spain/">DAZN Spain</a><a href="/channels/viaplay-denmark/">Viaplay Denmark</a><a href="/channels/viaplay-sweden/">Viaplay Sweden</a><a href="/channels/viaplay-norway/">Viaplay Norway</a></section><section><a href="/match/other/">Other FC vs Else FC</a></section>''', "2026-08-22")
     check("current LTV cards attach Viaplay to Forest Leeds",
           len(ltv_current_test) >= 1 and
