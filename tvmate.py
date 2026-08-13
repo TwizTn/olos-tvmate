@@ -118,7 +118,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b361"
+VERSION = "0.777.b362"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -10513,7 +10513,10 @@ class Handler(BaseHTTPRequestHandler):
             if not os.path.exists(new):
                 return self._send(400, {"ok": False, "error": "no update downloaded"})
             try:
-                _remote_version, recovery_sha = _update_manifest()
+                remote_version, recovery_sha = _update_manifest()
+                if not remote_version or not recovery_sha:
+                    return self._send(500, {"ok": False,
+                                           "error": "update manifest is incomplete"})
                 # Determine how to relaunch. ONLY relaunch the permanent launcher
                 # .exe - never a temp-extracted python.exe (which vanishes).
                 launcher_exe = os.environ.get("TVMATE_EXE")
@@ -10575,7 +10578,20 @@ class Handler(BaseHTTPRequestHandler):
                              ":relaunch\r\n"])
                     if relaunch:
                         lines.extend(["echo Starting TVMate...\r\n",
-                                      'start "" ' + relaunch + "\r\n"])
+                                      'start "" ' + relaunch + "\r\n",
+                                      "echo Verifying the new version...\r\n",
+                                      'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$end=(Get-Date).AddSeconds(45); do { try { $p=Invoke-RestMethod -UseBasicParsing -Uri \'http://127.0.0.1:' + str(PORT) + '/api/ping\' -TimeoutSec 2; if ($p.app -eq \'olos-tvmate\' -and $p.version -eq \'" + remote_version + "\') { exit 0 } } catch {}; Start-Sleep -Seconds 1 } while ((Get-Date) -lt $end); exit 1"\r\n',
+                                      "if not errorlevel 1 goto verified\r\n",
+                                      "echo New TVMate did not start. Restoring the previous version...\r\n"])
+                        if known_launcher:
+                            lines.extend(['taskkill /f /im "' + launcher_name +
+                                          '" >nul 2>&1\r\n',
+                                          "timeout /t 2 /nobreak >nul\r\n"])
+                        lines.extend(['if exist "' + cur + '.backup" copy /y "' +
+                                      cur + '.backup" "' + cur + '" >nul\r\n',
+                                      'start "" ' + relaunch + "\r\n",
+                                      "echo Previous TVMate restored.\r\n",
+                                      ":verified\r\n"])
                     lines.extend(["timeout /t 3 /nobreak >nul\r\n",
                                   'del "%~f0"\r\n'])
                     with open(helper, "w", encoding="utf-8", newline="") as f:
@@ -11016,8 +11032,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b361") > _parse_ver("0.777.b360"))
-    check("version equality", _parse_ver("v0.777.b361") == _parse_ver("0.777.b361"))
+    check("version ordering", _parse_ver("0.777.b362") > _parse_ver("0.777.b361"))
+    check("version equality", _parse_ver("v0.777.b362") == _parse_ver("0.777.b362"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11251,6 +11267,11 @@ def run_self_tests():
     check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
     check("live fallback requires explicit finished state",
           "!f.is_finished&&mins!==null&&mins>=0&&mins<=240" in PAGE)
+    source = open(__file__, "r", encoding="utf-8").read()
+    check("updater verifies new version and restores backup",
+          "New TVMate did not start. Restoring the previous version" in source and
+          "Invoke-RestMethod" in source and
+          "Previous TVMate restored" in source)
     return checks
 
 if __name__ == "__main__":
