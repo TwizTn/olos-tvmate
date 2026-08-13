@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b370"
+VERSION = "0.777.b371"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2960,6 +2960,42 @@ def _parse_ltv_daily(page, date):
         if by_country:
             rows.append({"home": teams[0].strip(), "away": teams[1].strip(),
                          "start": str(date), "by_country": by_country})
+    if rows:
+        return rows
+    # Current LTV pages render match cards/rows without the legacy `matchrow`
+    # class. Use each /match/ anchor as the boundary and collect only the
+    # channel links that follow it before the next match starts.
+    anchors = list(re.finditer(
+        r'<a\b([^>]*href=["\'][^"\']*/match/[^"\']*["\'][^>]*)>(.*?)</a>',
+        page or "", re.I | re.S))
+    for index, match in enumerate(anchors):
+        game = _plain_html(match.group(2))
+        teams = re.split(r'\s+(?:vs?\.?|–|—)\s+', game, maxsplit=1, flags=re.I)
+        if len(teams) != 2:
+            continue
+        end = anchors[index + 1].start() if index + 1 < len(anchors) else min(
+            len(page or ""), match.end() + 30000)
+        area = (page or "")[match.end():end]
+        by_country = {}
+        for link in re.finditer(r'<a\b([^>]*)>(.*?)</a>', area, re.I | re.S):
+            name = _plain_html(link.group(2))
+            attrs = link.group(1)
+            attrs_low = attrs.lower()
+            if ("/channels/" not in attrs_low and "data-country=" not in attrs_low):
+                continue
+            if (not name or name == "…" or "/match/" in attrs_low or
+                    re.search(r'\b(?:details?|preview|lineups?|tickets?)\b', name, re.I)):
+                continue
+            cc = _ltv_country(attrs)
+            if cc == "LTV":
+                named_cc = _cc_from_name(name)
+                cc = _display_cc(named_cc) if named_cc else "LTV"
+            by_country.setdefault(cc, [])
+            if name not in by_country[cc]:
+                by_country[cc].append(name)
+        if by_country:
+            rows.append({"home": teams[0].strip(), "away": teams[1].strip(),
+                         "start": str(date), "by_country": by_country})
     return rows
 
 def fetch_ltv_daily(date):
@@ -3877,7 +3913,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v7|" + _vod_cache_key(x) + "|" + str(
+    return "football-v8|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11057,8 +11093,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b370") > _parse_ver("0.777.b369"))
-    check("version equality", _parse_ver("v0.777.b370") == _parse_ver("0.777.b370"))
+    check("version ordering", _parse_ver("0.777.b371") > _parse_ver("0.777.b370"))
+    check("version equality", _parse_ver("v0.777.b371") == _parse_ver("0.777.b371"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11078,6 +11114,13 @@ def run_self_tests():
     check("LTV parser extracts channels without creating fixtures",
           len(ltv_test) == 1 and ltv_test[0]["home"] == "Hearts" and
           ltv_test[0]["by_country"] == {"PT": ["Sport TV5"], "UK": ["Hearts TV"]})
+    ltv_current_test = _parse_ltv_daily('''<section><a href="/match/nottingham-forest-vs-leeds/">Nottingham Forest vs Leeds United</a><a href="/channels/dazn-spain/">DAZN Spain</a><a href="/channels/viaplay-denmark/">Viaplay Denmark</a><a href="/channels/viaplay-sweden/">Viaplay Sweden</a><a href="/channels/viaplay-norway/">Viaplay Norway</a></section><section><a href="/match/other/">Other FC vs Else FC</a></section>''', "2026-08-22")
+    check("current LTV cards attach Viaplay to Forest Leeds",
+          len(ltv_current_test) >= 1 and
+          ltv_current_test[0]["home"] == "Nottingham Forest" and
+          {"Viaplay Denmark", "Viaplay Sweden", "Viaplay Norway"}.issubset(
+              {name for names in ltv_current_test[0]["by_country"].values()
+               for name in names}))
     unrelated_test = [dict(schedule_test[0])]
     _overlay_fixture_rows(unrelated_test, [{
         "home": "Portland Hearts of Pine", "away": "Forward Madison",
