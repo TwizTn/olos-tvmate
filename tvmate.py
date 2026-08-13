@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b377"
+VERSION = "0.777.b378"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3893,6 +3893,17 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             continue
         xset = set(xn.split())
         ch_cc = _resolve_channel_country(cname, category)  # category first, then name
+        # Some providers write the country as a bare leading token rather than
+        # a separator prefix: "NO V SPORT 1". When the category/name has
+        # already resolved that same country, remove only that first token for
+        # broadcaster-name comparison. Country rejection still uses ch_cc.
+        first = xn.split(" ", 1)[0]
+        if (" " in xn and ch_cc and _canonical_cc(first) == ch_cc and
+                (first in _COUNTRY_CODES or first in _COUNTRY_CODE_ALIASES)):
+            xn = xn.split(" ", 1)[1].strip()
+            xset = set(xn.split())
+        xn = re.sub(r"\s+raw$", "", xn).strip()
+        xset = set(xn.split())
         best, best_src, best_country, best_exact_provider = 0.0, "", "", False
         for orig, bcountry, allowed, sn, sset in srcs:
             viaplay_no_feed = (bcountry == "NO" and sn in {"viaplay", "viaplay norway"} and
@@ -4077,7 +4088,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v13|" + _vod_cache_key(x) + "|" + str(
+    return "football-v14|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11257,8 +11268,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b377") > _parse_ver("0.777.b376"))
-    check("version equality", _parse_ver("v0.777.b377") == _parse_ver("0.777.b377"))
+    check("version ordering", _parse_ver("0.777.b378") > _parse_ver("0.777.b377"))
+    check("version equality", _parse_ver("v0.777.b378") == _parse_ver("0.777.b378"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11310,6 +11321,13 @@ def run_self_tests():
     check("country-suffixed V Sport feed is exact Norwegian provider",
           len(v_sport_exact) == 1 and v_sport_exact[0]["score"] == 1.0 and
           v_sport_exact[0]["provider_exact"] is True)
+    v_sport_bare_cc = match_channels(
+        {"NO": ["V Sport 1 Norway"]},
+        [{"name": "NO V SPORT 1 RAW", "stream_id": 130, "category_id": "no"}],
+        {"no": "NO | NORWAY"}, 0.62)
+    check("bare NO prefix still yields exact V Sport 1 provider",
+          len(v_sport_bare_cc) == 1 and v_sport_bare_cc[0]["score"] == 1.0 and
+          v_sport_bare_cc[0]["provider_exact"] is True)
     unrelated_test = [dict(schedule_test[0])]
     _overlay_fixture_rows(unrelated_test, [{
         "home": "Portland Hearts of Pine", "away": "Forward Madison",
