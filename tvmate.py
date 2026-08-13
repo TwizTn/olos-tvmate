@@ -118,7 +118,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b360"
+VERSION = "0.777.b361"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -10927,7 +10927,7 @@ def main():
         except Exception:
             pass
     url = f"http://localhost:{port}"
-    # Single-instance check comes before launcher migration/relaunch logic.
+    # Single-instance check comes before the optional console-less relaunch.
     # A second copy should never replace/restart anything underneath the
     # already-running app; it just brings the existing UI back to the user.
     if _existing_tvmate(port):
@@ -10940,15 +10940,10 @@ def main():
     hide_console = True
     hidden_child = os.environ.get("TVMATE_HIDDEN_CHILD") == "1"
     if sys.platform.startswith("win") and not hidden_child:
-        # Migrate an old launcher before it can relaunch itself or start the
-        # normal server. This also covers a cold bootstrap where no previous
-        # local tvmate.py existed: as soon as the launcher runs this current
-        # script, it can replace itself once and restart cleanly.
-        if not _launcher_is_current() and _start_launcher_migration():
-            return
-        # Unknown/renamed legacy launchers cannot be safely force-replaced.
-        # Keep the old hidden-child fallback for those cases. The verified GUI
-        # launcher is already windowless and needs no extra self-relaunch.
+        # Launcher updates are deliberately never attempted during application
+        # startup. An old but working OTVM.exe may launch every newer script;
+        # replacing it here previously allowed a launcher migration failure to
+        # stop an otherwise valid tvmate.py before its server had even started.
         if not _launcher_is_current() and hide_console:
             if _launch_without_console():
                 _close_launcher_console()
@@ -11021,8 +11016,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b360") > _parse_ver("0.777.b359"))
-    check("version equality", _parse_ver("v0.777.b360") == _parse_ver("0.777.b360"))
+    check("version ordering", _parse_ver("0.777.b361") > _parse_ver("0.777.b360"))
+    check("version equality", _parse_ver("v0.777.b361") == _parse_ver("0.777.b361"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
