@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b353"
+VERSION = "0.777.b354"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3364,6 +3364,12 @@ _STREAMING_HINTS = (
     "tv2 play", "tv 2 play", "nrk tv", "vg+", "vg tv",
 )
 
+# FotMob sometimes reports access-package names rather than one fixed channel.
+# Providers commonly expose the package's simultaneous event feeds as numbered
+# channels (for example ESPN Unlimited 1..40). Match the complete package stem,
+# never one generic word such as "ESPN", "Select", or "Unlimited" by itself.
+_NUMBERED_FEED_PACKAGES = {"espn select", "espn unlimited"}
+
 # A shared word such as "Network" or "Sports" must never make a channel for
 # another sport a football broadcaster candidate.
 _NON_FOOTBALL_CHANNEL_RE = re.compile(
@@ -3493,6 +3499,9 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             # time compact brand spellings are equivalent: VG TV == VGTV.
             sid = set(_distinctive(sn.split()))
             xid = set(_distinctive(xn.split()))
+            numbered_package = sn in _NUMBERED_FEED_PACKAGES
+            if numbered_package and not (sid and sid <= xid):
+                continue
             scompact = re.sub(r"\s+", "", sn)
             xcompact = re.sub(r"\s+", "", xn)
             compact_exact = bool(scompact and scompact == xcompact)
@@ -3501,7 +3510,9 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             # a short generic channel such as "TV 2" is not "TV 2 Play".
             compact_contained = len(scompact) >= 4 and scompact in xcompact
             inter = xid & sid
-            if compact_exact:
+            if numbered_package:
+                s = 1.0 if compact_exact else 0.96
+            elif compact_exact:
                 s = 1.0
             elif compact_contained:
                 s = 0.96
@@ -10701,8 +10712,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b353") > _parse_ver("0.777.b352"))
-    check("version equality", _parse_ver("v0.777.b353") == _parse_ver("0.777.b353"))
+    check("version ordering", _parse_ver("0.777.b354") > _parse_ver("0.777.b353"))
+    check("version equality", _parse_ver("v0.777.b354") == _parse_ver("0.777.b354"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10807,6 +10818,20 @@ def run_self_tests():
           "category_id": "us-sports"}],
         {"us-sports": "US | SPORTS"}, 0.40)
     check("other-sport networks excluded from football", non_football == [])
+    espn_package = match_channels(
+        {"US": ["ESPN Select", "ESPN Unlimited"]},
+        [{"name": "US: ESPN Unlimited 34 HD", "stream_id": 101,
+          "category_id": "us-sports"},
+         {"name": "24/7: JUSTICE LEAGUE UNLIMITED", "stream_id": 102,
+          "category_id": "24-7"},
+         {"name": "PRIME: RACER SELECT", "stream_id": 103,
+          "category_id": "prime"},
+         {"name": "US: ESPN NEWS HD", "stream_id": 104,
+          "category_id": "us-sports"}],
+        {"us-sports": "US | SPORTS", "24-7": "24/7", "prime": "PRIME"},
+        0.40)
+    check("numbered ESPN package feed retained",
+          {row["stream_id"] for row in espn_package} == {101})
     class _TestXtream:
         @staticmethod
         def stream_url(stream_id):
