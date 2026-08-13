@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b371"
+VERSION = "0.777.b372"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3721,6 +3721,17 @@ def _resolve_channel_country(name, category):
     return (_cc_from_prefix(category) or _cc_from_name(category) or
             _cc_from_prefix(name) or _cc_from_name(name))
 
+def _viaplay_norway_linear_feed(name):
+    """True for the Norwegian linear feeds represented by Viaplay Norway.
+
+    Include V Sport, numbered V Sport, V Sport Live and the dedicated Premier
+    League feeds. Do not pull in Golf, Motor or unrelated V Sport channels.
+    """
+    value = re.sub(r"(?<![a-z0-9])ultra(?![a-z0-9])", " ", normalise(name))
+    value = re.sub(r"\s+", " ", value).strip()
+    return bool(re.fullmatch(
+        r"v sport(?: (?:live|premier league))?(?: [1-9]\d*)?", value))
+
 def match_channels(by_country, xtream_channels, cats, threshold):
     """`by_country`: {COUNTRY: [broadcaster names]}. A channel is only eligible
     to match a broadcaster from country C if the channel's own country prefix
@@ -3751,9 +3762,25 @@ def match_channels(by_country, xtream_channels, cats, threshold):
         ch_cc = _resolve_channel_country(cname, category)  # category first, then name
         best, best_src, best_country, best_exact_provider = 0.0, "", "", False
         for orig, bcountry, allowed, sn, sset in srcs:
+            viaplay_no_feed = (bcountry == "NO" and sn == "viaplay norway" and
+                               _viaplay_norway_linear_feed(cname))
+            nordic_viaplay = ((bcountry, sn) in {
+                ("NO", "viaplay norway"), ("SE", "viaplay sweden"),
+                ("DK", "viaplay denmark")})
+            shared_4k_feed = (nordic_viaplay and _is_4k_category(category) and
+                              _viaplay_norway_linear_feed(cname))
             # Country rule: if the channel HAS a recognised country prefix and
             # it isn't in this broadcaster's allowed set -> skip (wrong country).
-            if allowed is not None and ch_cc is not None and ch_cc not in allowed:
+            if (allowed is not None and ch_cc is not None and ch_cc not in allowed and
+                    not shared_4k_feed):
+                continue
+            if viaplay_no_feed or shared_4k_feed:
+                # LTV identifies the streaming platform, while Norwegian TV
+                # providers expose its simultaneous events on these linear
+                # feeds. Keep them possible until team text or EPG confirms one.
+                if 0.94 > best:
+                    best, best_src, best_country = 0.94, orig, bcountry
+                    best_exact_provider = False
                 continue
             if _numbers_conflict(xn, sn):
                 continue
@@ -3913,7 +3940,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v8|" + _vod_cache_key(x) + "|" + str(
+    return "football-v9|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11093,8 +11120,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b371") > _parse_ver("0.777.b370"))
-    check("version equality", _parse_ver("v0.777.b371") == _parse_ver("0.777.b371"))
+    check("version ordering", _parse_ver("0.777.b372") > _parse_ver("0.777.b371"))
+    check("version equality", _parse_ver("v0.777.b372") == _parse_ver("0.777.b372"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11253,6 +11280,28 @@ def run_self_tests():
         0.40)
     check("numbered ESPN package feed retained",
           {row["stream_id"] for row in espn_package} == {101})
+    viaplay_no = match_channels(
+        {"NO": ["Viaplay Norway"]},
+        [{"name": "NO: V Sport 1 HD", "stream_id": 109, "category_id": "no"},
+         {"name": "NO: V Sport Live 4", "stream_id": 110, "category_id": "no"},
+         {"name": "NO: V Sport Premier League 3", "stream_id": 111, "category_id": "no"},
+         {"name": "NO: V Sport Golf", "stream_id": 112, "category_id": "no"},
+         {"name": "SWE: V Sport Live 2", "stream_id": 113, "category_id": "swe"},
+         {"name": "V Sport 4K", "stream_id": 114, "category_id": "4k"},
+         {"name": "V Sport Ultra HD", "stream_id": 115, "category_id": "4k"},
+         {"name": "SWE: V Sport Ultra HD", "stream_id": 116, "category_id": "4k"}],
+        {"no": "NO | SPORTS", "swe": "SWE | SPORTS",
+         "4k": "4K | UHD CHANNELS"}, 0.62)
+    check("Viaplay Norway expands to Norwegian V Sport event feeds",
+          {row["stream_id"] for row in viaplay_no} == {109, 110, 111, 114, 115, 116} and
+          all(not row.get("provider_exact") for row in viaplay_no))
+    viaplay_nordic_4k = match_channels(
+        {"SE": ["Viaplay Sweden"], "DK": ["Viaplay Denmark"]},
+        [{"name": "V Sport Ultra HD", "stream_id": 117, "category_id": "4k"},
+         {"name": "SWE: V Sport Live 2", "stream_id": 118, "category_id": "swe"}],
+        {"4k": "4K | UHD CHANNELS", "swe": "SWE | SPORTS"}, 0.62)
+    check("multilingual V Sport 4K maps to Swedish and Danish Viaplay",
+          {row["stream_id"] for row in viaplay_nordic_4k} == {117})
     sport_tv_country_rows = match_channels(
         {"PT": ["Sport TV 5"]},
         [{"name": "POR: Sport TV 5", "stream_id": 105, "category_id": "por"},
