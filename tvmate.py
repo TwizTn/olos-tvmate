@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b367"
+VERSION = "0.777.b368"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3505,7 +3505,7 @@ _FPS_RE = re.compile(r"\b\d{2,3}\s*fps\b", re.I)
 # Words that carry no identifying power on their own.
 _GENERIC = {"sport", "sports", "tv", "play", "channel", "the", "hd", "sd",
             "fhd", "uhd", "4k", "raw", "vip", "gold", "ultra", "premium",
-            "fps", "dolby", "audio", "1", "one"}
+            "fps", "dolby", "audio", "live", "1", "one"}
 
 def normalise(name):
     n = name.lower()
@@ -3568,7 +3568,8 @@ _NUMBERED_FEED_PACKAGES = {"espn select", "espn unlimited"}
 # another sport a football broadcaster candidate.
 _NON_FOOTBALL_CHANNEL_RE = re.compile(
     r"(?<![a-z0-9])(mlb|nfl|nba|nhl|baseball|basketball|ice hockey|cricket|"
-    r"cartoon network|nickelodeon|disney channel|disney junior|boomerang)(?![a-z0-9])",
+    r"horse racing|motor ?sports?|auto motor|cartoon network|nickelodeon|"
+    r"disney channel|disney junior|boomerang)(?![a-z0-9])",
     re.I)
 
 def _is_streaming(name):
@@ -3703,7 +3704,11 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             # A complete broadcaster brand may be embedded in a longer event
             # channel name ("... | VGTV PPV 3"). Do not accept the reverse:
             # a short generic channel such as "TV 2" is not "TV 2 Play".
-            compact_contained = len(scompact) >= 4 and scompact in xcompact
+            # A generic source label such as "Live" must not match every
+            # longer channel carrying that word. Exact generic names can still
+            # match themselves; containment requires a distinctive brand.
+            compact_contained = (bool(sid) or len(sn.split()) >= 2) and \
+                                len(scompact) >= 4 and scompact in xcompact
             inter = xid & sid
             if numbered_package:
                 s = 1.0 if compact_exact else 0.96
@@ -3777,8 +3782,9 @@ def rank_fixture_channels(rows, home, away):
 def find_team_channels(team_terms, xtream_channels, cats, x):
     """Find plausible match-specific PPV/event channels.
 
-    Event-named channels must contain both fixture teams. A channel whose
-    complete identity is one team name is retained as a possible club channel.
+    Both fixture teams make a definite event candidate. One fixture team is
+    still a possible candidate, including a club channel or a differently
+    named fixture that could be re-assigned by the provider.
     """
     side_forms = []
     for team in team_terms:
@@ -3801,21 +3807,17 @@ def find_team_channels(team_terms, xtream_channels, cats, x):
         hay = normalise_event_name(cname)
         category = cats.get(ch["category_id"], "")
         hits = 0
-        team_branded = False
-        hay_tokens = set(hay.split())
+        reserve_team = False
         for forms in side_forms:
+            if any(re.fullmatch(re.escape(form) + r"\s+[2-9]\d*", hay)
+                   for form in forms):
+                reserve_team = True
             matched_forms = [form for form in forms
                              if re.search(r"(?<![a-z0-9])" + re.escape(form) +
                                           r"(?![a-z0-9])", hay)]
             if matched_forms:
                 hits += 1
-                if any(set(form.split()) <= hay_tokens and
-                       all(token in _GENERIC for token in
-                           (hay_tokens - set(form.split())))
-                       for form in matched_forms):
-                    team_branded = True
-        strong_event_name = hits >= 2
-        if strong_event_name or team_branded:
+        if hits >= 1 and not reserve_team:
             out.append({
                 "xtream_name": cname, "stream_id": ch["stream_id"],
                 "category": category,
@@ -3844,7 +3846,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v5|" + _vod_cache_key(x) + "|" + str(
+    return "football-v6|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11013,8 +11015,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b367") > _parse_ver("0.777.b366"))
-    check("version equality", _parse_ver("v0.777.b367") == _parse_ver("0.777.b367"))
+    check("version ordering", _parse_ver("0.777.b368") > _parse_ver("0.777.b367"))
+    check("version equality", _parse_ver("v0.777.b368") == _parse_ver("0.777.b368"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11177,6 +11179,22 @@ def run_self_tests():
     check("sports bulk matcher reuses shared catalogue",
           {row["stream_id"] for row in sports_shared["matches"]} == {1} and
           3 in {row["stream_id"] for row in sports_shared["ppv_hits"]})
+    hearts_candidates = find_team_channels(
+        ["Hearts", "Benfica"],
+        [{"name": "Hearts TV", "stream_id": 201, "category_id": "vip"},
+         {"name": "Hearts vs Rangers", "stream_id": 202, "category_id": "vip"},
+         {"name": "Sunnmøre Live", "stream_id": 203, "category_id": "vip"},
+         {"name": "Horse Racing HD", "stream_id": 204, "category_id": "vip"}],
+        {"vip": "VIP Gold"}, _TestXtream())
+    check("one-team channels remain possible without category-only noise",
+          {row["stream_id"] for row in hearts_candidates} == {201, 202})
+    live_noise = match_channels(
+        {"LTV": ["Live"]},
+        [{"name": "Norway Live", "stream_id": 205, "category_id": "vip"},
+         {"name": "MTV Live HD", "stream_id": 206, "category_id": "vip"}],
+        {"vip": "VIP Gold"}, 0.40)
+    check("generic live label cannot create broadcaster candidates",
+          live_noise == [])
     stored_sports = _sports_result_for_storage(sports_shared)
     check("sports disk cache omits credential-bearing URLs",
           all("url" not in row for key in ("matches", "ppv_hits")
@@ -11228,7 +11246,7 @@ def run_self_tests():
     event_ids = {row["stream_id"] for row in find_team_channels(
         ["Brann", "HamKam"], sample_channels, sample_cats, _TestXtream())}
     check("both fixture teams rank", 3 in event_ids)
-    check("one-team event excluded", 2 not in event_ids)
+    check("one-team event retained as possible", 2 in event_ids)
     check("reserve team excluded", 4 not in event_ids)
     ranked = rank_fixture_channels([
         {"xtream_name": "VGTV PPV 1", "stream_id": 10, "score": 0.96},
