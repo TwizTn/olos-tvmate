@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b368"
+VERSION = "0.777.b369"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3616,6 +3616,32 @@ _COUNTRY_NAME_ALIASES = {
 }
 _COUNTRY_CODES.update({"hk", "sg", "my", "id", "ph", "th", "vn"})
 
+# IPTV providers frequently use three-letter or provider-specific country
+# prefixes. Canonicalise only known country labels; tier names such as VIP,
+# VO, GOLD and 4K deliberately remain unknown and therefore eligible.
+_COUNTRY_CODE_ALIASES = {
+    "nor": "no", "norge": "no", "dnk": "dk", "den": "dk",
+    "swe": "se", "fin": "fi", "gbr": "gb", "eng": "gb",
+    "irl": "ie", "prt": "pt", "por": "pt", "ptg": "pt",
+    "esp": "es", "spa": "es", "deu": "de", "ger": "de",
+    "fra": "fr", "ita": "it", "nld": "nl", "ned": "nl",
+    "bel": "be", "che": "ch", "sui": "ch", "aut": "at",
+    "pol": "pl", "cze": "cz", "svk": "sk", "hun": "hu",
+    "rou": "ro", "rom": "ro", "bgr": "bg", "gre": "gr",
+    "grc": "gr", "hrv": "hr", "srb": "rs", "bih": "ba",
+    "mkd": "mk", "alb": "al", "tur": "tr", "rus": "ru",
+    "ukr": "ua", "ltu": "lt", "lva": "lv", "est": "ee",
+    "isl": "is", "lux": "lu", "mlt": "mt", "cyp": "cy",
+    "usa": "us", "can": "ca", "aus": "au", "bra": "br",
+    "mex": "mx", "arg": "ar", "ind": "in", "pak": "pk",
+    "hkg": "hk", "sgp": "sg", "mys": "my", "idn": "id",
+    "phl": "ph", "tha": "th", "vnm": "vn",
+}
+
+def _canonical_cc(code):
+    code = str(code or "").strip().lower()
+    return _COUNTRY_CODE_ALIASES.get(code, code)
+
 # broadcaster-country -> the channel prefix codes that count as "same country"
 _COUNTRY_MATCH = {
     "NO": {"no"},
@@ -3633,8 +3659,9 @@ def _cc_from_prefix(text):
     m = _CC_PREFIX_RE.match(text or "")
     if not m:
         return None
-    code = m.group(1).lower()
-    return code if code in _COUNTRY_CODES else None
+    raw = m.group(1).lower()
+    code = _canonical_cc(raw)
+    return code if raw in _COUNTRY_CODE_ALIASES or code in _COUNTRY_CODES else None
 
 def _cc_from_name(text):
     """Recognise an explicitly written country/region in a provider label."""
@@ -3645,7 +3672,7 @@ def _cc_from_name(text):
                               key=lambda item: len(item[0]), reverse=True):
         if re.search(r"(?<![a-z0-9])" + re.escape(alias) +
                      r"(?![a-z0-9])", value):
-            return code
+            return _canonical_cc(code)
     return None
 
 def _resolve_channel_country(name, category):
@@ -3663,8 +3690,10 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     # Build (broadcaster, country, normtokens) list.
     srcs = []
     for country, names in (by_country or {}).items():
+        canonical_country = _canonical_cc(country)
         allowed = (None if country.upper() == "LTV" else
-                   _COUNTRY_MATCH.get(country.upper(), {country.lower()}))
+                   {_canonical_cc(code) for code in
+                    _COUNTRY_MATCH.get(country.upper(), {canonical_country})})
         for s in names:
             ns = normalise(s)
             toks = set(ns.split())
@@ -3846,7 +3875,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v6|" + _vod_cache_key(x) + "|" + str(
+    return "football-v7|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11015,8 +11044,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b368") > _parse_ver("0.777.b367"))
-    check("version equality", _parse_ver("v0.777.b368") == _parse_ver("0.777.b368"))
+    check("version ordering", _parse_ver("0.777.b369") > _parse_ver("0.777.b368"))
+    check("version equality", _parse_ver("v0.777.b369") == _parse_ver("0.777.b369"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11168,6 +11197,21 @@ def run_self_tests():
         0.40)
     check("numbered ESPN package feed retained",
           {row["stream_id"] for row in espn_package} == {101})
+    sport_tv_country_rows = match_channels(
+        {"PT": ["Sport TV 5"]},
+        [{"name": "POR: Sport TV 5", "stream_id": 105, "category_id": "por"},
+         {"name": "SWE: Sport TV 5", "stream_id": 106, "category_id": "swe"},
+         {"name": "VIP: Sport TV 5", "stream_id": 107, "category_id": "vip"},
+         {"name": "VO: Sport TV 5", "stream_id": 108, "category_id": "vo"}],
+        {"por": "POR | SPORTS", "swe": "SWE | SPORTS",
+         "vip": "VIP Gold", "vo": "VO: SPORTS"}, 0.40)
+    check("three-letter foreign country prefixes are rejected",
+          {row["stream_id"] for row in sport_tv_country_rows} == {105, 107, 108})
+    check("country aliases canonicalize without treating tiers as countries",
+          _cc_from_prefix("DEN | Sport") == "dk" and
+          _cc_from_prefix("NED: Sport") == "nl" and
+          _cc_from_prefix("VIP: Sport") is None and
+          _cc_from_prefix("VO: Sport") is None)
     class _TestXtream:
         @staticmethod
         def stream_url(stream_id):
