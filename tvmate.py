@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b354"
+VERSION = "0.777.b355"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3158,6 +3158,7 @@ def _slug_name(url):
 # for ONE team. A search term maps to a group if it matches any member; we then
 # search for all members of that group only (not unrelated teams).
 _TEAM_ALIAS_GROUPS = [
+    ["hearts", "heart of midlothian"],
     ["manchester city", "man city"],
     ["manchester united", "man utd", "man united"],
     ["wolverhampton wanderers", "wolverhampton", "wolves"],
@@ -3670,6 +3671,100 @@ def _sports_result_for_client(result, x):
         hydrated[key] = rows
     return hydrated
 
+def _fixture_title_has_both_teams(title, home, away):
+    """True when an EPG title contains both fixture sides or known aliases."""
+    hay = normalise_event_name(title)
+    if not hay:
+        return False
+    def side_hit(team):
+        forms = {normalise(value) for value in _expand_terms(
+            str(team or "").lower().strip())}
+        return any(value and re.search(r"(?<![a-z0-9])" + re.escape(value) +
+                                       r"(?![a-z0-9])", hay)
+                   for value in forms)
+    return side_hit(home) and side_hit(away)
+
+def _cached_epg_discovery(fixtures, channels, cats, x):
+    """Discover fixture channels from already-cached EPG in one shared pass.
+
+    This function never contacts the provider. Missing/no-info EPG is neutral.
+    """
+    prepared = []
+    for fixture in fixtures:
+        if not isinstance(fixture, dict):
+            continue
+        try:
+            kickoff = datetime.datetime.fromisoformat(str(
+                fixture.get("start") or "").replace("Z", "+00:00")).timestamp()
+        except Exception:
+            continue
+        prepared.append((_sports_event_key(fixture.get("home"), fixture.get("away"),
+                                            fixture.get("start")), fixture, kickoff))
+    if not prepared or not _EPG_CACHE:
+        return {}
+    channel_by_sid = {str(ch.get("stream_id")): ch for ch in channels
+                      if isinstance(ch, dict) and ch.get("stream_id") is not None}
+    found = {}
+    for sid, cached in _EPG_CACHE.items():
+        channel = channel_by_sid.get(str(sid))
+        programmes = cached.get("programmes") if isinstance(cached, dict) else None
+        if not channel or not isinstance(programmes, list):
+            continue
+        for programme in programmes:
+            if not isinstance(programme, dict):
+                continue
+            title = str(programme.get("title") or "").strip()
+            try:
+                start = float(programme.get("start_ts") or 0)
+                stop = float(programme.get("stop_ts") or 0) or start + 3 * 3600
+            except (TypeError, ValueError):
+                continue
+            if not title or not start:
+                continue
+            for key, fixture, kickoff in prepared:
+                # Allow pre-match coverage and provider schedule rounding, but
+                # never compare unrelated programmes elsewhere in the guide.
+                if start > kickoff + 90 * 60 or stop < kickoff - 45 * 60:
+                    continue
+                if not _fixture_title_has_both_teams(
+                        title, fixture.get("home"), fixture.get("away")):
+                    continue
+                row = {
+                    "xtream_name": str(channel.get("name") or ""),
+                    "stream_id": channel.get("stream_id"),
+                    "category": cats.get(channel.get("category_id"), ""),
+                    "logo": channel.get("stream_icon", ""),
+                    "quality": quality_tag(str(channel.get("name") or "")),
+                    "url": x.stream_url(channel.get("stream_id")),
+                    "matched": title, "score": 1.0,
+                    "provider_exact": True, "fixture_match": "exact",
+                    "epg_confirmed": True, "epg_title": title,
+                }
+                bucket = found.setdefault(key, {})
+                bucket[str(channel.get("stream_id"))] = row
+    return {key: list(rows.values()) for key, rows in found.items()}
+
+def _add_epg_discoveries(result, rows):
+    """Union independently discovered EPG channels into a sports result."""
+    merged = dict(result or {})
+    matches = [dict(row) for row in merged.get("matches") or []]
+    ppv = [dict(row) for row in merged.get("ppv_hits") or []]
+    locations = {str(row.get("stream_id")): (bucket, index)
+                 for bucket in (matches, ppv) for index, row in enumerate(bucket)}
+    for epg_row in rows or []:
+        sid = str(epg_row.get("stream_id"))
+        existing = locations.get(sid)
+        if existing:
+            bucket, index = existing
+            bucket[index] = dict(bucket[index], **epg_row)
+        else:
+            matches.append(dict(epg_row))
+            locations[sid] = (matches, len(matches) - 1)
+    matches.sort(key=lambda row: (not row.get("epg_confirmed"),
+                                  -float(row.get("score") or 0)))
+    merged["matches"], merged["ppv_hits"] = matches, ppv
+    return merged
+
 def _load_sports_disk_cache(cfg, x):
     try:
         with open(_sports_availability_cache_path(), "r", encoding="utf-8") as f:
@@ -3714,7 +3809,11 @@ def find_sports_event_channels(fixture, cfg):
     if not x.configured():
         return {"logged_in": False, "matches": [], "ppv_hits": []}
     channels, cats = get_xtream_channels(cfg)
-    return _match_sports_fixture_channels(fixture, cfg, channels, cats, x)
+    _load_epg_disk_cache(x)
+    result = _match_sports_fixture_channels(fixture, cfg, channels, cats, x)
+    discovered = _cached_epg_discovery([fixture], channels, cats, x)
+    return _add_epg_discoveries(result, discovered.get(_sports_event_key(
+        fixture.get("home"), fixture.get("away"), fixture.get("start")), []))
 
 def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
     """Match one fixture using an already-loaded Xtream catalogue."""
@@ -9664,6 +9763,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(502, {"error": "Sports channel catalogue: " + str(e)})
             availability = {}; now = time.time()
             disk_entries = _load_sports_disk_cache(cfg, x)
+            # Reuse the existing EPG cache in one pass for the whole fixture
+            # batch. This is disk/memory-only and never downloads guide data.
+            _load_epg_disk_cache(x)
+            epg_discoveries = _cached_epg_discovery(
+                incoming[:160], channels, cats, x)
             for raw_fixture in incoming[:160]:
                 if not isinstance(raw_fixture, dict):
                     continue
@@ -9703,8 +9807,11 @@ class Handler(BaseHTTPRequestHandler):
                         {"home": home, "away": away, "start": start,
                          "by_country": cleaned_tv}, cfg, channels, cats, x)
                     _SPORTS_EVENT_CHANNEL_CACHE[key] = {"ts": time.time(), "result": result}
-                    disk_entries[disk_key] = {"ts": time.time(),
-                                              "result": _sports_result_for_storage(result)}
+                result = _add_epg_discoveries(
+                    result, epg_discoveries.get(disk_key, []))
+                _SPORTS_EVENT_CHANNEL_CACHE[key] = {"ts": time.time(), "result": result}
+                disk_entries[disk_key] = {"ts": time.time(),
+                                          "result": _sports_result_for_storage(result)}
                 availability["|".join((home.lower(), away.lower(), start[:16]))] = result
             _save_sports_disk_cache(cfg, x, disk_entries)
             return self._send(200, {"availability": availability, "logged_in": True})
@@ -10712,8 +10819,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b354") > _parse_ver("0.777.b353"))
-    check("version equality", _parse_ver("v0.777.b354") == _parse_ver("0.777.b354"))
+    check("version ordering", _parse_ver("0.777.b355") > _parse_ver("0.777.b354"))
+    check("version equality", _parse_ver("v0.777.b355") == _parse_ver("0.777.b355"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -10851,6 +10958,32 @@ def run_self_tests():
           _sports_result_for_storage({"logged_in": True,
               "availability_checked": True, "matches": [], "ppv_hits": []
           }).get("availability_checked") is True)
+    old_epg_test = dict(_EPG_CACHE)
+    try:
+        kickoff_test = datetime.datetime(2026, 8, 13, 18, 45,
+                                         tzinfo=datetime.timezone.utc).timestamp()
+        _EPG_CACHE.clear()
+        _EPG_CACHE["77"] = {"ts": time.time(), "programmes": [{
+            "title": "Heart of Midlothian v Benfica",
+            "start_ts": kickoff_test - 900, "stop_ts": kickoff_test + 7200}]}
+        epg_found = _cached_epg_discovery(
+            [{"home": "Hearts", "away": "Benfica",
+              "start": "2026-08-13T18:45:00Z"}],
+            [{"name": "US: ESPN News HD", "stream_id": 77,
+              "category_id": "us-sports"}],
+            {"us-sports": "US | SPORTS"}, _TestXtream())
+        epg_rows = epg_found.get(_sports_event_key(
+            "Hearts", "Benfica", "2026-08-13T18:45:00Z"), [])
+        check("cached EPG independently discovers fixture channel",
+              len(epg_rows) == 1 and epg_rows[0].get("epg_confirmed") is True)
+        check("missing cached EPG remains neutral",
+              _cached_epg_discovery(
+                  [{"home": "Leeds", "away": "Manchester United",
+                    "start": "2026-08-13T18:45:00Z"}],
+                  [], {}, _TestXtream()) == {})
+    finally:
+        _EPG_CACHE.clear()
+        _EPG_CACHE.update(old_epg_test)
     class _TestRacingXtream:
         @staticmethod
         def stream_url(stream_id):
