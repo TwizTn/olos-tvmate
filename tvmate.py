@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b401"
+VERSION = "0.777.b402"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3796,7 +3796,7 @@ def _numbers_conflict(a, b):
 # Fotmob names these distinctively (e.g. "TV 2 Play (NO)", "Viaplay", "Apple TV").
 _STREAMING_HINTS = (
     "play", "viaplay", "app", "apple tv", "peacock", "paramount", "fubo",
-    "dazn", "amazon", "prime video", "disney", "espn+", "hbo", "max",
+    "dazn", "meo", "stan", "amazon", "prime video", "disney", "espn+", "hbo", "max",
     "netflix", "fanatiz", "stream", "youtube", "skyshowtime", "discovery+",
     "tv2 play", "tv 2 play", "nrk tv", "vg+", "vg tv",
 )
@@ -4214,6 +4214,16 @@ def match_channels(by_country, xtream_channels, cats, threshold, league_name="")
                         normalise_event_name(league_name) == "premier league" and
                         _norway_premier_league_feed(xn))
                 continue
+            # OTT/access-platform listings describe where a fixture is
+            # available, not every linear channel carrying that brand.  A
+            # bare DAZN or MEO listing must not pull in DAZN La Liga/F1 or
+            # MEO-packaged CNN/MTV/Globo.  Explicit PPV/Play/Event feeds remain
+            # useful; fixture-title channels are discovered independently by
+            # find_team_channels().
+            if (_is_streaming(orig) and
+                    not (_is_ppv_category(category) or
+                         _is_ppv_category(cname))):
+                continue
             if _numbers_conflict(xn, sn):
                 continue
             # Generic tokens such as "tv" or "sport" must never be enough
@@ -4484,7 +4494,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v30|" + _vod_cache_key(x) + "|" + str(
+    return "football-v31|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -12182,6 +12192,24 @@ def run_self_tests():
     platform_ids = {row["stream_id"] for row in match_channels(
         {"NO": ["TV 2 Play (NO)"]}, sample_channels, sample_cats, 0.49)}
     check("streaming platform candidates retained", platform_ids == {5})
+    platform_noise = match_channels(
+        {"PT": ["MEO"], "ES": ["DAZN"]},
+        [{"name": "PT|MEO: CNN PORTUGAL", "stream_id": 51,
+          "category_id": "meo"},
+         {"name": "PT|MEO: MTV PORTUGAL", "stream_id": 52,
+          "category_id": "meo"},
+         {"name": "PT|MEO: TV GLOBO PORTUGAL", "stream_id": 53,
+          "category_id": "meo"},
+         {"name": "ES: DAZN LA LIGA", "stream_id": 54,
+          "category_id": "dazn"},
+         {"name": "AV: DAZN F1", "stream_id": 55,
+          "category_id": "dazn"},
+         {"name": "ES: DAZN PPV 1", "stream_id": 56,
+          "category_id": "dazn-ppv"}],
+        {"meo": "PT|MEO", "dazn": "ES|DAZN",
+         "dazn-ppv": "ES|DAZN PPV"}, 0.49)
+    check("platform listings exclude unrelated package channels",
+          {row["stream_id"] for row in platform_noise} == {56})
     provider_rows = match_channels(
         {"NO": ["TV 2 Sport 1", "TV 2 Play (NO)"]},
         sample_channels, sample_cats, 0.49)
