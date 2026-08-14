@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b387"
+VERSION = "0.777.b388"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4659,7 +4659,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .matchchan{display:flex;align-items:center;min-width:0;flex:1}
  .matchchan .favstar{display:inline-block;color:#78808e;margin-right:9px}
  .matchchan .favstar.on{color:#f5c542}
- .chn{font-size:13px}
+ .chn{font-size:13px}.fixturechanneltitle{cursor:pointer}.fixturechanneltitle:hover{color:var(--acc)}
  .chbtns{display:flex;gap:6px;flex-shrink:0}
  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
  .pclose{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
@@ -6521,11 +6521,20 @@ function fixtureStoredChannelsHtml(f){
   const all=[...(f.matches||[]),...(f.ppv_hits||[])],seen=new Set(),definite=[],other=[];
   for(const ch of all){const id=String(ch.stream_id||'');if(!id||seen.has(id))continue;seen.add(id);if(fixtureChannelRank(ch,f)===3||ch.provider_exact===true)definite.push(ch);else other.push(ch);}
   definite.sort(preferredChannelSort);other.sort(preferredChannelSort);
-  const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
-  let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+definite.map(line).join('');
+  const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(ch.stream_id||''))+'" data-name="'+escAttr(ch.xtream_name||'Channel')+'">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
+  let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+secureMatchGroupsHtml(definite,line,'stored'+Math.random().toString(36).slice(2));
   if(other.length){const groups=new Map();for(const ch of other){const key=String(ch.category||tr('Other possible channels'));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ch);}h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(line).join('')+'</div></div>';}
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
 }
+
+function secureChannelFamily(ch){return String(ch&&ch.xtream_name||'channel').toLowerCase().replace(/^\\s*[a-z0-9]{1,8}\\s*[:|\\-]\\s*/,'').replace(/^\\s*(no|nor|norway|norge|norwegian)\\s+/,'').replace(/\\b(4k|uhd|fhd|full\\s*hd|hd|sd|raw|hevc|h\\.?26[45]|avc|50\\s*fps|60\\s*fps)\\b/g,' ').replace(/[^a-z0-9]+/g,' ').replace(/\\s+/g,' ').trim()||String(ch&&ch.xtream_name||'channel').toLowerCase();}
+function secureQualityPriority(ch){const n=String(ch&&ch.xtream_name||'').toLowerCase();let score=0;if(/\\b(4k|uhd)\\b/.test(n))score=700;else if(/\\b(fhd|full\\s*hd)\\b/.test(n))score=600;else if(/\\b(hevc|h\\.?265)\\b/.test(n))score=550;else if(/\\bhd\\b/.test(n))score=500;else if(/\\braw\\b/.test(n))score=400;else if(/\\bsd\\b/.test(n))score=100;if(/\\b(50|60)\\s*fps\\b/.test(n))score+=10;return score;}
+function secureMatchGroupsHtml(rows,line,prefix){
+  const groups=new Map();for(const ch of rows.slice().sort(preferredChannelSort)){const family=secureChannelFamily(ch);if(!groups.has(family))groups.set(family,[]);groups.get(family).push(ch);}
+  let html='',groupIndex=0;for(const items of groups.values()){items.sort((a,b)=>secureQualityPriority(b)-secureQualityPriority(a)||preferredChannelSort(a,b));const id=prefix+'g'+groupIndex++;html+='<div class="securematchgroup">';for(const [i,ch] of items.entries())html+='<div class="securematchvariant'+(i>=3?' securematchextra hide':'')+'" data-secure-group="'+id+'">'+line(ch)+'</div>';if(items.length>3)html+='<button class="ghost securematchexpand" data-secure-target="'+id+'" data-more="'+(items.length-3)+'">'+esc(tr('Show more channels'))+' ('+(items.length-3)+')</button>';html+='</div>';}
+  return html;
+}
+function toggleSecureMatches(btn){const id=btn.getAttribute('data-secure-target'),extras=document.querySelectorAll('[data-secure-group="'+id+'"]');if(!extras.length)return;const opening=extras[0].classList.contains('hide');extras.forEach(el=>el.classList.toggle('hide',!opening));btn.textContent=opening?tr('Show fewer matches'):(tr('Show more channels')+' ('+btn.getAttribute('data-more')+')');}
 async function loadStoredFixtureChannels(card){
   const panel=card&&card.querySelector('.fixturechannelresults');if(!card||!panel)return;
   const waiting=panel.textContent.includes(tr('Checking your channels...'));if(panel.innerHTML.trim()&&!waiting)return;
@@ -7130,14 +7139,14 @@ function renderFixtureCard(f,fi){
   // before broader linear-broadcaster suggestions.
   if(strictResults.length){
     html+='<div class="muted" style="margin-bottom:8px">'+esc(tr('Definite channel matches'))+':</div><div class="bcastlist besteventmatches">';
-    for(const [ppvIndex,m] of strictResults.entries()){
+    const strictLine=m=>{
       const fav=_favChanSet.has(String(m.stream_id))?' on':'';
-      html+='<div class="chline'+(ppvIndex>=7?' ppvextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
-        +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
+      return '<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
+        +channelLogo(m,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
         +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
-    }
+    };
+    html+=secureMatchGroupsHtml(strictResults,strictLine,'fixture'+fi);
     html+='</div>';
-    if(strictResults.length>7)html+='<button class="ghost ppvexpand" onclick="togglePpv(this)" data-more="'+(strictResults.length-7)+'">Show '+(strictResults.length-7)+' more</button>';
   }
   // Broadcaster rows are sorted country then broadcaster.
   if(rows.length){
@@ -7156,7 +7165,7 @@ function renderFixtureCard(f,fi){
         for(const [channelIndex,m] of chans.entries()){
           const fav=_favChanSet.has(String(m.stream_id))?' on':'';
           html+='<div class="chline'+(channelIndex>=10?' bcchanextra hide':'')+'"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'
-            +channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(fixtureChannelRank(m,f)===3?'<span class="tag">'+esc(tr('Best match'))+'</span>':'')+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
+            +channelLogo(m,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'">'+esc(m.xtream_name)+(fixtureChannelRank(m,f)===3?'<span class="tag">'+esc(tr('Best match'))+'</span>':'')+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span>'
             +'<span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';
         }
         if(chans.length>10)html+='<button class="ghost bcchanexpand" onclick="toggleBroadcasterCandidates(this)" data-more="'+(chans.length-10)+'">'+esc(tr('Show more channels'))+' ('+(chans.length-10)+')</button>';
@@ -7179,7 +7188,7 @@ function renderFixtureCard(f,fi){
     for(const [category,items] of groups){
       const rid='f'+fi+'p'+(possibleIndex++);
       html+='<div class="bcrow" data-exp="'+rid+'"><div class="bchead"><span class="bcname">'+esc(category)+'</span> <span class="muted exphint">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide" id="'+rid+'">';
-      for(const m of items){const fav=_favChanSet.has(String(m.stream_id))?' on':'';html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'+channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span><span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';}
+      for(const m of items){const fav=_favChanSet.has(String(m.stream_id))?' on':'';html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'+channelLogo(m,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span><span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';}
       html+='</div></div>';
     }
     html+='</div>';
@@ -8662,6 +8671,10 @@ async function epgRefresh(){
 }
 // Event delegation: any Copy button's data-url is copied on click.
 document.addEventListener('click',function(e){
+  const secureExpand=e.target.closest('.securematchexpand');
+  if(secureExpand){toggleSecureMatches(secureExpand);return;}
+  const fixtureChannelTitle=e.target.closest('.fixturechanneltitle[data-sid]');
+  if(fixtureChannelTitle){playBrowser(fixtureChannelTitle.getAttribute('data-sid'),fixtureChannelTitle.getAttribute('data-name'));return;}
   const timelineTeamFixture=e.target.closest('.teamfixture[data-profile-fixture="1"]');
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const teamFixture=e.target.closest('.teamfixture[data-fixture-card="1"]');
@@ -11589,8 +11602,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b387") > _parse_ver("0.777.b386"))
-    check("version equality", _parse_ver("v0.777.b387") == _parse_ver("0.777.b387"))
+    check("version ordering", _parse_ver("0.777.b388") > _parse_ver("0.777.b387"))
+    check("version equality", _parse_ver("v0.777.b388") == _parse_ver("0.777.b388"))
     cache_busted = _cache_busted_url(
         "https://raw.githubusercontent.com/example/app/main/version.txt?source=manual",
         "123")
@@ -11712,6 +11725,13 @@ def run_self_tests():
     check("opening a waiting fixture triggers a targeted channel lookup",
           "panel.textContent.includes(tr('Checking your channels...'))" in PAGE and
           "body:JSON.stringify({fixture:fixture})" in PAGE)
+    check("matched channel titles play without collapsing fixtures",
+          "fixturechanneltitle[data-sid]" in PAGE and
+          "playBrowser(fixtureChannelTitle.getAttribute('data-sid')" in PAGE)
+    check("secure channel families show three quality variants before expansion",
+          "i>=3?' securematchextra hide'" in PAGE and
+          "secureQualityPriority(b)-secureQualityPriority(a)" in PAGE and
+          "securematchexpand" in PAGE)
     indexed_channels = [
         {"name": f"Noise Channel {i}", "stream_id": 3000 + i,
          "category_id": "misc"} for i in range(120)] + [
