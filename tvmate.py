@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b380"
+VERSION = "0.777.b384"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1086,10 +1086,25 @@ def probe_xmltv(x, timeout=20):
     return True
 
 
-def _fetch_text(url, timeout=8):
+def _cache_busted_url(url, nonce=None):
+    """Add a unique query value without discarding an existing URL query."""
+    parts = urllib.parse.urlsplit(str(url or ""))
+    query = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+    query.append(("_tvmate", str(nonce if nonce is not None else time.time_ns())))
+    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path,
+                                   urllib.parse.urlencode(query), parts.fragment))
+
+def _fetch_text(url, timeout=8, cache_bust=False):
     """Fetch a URL as text, or None on any failure (offline, 404, etc.)."""
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "OlosTVMate-Updater"})
+        if cache_bust:
+            url = _cache_busted_url(url)
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "OlosTVMate-Updater/" + VERSION,
+            "Cache-Control": "no-cache, no-store, max-age=0",
+            "Pragma": "no-cache",
+            "Accept": "text/plain, */*",
+        })
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8", "replace")
     except Exception:
@@ -1097,7 +1112,7 @@ def _fetch_text(url, timeout=8):
 
 def _update_manifest():
     """Return the published version and optional SHA-256 from version.txt."""
-    text = _fetch_text(UPDATE_VERSION_URL)
+    text = _fetch_text(UPDATE_VERSION_URL, cache_bust=True)
     if not text:
         return "", ""
     lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -1133,7 +1148,7 @@ def check_for_update():
 def download_update():
     """Download and validate a new tvmate.py. Return its local path or None."""
     remote_version, expected_sha = _update_manifest()
-    text = _fetch_text(UPDATE_SCRIPT_URL, timeout=30)
+    text = _fetch_text(UPDATE_SCRIPT_URL, timeout=30, cache_bust=True)
     if not remote_version or not text or len(text.encode("utf-8")) < 100000:
         return None
     try:
@@ -3453,12 +3468,33 @@ def _fetch_country_guides(countries, max_workers=6):
             normalized.append(country)
     if not normalized:
         return [], []
+    results = [None] * len(normalized)
+    next_index = [0]
+    index_lock = threading.Lock()
+    def worker():
+        while True:
+            with index_lock:
+                if next_index[0] >= len(normalized):
+                    return
+                index = next_index[0]
+                next_index[0] += 1
+            country = normalized[index]
+            try:
+                results[index] = (country, fetch_country_fixtures(country), None)
+            except Exception as exc:
+                results[index] = (country, None, exc)
+    workers = [threading.Thread(target=worker, daemon=True)
+               for _ in range(min(len(normalized), max(1, int(max_workers or 1))))]
+    for thread in workers:
+        thread.start()
+    for thread in workers:
+        thread.join()
     rows, errors = [], []
-    for country in normalized:
-        try:
-            rows.append((country, fetch_country_fixtures(country)))
-        except Exception as e:
-            errors.append(f"{_display_cc(country)}: {e}")
+    for country, fixtures, error in results:
+        if error is None:
+            rows.append((country, fixtures))
+        else:
+            errors.append(f"{_display_cc(country)}: {error}")
     return rows, errors
 
 def search_fixtures(term, countries):
@@ -3918,6 +3954,45 @@ def _strip_bare_channel_country(name, resolved_cc=None):
         return rest.strip(), resolved_cc or inferred
     return value, resolved_cc
 
+def _channel_catalog_search_rank(name, category, term):
+    """Return a stable relevance key for Playlist Builder channel search.
+
+    Search channel names as users see them, while ignoring provider prefixes
+    and quality labels. Norwegian matches come first, then exact/leading
+    phrases beat loose token matches. ``None`` means that the channel does not
+    match the query.
+    """
+    query = normalise_event_name(term)
+    if not query:
+        return (0, 0, 0, str(name or "").lower())
+    channel_cc = _resolve_channel_country(name, category)
+    candidate, channel_cc = _strip_bare_channel_country(name, channel_cc)
+    candidate = re.sub(r"\s+raw$", "", candidate).strip()
+    if not candidate:
+        return None
+    query_tokens = query.split()
+    candidate_tokens = candidate.split()
+    query_compact = "".join(query_tokens)
+    candidate_compact = "".join(candidate_tokens)
+    if candidate == query:
+        tier, position = 0, 0
+    elif candidate.startswith(query + " "):
+        tier, position = 1, 0
+    else:
+        phrase = re.search(r"(?<![a-z0-9])" + re.escape(query) +
+                           r"(?![a-z0-9])", candidate)
+        if phrase:
+            tier, position = 2, phrase.start()
+        elif query_compact and query_compact in candidate_compact:
+            tier, position = 3, candidate_compact.find(query_compact)
+        elif all(any(token.startswith(w) for token in candidate_tokens)
+                 for w in query_tokens):
+            tier, position = 4, 0
+        else:
+            return None
+    country_rank = 0 if channel_cc == "no" else (1 if channel_cc is None else 2)
+    return (country_rank, tier, position, len(candidate), str(name or "").lower())
+
 def _viaplay_norway_linear_feed(name):
     """True for the Norwegian linear feeds represented by Viaplay Norway.
 
@@ -4161,7 +4236,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v16|" + _vod_cache_key(x) + "|" + str(
+    return "football-v17|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -6885,7 +6960,11 @@ function channelLocalePriority(ch){
   return known.has(cc)?200:300;
 }
 function preferredChannelSort(a,b){
-  return channelLocalePriority(b)-channelLocalePriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
+  // An exact named linear broadcaster is the strongest useful signal in this
+  // list. Keep it ahead of generic fixture/PPV candidates even when those live
+  // in a locally preferred category. EPG confirmation is the next-best signal.
+  const sure=ch=>ch&&ch.provider_exact===true?2:(ch&&ch.epg_confirmed===true?1:0);
+  return sure(b)-sure(a)||channelLocalePriority(b)-channelLocalePriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
 }
 
 function renderFixtureCard(f,fi){
@@ -9338,8 +9417,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"categories": out, "logged_in": True})
 
             if u.path == "/api/channels":
-                # Substring channel search + optional category filter.
-                term = (q.get("q", [""])[0]).strip().lower()
+                # Ranked catalogue search + optional category filter.
+                term = (q.get("q", [""])[0]).strip()
                 cat_filter = (q.get("cat", [""])[0]).strip()
                 cfg = load_config()
                 x = Xtream(cfg)
@@ -9351,15 +9430,15 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     return self._send(200, {"channels": [], "logged_in": True,
                                             "error": str(e), "total": 0})
-                words = [w for w in term.split() if w]
                 out = []
                 for ch in channels:
                     nm = ch["name"]
-                    low = nm.lower()
                     catname = cats.get(ch["category_id"], "")
                     if cat_filter and catname != cat_filter:
                         continue
-                    if words and not all(w in low for w in words):
+                    search_rank = (_channel_catalog_search_rank(nm, catname, term)
+                                   if term else None)
+                    if term and search_rank is None:
                         continue
                     out.append({
                         "name": nm,
@@ -9368,7 +9447,12 @@ class Handler(BaseHTTPRequestHandler):
                         "logo": ch.get("stream_icon", ""),
                         "quality": quality_tag(nm),
                         "url": x.stream_url(ch["stream_id"]),
+                        "_search_rank": search_rank,
                     })
+                if term:
+                    out.sort(key=lambda row: row["_search_rank"])
+                for row in out:
+                    row.pop("_search_rank", None)
                 total = len(out)
                 capped = out[:500]
                 return self._send(200, {"channels": capped, "logged_in": True,
@@ -10126,27 +10210,53 @@ class Handler(BaseHTTPRequestHandler):
                 except (TypeError, ValueError):
                     thr = float(cfg.get("match_threshold", 0.62) or 0.62)
                 thr = max(0.40, min(0.80, thr))
+                match_cfg = dict(cfg, match_threshold=thr)
                 ppv_cats = ppv_categories(channels, cats) if logged_in else []
+                sports_disk = _load_sports_disk_cache(match_cfg, x) if logged_in else {}
+                epg_discoveries = {}
+                if logged_in:
+                    _load_epg_disk_cache(x)
+                    epg_discoveries = _cached_epg_discovery(
+                        fixtures, channels, cats, x)
                 out = []
                 for f in fixtures:
                     matches = []
                     ppv_hits = []
                     streaming_only = False
                     if logged_in:
-                        rows = rank_fixture_channels(
-                            match_channels(f["by_country"], channels, cats, thr),
-                            f.get("home"), f.get("away"))
-                        for r in rows:
-                            r["url"] = x.stream_url(r["stream_id"])
-                        matches = rows
+                        disk_key = _sports_event_key(
+                            f.get("home"), f.get("away"), f.get("start"))
+                        cache_key = (_vod_cache_key(x), str(thr), disk_key)
+                        cached = _SPORTS_EVENT_CHANNEL_CACHE.get(cache_key)
+                        if not cached:
+                            stored = sports_disk.get(disk_key)
+                            if (isinstance(stored, dict) and
+                                    isinstance(stored.get("result"), dict)):
+                                cached = {
+                                    "ts": float(stored.get("ts") or 0),
+                                    "result": _sports_result_for_client(
+                                        stored["result"], x),
+                                }
+                        if (cached and time.time() - float(cached.get("ts") or 0) <
+                                _SPORTS_EVENT_CHANNEL_TTL):
+                            result = dict(cached.get("result") or {})
+                        else:
+                            result = _match_sports_fixture_channels(
+                                f, match_cfg, channels, cats, x)
+                        result = _add_epg_discoveries(
+                            result, epg_discoveries.get(disk_key, []))
+                        _SPORTS_EVENT_CHANNEL_CACHE[cache_key] = {
+                            "ts": time.time(), "result": result}
+                        sports_disk[disk_key] = {
+                            "ts": time.time(),
+                            "result": _sports_result_for_storage(result)}
+                        matches = result.get("matches") or []
+                        ppv_hits = result.get("ppv_hits") or []
                         # Fixture/event channels are independent of broadcaster
                         # listings and remain eligible even when no guide exists.
                         all_bcasters = [b for names in f["by_country"].values() for b in names]
                         has_linear = any(not _is_streaming(b) for b in all_bcasters)
                         has_streaming = any(_is_streaming(b) for b in all_bcasters)
-                        hits = find_team_channels([f["home"], f["away"]], channels, cats, x)
-                        have = {m["stream_id"] for m in matches}
-                        ppv_hits = [h for h in hits if h["stream_id"] not in have]
                         # "only streaming" = no linear broadcaster AND no normal matches
                         streaming_only = (has_streaming and not has_linear and not matches)
                     out.append({"home": f["home"], "away": f["away"], "start": f["start"],
@@ -10160,6 +10270,8 @@ class Handler(BaseHTTPRequestHandler):
                                 "live_minute": f.get("live_minute"),
                                 "league_name": f.get("league_name", ""),
                                 "league_id": f.get("league_id", "")})
+                if logged_in:
+                    _save_sports_disk_cache(match_cfg, x, sports_disk)
                 return self._send(200, {"fixtures": out, "logged_in": logged_in,
                                         "source_errors": src_err,
                                         "ppv_categories": ppv_cats})
@@ -11360,8 +11472,13 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b380") > _parse_ver("0.777.b379"))
-    check("version equality", _parse_ver("v0.777.b380") == _parse_ver("0.777.b380"))
+    check("version ordering", _parse_ver("0.777.b384") > _parse_ver("0.777.b383"))
+    check("version equality", _parse_ver("v0.777.b384") == _parse_ver("0.777.b384"))
+    cache_busted = _cache_busted_url(
+        "https://raw.githubusercontent.com/example/app/main/version.txt?source=manual",
+        "123")
+    check("update URLs preserve queries and bypass raw-content caches",
+          "source=manual" in cache_busted and "_tvmate=123" in cache_busted)
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11450,6 +11567,22 @@ def run_self_tests():
     check("Viaplay Norway expands from bare-prefix V Sport name",
           len(viaplay_bare_v_sport) == 1 and
           viaplay_bare_v_sport[0]["score"] == 0.94)
+    check("exact V Sport provider sorts ahead of possible event channels",
+          "const sure=ch=>ch&&ch.provider_exact===true?2:" in PAGE and
+          "return sure(b)-sure(a)||channelLocalePriority" in PAGE)
+    catalog_rows = [
+        ("SWE: V Sport 1 HD", "SE | SPORTS"),
+        ("NO: V Sport 2 HD", "NO | SPORTS"),
+        ("NOR VSPORT 1 RAW", "VIP GOLD"),
+        ("UK: Premier Sports 1", "UK | SPORTS"),
+    ]
+    catalog_matches = sorted(
+        (row for row in catalog_rows
+         if _channel_catalog_search_rank(row[0], row[1], "V Sport") is not None),
+        key=lambda row: _channel_catalog_search_rank(row[0], row[1], "V Sport"))
+    check("playlist V Sport search finds compact names and ranks Norway first",
+          [row[0] for row in catalog_matches] ==
+          ["NO: V Sport 2 HD", "NOR VSPORT 1 RAW", "SWE: V Sport 1 HD"])
     check("sports search keeps partial PPV hits in possible categories",
           "const possiblePpv=[]" in PAGE and
           "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
@@ -11468,6 +11601,27 @@ def run_self_tests():
     check("country picker uses labeled Portugal code",
           "['pt','🇵🇹','Portugal']" in PAGE and
           'id="s_cc" type="hidden"' in PAGE)
+    original_country_fetch = globals()["fetch_country_fixtures"]
+    guide_lock = threading.Lock()
+    guide_active = [0]
+    guide_peak = [0]
+    def fake_country_fetch(country):
+        with guide_lock:
+            guide_active[0] += 1
+            guide_peak[0] = max(guide_peak[0], guide_active[0])
+        time.sleep(0.01)
+        with guide_lock:
+            guide_active[0] -= 1
+        return [{"country": country}]
+    try:
+        globals()["fetch_country_fixtures"] = fake_country_fetch
+        guide_rows, guide_errors = _fetch_country_guides(
+            ["no", "gb", "us"], max_workers=3)
+    finally:
+        globals()["fetch_country_fixtures"] = original_country_fetch
+    check("fallback country guides load concurrently in stable order",
+          not guide_errors and guide_peak[0] >= 2 and
+          [country for country, _rows in guide_rows] == ["no", "gb", "us"])
     check("country guides avoid optional bundled modules",
           "concurrent.futures" not in sys.modules)
     profile_backup = create_profile_backup("profile", {"filter": "all"})
