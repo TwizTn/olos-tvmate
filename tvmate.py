@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b378"
+VERSION = "0.777.b379"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1708,6 +1708,9 @@ _LTV_CACHE = {}         # date -> {ts, rows}; FotMob remains the fixture source
 _LTV_CACHE_LOCK = threading.Lock()
 _LTV_DATE_LOCKS = {}
 _LTV_MATCH_CACHE = {}   # match URL -> complete international broadcaster map
+_LTV_MATCH_LOCKS = {}
+_LTV_MATCH_FAILURES = {}
+_LTV_MATCH_FAILURE_TTL = 15 * 60
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
 _TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
@@ -2978,20 +2981,44 @@ def fetch_ltv_match_listings(match_url):
     url = str(match_url or "").strip()
     if not re.match(r'^https://(?:www\.)?livesoccertv\.com/match/', url, re.I):
         return {}
-    cached = _LTV_MATCH_CACHE.get(url)
+    now = time.time()
+    with _LTV_CACHE_LOCK:
+        cached = _LTV_MATCH_CACHE.get(url)
+        failed = _LTV_MATCH_FAILURES.get(url)
+        match_lock = _LTV_MATCH_LOCKS.setdefault(url, threading.Lock())
     if isinstance(cached, dict):
         return cached
-    cache_id = hashlib.sha1(url.encode("utf-8")).hexdigest()[:20]
-    disk = _load_timed_data_cache(f"ltv-match-v1-{cache_id}.json", _LTV_TTL)
-    if isinstance(disk, dict) and disk:
-        _LTV_MATCH_CACHE[url] = disk
-        return disk
-    rows = _parse_ltv_match_listings(http_get_text(url, timeout=15))
-    if not rows:
-        raise RuntimeError("Live Soccer TV returned no international match listings")
-    _LTV_MATCH_CACHE[url] = rows
-    _save_timed_data_cache(f"ltv-match-v1-{cache_id}.json", rows)
-    return rows
+    if failed and now - float(failed.get("ts") or 0) < _LTV_MATCH_FAILURE_TTL:
+        raise RuntimeError(str(failed.get("error") or "temporarily unavailable"))
+    with match_lock:
+        with _LTV_CACHE_LOCK:
+            cached = _LTV_MATCH_CACHE.get(url)
+            failed = _LTV_MATCH_FAILURES.get(url)
+        if isinstance(cached, dict):
+            return cached
+        if failed and time.time() - float(failed.get("ts") or 0) < _LTV_MATCH_FAILURE_TTL:
+            raise RuntimeError(str(failed.get("error") or "temporarily unavailable"))
+        cache_id = hashlib.sha1(url.encode("utf-8")).hexdigest()[:20]
+        disk = _load_timed_data_cache(f"ltv-match-v1-{cache_id}.json", _LTV_TTL)
+        if isinstance(disk, dict) and disk:
+            with _LTV_CACHE_LOCK:
+                _LTV_MATCH_CACHE[url] = disk
+                _LTV_MATCH_FAILURES.pop(url, None)
+            return disk
+        try:
+            rows = _parse_ltv_match_listings(http_get_text(url, timeout=15))
+            if not rows:
+                raise RuntimeError("returned no international match listings")
+        except Exception as exc:
+            message = f"match detail unavailable: {exc}"
+            with _LTV_CACHE_LOCK:
+                _LTV_MATCH_FAILURES[url] = {"ts": time.time(), "error": message}
+            raise RuntimeError(message) from exc
+        with _LTV_CACHE_LOCK:
+            _LTV_MATCH_CACHE[url] = rows
+            _LTV_MATCH_FAILURES.pop(url, None)
+        _save_timed_data_cache(f"ltv-match-v1-{cache_id}.json", rows)
+        return rows
 
 def _parse_ltv_daily(page, date):
     """Parse LTV's public daily table. It enriches existing FotMob rows only."""
@@ -3537,7 +3564,7 @@ def add_primary_tv_listings(fixtures, countries):
             failed_dates.add(day)
             errors.append("Live Soccer TV channel listings unavailable — "
                           f"using FotMob channel listings ({failures[day]})")
-    missing = []
+    missing, matched = [], []
     for fixture in fixtures:
         fday = str(fixture.get("start") or "")[:10]
         found = None
@@ -3549,16 +3576,34 @@ def add_primary_tv_listings(fixtures, countries):
                 found = row
                 break
         if found:
-            detailed = {}
-            if found.get("match_url"):
-                try:
-                    detailed = fetch_ltv_match_listings(found["match_url"])
-                except Exception as exc:
-                    errors.append(f"Live Soccer TV match listings unavailable ({exc})")
-            fixture["by_country"] = dict(detailed or found.get("by_country") or {})
-            fixture["listing_source"] = "LTV"
+            matched.append((fixture, found))
         else:
             missing.append(fixture)
+    # Fetch only the relevant match pages, never every match in a daily guide.
+    # Bound the batch and run it concurrently so several favorite fixtures cost
+    # one timeout. Remaining fixtures retain their useful daily listing.
+    detail_urls = list(dict.fromkeys(
+        found.get("match_url") for _fixture, found in matched
+        if found.get("match_url")))[:6]
+    detail_results, detail_failures = {}, {}
+    def load_detail(url):
+        try:
+            detail_results[url] = fetch_ltv_match_listings(url)
+        except Exception as exc:
+            detail_failures[url] = exc
+    detail_workers = [threading.Thread(target=load_detail, args=(url,), daemon=True)
+                      for url in detail_urls]
+    for worker in detail_workers:
+        worker.start()
+    for worker in detail_workers:
+        worker.join()
+    for url in detail_urls:
+        if url in detail_failures:
+            errors.append(f"Live Soccer TV match listings unavailable ({detail_failures[url]})")
+    for fixture, found in matched:
+        detailed = detail_results.get(found.get("match_url")) or {}
+        fixture["by_country"] = dict(detailed or found.get("by_country") or {})
+        fixture["listing_source"] = "LTV"
     if missing:
         fallback_errors = add_tv_listings(missing, countries)
         errors.extend(fallback_errors)
@@ -3763,11 +3808,31 @@ _COUNTRY_NAME_ALIASES = {
     "finland": "fi", "finnish": "fi", "canada": "ca", "canadian": "ca",
     "australia": "au", "australian": "au", "brazil": "br", "brazilian": "br",
     "mexico": "mx", "mexican": "mx", "india": "in", "indian": "in",
+    "austria": "at", "austrian": "at", "switzerland": "ch", "swiss": "ch",
+    "poland": "pl", "polish": "pl", "czech republic": "cz", "czechia": "cz",
+    "slovakia": "sk", "slovak": "sk", "hungary": "hu", "hungarian": "hu",
+    "romania": "ro", "romanian": "ro", "bulgaria": "bg", "bulgarian": "bg",
+    "greece": "gr", "greek": "gr", "croatia": "hr", "croatian": "hr",
+    "slovenia": "si", "slovenian": "si", "serbia": "rs", "serbian": "rs",
+    "bosnia and herzegovina": "ba", "bosnia": "ba", "montenegro": "me",
+    "north macedonia": "mk", "macedonia": "mk", "albania": "al",
+    "turkey": "tr", "turkiye": "tr", "russia": "ru", "ukraine": "ua",
+    "argentina": "ar", "argentinian": "ar", "saudi arabia": "sa",
+    "united arab emirates": "ae", "qatar": "qa", "israel": "il",
+    "new zealand": "nz", "south africa": "za", "japan": "jp",
+    "south korea": "kr", "korea republic": "kr", "china": "cn",
+    "chile": "cl", "colombia": "co", "peru": "pe", "uruguay": "uy",
+    "paraguay": "py", "bolivia": "bo", "venezuela": "ve",
+    "costa rica": "cr", "puerto rico": "pr", "panama": "pa",
+    "lithuania": "lt", "latvia": "lv", "estonia": "ee", "iceland": "is",
+    "luxembourg": "lu", "malta": "mt", "cyprus": "cy",
     "hong kong": "hk", "hongkong": "hk",
     "singapore": "sg", "malaysia": "my", "indonesia": "id",
     "philippines": "ph", "thailand": "th", "vietnam": "vn",
 }
-_COUNTRY_CODES.update({"hk", "sg", "my", "id", "ph", "th", "vn"})
+_COUNTRY_CODES.update({"hk", "sg", "my", "id", "ph", "th", "vn", "me",
+                       "ae", "qa", "il", "nz", "za", "jp", "kr", "cn",
+                       "cl", "co", "pe", "uy", "py", "bo", "ve", "pr", "pa"})
 
 # IPTV providers frequently use three-letter or provider-specific country
 # prefixes. Canonicalise only known country labels; tier names such as VIP,
@@ -4088,7 +4153,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v14|" + _vod_cache_key(x) + "|" + str(
+    return "football-v15|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -6836,11 +6901,17 @@ function renderFixtureCard(f,fi){
   // Pull every definite fixture-title hit into one visible section before
   // the broader broadcaster/provider categories. Keep those categories broad.
   const strictSeen=new Set(),strictResults=[];
-  [...(f.ppv_hits||[]),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true)].forEach(function(m){
+  [...(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true)].forEach(function(m){
     const key=String(m.stream_id||'');
     if(key&&!strictSeen.has(key)){strictSeen.add(key);strictResults.push(m);}
   });
   strictResults.sort(preferredChannelSort);
+  const possiblePpv=[];
+  for(const m of (f.ppv_hits||[])){
+    const key=String(m.stream_id||'');
+    if(key&&!strictSeen.has(key)){strictSeen.add(key);possiblePpv.push(m);}
+  }
+  possiblePpv.sort(preferredChannelSort);
   const matchedIds=new Set([...(f.matches||[]),...(f.ppv_hits||[])].map(m=>String(m.stream_id||'' )).filter(Boolean));
   const availText=matchedIds.size?(matchedIds.size+' '+tr(matchedIds.size===1?'channel':'channels')):(rows.length?tr('TV listed'):tr('No TV'));
   const availClass=(matchedIds.size||rows.length)?'':' none';
@@ -6896,7 +6967,20 @@ function renderFixtureCard(f,fi){
     }
     html+='</div>';
   }
-  if(!rows.length&&!strictResults.length){
+  if(possiblePpv.length){
+    const groups=new Map();
+    for(const m of possiblePpv){const category=String(m.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(m);}
+    html+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div><div class="bcastlist">';
+    let possibleIndex=0;
+    for(const [category,items] of groups){
+      const rid='f'+fi+'p'+(possibleIndex++);
+      html+='<div class="bcrow" data-exp="'+rid+'"><div class="bchead"><span class="bcname">'+esc(category)+'</span> <span class="muted exphint">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide" id="'+rid+'">';
+      for(const m of items){const fav=_favChanSet.has(String(m.stream_id))?' on':'';html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'+channelLogo(m,'mini')+'<span class="chn">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span><span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';}
+      html+='</div></div>';
+    }
+    html+='</div>';
+  }
+  if(!rows.length&&!strictResults.length&&!possiblePpv.length){
     if(!Object.keys(f.by_country||{}).length)html+='<div class="muted">No TV channels found.</div>';
     else html+='<div class="muted">No Xtream channels matched. Try lowering strictness.</div>';
   }
@@ -11268,8 +11352,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b378") > _parse_ver("0.777.b377"))
-    check("version equality", _parse_ver("v0.777.b378") == _parse_ver("0.777.b378"))
+    check("version ordering", _parse_ver("0.777.b379") > _parse_ver("0.777.b378"))
+    check("version equality", _parse_ver("v0.777.b379") == _parse_ver("0.777.b379"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11311,6 +11395,20 @@ def run_self_tests():
           ltv_match_detail_test == {
               "NO": ["Viaplay Norway", "TV 2 Play", "V Sport 1 Norway"],
               "SE": ["Viaplay Sweden"]})
+    check("expanded LTV countries recognize Bosnia and New Zealand",
+          _cc_from_name("Bosnia and Herzegovina") == "ba" and
+          _cc_from_name("New Zealand") == "nz")
+    negative_url = "https://www.livesoccertv.com/match/offline-self-test/"
+    _LTV_MATCH_FAILURES[negative_url] = {"ts": time.time(), "error": "cached failure"}
+    negative_blocked = False
+    try:
+        fetch_ltv_match_listings(negative_url)
+    except RuntimeError as exc:
+        negative_blocked = "cached failure" in str(exc)
+    finally:
+        _LTV_MATCH_FAILURES.pop(negative_url, None)
+        _LTV_MATCH_LOCKS.pop(negative_url, None)
+    check("failed LTV match request is negatively cached", negative_blocked)
     check("LTV daily row retains detail URL",
           ltv_current_test[0].get("match_url") ==
           "https://www.livesoccertv.com/match/nottingham-forest-vs-leeds/")
@@ -11328,6 +11426,9 @@ def run_self_tests():
     check("bare NO prefix still yields exact V Sport 1 provider",
           len(v_sport_bare_cc) == 1 and v_sport_bare_cc[0]["score"] == 1.0 and
           v_sport_bare_cc[0]["provider_exact"] is True)
+    check("sports search keeps partial PPV hits in possible categories",
+          "const possiblePpv=[]" in PAGE and
+          "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
     unrelated_test = [dict(schedule_test[0])]
     _overlay_fixture_rows(unrelated_test, [{
         "home": "Portland Hearts of Pine", "away": "Forward Madison",
