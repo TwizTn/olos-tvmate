@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b403"
+VERSION = "0.777.b404"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6706,7 +6706,7 @@ function fixtureStoredChannelsHtml(f){
   definite.sort(preferredChannelSort);other.sort(preferredChannelSort);
   const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(ch.stream_id||''))+'" data-name="'+escAttr(ch.xtream_name||'Channel')+'">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
   let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+secureMatchGroupsHtml(definite,line,'stored'+Math.random().toString(36).slice(2));
-  if(other.length){h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groupedPossibleChannels(other))h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(line).join('')+'</div></div>';}
+  if(other.length){h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groupedPossibleChannels(other)){const open=items.length<=5;h+='<div class="bcrow'+(open?' open':'')+'"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans'+(open?'':' hide')+'">'+items.map(line).join('')+'</div></div>';}}
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
 }
 
@@ -7381,7 +7381,8 @@ function renderFixtureCard(f,fi){
     let possibleIndex=0;
     for(const [category,items] of groupedPossibleChannels(possiblePpv)){
       const rid='f'+fi+'p'+(possibleIndex++);
-      html+='<div class="bcrow" data-exp="'+rid+'"><div class="bchead"><span class="bcname">'+esc(category)+'</span> <span class="muted exphint">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide" id="'+rid+'">';
+      const open=items.length<=5;
+      html+='<div class="bcrow'+(open?' open':'')+'" data-exp="'+rid+'"><div class="bchead"><span class="bcname">'+esc(category)+'</span> <span class="muted exphint">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans'+(open?'':' hide')+'" id="'+rid+'">';
       for(const m of items){const fav=_favChanSet.has(String(m.stream_id))?' on':'';html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'+channelLogo(m,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span><span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';}
       html+='</div></div>';
     }
@@ -8924,7 +8925,6 @@ document.addEventListener('click',function(e){
     const row=bh.parentElement;
     const box=row.querySelector('.bcchans');
     const opening=box&&box.classList.contains('hide');
-    const scope=row.parentElement;if(scope)scope.querySelectorAll(':scope > .bcrow.open').forEach(other=>{if(other!==row){other.classList.remove('open');const otherBox=other.querySelector('.bcchans');if(otherBox)otherBox.classList.add('hide');}});
     if(box)box.classList.toggle('hide',!opening);
     row.classList.toggle('open',!!opening);
     return;
@@ -11979,6 +11979,11 @@ def run_self_tests():
           "categoryTier(b[0])-categoryTier(a[0])" in PAGE and
           "categoryTier(a[0])===0?bestMatch(b[1])-bestMatch(a[1])" in PAGE and
           "Math.max(...b[1].map(channelLocalePriority))" not in PAGE)
+    check("fixture categories allow multiple open and auto-open five or fewer",
+          PAGE.count("const open=items.length<=5") >= 2 and
+          "querySelectorAll(':scope > .bcrow.open')" not in PAGE and
+          "(open?' open':'')" in PAGE and
+          "(open?'':' hide')" in PAGE)
     check("fixture and competition relevance promote possible channels",
           "function channelMatchPriority(ch)" in PAGE and
           "fixture_match==='exact'" in PAGE and
