@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b396"
+VERSION = "0.777.b397"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3409,7 +3409,8 @@ _TEAM_ALIAS_GROUPS = [
     ["west ham united", "west ham"],
     ["sheffield united", "sheffield utd", "sheff utd"],
     ["sheffield wednesday", "sheff wed"],
-    ["nottingham forest", "nott'm forest", "notts forest"],
+    ["nottingham forest", "nottm forest", "nott'm forest", "nottm. forest",
+     "notts forest"],
     ["leeds united", "leeds utd", "leeds"],
     ["bayern munich", "bayern munchen", "fc bayern", "bayern"],
     ["borussia dortmund", "dortmund", "bvb"],
@@ -4399,7 +4400,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v25|" + _vod_cache_key(x) + "|" + str(
+    return "football-v26|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11721,6 +11722,16 @@ def run_self_tests():
           {"Viaplay Denmark", "Viaplay Sweden", "Viaplay Norway"}.issubset(
               {name for names in ltv_current_test[0]["by_country"].values()
                for name in names}))
+    check("FotMob Nottm Forest abbreviation matches LTV Nottingham Forest",
+          _team_names_equivalent("Nottm Forest", "Nottingham Forest") and
+          _team_names_equivalent("Nottingham Forest", "Nottm Forest"))
+    abbreviated_fixture = [{"home": "Nottm Forest", "away": "Leeds United",
+                            "start": "2026-08-22T14:00:00Z", "by_country": {}}]
+    _overlay_fixture_rows(abbreviated_fixture, [{
+        "home": "Nottingham Forest", "away": "Leeds United",
+        "start": "2026-08-22", "by_country": {"NO": ["Viaplay Norway"]}}])
+    check("Forest abbreviation retains Norwegian LTV listing overlay",
+          abbreviated_fixture[0]["by_country"] == {"NO": ["Viaplay Norway"]})
     ltv_match_detail_test = _parse_ltv_match_listings('''
       <h2>International TV</h2><table>
       <tr><td>Norway</td><td><a href="/channels/viaplay-norway/">Viaplay Norway</a>
