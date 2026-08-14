@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b394"
+VERSION = "0.777.b395"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4119,6 +4119,11 @@ def _viaplay_norway_linear_feed(name):
     return bool(re.fullmatch(
         r"v sport(?: (?:live|premier league))?(?: [1-9]\d*)?", value))
 
+def _norway_premier_league_feed(name):
+    """True only for the numbered Norwegian V Sport Premier League family."""
+    value = re.sub(r"\s+", " ", normalise(name)).strip()
+    return bool(re.fullmatch(r"v sport premier league(?: [1-9]\d*)?", value))
+
 def _viaplay_finland_linear_feed(name):
     """Finnish V Sport feeds that can carry Viaplay football/events."""
     value = re.sub(r"(?<![a-z0-9])ultra(?![a-z0-9])", " ", normalise(name))
@@ -4127,7 +4132,7 @@ def _viaplay_finland_linear_feed(name):
         r"v sport(?: (?:live|football|premium))?(?: [1-9]\d*)?(?: suomi)?",
         value))
 
-def match_channels(by_country, xtream_channels, cats, threshold):
+def match_channels(by_country, xtream_channels, cats, threshold, league_name=""):
     """`by_country`: {COUNTRY: [broadcaster names]}. A channel is only eligible
     to match a broadcaster from country C if the channel's own country prefix
     is not a *different* recognised country."""
@@ -4172,6 +4177,7 @@ def match_channels(by_country, xtream_channels, cats, threshold):
         xn, ch_cc = _normalise_channel_country_labels(cname, ch_cc)
         xset = set(xn.split())
         best, best_src, best_country, best_exact_provider = 0.0, "", "", False
+        best_competition_secure = False
         for orig, bcountry, allowed, sn, sset in srcs:
             viaplay_no_feed = (bcountry == "NO" and _viaplay_listing(sn, bcountry) and
                                _viaplay_norway_linear_feed(xn))
@@ -4194,6 +4200,10 @@ def match_channels(by_country, xtream_channels, cats, threshold):
                 if 0.94 > best:
                     best, best_src, best_country = 0.94, orig, bcountry
                     best_exact_provider = False
+                    best_competition_secure = bool(
+                        bcountry == "NO" and ch_cc == "no" and
+                        normalise_event_name(league_name) == "premier league" and
+                        _norway_premier_league_feed(xn))
                 continue
             if _numbers_conflict(xn, sn):
                 continue
@@ -4235,6 +4245,7 @@ def match_channels(by_country, xtream_channels, cats, threshold):
                     s = max(s, cover_b * cover_c)
             if s > best:
                 best, best_src, best_country = s, orig, bcountry
+                best_competition_secure = False
                 # A prominent provider result must be a named linear channel,
                 # an exact normalized name, and carry the provider's country.
                 # Streaming platforms such as TV 2 Play remain category-only.
@@ -4251,6 +4262,7 @@ def match_channels(by_country, xtream_channels, cats, threshold):
                          "quality": quality_tag(cname),
                          "matched": best_src, "country": best_country,
                          "score": best, "provider_exact": best_exact_provider})
+            rows[-1]["competition_secure"] = best_competition_secure
     rows.sort(key=lambda r: r["score"], reverse=True)
     return rows
 
@@ -4380,7 +4392,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v23|" + _vod_cache_key(x) + "|" + str(
+    return "football-v24|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -4551,7 +4563,8 @@ def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
     threshold = max(0.40, min(0.80, float(cfg.get("match_threshold", 0.62) or 0.62)))
     candidates = _sports_fixture_channel_shortlist(fixture, channels, cats)
     matches = rank_fixture_channels(
-        match_channels(fixture.get("by_country") or {}, candidates, cats, threshold),
+        match_channels(fixture.get("by_country") or {}, candidates, cats, threshold,
+                       fixture.get("league_name") or ""),
         fixture.get("home"), fixture.get("away"))
     # Preserve fuzzy compatibility for unusual broadcaster spellings that have
     # no useful indexed term. This slower path runs only when a guide exists and
@@ -4559,7 +4572,8 @@ def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
     if (not matches and fixture.get("by_country") and
             len(candidates) < len(channels)):
         matches = rank_fixture_channels(
-            match_channels(fixture.get("by_country") or {}, channels, cats, threshold),
+            match_channels(fixture.get("by_country") or {}, channels, cats, threshold,
+                           fixture.get("league_name") or ""),
             fixture.get("home"), fixture.get("away"))
     for row in matches:
         row["url"] = x.stream_url(row["stream_id"])
@@ -6575,7 +6589,7 @@ function openMyTeamsFixture(target){
 function fixtureStoredChannelsHtml(f){
   if(!f.logged_in)return '<span class="muted">'+esc(tr('Log in via Settings first.'))+'</span>';
   const all=[...(f.matches||[]),...(f.ppv_hits||[])],seen=new Set(),definite=[],other=[];
-  for(const ch of all){const id=String(ch.stream_id||'');if(!id||seen.has(id))continue;seen.add(id);if(fixtureChannelRank(ch,f)===3||ch.provider_exact===true)definite.push(ch);else other.push(ch);}
+  for(const ch of all){const id=String(ch.stream_id||'');if(!id||seen.has(id))continue;seen.add(id);if(fixtureChannelRank(ch,f)===3||ch.provider_exact===true||ch.competition_secure===true)definite.push(ch);else other.push(ch);}
   definite.sort(preferredChannelSort);other.sort(preferredChannelSort);
   const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(ch.stream_id||''))+'" data-name="'+escAttr(ch.xtream_name||'Channel')+'">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
   let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+secureMatchGroupsHtml(definite,line,'stored'+Math.random().toString(36).slice(2));
@@ -7145,7 +7159,7 @@ function preferredChannelSort(a,b){
   // An exact named linear broadcaster is the strongest useful signal in this
   // list. Keep it ahead of generic fixture/PPV candidates inside the same
   // locale tier. EPG confirmation is the next-best signal.
-  const sure=ch=>ch&&ch.provider_exact===true?2:(ch&&ch.epg_confirmed===true?1:0);
+  const sure=ch=>ch&&ch.provider_exact===true?3:(ch&&ch.epg_confirmed===true?2:(ch&&ch.competition_secure===true?1:0));
   return channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)||channelMatchPriority(b)-channelMatchPriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
 }
 function channelMatchPriority(ch){if(ch&&ch.fixture_match==='exact')return 500;if(ch&&ch.league_match===true&&/viaplay/i.test(String(ch.matched||'')))return 400;if(ch&&ch.fixture_match==='partial')return 300;if(ch&&ch.league_match===true)return 200;return Math.round(Number(ch&&ch.score||0)*100);}
@@ -7177,7 +7191,7 @@ function renderFixtureCard(f,fi){
   // Pull every definite fixture-title hit into one visible section before
   // the broader broadcaster/provider categories. Keep those categories broad.
   const strictSeen=new Set(),strictResults=[];
-  [...(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true)].forEach(function(m){
+  [...(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true||m.competition_secure===true),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true||m.competition_secure===true)].forEach(function(m){
     const key=String(m.stream_id||'');
     if(key&&!strictSeen.has(key)){strictSeen.add(key);strictResults.push(m);}
   });
@@ -11778,7 +11792,7 @@ def run_self_tests():
     check("Viaplay NO expands codec-labelled Norwegian V Sport feeds",
           {row["stream_id"] for row in viaplay_codec_variants} == {133, 134})
     check("exact V Sport provider sorts ahead of possible event channels",
-          "const sure=ch=>ch&&ch.provider_exact===true?2:" in PAGE and
+          "const sure=ch=>ch&&ch.provider_exact===true?3:" in PAGE and
           "channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)" in PAGE)
     check("channel results preserve NO 4K, NO, 4K, SWE, DEN, FIN tiers",
           "if(isNorwegian&&is4k)return 700" in PAGE and
@@ -12036,6 +12050,30 @@ def run_self_tests():
     check("Viaplay Norway expands to Norwegian V Sport event feeds",
           {row["stream_id"] for row in viaplay_no} == {109, 110, 111, 114, 115, 116} and
           all(not row.get("provider_exact") for row in viaplay_no))
+    premier_league_secure = match_channels(
+        {"NO": ["Viaplay Norway"]},
+        [{"name": "NO: V Sport Premier League 1 HD", "stream_id": 1091,
+          "category_id": "no"},
+         {"name": "NO: V Sport 1 HD", "stream_id": 1092,
+          "category_id": "no"},
+         {"name": "SWE: V Sport Premier League 1 HD", "stream_id": 1093,
+          "category_id": "swe"}],
+        {"no": "NO | SPORTS", "swe": "SWE | SPORTS"}, 0.62,
+        "Premier League")
+    secure_by_id = {row["stream_id"]: row.get("competition_secure")
+                    for row in premier_league_secure}
+    check("only Norwegian V Sport Premier League family gets custom secure flag",
+          secure_by_id == {1091: True, 1092: False})
+    non_premier_secure = match_channels(
+        {"NO": ["Viaplay Norway"]},
+        [{"name": "NO: V Sport Premier League 1 HD", "stream_id": 1094,
+          "category_id": "no"}], {"no": "NO | SPORTS"}, 0.62,
+        "FA Cup")
+    check("custom V Sport secure rule never applies outside Premier League",
+          len(non_premier_secure) == 1 and
+          non_premier_secure[0].get("competition_secure") is False)
+    check("custom competition secure flag reaches both fixture render paths",
+          PAGE.count("competition_secure===true") >= 3)
     viaplay_nordic_4k = match_channels(
         {"SE": ["Viaplay Sweden"], "DK": ["Viaplay Denmark"]},
         [{"name": "V Sport Ultra HD", "stream_id": 117, "category_id": "4k"},
