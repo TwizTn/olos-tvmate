@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b399"
+VERSION = "0.777.b400"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4420,6 +4420,51 @@ def find_competition_channels(fixture, xtream_channels, cats, x):
         })
     return out
 
+def _enforce_fixture_secure_matches(fixture, result):
+    """Apply explicit secure rules after every channel-discovery path merges."""
+    result = dict(result or {})
+    premier_league = normalise_event_name(
+        (fixture or {}).get("league_name") or "") == "premier league"
+    generic_team_words = {"united", "city", "town", "rovers", "county",
+                          "athletic", "wanderers", "forest", "football", "club"}
+    team_forms = []
+    for team in ((fixture or {}).get("home"), (fixture or {}).get("away")):
+        full = {normalise(value) for value in _expand_terms(
+            str(team or "").lower().strip()) if len(normalise(value)) >= 3}
+        short = {word for form in full for word in form.split()
+                 if len(word) >= 5 and word not in generic_team_words}
+        team_forms.append((full, short))
+    for key in ("matches", "ppv_hits"):
+        rows = []
+        for original in result.get(key) or []:
+            row = dict(original)
+            name = str(row.get("xtream_name") or "")
+            category = str(row.get("category") or "")
+            channel_cc = _resolve_channel_country(name, category)
+            cleaned_name, channel_cc = _normalise_channel_country_labels(
+                name, channel_cc)
+            name_hay = normalise_event_name(name)
+            category_hay = normalise_event_name(category)
+            team_hit = any(
+                any(re.search(r"(?<![a-z0-9])" + re.escape(form) +
+                              r"(?![a-z0-9])", name_hay) for form in full) or
+                any(re.search(r"(?<![a-z0-9])" + re.escape(word) +
+                              r"(?![a-z0-9])", name_hay) for word in short)
+                for full, short in team_forms)
+            if (premier_league and channel_cc == "no" and
+                    _norway_premier_league_feed(cleaned_name)):
+                row["competition_secure"] = True
+                row["secure_reason"] = "norway_premier_league"
+            elif (premier_league and channel_cc in {"uk", "gb"} and team_hit and
+                  (re.search(r"(?<![a-z0-9])epl(?![a-z0-9])", category_hay) or
+                   re.search(r"(?<![a-z0-9])premier league(?![a-z0-9])",
+                             category_hay))):
+                row["competition_secure"] = True
+                row["secure_reason"] = "uk_epl_fixture_team"
+            rows.append(row)
+        result[key] = rows
+    return result
+
 _RACING_CHANNEL_TERMS = {
     "f1": ("f1", "formula 1", "formula one"),
     "f2": ("f2", "formula 2"),
@@ -4439,7 +4484,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v28|" + _vod_cache_key(x) + "|" + str(
+    return "football-v29|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -4645,8 +4690,9 @@ def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
         else:
             ppv_hits.append(row)
             ppv_by_id[sid] = row
-    return {"logged_in": True, "availability_checked": True,
-            "matches": matches, "ppv_hits": ppv_hits}
+    return _enforce_fixture_secure_matches(fixture, {
+        "logged_in": True, "availability_checked": True,
+        "matches": matches, "ppv_hits": ppv_hits})
 
 def _racing_event_key(event):
     return "|".join(str(event.get(k) or "") for k in
@@ -11983,6 +12029,22 @@ def run_self_tests():
           integrated_secure.get(4013) is True and
           integrated_secure.get(4014) is True and
           integrated_secure.get(4015) is True)
+    enforced_secure = _enforce_fixture_secure_matches(competition_fixture, {
+        "matches": [], "ppv_hits": [
+            {"stream_id": 4020,
+             "xtream_name": "NO: V SPORT PREMIER LEAGUE 2 VIP NO",
+             "category": "NO| NORWAY HD/RAW"},
+            {"stream_id": 4021, "xtream_name": "UK: EPL LEEDS",
+             "category": "UK| EPL PREMIER LEAGUE PPV"},
+            {"stream_id": 4022, "xtream_name": "UK: EPL NOTTINGHAM",
+             "category": "UK| EPL PREMIER LEAGUE PPV"}]})
+    enforced_by_id = {row["stream_id"]: row.get("secure_reason")
+                      for row in enforced_secure["ppv_hits"]}
+    check("final response pass secures NO V Sport PL and UK EPL team channels",
+          enforced_by_id == {
+              4020: "norway_premier_league",
+              4021: "uk_epl_fixture_team",
+              4022: "uk_epl_fixture_team"})
     check("fixture rendering independently recognizes Norwegian V Sport PL",
           "function customPremierLeagueSecure(ch,f)" in PAGE and
           PAGE.count("customPremierLeagueSecure(m,f)") >= 2 and
