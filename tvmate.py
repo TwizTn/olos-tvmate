@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b390"
+VERSION = "0.777.b391"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6540,7 +6540,7 @@ function fixtureStoredChannelsHtml(f){
   definite.sort(preferredChannelSort);other.sort(preferredChannelSort);
   const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(ch.stream_id||''))+'" data-name="'+escAttr(ch.xtream_name||'Channel')+'">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
   let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+secureMatchGroupsHtml(definite,line,'stored'+Math.random().toString(36).slice(2));
-  if(other.length){const groups=new Map();for(const ch of other){const key=String(ch.category||tr('Other possible channels'));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ch);}h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groups)h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(line).join('')+'</div></div>';}
+  if(other.length){h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groupedPossibleChannels(other))h+='<div class="bcrow"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide">'+items.map(line).join('')+'</div></div>';}
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
 }
 
@@ -6548,10 +6548,10 @@ function secureChannelFamily(ch){return String(ch&&ch.xtream_name||'channel').to
 function secureQualityPriority(ch){const n=String(ch&&ch.xtream_name||'').toLowerCase();let score=0;if(/\\b(4k|uhd)\\b/.test(n))score=700;else if(/\\b(fhd|full\\s*hd)\\b/.test(n))score=600;else if(/\\b(hevc|h\\.?265)\\b/.test(n))score=550;else if(/\\bhd\\b/.test(n))score=500;else if(/\\braw\\b/.test(n))score=400;else if(/\\bsd\\b/.test(n))score=100;if(/\\b(50|60)\\s*fps\\b/.test(n))score+=10;return score;}
 function secureMatchGroupsHtml(rows,line,prefix){
   const groups=new Map();for(const ch of rows.slice().sort(preferredChannelSort)){const family=secureChannelFamily(ch);if(!groups.has(family))groups.set(family,[]);groups.get(family).push(ch);}
-  let html='',groupIndex=0;for(const items of groups.values()){items.sort((a,b)=>secureQualityPriority(b)-secureQualityPriority(a)||preferredChannelSort(a,b));const id=prefix+'g'+groupIndex++;html+='<div class="securematchgroup">';for(const [i,ch] of items.entries())html+='<div class="securematchvariant'+(i>=3?' securematchextra hide':'')+'" data-secure-group="'+id+'">'+line(ch)+'</div>';if(items.length>3)html+='<button class="ghost securematchexpand" data-secure-target="'+id+'" data-more="'+(items.length-3)+'">'+esc(tr('Show more channels'))+' ('+(items.length-3)+')</button>';html+='</div>';}
+  let html='',groupIndex=0;for(const items of groups.values()){items.sort((a,b)=>channelLocalePriority(b)-channelLocalePriority(a)||secureQualityPriority(b)-secureQualityPriority(a)||preferredChannelSort(a,b));const id=prefix+'g'+groupIndex++;html+='<div class="securematchgroup">';for(const [i,ch] of items.entries())html+='<div class="securematchvariant'+(i>=3?' securematchextra hide':'')+'" data-secure-group="'+id+'">'+line(ch)+'</div>';if(items.length>3)html+='<button class="ghost securematchexpand" data-secure-target="'+id+'" data-more="'+(items.length-3)+'">'+esc(tr('Show more channels'))+' ('+(items.length-3)+')</button>';html+='</div>';}
   return html;
 }
-function toggleSecureMatches(btn){const id=btn.getAttribute('data-secure-target'),extras=document.querySelectorAll('[data-secure-group="'+id+'"]');if(!extras.length)return;const opening=extras[0].classList.contains('hide');extras.forEach(el=>el.classList.toggle('hide',!opening));btn.textContent=opening?tr('Show fewer matches'):(tr('Show more channels')+' ('+btn.getAttribute('data-more')+')');}
+function toggleSecureMatches(btn){const id=btn.getAttribute('data-secure-target'),extras=document.querySelectorAll('.securematchextra[data-secure-group="'+id+'"]');if(!extras.length)return;const opening=extras[0].classList.contains('hide');extras.forEach(el=>el.classList.toggle('hide',!opening));btn.textContent=opening?tr('Show fewer matches'):(tr('Show more channels')+' ('+btn.getAttribute('data-more')+')');}
 async function loadStoredFixtureChannels(card){
   const panel=card&&card.querySelector('.fixturechannelresults');if(!card||!panel)return;
   const waiting=panel.textContent.includes(tr('Checking your channels...'));if(panel.innerHTML.trim()&&!waiting)return;
@@ -7091,16 +7091,16 @@ function channelLocalePriority(ch){
   const text=[ch&&ch.category,ch&&ch.xtream_name,ch&&ch.quality].filter(Boolean).join(' ');
   const is4k=/\\b(4k|uhd)\\b/i.test(text);
   const isNorwegian=/(^|[^a-z0-9])(no|nor|norway|norge|norwegian)([^a-z0-9]|$)/i.test(text);
-  const prefix=String((ch&&ch.category)||'').match(/^\\s*([a-z]{2,4})\\s*[:|\\-]/i)||String((ch&&ch.xtream_name)||'').match(/^\\s*([a-z]{2,4})\\s*[:|\\-]/i);
-  const cc=prefix?prefix[1].toLowerCase():'';
+  const isSwedish=/(^|[^a-z0-9])(se|swe|sweden|swedish)([^a-z0-9]|$)/i.test(text);
+  const isDanish=/(^|[^a-z0-9])(dk|den|dnk|denmark|danish)([^a-z0-9]|$)/i.test(text);
+  const isFinnish=/(^|[^a-z0-9])(fi|fin|finland|finnish)([^a-z0-9]|$)/i.test(text);
   if(isNorwegian&&is4k)return 700;
   if(isNorwegian)return 600;
   if(is4k)return 500;
-  if(cc==='uk'||cc==='gb')return 400;
-  if(cc==='swe'||cc==='se')return 390;
-  if(cc==='den'||cc==='dk')return 380;
-  const known=new Set(['us','pt','es','de','it','fr','ie','be','nl','fi','at','ch','pl','cz','sk','hu','ro','bg','gr','hr','si','rs','ba','mk','al','tr','ca','au','br','mx','hk','cr']);
-  return known.has(cc)?200:300;
+  if(isSwedish)return 400;
+  if(isDanish)return 390;
+  if(isFinnish)return 380;
+  return 300;
 }
 function preferredChannelSort(a,b){
   // An exact named linear broadcaster is the strongest useful signal in this
@@ -7108,6 +7108,10 @@ function preferredChannelSort(a,b){
   // locale tier. EPG confirmation is the next-best signal.
   const sure=ch=>ch&&ch.provider_exact===true?2:(ch&&ch.epg_confirmed===true?1:0);
   return channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
+}
+function groupedPossibleChannels(rows){
+  const groups=new Map();for(const ch of rows.slice().sort(preferredChannelSort)){const category=String(ch.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(ch);}
+  return Array.from(groups.entries()).sort((a,b)=>Math.max(...b[1].map(channelLocalePriority))-Math.max(...a[1].map(channelLocalePriority))||String(a[0]).localeCompare(String(b[0])));
 }
 
 function renderFixtureCard(f,fi){
@@ -7198,11 +7202,9 @@ function renderFixtureCard(f,fi){
     html+='</div>';
   }
   if(possiblePpv.length){
-    const groups=new Map();
-    for(const m of possiblePpv){const category=String(m.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(m);}
     html+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div><div class="bcastlist">';
     let possibleIndex=0;
-    for(const [category,items] of groups){
+    for(const [category,items] of groupedPossibleChannels(possiblePpv)){
       const rid='f'+fi+'p'+(possibleIndex++);
       html+='<div class="bcrow" data-exp="'+rid+'"><div class="bchead"><span class="bcname">'+esc(category)+'</span> <span class="muted exphint">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans hide" id="'+rid+'">';
       for(const m of items){const fav=_favChanSet.has(String(m.stream_id))?' on':'';html+='<div class="chline"><span class="matchchan"><span class="favstar'+fav+'" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'" data-cat="'+escAttr(m.category||'')+'" title="Favorite">&#9733;</span>'+channelLogo(m,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(m.stream_id))+'" data-name="'+escAttr(m.xtream_name)+'">'+esc(m.xtream_name)+(m.quality?'<span class="tag">'+esc(m.quality)+'</span>':'')+'</span></span><span class="chbtns">'+playbtns(m.stream_id,m.xtream_name,m.url)+'</span></div>';}
@@ -11736,10 +11738,13 @@ def run_self_tests():
     check("exact V Sport provider sorts ahead of possible event channels",
           "const sure=ch=>ch&&ch.provider_exact===true?2:" in PAGE and
           "channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)" in PAGE)
-    check("channel results preserve NO 4K, NO, 4K, other locale tiers",
+    check("channel results preserve NO 4K, NO, 4K, SWE, DEN, FIN tiers",
           "if(isNorwegian&&is4k)return 700" in PAGE and
           "if(isNorwegian)return 600" in PAGE and
           "if(is4k)return 500" in PAGE and
+          "if(isSwedish)return 400" in PAGE and
+          "if(isDanish)return 390" in PAGE and
+          "if(isFinnish)return 380" in PAGE and
           "(no|nor|norway|norge|norwegian)" in PAGE)
     catalog_rows = [
         ("SWE: V Sport 1 HD", "SE | SPORTS"),
@@ -11767,6 +11772,11 @@ def run_self_tests():
           "i>=3?' securematchextra hide'" in PAGE and
           "secureQualityPriority(b)-secureQualityPriority(a)" in PAGE and
           "securematchexpand" in PAGE)
+    check("secure show-more expands on its first click",
+          "querySelectorAll('.securematchextra[data-secure-group=" in PAGE)
+    check("possible channel categories use shared locale ordering",
+          "groupedPossibleChannels(other)" in PAGE and
+          "groupedPossibleChannels(possiblePpv)" in PAGE)
     indexed_channels = [
         {"name": f"Noise Channel {i}", "stream_id": 3000 + i,
          "category_id": "misc"} for i in range(120)] + [
