@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b389"
+VERSION = "0.777.b390"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4130,12 +4130,17 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     # Build (broadcaster, country, normtokens) list.
     srcs = []
     for country, names in (by_country or {}).items():
-        canonical_country = _canonical_cc(country)
-        allowed = (None if country.upper() == "LTV" else
-                   {_canonical_cc(code) for code in
-                    _COUNTRY_MATCH.get(country.upper(), {canonical_country})})
         for s in names:
-            ns = normalise(s)
+            source_country = country.upper()
+            inferred_country = _cc_from_name(s)
+            if source_country == "LTV" and inferred_country:
+                source_country = _display_cc(inferred_country)
+            canonical_country = _canonical_cc(source_country)
+            allowed = (None if source_country == "LTV" else
+                       {_canonical_cc(code) for code in
+                        _COUNTRY_MATCH.get(source_country, {canonical_country})})
+            ns, _source_cc = _normalise_channel_country_labels(
+                s, inferred_country or (canonical_country if allowed is not None else None))
             # LTV often appends the already-separate country to a linear feed
             # ("V Sport 1 Norway"). IPTV catalogues normally express it in the
             # category/prefix instead ("NO: V Sport 1"). Compare channel names
@@ -4143,12 +4148,12 @@ def match_channels(by_country, xtream_channels, cats, threshold):
             suffixes = {"NO": ("norway", "norge", "norwegian"),
                         "SE": ("sweden", "swedish"),
                         "DK": ("denmark", "danish"),
-                        "FI": ("finland", "finnish")}.get(country.upper(), ())
+                        "FI": ("finland", "finnish")}.get(source_country, ())
             for suffix in suffixes:
                 ns = re.sub(r"\s+" + re.escape(suffix) + r"$", "", ns)
             toks = set(ns.split())
             if toks:
-                srcs.append((s, country.upper(), allowed, ns, toks))
+                srcs.append((s, source_country, allowed, ns, toks))
     rows = []
     for ch in xtream_channels:
         cname = ch["name"]
@@ -4344,7 +4349,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v20|" + _vod_cache_key(x) + "|" + str(
+    return "football-v21|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11686,6 +11691,15 @@ def run_self_tests():
     check("country-suffixed V Sport feed is exact Norwegian provider",
           len(v_sport_exact) == 1 and v_sport_exact[0]["score"] == 1.0 and
           v_sport_exact[0]["provider_exact"] is True)
+    v_sport_ltv_country_name = match_channels(
+        {"LTV": ["V Sport 1 Norway"]},
+        [{"name": "NO V SPORT 1 HEVC RAW HD", "stream_id": 1291,
+          "category_id": "misc"}], {"misc": "VIP GOLD"}, 0.62)
+    check("LTV country-in-name V Sport 1 is a secure exact provider",
+          len(v_sport_ltv_country_name) == 1 and
+          v_sport_ltv_country_name[0]["score"] == 1.0 and
+          v_sport_ltv_country_name[0]["provider_exact"] is True and
+          v_sport_ltv_country_name[0]["country"] == "NO")
     v_sport_bare_cc = match_channels(
         {"NO": ["V Sport 1 Norway"]},
         [{"name": "NO V SPORT 1 RAW", "stream_id": 130, "category_id": "no"}],
