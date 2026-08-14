@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b386"
+VERSION = "0.777.b387"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3958,6 +3958,27 @@ def _strip_bare_channel_country(name, resolved_cc=None):
         return rest.strip(), resolved_cc or inferred
     return value, resolved_cc
 
+def _normalise_channel_country_labels(name, resolved_cc=None):
+    """Remove matching country labels around provider quality/noise suffixes."""
+    value, resolved_cc = _strip_bare_channel_country(name, resolved_cc)
+    value = re.sub(r"\s+raw$", "", value).strip()
+    suffixes = {
+        "no": ("no", "nor", "norway", "norge", "norwegian"),
+        "se": ("se", "swe", "sweden", "swedish"),
+        "dk": ("dk", "dnk", "den", "denmark", "danish"),
+        "fi": ("fi", "fin", "finland", "finnish"),
+    }.get(_canonical_cc(resolved_cc), ())
+    if not resolved_cc:
+        inferred = re.search(
+            r"\s+(no|nor|norway|norge|norwegian)$", value)
+        if inferred:
+            resolved_cc = "no"
+            suffixes = ("no", "nor", "norway", "norge", "norwegian")
+    for suffix in suffixes:
+        value = re.sub(r"\s+" + re.escape(suffix) + r"$", "", value).strip()
+    value = re.sub(r"\s+raw$", "", value).strip()
+    return value, resolved_cc
+
 def _build_sports_channel_index(channels, cats):
     """Prepare reusable normalized names and token lookups for sports matching."""
     token_index, event_token_index, compact_index = {}, {}, {}
@@ -4043,8 +4064,7 @@ def _channel_catalog_search_rank(name, category, term):
     if not query:
         return (0, 0, 0, str(name or "").lower())
     channel_cc = _resolve_channel_country(name, category)
-    candidate, channel_cc = _strip_bare_channel_country(name, channel_cc)
-    candidate = re.sub(r"\s+raw$", "", candidate).strip()
+    candidate, channel_cc = _normalise_channel_country_labels(name, channel_cc)
     if not candidate:
         return None
     query_tokens = query.split()
@@ -4126,8 +4146,7 @@ def match_channels(by_country, xtream_channels, cats, threshold):
         if not xn:
             continue
         ch_cc = _resolve_channel_country(cname, category)  # category first, then name
-        xn, ch_cc = _strip_bare_channel_country(cname, ch_cc)
-        xn = re.sub(r"\s+raw$", "", xn).strip()
+        xn, ch_cc = _normalise_channel_country_labels(cname, ch_cc)
         xset = set(xn.split())
         best, best_src, best_country, best_exact_provider = 0.0, "", "", False
         for orig, bcountry, allowed, sn, sset in srcs:
@@ -7045,7 +7064,7 @@ function fixtureChannelRank(m,f){
 function channelLocalePriority(ch){
   const text=[ch&&ch.category,ch&&ch.xtream_name,ch&&ch.quality].filter(Boolean).join(' ');
   const is4k=/\\b(4k|uhd)\\b/i.test(text);
-  const isNorwegian=/(^|[^a-z0-9])(no|norway|norge)([^a-z0-9]|$)/i.test(text);
+  const isNorwegian=/(^|[^a-z0-9])(no|nor|norway|norge|norwegian)([^a-z0-9]|$)/i.test(text);
   const prefix=String((ch&&ch.category)||'').match(/^\\s*([a-z]{2,4})\\s*[:|\\-]/i)||String((ch&&ch.xtream_name)||'').match(/^\\s*([a-z]{2,4})\\s*[:|\\-]/i);
   const cc=prefix?prefix[1].toLowerCase():'';
   if(isNorwegian&&is4k)return 700;
@@ -7059,10 +7078,10 @@ function channelLocalePriority(ch){
 }
 function preferredChannelSort(a,b){
   // An exact named linear broadcaster is the strongest useful signal in this
-  // list. Keep it ahead of generic fixture/PPV candidates even when those live
-  // in a locally preferred category. EPG confirmation is the next-best signal.
+  // list. Keep it ahead of generic fixture/PPV candidates inside the same
+  // locale tier. EPG confirmation is the next-best signal.
   const sure=ch=>ch&&ch.provider_exact===true?2:(ch&&ch.epg_confirmed===true?1:0);
-  return sure(b)-sure(a)||channelLocalePriority(b)-channelLocalePriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
+  return channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
 }
 
 function renderFixtureCard(f,fi){
@@ -11570,8 +11589,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b386") > _parse_ver("0.777.b385"))
-    check("version equality", _parse_ver("v0.777.b386") == _parse_ver("0.777.b386"))
+    check("version ordering", _parse_ver("0.777.b387") > _parse_ver("0.777.b386"))
+    check("version equality", _parse_ver("v0.777.b387") == _parse_ver("0.777.b387"))
     cache_busted = _cache_busted_url(
         "https://raw.githubusercontent.com/example/app/main/version.txt?source=manual",
         "123")
@@ -11650,7 +11669,8 @@ def run_self_tests():
           len(v_sport_bare_cc) == 1 and v_sport_bare_cc[0]["score"] == 1.0 and
           v_sport_bare_cc[0]["provider_exact"] is True)
     for prefix_variant in ("NO V SPORT 1 RAW", "NOR V SPORT 1 HD",
-                           "NORWAY V SPORT 1", "NORGE V SPORT 1"):
+                           "NORWAY V SPORT 1", "NORGE V SPORT 1",
+                           "V SPORT 1 NOR RAW", "V SPORT 1 NORWAY RAW"):
         variant_rows = match_channels(
             {"NO": ["V Sport 1 Norway"]},
             [{"name": prefix_variant, "stream_id": 131, "category_id": "misc"}],
@@ -11667,7 +11687,12 @@ def run_self_tests():
           viaplay_bare_v_sport[0]["score"] == 0.94)
     check("exact V Sport provider sorts ahead of possible event channels",
           "const sure=ch=>ch&&ch.provider_exact===true?2:" in PAGE and
-          "return sure(b)-sure(a)||channelLocalePriority" in PAGE)
+          "channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)" in PAGE)
+    check("channel results preserve NO 4K, NO, 4K, other locale tiers",
+          "if(isNorwegian&&is4k)return 700" in PAGE and
+          "if(isNorwegian)return 600" in PAGE and
+          "if(is4k)return 500" in PAGE and
+          "(no|nor|norway|norge|norwegian)" in PAGE)
     catalog_rows = [
         ("SWE: V Sport 1 HD", "SE | SPORTS"),
         ("NO: V Sport 2 HD", "NO | SPORTS"),
