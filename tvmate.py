@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b379"
+VERSION = "0.777.b380"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3901,6 +3901,23 @@ def _resolve_channel_country(name, category):
     return (_cc_from_prefix(category) or _cc_from_name(category) or
             _cc_from_prefix(name) or _cc_from_name(name))
 
+def _strip_bare_channel_country(name, resolved_cc=None):
+    """Normalize bare IPTV country prefixes such as ``NO V SPORT 1``."""
+    value = normalise(str(name or ""))
+    if " " not in value:
+        return value, resolved_cc
+    first, rest = value.split(" ", 1)
+    inferred = None
+    canonical = _canonical_cc(first)
+    if first in _COUNTRY_CODE_ALIASES or canonical in _COUNTRY_CODES:
+        inferred = canonical
+    elif (first in _COUNTRY_NAME_ALIASES and
+          re.match(r"^v\s+sport(?:\s|$)", rest)):
+        inferred = _canonical_cc(_COUNTRY_NAME_ALIASES[first])
+    if inferred and (resolved_cc is None or inferred == resolved_cc):
+        return rest.strip(), resolved_cc or inferred
+    return value, resolved_cc
+
 def _viaplay_norway_linear_feed(name):
     """True for the Norwegian linear feeds represented by Viaplay Norway.
 
@@ -3956,32 +3973,23 @@ def match_channels(by_country, xtream_channels, cats, threshold):
         xn = normalise(cname)
         if not xn:
             continue
-        xset = set(xn.split())
         ch_cc = _resolve_channel_country(cname, category)  # category first, then name
-        # Some providers write the country as a bare leading token rather than
-        # a separator prefix: "NO V SPORT 1". When the category/name has
-        # already resolved that same country, remove only that first token for
-        # broadcaster-name comparison. Country rejection still uses ch_cc.
-        first = xn.split(" ", 1)[0]
-        if (" " in xn and ch_cc and _canonical_cc(first) == ch_cc and
-                (first in _COUNTRY_CODES or first in _COUNTRY_CODE_ALIASES)):
-            xn = xn.split(" ", 1)[1].strip()
-            xset = set(xn.split())
+        xn, ch_cc = _strip_bare_channel_country(cname, ch_cc)
         xn = re.sub(r"\s+raw$", "", xn).strip()
         xset = set(xn.split())
         best, best_src, best_country, best_exact_provider = 0.0, "", "", False
         for orig, bcountry, allowed, sn, sset in srcs:
             viaplay_no_feed = (bcountry == "NO" and sn in {"viaplay", "viaplay norway"} and
-                               _viaplay_norway_linear_feed(cname))
+                               _viaplay_norway_linear_feed(xn))
             viaplay_fi_feed = (bcountry == "FI" and sn in {"viaplay", "viaplay finland"} and
-                               _viaplay_finland_linear_feed(cname))
+                               _viaplay_finland_linear_feed(xn))
             nordic_viaplay = (
                 (bcountry in {"NO", "SE", "DK", "FI"} and sn == "viaplay") or
                 (bcountry, sn) in {
                     ("NO", "viaplay norway"), ("SE", "viaplay sweden"),
                     ("DK", "viaplay denmark"), ("FI", "viaplay finland")})
             shared_4k_feed = (nordic_viaplay and _is_4k_category(category) and
-                              _viaplay_norway_linear_feed(cname))
+                              _viaplay_norway_linear_feed(xn))
             # Country rule: if the channel HAS a recognised country prefix and
             # it isn't in this broadcaster's allowed set -> skip (wrong country).
             if (allowed is not None and ch_cc is not None and ch_cc not in allowed and
@@ -4153,7 +4161,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v15|" + _vod_cache_key(x) + "|" + str(
+    return "football-v16|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11352,8 +11360,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b379") > _parse_ver("0.777.b378"))
-    check("version equality", _parse_ver("v0.777.b379") == _parse_ver("0.777.b379"))
+    check("version ordering", _parse_ver("0.777.b380") > _parse_ver("0.777.b379"))
+    check("version equality", _parse_ver("v0.777.b380") == _parse_ver("0.777.b380"))
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
@@ -11426,6 +11434,22 @@ def run_self_tests():
     check("bare NO prefix still yields exact V Sport 1 provider",
           len(v_sport_bare_cc) == 1 and v_sport_bare_cc[0]["score"] == 1.0 and
           v_sport_bare_cc[0]["provider_exact"] is True)
+    for prefix_variant in ("NO V SPORT 1 RAW", "NOR V SPORT 1 HD",
+                           "NORWAY V SPORT 1", "NORGE V SPORT 1"):
+        variant_rows = match_channels(
+            {"NO": ["V Sport 1 Norway"]},
+            [{"name": prefix_variant, "stream_id": 131, "category_id": "misc"}],
+            {"misc": "VIP GOLD"}, 0.62)
+        check(f"Norwegian V Sport prefix variant matches: {prefix_variant}",
+              len(variant_rows) == 1 and variant_rows[0]["score"] == 1.0 and
+              variant_rows[0]["provider_exact"] is True)
+    viaplay_bare_v_sport = match_channels(
+        {"NO": ["Viaplay Norway"]},
+        [{"name": "NO V SPORT 1 RAW", "stream_id": 132,
+          "category_id": "misc"}], {"misc": "VIP GOLD"}, 0.62)
+    check("Viaplay Norway expands from bare-prefix V Sport name",
+          len(viaplay_bare_v_sport) == 1 and
+          viaplay_bare_v_sport[0]["score"] == 0.94)
     check("sports search keeps partial PPV hits in possible categories",
           "const possiblePpv=[]" in PAGE and
           "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
