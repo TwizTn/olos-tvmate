@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b397"
+VERSION = "0.777.b398"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4116,14 +4116,20 @@ def _viaplay_norway_linear_feed(name):
     League feeds. Do not pull in Golf, Motor or unrelated V Sport channels.
     """
     value = re.sub(r"(?<![a-z0-9])ultra(?![a-z0-9])", " ", normalise(name))
+    value = re.sub(
+        r"\b(vip|gold|raw|dolby|audio|backup|feed|no|nor|norway|norge|norwegian)\b",
+        " ", value)
     value = re.sub(r"\s+", " ", value).strip()
     return bool(re.fullmatch(
-        r"v sport(?: (?:live|premier league))?(?: [1-9]\d*)?", value))
+        r"v sport(?: (?:live|premier league|prem league|epl|pl))?"
+        r"(?: [1-9]\d*)?", value))
 
 def _norway_premier_league_feed(name):
-    """True only for the numbered Norwegian V Sport Premier League family."""
+    """Recognize the Norwegian V Sport PL family regardless of suffix noise."""
     value = re.sub(r"\s+", " ", normalise(name)).strip()
-    return bool(re.fullmatch(r"v sport premier league(?: [1-9]\d*)?", value))
+    return bool(re.search(
+        r"(?<![a-z0-9])v sport(?: premier league| prem league| epl| pl)"
+        r"(?: [1-9]\d*)?(?![a-z0-9])", value))
 
 def _viaplay_finland_linear_feed(name):
     """Finnish V Sport feeds that can carry Viaplay football/events."""
@@ -4180,8 +4186,10 @@ def match_channels(by_country, xtream_channels, cats, threshold, league_name="")
         best, best_src, best_country, best_exact_provider = 0.0, "", "", False
         best_competition_secure = False
         for orig, bcountry, allowed, sn, sset in srcs:
-            viaplay_no_feed = (bcountry == "NO" and _viaplay_listing(sn, bcountry) and
-                               _viaplay_norway_linear_feed(xn))
+            viaplay_no_feed = (
+                bcountry == "NO" and _viaplay_listing(sn, bcountry) and
+                (_viaplay_norway_linear_feed(xn) or
+                 _norway_premier_league_feed(xn)))
             viaplay_fi_feed = (bcountry == "FI" and _viaplay_listing(sn, bcountry) and
                                _viaplay_finland_linear_feed(xn))
             nordic_viaplay = (
@@ -4356,26 +4364,57 @@ def find_competition_channels(fixture, xtream_channels, cats, x):
         return []
     phrase = re.compile(r"(?<![a-z0-9])" + re.escape(league) + r"(?![a-z0-9])")
     out = []
+    generic_team_words = {"united", "city", "town", "rovers", "county",
+                          "athletic", "wanderers", "forest", "football", "club"}
+    side_forms = []
+    for team in (fixture.get("home"), fixture.get("away")):
+        full = {normalise(value) for value in _expand_terms(
+            str(team or "").lower().strip()) if len(normalise(value)) >= 3}
+        short = {word for form in full for word in form.split()
+                 if len(word) >= 5 and word not in generic_team_words}
+        side_forms.append((full, short))
     for ch in xtream_channels:
         cname = str(ch.get("name") or "")
         category = ch.get("_match_category", cats.get(ch.get("category_id"), ""))
         if (_NON_FOOTBALL_CHANNEL_RE.search(cname) or
                 _NON_FOOTBALL_CHANNEL_RE.search(category)):
             continue
-        hay = normalise_event_name(cname + " " + category)
-        if not phrase.search(hay):
-            continue
         channel_cc = _resolve_channel_country(cname, category)
         cleaned_name, channel_cc = _normalise_channel_country_labels(
             cname, channel_cc)
-        competition_secure = bool(
+        hay = normalise_event_name(cname + " " + category)
+        category_hay = normalise_event_name(category)
+        norway_family = bool(
             league == "premier league" and channel_cc == "no" and
             _norway_premier_league_feed(cleaned_name))
+        league_context = bool(
+            phrase.search(hay) or
+            (league == "premier league" and
+             re.search(r"(?<![a-z0-9])epl(?![a-z0-9])", hay)) or
+            norway_family)
+        if not league_context:
+            continue
+        name_hay = normalise_event_name(cname)
+        side_hits = 0
+        for full, short in side_forms:
+            if (any(re.search(r"(?<![a-z0-9])" + re.escape(form) +
+                              r"(?![a-z0-9])", name_hay) for form in full) or
+                    any(re.search(r"(?<![a-z0-9])" + re.escape(word) +
+                                  r"(?![a-z0-9])", name_hay) for word in short)):
+                side_hits += 1
+        uk_epl_team = bool(
+            league == "premier league" and channel_cc in {"uk", "gb"} and
+            side_hits >= 1 and
+            (phrase.search(category_hay) or
+             re.search(r"(?<![a-z0-9])epl(?![a-z0-9])", category_hay)))
+        competition_secure = norway_family or uk_epl_team
         out.append({
             "xtream_name": cname, "stream_id": ch.get("stream_id"),
             "category": category, "logo": ch.get("stream_icon", ""),
             "quality": quality_tag(cname), "url": x.stream_url(ch.get("stream_id")),
-            "fixture_match": "league", "league_match": True,
+            "fixture_match": ("exact" if side_hits >= 2 else
+                              ("partial" if side_hits == 1 else "league")),
+            "league_match": True,
             "competition_secure": competition_secure,
             "matched": fixture.get("league_name") or league,
         })
@@ -4400,7 +4439,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v26|" + _vod_cache_key(x) + "|" + str(
+    return "football-v27|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -6605,7 +6644,7 @@ function fixtureStoredChannelsHtml(f){
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
 }
 
-function secureChannelFamily(ch){return String(ch&&ch.xtream_name||'channel').toLowerCase().replace(/^\\s*[a-z0-9]{1,8}\\s*[:|\\-]\\s*/,'').replace(/^\\s*(no|nor|norway|norge|norwegian)\\s+/,'').replace(/\\b(4k|uhd|fhd|full\\s*hd|hd|sd|raw|hevc|h\\.?26[45]|avc|50\\s*fps|60\\s*fps)\\b/g,' ').replace(/[^a-z0-9]+/g,' ').replace(/\\s+/g,' ').trim()||String(ch&&ch.xtream_name||'channel').toLowerCase();}
+function secureChannelFamily(ch){return String(ch&&ch.xtream_name||'channel').toLowerCase().replace(/^\\s*[a-z0-9]{1,8}\\s*[:|\\-]\\s*/,'').replace(/^\\s*(no|nor|norway|norge|norwegian)\\s+/,'').replace(/\\b(4k|uhd|fhd|full\\s*hd|hd|sd|raw|hevc|h\\.?26[45]|avc|50\\s*fps|60\\s*fps|vip|gold|dolby|audio|no|nor|norway|norge|norwegian)\\b/g,' ').replace(/[^a-z0-9]+/g,' ').replace(/\\s+/g,' ').trim()||String(ch&&ch.xtream_name||'channel').toLowerCase();}
 function secureQualityPriority(ch){const n=String(ch&&ch.xtream_name||'').toLowerCase();let score=0;if(/\\b(4k|uhd)\\b/.test(n))score=700;else if(/\\b(fhd|full\\s*hd)\\b/.test(n))score=600;else if(/\\b(hevc|h\\.?265)\\b/.test(n))score=550;else if(/\\bhd\\b/.test(n))score=500;else if(/\\braw\\b/.test(n))score=400;else if(/\\bsd\\b/.test(n))score=100;if(/\\b(50|60)\\s*fps\\b/.test(n))score+=10;return score;}
 function secureMatchGroupsHtml(rows,line,prefix){
   const groups=new Map();for(const ch of rows.slice().sort(preferredChannelSort)){const family=secureChannelFamily(ch);if(!groups.has(family))groups.set(family,[]);groups.get(family).push(ch);}
@@ -11881,28 +11920,42 @@ def run_self_tests():
         def stream_url(stream_id):
             return f"stream:{stream_id}"
     competition_channels = [
-        {"name": "NO: V Sport Premier League 1 HD", "stream_id": 4010,
+        {"name": "NO: V Sport Premier League 1 VIP NO", "stream_id": 4010,
          "category_id": "no"},
         {"name": "UK Premier League Sport 1", "stream_id": 4011,
          "category_id": "uk"},
         {"name": "NO: V Sport 1", "stream_id": 4012,
-         "category_id": "no"}]
+         "category_id": "no"},
+        {"name": "NO: V Sport Premier League 2 RAW NO", "stream_id": 4013,
+         "category_id": "no"},
+        {"name": "UK: EPL LEEDS", "stream_id": 4014,
+         "category_id": "uk-epl"},
+        {"name": "UK: EPL NOTTINGHAM", "stream_id": 4015,
+         "category_id": "uk-epl"}]
     competition_fixture = {"home": "Leeds United", "away": "Nottingham Forest",
                            "league_name": "Premier League", "by_country": {}}
     competition_shortlist = _sports_fixture_channel_shortlist(
         competition_fixture, competition_channels,
-        {"no": "NO | SPORTS", "uk": "UK | SPORTS"})
+        {"no": "NO | SPORTS", "uk": "UK | SPORTS",
+         "uk-epl": "UK | EPL PREMIER LEAGUE PPV"})
     competition_rows = find_competition_channels(
         competition_fixture, competition_shortlist,
-        {"no": "NO | SPORTS", "uk": "UK | SPORTS"}, _CompetitionTestX())
+        {"no": "NO | SPORTS", "uk": "UK | SPORTS",
+         "uk-epl": "UK | EPL PREMIER LEAGUE PPV"}, _CompetitionTestX())
     check("Premier League fixture adds named competition alternatives",
-          {row["stream_id"] for row in competition_rows} == {4010, 4011} and
+          {row["stream_id"] for row in competition_rows} ==
+          {4010, 4011, 4013, 4014, 4015} and
           all(row.get("league_match") for row in competition_rows))
     competition_secure_rows = {
         row["stream_id"]: row.get("competition_secure")
         for row in competition_rows}
     check("Norwegian Premier League family is secure without broadcaster data",
-          competition_secure_rows == {4010: True, 4011: False})
+          competition_secure_rows.get(4010) is True and
+          competition_secure_rows.get(4013) is True)
+    check("UK EPL category plus either fixture team is secure",
+          competition_secure_rows.get(4014) is True and
+          competition_secure_rows.get(4015) is True and
+          competition_secure_rows.get(4011) is False)
     check("sports search keeps partial PPV hits in possible categories",
           "const possiblePpv=[]" in PAGE and
           "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
@@ -12076,18 +12129,25 @@ def run_self_tests():
           all(not row.get("provider_exact") for row in viaplay_no))
     premier_league_secure = match_channels(
         {"NO": ["Viaplay Norway"]},
-        [{"name": "NO: V Sport Premier League 1 HD", "stream_id": 1091,
+        [{"name": "NO: V Sport Premier League 1 VIP NO", "stream_id": 1091,
           "category_id": "no"},
          {"name": "NO: V Sport 1 HD", "stream_id": 1092,
           "category_id": "no"},
          {"name": "SWE: V Sport Premier League 1 HD", "stream_id": 1093,
-          "category_id": "swe"}],
+          "category_id": "swe"},
+         {"name": "NO: V Sport PL 2 HEVC", "stream_id": 1095,
+          "category_id": "no"},
+         {"name": "NO: V Sport EPL 3 RAW", "stream_id": 1096,
+          "category_id": "no"},
+         {"name": "NO: V Sport Prem League 4", "stream_id": 1097,
+          "category_id": "no"}],
         {"no": "NO | SPORTS", "swe": "SWE | SPORTS"}, 0.62,
         "Premier League")
     secure_by_id = {row["stream_id"]: row.get("competition_secure")
                     for row in premier_league_secure}
     check("only Norwegian V Sport Premier League family gets custom secure flag",
-          secure_by_id == {1091: True, 1092: False})
+          secure_by_id == {1091: True, 1092: False, 1095: True,
+                           1096: True, 1097: True})
     non_premier_secure = match_channels(
         {"NO": ["Viaplay Norway"]},
         [{"name": "NO: V Sport Premier League 1 HD", "stream_id": 1094,
