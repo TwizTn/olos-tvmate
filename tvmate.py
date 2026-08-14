@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b404"
+VERSION = "0.777.b405"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4724,6 +4724,15 @@ def find_racing_channels(event, xtream_channels, cats, x):
         for word in _distinctive(normalise(str(value or "")).split()):
             if word not in ignored and len(word) >= 3 and word not in event_words:
                 event_words.append(word)
+    if "dutch" in event_words:
+        event_words.extend(word for word in ("nederland", "netherlands")
+                           if word not in event_words)
+    session = normalise(str(event.get("session") or ""))
+    session_terms = set(_distinctive(session.split()))
+    if "qualifying" in session_terms:
+        session_terms.add("kvalifisering")
+    if "sprint" in session_terms:
+        session_terms.add("sprintkval")
     out = []
     for ch in xtream_channels:
         cname = str(ch.get("name") or "")
@@ -4731,6 +4740,9 @@ def find_racing_channels(event, xtream_channels, cats, x):
         if not hay:
             continue
         category = cats.get(ch.get("category_id"), "")
+        channel_cc = _resolve_channel_country(cname, category)
+        cleaned_name, channel_cc = _normalise_channel_country_labels(
+            cname, channel_cc)
         padded = " " + hay + " "
         series_hit = any((" " + alias + " ") in padded for alias in aliases if alias)
         event_hits = sum(1 for word in event_words
@@ -4739,14 +4751,29 @@ def find_racing_channels(event, xtream_channels, cats, x):
         # One distinctive place/event word is enough inside an explicit PPV
         # category (e.g. "Dutch Grand Prix" need not also say Zandvoort).
         event_hit = event_hits >= 1
+        session_hit = bool(session_terms and any(
+            re.search(r"(?<![a-z0-9])" + re.escape(word) +
+                      r"(?![a-z0-9])", hay) for word in session_terms))
+        f1_feed_name = re.sub(
+            r"\b(vip|gold|raw|dolby|audio|backup|feed)\b", " ", cleaned_name)
+        f1_feed_name = re.sub(r"\s+", " ", f1_feed_name).strip()
+        norway_f1 = bool(
+            series == "f1" and channel_cc == "no" and
+            re.fullmatch(r"v sport 1", f1_feed_name))
+        viaplay_event_feed = bool(
+            series == "f1" and channel_cc == "no" and
+            "viaplay" in normalise(cname + " " + category) and
+            _is_ppv_category(cname))
         ppv_context = _is_ppv_category(category) or _is_ppv_category(cname)
         event_context = ppv_context or _is_4k_category(category)
-        if not series_hit and not (event_hit and event_context):
+        if not (norway_f1 or viaplay_event_feed or series_hit or
+                (event_hit and event_context)):
             continue
         # Event title beats a dedicated series channel; generic series entries
         # in PPV/Play/Event buckets remain useful but are only possible matches.
-        match_kind = ("event" if event_hit else
-                      ("possible" if ppv_context else "series"))
+        match_kind = ("broadcaster" if norway_f1 else
+                      ("event" if (event_hit or (series_hit and session_hit)) else
+                      ("possible" if ppv_context else "series")))
         out.append({"xtream_name": cname, "stream_id": ch.get("stream_id"),
                     "category": category, "logo": ch.get("stream_icon", ""),
                     "quality": quality_tag(cname),
@@ -4759,7 +4786,7 @@ def find_racing_channels(event, xtream_channels, cats, x):
         if sid in seen:
             continue
         seen.add(sid); unique.append(row)
-    order = {"event": 0, "series": 1, "possible": 2}
+    order = {"broadcaster": 0, "event": 1, "series": 2, "possible": 3}
     unique.sort(key=lambda row: (order.get(row.get("match_kind"), 3),
                                  str(row.get("category") or ""),
                                  str(row.get("xtream_name") or "")))
@@ -6177,7 +6204,7 @@ const _I18N={
   "Nothing airing close to now from your favorite shows.":"Ingenting sendes nær nåtid fra favorittseriene dine.","Could not load your shows.":"Kunne ikke laste seriene dine.",
   "Airs in":"Sendes om","Released":"Utgitt","Releases":"Lanseres","Just released":"Nettopp utgitt","ago":"siden","Stream found in playlist":"Strøm funnet i spillelisten",
   "Live now":"Direkte nå","Next match":"Neste kamp","Next race":"Neste løp","No upcoming race found.":"Ingen kommende løp funnet.",
-  "Choose a driver to see details.":"Velg en fører for å se detaljer.","Driver profile":"Førerprofil","Loading drivers and next race...":"Laster førere og neste løp...","Loading racing schedules...":"Laster racingterminlister...","Loading fixture...":"Laster kamp...","Loading next race...":"Laster neste løp...","Nothing happening around now.":"Ingenting skjer rundt nå.","Play":"Spill av","No upcoming events found.":"Ingen kommende arrangementer funnet.","Choose at least one racing series above.":"Velg minst én racingserie ovenfor.","Could not load racing schedules.":"Kunne ikke laste racingterminlistene.","Definite event matches":"Sikre arrangementstreff","Dedicated series channels":"Dedikerte seriekanaler","Possible channels by category":"Mulige kanaler etter kategori","Other possible channels":"Andre mulige kanaler",
+  "Choose a driver to see details.":"Velg en fører for å se detaljer.","Driver profile":"Førerprofil","Loading drivers and next race...":"Laster førere og neste løp...","Loading racing schedules...":"Laster racingterminlister...","Loading fixture...":"Laster kamp...","Loading next race...":"Laster neste løp...","Nothing happening around now.":"Ingenting skjer rundt nå.","Play":"Spill av","No upcoming events found.":"Ingen kommende arrangementer funnet.","Choose at least one racing series above.":"Velg minst én racingserie ovenfor.","Could not load racing schedules.":"Kunne ikke laste racingterminlistene.","Definite event matches":"Sikre arrangementstreff","Confirmed racing channels":"Sikre racingkanaler","Dedicated series channels":"Dedikerte seriekanaler","Possible channels by category":"Mulige kanaler etter kategori","Other possible channels":"Andre mulige kanaler",
   "Recently":"Nylig","Upcoming":"Kommende","Right now":"Akkurat nå",
   "Favorite Channels":"Favorittkanaler","EPG Refresh":"Oppdater EPG","Channels":"Kanaler",
   "All Categories":"Alle kategorier","Selected categories":"Valgte kategorier","Filter Channels":"Kanaler","Playlist":"Spilleliste",
@@ -7910,9 +7937,9 @@ function racingChannelLine(ch){
   return '<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
 }
 function racingChannelSections(channels){
-  const definite=channels.filter(ch=>ch.match_kind==='event').sort(preferredChannelSort),dedicated=channels.filter(ch=>ch.match_kind==='series').sort(preferredChannelSort),possible=channels.filter(ch=>ch.match_kind!=='event'&&ch.match_kind!=='series').sort(preferredChannelSort);
+  const definite=channels.filter(ch=>ch.match_kind==='event'||ch.match_kind==='broadcaster').sort(preferredChannelSort),dedicated=channels.filter(ch=>ch.match_kind==='series').sort(preferredChannelSort),possible=channels.filter(ch=>!['event','broadcaster','series'].includes(ch.match_kind)).sort(preferredChannelSort);
   let h='';
-  if(definite.length)h+='<div class="muted">'+esc(tr('Definite event matches'))+'</div>'+definite.map(racingChannelLine).join('');
+  if(definite.length)h+='<div class="muted">'+esc(tr('Confirmed racing channels'))+'</div>'+definite.map(racingChannelLine).join('');
   if(dedicated.length)h+='<div class="muted" style="margin-top:8px">'+esc(tr('Dedicated series channels'))+'</div>'+dedicated.map(racingChannelLine).join('');
   if(possible.length){
     const groups=new Map();for(const ch of possible){const category=String(ch.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(ch);}
@@ -12448,15 +12475,34 @@ def run_self_tests():
         def stream_url(stream_id):
             return "test:" + str(stream_id)
     racing_rows = find_racing_channels(
-        {"series": "f1", "race": "Dutch Grand Prix", "circuit": "Zandvoort"},
+        {"series": "f1", "race": "Dutch Grand Prix", "circuit": "Zandvoort",
+         "session": "Sprint Qualifying"},
         [{"name": "F1 Dutch Grand Prix 4K", "stream_id": 20, "category_id": "4k"},
          {"name": "Sky Sports F1 UHD", "stream_id": 21, "category_id": "4k"},
-         {"name": "F1 PPV 1", "stream_id": 22, "category_id": "ppv"}],
-        sample_cats, _TestRacingXtream())
+         {"name": "F1 PPV 1", "stream_id": 22, "category_id": "ppv"},
+         {"name": "NO: V SPORT 1 VIP RAW", "stream_id": 23, "category_id": "no"},
+         {"name": "NO: V SPORT 2", "stream_id": 24, "category_id": "no"},
+         {"name": "NO: VIAPLAY PPV 4", "stream_id": 25, "category_id": "no"},
+         {"name": "NO: VIAPLAY FILM ACTION", "stream_id": 26, "category_id": "no"},
+         {"name": "DK: VIAPLAY DK2", "stream_id": 27, "category_id": "dk"},
+         {"name": "NO: F1 SPRINTKVAL", "stream_id": 28, "category_id": "no"},
+         {"name": "NO: F1 NEDERLAND GP", "stream_id": 29, "category_id": "no"}],
+        dict(sample_cats, no="NO| NORWAY", dk="DK| VIAPLAY"),
+        _TestRacingXtream())
     racing_kinds = {row["stream_id"]: row.get("match_kind") for row in racing_rows}
     check("racing event promoted", racing_kinds.get(20) == "event")
     check("racing series second", racing_kinds.get(21) == "series")
     check("racing category fallback", racing_kinds.get(22) == "possible")
+    check("Norwegian V Sport 1 is a confirmed F1 broadcaster",
+          racing_kinds.get(23) == "broadcaster" and 24 not in racing_kinds)
+    check("F1 Viaplay fallback requires PPV in the channel name",
+          racing_kinds.get(25) == "possible" and
+          26 not in racing_kinds and 27 not in racing_kinds)
+    check("Dutch GP aliases and session titles are definite racing matches",
+          racing_kinds.get(28) == "event" and racing_kinds.get(29) == "event")
+    check("racing UI separates confirmed broadcasters from dedicated series",
+          "ch.match_kind==='event'||ch.match_kind==='broadcaster'" in PAGE and
+          "Confirmed racing channels" in PAGE)
     event_ids = {row["stream_id"] for row in find_team_channels(
         ["Brann", "HamKam"], sample_channels, sample_cats, _TestXtream())}
     check("both fixture teams rank", 3 in event_ids)
