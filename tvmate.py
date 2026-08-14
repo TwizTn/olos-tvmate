@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b398"
+VERSION = "0.777.b399"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4439,7 +4439,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v27|" + _vod_cache_key(x) + "|" + str(
+    return "football-v28|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -4633,9 +4633,18 @@ def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
                               candidates, cats, x)
     have = {str(row.get("stream_id")) for row in matches}
     ppv_hits = [row for row in hits if str(row.get("stream_id")) not in have]
-    have.update(str(row.get("stream_id")) for row in ppv_hits)
-    ppv_hits.extend(row for row in find_competition_channels(
-        fixture, candidates, cats, x) if str(row.get("stream_id")) not in have)
+    ppv_by_id = {str(row.get("stream_id")): row for row in ppv_hits}
+    for row in find_competition_channels(fixture, candidates, cats, x):
+        sid = str(row.get("stream_id"))
+        if sid in have:
+            continue
+        if sid in ppv_by_id:
+            ppv_by_id[sid].update({
+                key: value for key, value in row.items()
+                if value not in (None, "", False)})
+        else:
+            ppv_hits.append(row)
+            ppv_by_id[sid] = row
     return {"logged_in": True, "availability_checked": True,
             "matches": matches, "ppv_hits": ppv_hits}
 
@@ -6636,7 +6645,7 @@ function openMyTeamsFixture(target){
 function fixtureStoredChannelsHtml(f){
   if(!f.logged_in)return '<span class="muted">'+esc(tr('Log in via Settings first.'))+'</span>';
   const all=[...(f.matches||[]),...(f.ppv_hits||[])],seen=new Set(),definite=[],other=[];
-  for(const ch of all){const id=String(ch.stream_id||'');if(!id||seen.has(id))continue;seen.add(id);if(fixtureChannelRank(ch,f)===3||ch.provider_exact===true||ch.competition_secure===true)definite.push(ch);else other.push(ch);}
+  for(const ch of all){const id=String(ch.stream_id||'');if(!id||seen.has(id))continue;seen.add(id);if(fixtureChannelRank(ch,f)===3||ch.provider_exact===true||ch.competition_secure===true||customPremierLeagueSecure(ch,f))definite.push(ch);else other.push(ch);}
   definite.sort(preferredChannelSort);other.sort(preferredChannelSort);
   const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(ch.stream_id||''))+'" data-name="'+escAttr(ch.xtream_name||'Channel')+'">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
   let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+secureMatchGroupsHtml(definite,line,'stored'+Math.random().toString(36).slice(2));
@@ -7187,6 +7196,12 @@ function fixtureChannelRank(m,f){
   if(m&&m.fixture_match==='generic')return 1;
   return homeHit||awayHit?2:1;
 }
+function customPremierLeagueSecure(ch,f){
+  if(!/\\bpremier\\s+league\\b/i.test(String(f&&f.league_name||'')))return false;
+  const name=String(ch&&ch.xtream_name||''),category=String(ch&&ch.category||'');
+  const norwegian=/(^|[^a-z0-9])(no|nor|norway|norge|norwegian)([^a-z0-9]|$)/i.test(category);
+  return norwegian&&/\\bv\\s*sport\\s+(?:premier\\s+league|prem\\s+league|epl|pl)(?:\\s+\\d+)?\\b/i.test(name);
+}
 function channelLocalePriority(ch){
   const text=[ch&&ch.category,ch&&ch.xtream_name,ch&&ch.quality].filter(Boolean).join(' ');
   const is4k=/\\b(4k|uhd)\\b/i.test(text);
@@ -7238,7 +7253,7 @@ function renderFixtureCard(f,fi){
   // Pull every definite fixture-title hit into one visible section before
   // the broader broadcaster/provider categories. Keep those categories broad.
   const strictSeen=new Set(),strictResults=[];
-  [...(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true||m.competition_secure===true),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true||m.competition_secure===true)].forEach(function(m){
+  [...(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true||m.competition_secure===true||customPremierLeagueSecure(m,f)),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true||m.competition_secure===true||customPremierLeagueSecure(m,f))].forEach(function(m){
     const key=String(m.stream_id||'');
     if(key&&!strictSeen.has(key)){strictSeen.add(key);strictResults.push(m);}
   });
@@ -11956,6 +11971,22 @@ def run_self_tests():
           competition_secure_rows.get(4014) is True and
           competition_secure_rows.get(4015) is True and
           competition_secure_rows.get(4011) is False)
+    integrated_competition = _match_sports_fixture_channels(
+        competition_fixture, {"match_threshold": 0.62}, competition_channels,
+        {"no": "NO | SPORTS", "uk": "UK | SPORTS",
+         "uk-epl": "UK | EPL PREMIER LEAGUE PPV"}, _CompetitionTestX())
+    integrated_secure = {
+        row["stream_id"]: row.get("competition_secure")
+        for row in integrated_competition["ppv_hits"]}
+    check("integrated matcher preserves secure flags after team-hit deduplication",
+          integrated_secure.get(4010) is True and
+          integrated_secure.get(4013) is True and
+          integrated_secure.get(4014) is True and
+          integrated_secure.get(4015) is True)
+    check("fixture rendering independently recognizes Norwegian V Sport PL",
+          "function customPremierLeagueSecure(ch,f)" in PAGE and
+          PAGE.count("customPremierLeagueSecure(m,f)") >= 2 and
+          "customPremierLeagueSecure(ch,f)" in PAGE)
     check("sports search keeps partial PPV hits in possible categories",
           "const possiblePpv=[]" in PAGE and
           "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
