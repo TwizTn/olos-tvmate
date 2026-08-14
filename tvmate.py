@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b395"
+VERSION = "0.777.b396"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4364,11 +4364,18 @@ def find_competition_channels(fixture, xtream_channels, cats, x):
         hay = normalise_event_name(cname + " " + category)
         if not phrase.search(hay):
             continue
+        channel_cc = _resolve_channel_country(cname, category)
+        cleaned_name, channel_cc = _normalise_channel_country_labels(
+            cname, channel_cc)
+        competition_secure = bool(
+            league == "premier league" and channel_cc == "no" and
+            _norway_premier_league_feed(cleaned_name))
         out.append({
             "xtream_name": cname, "stream_id": ch.get("stream_id"),
             "category": category, "logo": ch.get("stream_icon", ""),
             "quality": quality_tag(cname), "url": x.stream_url(ch.get("stream_id")),
             "fixture_match": "league", "league_match": True,
+            "competition_secure": competition_secure,
             "matched": fixture.get("league_name") or league,
         })
     return out
@@ -4392,7 +4399,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v24|" + _vod_cache_key(x) + "|" + str(
+    return "football-v25|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -6601,7 +6608,7 @@ function secureChannelFamily(ch){return String(ch&&ch.xtream_name||'channel').to
 function secureQualityPriority(ch){const n=String(ch&&ch.xtream_name||'').toLowerCase();let score=0;if(/\\b(4k|uhd)\\b/.test(n))score=700;else if(/\\b(fhd|full\\s*hd)\\b/.test(n))score=600;else if(/\\b(hevc|h\\.?265)\\b/.test(n))score=550;else if(/\\bhd\\b/.test(n))score=500;else if(/\\braw\\b/.test(n))score=400;else if(/\\bsd\\b/.test(n))score=100;if(/\\b(50|60)\\s*fps\\b/.test(n))score+=10;return score;}
 function secureMatchGroupsHtml(rows,line,prefix){
   const groups=new Map();for(const ch of rows.slice().sort(preferredChannelSort)){const family=secureChannelFamily(ch);if(!groups.has(family))groups.set(family,[]);groups.get(family).push(ch);}
-  let html='',groupIndex=0;for(const items of groups.values()){items.sort((a,b)=>channelLocalePriority(b)-channelLocalePriority(a)||secureQualityPriority(b)-secureQualityPriority(a)||preferredChannelSort(a,b));const id=prefix+'g'+groupIndex++;html+='<div class="securematchgroup">';for(const [i,ch] of items.entries())html+='<div class="securematchvariant'+(i>=3?' securematchextra hide':'')+'" data-secure-group="'+id+'">'+line(ch)+'</div>';if(items.length>3)html+='<button class="ghost securematchexpand" data-secure-target="'+id+'" data-more="'+(items.length-3)+'">'+esc(tr('Show more channels'))+' ('+(items.length-3)+')</button>';html+='</div>';}
+  let html='',groupIndex=0;for(const items of groups.values()){items.sort((a,b)=>channelLocalePriority(b)-channelLocalePriority(a)||secureQualityPriority(b)-secureQualityPriority(a)||preferredChannelSort(a,b));const id=prefix+'g'+groupIndex++;html+='<div class="securematchgroup">';for(const [i,ch] of items.entries())html+='<div class="securematchvariant'+(i>=5?' securematchextra hide':'')+'" data-secure-group="'+id+'">'+line(ch)+'</div>';if(items.length>5)html+='<button class="ghost securematchexpand" data-secure-target="'+id+'" data-more="'+(items.length-5)+'">'+esc(tr('Show more channels'))+' ('+(items.length-5)+')</button>';html+='</div>';}
   return html;
 }
 function toggleSecureMatches(btn){const id=btn.getAttribute('data-secure-target'),extras=document.querySelectorAll('.securematchextra[data-secure-group="'+id+'"]');if(!extras.length)return;const opening=extras[0].classList.contains('hide');extras.forEach(el=>el.classList.toggle('hide',!opening));btn.textContent=opening?tr('Show fewer matches'):(tr('Show more channels')+' ('+btn.getAttribute('data-more')+')');}
@@ -11824,8 +11831,9 @@ def run_self_tests():
     check("matched channel titles play without collapsing fixtures",
           "fixturechanneltitle[data-sid]" in PAGE and
           "playBrowser(fixtureChannelTitle.getAttribute('data-sid')" in PAGE)
-    check("secure channel families show three quality variants before expansion",
-          "i>=3?' securematchextra hide'" in PAGE and
+    check("secure channel families show five quality variants before expansion",
+          "i>=5?' securematchextra hide'" in PAGE and
+          "items.length-5" in PAGE and
           "secureQualityPriority(b)-secureQualityPriority(a)" in PAGE and
           "securematchexpand" in PAGE)
     check("secure show-more expands on its first click",
@@ -11879,6 +11887,11 @@ def run_self_tests():
     check("Premier League fixture adds named competition alternatives",
           {row["stream_id"] for row in competition_rows} == {4010, 4011} and
           all(row.get("league_match") for row in competition_rows))
+    competition_secure_rows = {
+        row["stream_id"]: row.get("competition_secure")
+        for row in competition_rows}
+    check("Norwegian Premier League family is secure without broadcaster data",
+          competition_secure_rows == {4010: True, 4011: False})
     check("sports search keeps partial PPV hits in possible categories",
           "const possiblePpv=[]" in PAGE and
           "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
