@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b392"
+VERSION = "0.777.b393"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -7146,12 +7146,14 @@ function preferredChannelSort(a,b){
   // list. Keep it ahead of generic fixture/PPV candidates inside the same
   // locale tier. EPG confirmation is the next-best signal.
   const sure=ch=>ch&&ch.provider_exact===true?2:(ch&&ch.epg_confirmed===true?1:0);
-  const relevance=ch=>{if(ch&&ch.fixture_match==='exact')return 500;if(ch&&ch.league_match===true&&/viaplay/i.test(String(ch.matched||'')))return 400;if(ch&&ch.fixture_match==='partial')return 300;if(ch&&ch.league_match===true)return 200;return 0;};
-  return channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)||relevance(b)-relevance(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
+  return channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)||channelMatchPriority(b)-channelMatchPriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
 }
+function channelMatchPriority(ch){if(ch&&ch.fixture_match==='exact')return 500;if(ch&&ch.league_match===true&&/viaplay/i.test(String(ch.matched||'')))return 400;if(ch&&ch.fixture_match==='partial')return 300;if(ch&&ch.league_match===true)return 200;return Math.round(Number(ch&&ch.score||0)*100);}
 function groupedPossibleChannels(rows){
   const groups=new Map();for(const ch of rows.slice().sort(preferredChannelSort)){const category=String(ch.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(ch);}
-  return Array.from(groups.entries()).sort((a,b)=>Math.max(...b[1].map(channelLocalePriority))-Math.max(...a[1].map(channelLocalePriority))||String(a[0]).localeCompare(String(b[0])));
+  const categoryTier=category=>{const text=String(category||'');if(/(^|[^a-z0-9])(no|nor|norway|norge|norwegian)([^a-z0-9]|$)/i.test(text))return 400;if(/(^|[^a-z0-9])(se|swe|sweden|swedish)([^a-z0-9]|$)/i.test(text))return 300;if(/(^|[^a-z0-9])(dk|den|dnk|denmark|danish)([^a-z0-9]|$)/i.test(text))return 200;if(/\\b(4k|uhd)\\b/i.test(text))return 100;return 0;};
+  const bestMatch=items=>Math.max(0,...items.map(channelMatchPriority));
+  return Array.from(groups.entries()).sort((a,b)=>categoryTier(b[0])-categoryTier(a[0])||(categoryTier(a[0])===0?bestMatch(b[1])-bestMatch(a[1]):0)||String(a[0]).localeCompare(String(b[0])));
 }
 
 function renderFixtureCard(f,fi){
@@ -11816,8 +11818,12 @@ def run_self_tests():
           "querySelectorAll('.securematchextra[data-secure-group=" in PAGE)
     check("possible channel categories use shared locale ordering",
           "groupedPossibleChannels(other)" in PAGE and
-          "groupedPossibleChannels(possiblePpv)" in PAGE)
+          "groupedPossibleChannels(possiblePpv)" in PAGE and
+          "categoryTier(b[0])-categoryTier(a[0])" in PAGE and
+          "categoryTier(a[0])===0?bestMatch(b[1])-bestMatch(a[1])" in PAGE and
+          "Math.max(...b[1].map(channelLocalePriority))" not in PAGE)
     check("fixture and competition relevance promote possible channels",
+          "function channelMatchPriority(ch)" in PAGE and
           "fixture_match==='exact'" in PAGE and
           "league_match===true&&/viaplay/i" in PAGE and
           "fixture_match==='partial'" in PAGE)
