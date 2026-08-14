@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b385"
+VERSION = "0.777.b386"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -902,7 +902,8 @@ class Xtream:
             })
         return out
 
-_XT_CACHE = {"provider": "", "ts": 0, "channels": [], "cats": {}}
+_XT_CACHE = {"provider": "", "ts": 0, "channels": [], "cats": {},
+             "sports_index": {}}
 _VOD_CACHE = {"provider": "", "ts": 0, "movies": []}
 _SERIES_CACHE = {"provider": "", "ts": 0, "shows": []}
 _SHOW_INFO_CACHE = {}  # (provider,user,series_id) -> {ts,data}
@@ -918,7 +919,8 @@ _EPG_DISK_PROVIDER = None
 def _clear_provider_caches():
     """Invalidate all in-memory data tied to the configured Xtream account."""
     global _EPG_DISK_PROVIDER
-    _XT_CACHE.update({"provider": "", "ts": 0, "channels": [], "cats": {}})
+    _XT_CACHE.update({"provider": "", "ts": 0, "channels": [], "cats": {},
+                      "sports_index": {}})
     _VOD_CACHE.update({"provider": "", "ts": 0, "movies": []})
     _SERIES_CACHE.update({"provider": "", "ts": 0, "shows": []})
     _SHOW_INFO_CACHE.clear()
@@ -1349,15 +1351,9 @@ def get_xtream_channels(cfg, force=False):
         cats = x.categories()
     except Exception:
         cats = {}
-    # Sports matching scans this catalogue for several fixtures. Normalize the
-    # immutable provider names once instead of repeating the same regex work in
-    # every broadcaster and event-channel pass.
-    for channel in channels:
-        name = str(channel.get("name") or "")
-        channel["_match_norm"] = normalise(name)
-        channel["_event_norm"] = normalise_event_name(name)
-        channel["_match_category"] = cats.get(channel.get("category_id"), "")
-    _XT_CACHE.update({"provider": provider, "ts": now, "channels": channels, "cats": cats})
+    sports_index = _build_sports_channel_index(channels, cats)
+    _XT_CACHE.update({"provider": provider, "ts": now, "channels": channels,
+                      "cats": cats, "sports_index": sports_index})
     _sync_favorite_channel_icons(channels)
     return channels, cats
 
@@ -3962,6 +3958,79 @@ def _strip_bare_channel_country(name, resolved_cc=None):
         return rest.strip(), resolved_cc or inferred
     return value, resolved_cc
 
+def _build_sports_channel_index(channels, cats):
+    """Prepare reusable normalized names and token lookups for sports matching."""
+    token_index, event_token_index, compact_index = {}, {}, {}
+    compact_values = []
+    for index, channel in enumerate(channels):
+        name = str(channel.get("name") or "")
+        match_name = normalise(name)
+        event_name = normalise_event_name(name)
+        category = cats.get(channel.get("category_id"), "")
+        compact = re.sub(r"\s+", "", match_name)
+        channel["_match_norm"] = match_name
+        channel["_event_norm"] = event_name
+        channel["_match_category"] = category
+        channel["_match_tokens"] = frozenset(match_name.split())
+        channel["_event_tokens"] = frozenset(event_name.split())
+        channel["_match_compact"] = compact
+        compact_values.append(compact)
+        if compact:
+            compact_index.setdefault(compact, set()).add(index)
+        for token in channel["_match_tokens"]:
+            token_index.setdefault(token, set()).add(index)
+        for token in channel["_event_tokens"]:
+            event_token_index.setdefault(token, set()).add(index)
+    return {"channels": channels, "tokens": token_index,
+            "event_tokens": event_token_index, "compact": compact_index,
+            "compact_values": compact_values}
+
+def _sports_channel_index(channels, cats):
+    cached = _XT_CACHE.get("sports_index") or {}
+    if cached.get("channels") is channels:
+        return cached
+    return _build_sports_channel_index(channels, cats)
+
+def _sports_fixture_channel_shortlist(fixture, channels, cats):
+    """Use cheap indexed terms to avoid fuzzy-scoring the full IPTV catalogue."""
+    if not channels:
+        return []
+    index = _sports_channel_index(channels, cats)
+    selected = set()
+    broadcaster_compacts = set()
+    for country, names in (fixture.get("by_country") or {}).items():
+        suffixes = {"NO": ("norway", "norge", "norwegian"),
+                    "SE": ("sweden", "swedish"),
+                    "DK": ("denmark", "danish"),
+                    "FI": ("finland", "finnish")}.get(str(country).upper(), ())
+        for name in names or []:
+            normalized = normalise(str(name or ""))
+            for suffix in suffixes:
+                normalized = re.sub(r"\s+" + re.escape(suffix) + r"$", "", normalized)
+            compact = re.sub(r"\s+", "", normalized)
+            if compact:
+                broadcaster_compacts.add(compact)
+                selected.update(index["compact"].get(compact, ()))
+            for token in _distinctive(normalized.split()):
+                selected.update(index["tokens"].get(token, ()))
+            if normalized in {"viaplay", "viaplay norway", "viaplay finland",
+                              "viaplay sweden", "viaplay denmark"}:
+                selected.update(index["tokens"].get("sport", ()))
+    if broadcaster_compacts:
+        for channel_index, compact in enumerate(index["compact_values"]):
+            if any(source in compact for source in broadcaster_compacts):
+                selected.add(channel_index)
+    for team in (fixture.get("home"), fixture.get("away")):
+        for alias in _expand_terms(str(team or "").lower().strip()):
+            normalized = normalise(alias)
+            terms = _distinctive(normalized.split()) or [
+                token for token in normalized.split() if len(token) >= 3]
+            for token in terms:
+                selected.update(index["event_tokens"].get(token, ()))
+    if not selected:
+        return channels
+    return [channels[channel_index] for channel_index in sorted(selected)]
+
 def _channel_catalog_search_rank(name, category, term):
     """Return a stable relevance key for Playlist Builder channel search.
 
@@ -4244,7 +4313,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v18|" + _vod_cache_key(x) + "|" + str(
+    return "football-v19|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -4413,13 +4482,22 @@ def find_sports_event_channels(fixture, cfg):
 def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
     """Match one fixture using an already-loaded Xtream catalogue."""
     threshold = max(0.40, min(0.80, float(cfg.get("match_threshold", 0.62) or 0.62)))
+    candidates = _sports_fixture_channel_shortlist(fixture, channels, cats)
     matches = rank_fixture_channels(
-        match_channels(fixture.get("by_country") or {}, channels, cats, threshold),
+        match_channels(fixture.get("by_country") or {}, candidates, cats, threshold),
         fixture.get("home"), fixture.get("away"))
+    # Preserve fuzzy compatibility for unusual broadcaster spellings that have
+    # no useful indexed term. This slower path runs only when a guide exists and
+    # the shortlist found no broadcaster match.
+    if (not matches and fixture.get("by_country") and
+            len(candidates) < len(channels)):
+        matches = rank_fixture_channels(
+            match_channels(fixture.get("by_country") or {}, channels, cats, threshold),
+            fixture.get("home"), fixture.get("away"))
     for row in matches:
         row["url"] = x.stream_url(row["stream_id"])
     hits = find_team_channels([fixture.get("home", ""), fixture.get("away", "")],
-                              channels, cats, x)
+                              candidates, cats, x)
     have = {str(row.get("stream_id")) for row in matches}
     ppv_hits = [row for row in hits if str(row.get("stream_id")) not in have]
     return {"logged_in": True, "availability_checked": True,
@@ -11492,8 +11570,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b385") > _parse_ver("0.777.b384"))
-    check("version equality", _parse_ver("v0.777.b385") == _parse_ver("0.777.b385"))
+    check("version ordering", _parse_ver("0.777.b386") > _parse_ver("0.777.b385"))
+    check("version equality", _parse_ver("v0.777.b386") == _parse_ver("0.777.b386"))
     cache_busted = _cache_busted_url(
         "https://raw.githubusercontent.com/example/app/main/version.txt?source=manual",
         "123")
@@ -11609,6 +11687,22 @@ def run_self_tests():
     check("opening a waiting fixture triggers a targeted channel lookup",
           "panel.textContent.includes(tr('Checking your channels...'))" in PAGE and
           "body:JSON.stringify({fixture:fixture})" in PAGE)
+    indexed_channels = [
+        {"name": f"Noise Channel {i}", "stream_id": 3000 + i,
+         "category_id": "misc"} for i in range(120)] + [
+        {"name": "NO: V Sport 1 HD", "stream_id": 4001,
+         "category_id": "no"},
+        {"name": "LIVE | Wolves - Manchester City", "stream_id": 4002,
+         "category_id": "ppv"}]
+    indexed_cats = {"misc": "VIP GOLD", "no": "NO | SPORTS",
+                    "ppv": "PPV EVENTS"}
+    indexed_fixture = {"home": "Wolves", "away": "Manchester City",
+                       "by_country": {"NO": ["V Sport 1 Norway"]}}
+    indexed_shortlist = _sports_fixture_channel_shortlist(
+        indexed_fixture, indexed_channels, indexed_cats)
+    check("sports index shortlists broadcaster and fixture channels",
+          len(indexed_shortlist) < len(indexed_channels) and
+          {row["stream_id"] for row in indexed_shortlist} == {4001, 4002})
     check("sports search keeps partial PPV hits in possible categories",
           "const possiblePpv=[]" in PAGE and
           "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
