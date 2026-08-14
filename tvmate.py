@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b384"
+VERSION = "0.777.b385"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1349,6 +1349,14 @@ def get_xtream_channels(cfg, force=False):
         cats = x.categories()
     except Exception:
         cats = {}
+    # Sports matching scans this catalogue for several fixtures. Normalize the
+    # immutable provider names once instead of repeating the same regex work in
+    # every broadcaster and event-channel pass.
+    for channel in channels:
+        name = str(channel.get("name") or "")
+        channel["_match_norm"] = normalise(name)
+        channel["_event_norm"] = normalise_event_name(name)
+        channel["_match_category"] = cats.get(channel.get("category_id"), "")
     _XT_CACHE.update({"provider": provider, "ts": now, "channels": channels, "cats": cats})
     _sync_favorite_channel_icons(channels)
     return channels, cats
@@ -4041,11 +4049,11 @@ def match_channels(by_country, xtream_channels, cats, threshold):
     rows = []
     for ch in xtream_channels:
         cname = ch["name"]
-        category = cats.get(ch["category_id"], "")
+        category = ch.get("_match_category", cats.get(ch["category_id"], ""))
         if (_NON_FOOTBALL_CHANNEL_RE.search(cname) or
                 _NON_FOOTBALL_CHANNEL_RE.search(category)):
             continue
-        xn = normalise(cname)
+        xn = ch.get("_match_norm") or normalise(cname)
         if not xn:
             continue
         ch_cc = _resolve_channel_country(cname, category)  # category first, then name
@@ -4194,8 +4202,8 @@ def find_team_channels(team_terms, xtream_channels, cats, x):
     out = []
     for ch in xtream_channels:
         cname = ch["name"]
-        hay = normalise_event_name(cname)
-        category = cats.get(ch["category_id"], "")
+        hay = ch.get("_event_norm") or normalise_event_name(cname)
+        category = ch.get("_match_category", cats.get(ch["category_id"], ""))
         hits = 0
         reserve_team = False
         for forms in side_forms:
@@ -4236,7 +4244,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v17|" + _vod_cache_key(x) + "|" + str(
+    return "football-v18|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -6218,7 +6226,7 @@ function applyProfileConfig(c){
   applyMyListLayout();
 }
 
-let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_sportsVisibleFixtures=[],_sportsAvailabilityTimer=null,_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
+let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_sportsVisibleFixtures=[],_sportsAvailabilityTimer=null,_sportsAvailabilityRequest=0,_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
 function sportsFixtureKey(f){return [String(f.home||'').trim().toLowerCase(),String(f.away||'').trim().toLowerCase(),String(f.start||'').slice(0,16)].join('|');}
 function fixtureElapsedMinutes(f){const ts=f&&f.start?new Date(f.start).getTime():NaN;return Number.isFinite(ts)?(Date.now()-ts)/60000:null;}
 function fixtureIsLive(f){
@@ -6336,7 +6344,17 @@ function applySportsAvailability(availability){
 async function loadSportsAvailability(force){
   if(_sportsAvailabilityTimer){clearTimeout(_sportsAvailabilityTimer);_sportsAvailabilityTimer=null;}
   const unique=new Map();for(const f of _sportsVisibleFixtures){if(f&&f.home&&f.away)unique.set(sportsFixtureKey(f),f);}
-  if(unique.size){try{const r=await api('/api/sports_availability',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixtures:Array.from(unique.values()),force:!!force})});if(!r.error){if(r.logged_in===false){const unavailable={};for(const [key] of unique)unavailable[key]={logged_in:false,matches:[],ppv_hits:[]};applySportsAvailability(unavailable);}else applySportsAvailability(r.availability||{});}}catch(e){}}
+  const request=++_sportsAvailabilityRequest;
+  if(unique.size){
+    const priority=f=>{const mins=fixtureElapsedMinutes(f),selected=(f.favorite_teams||[]).some(name=>_teamNamesEquivalentForUi(name,_selectedTeamName))||_teamNamesEquivalentForUi(f.home,_selectedTeamName)||_teamNamesEquivalentForUi(f.away,_selectedTeamName);if(fixtureIsLive(f))return 0;if(selected&&(mins===null||mins<0))return 1;if(fixtureIsRecent(f))return 2;if(mins!==null&&mins<0)return 3;return 4;};
+    const fixtures=Array.from(unique.values()).sort((a,b)=>priority(a)-priority(b)||Math.abs(fixtureElapsedMinutes(a)||0)-Math.abs(fixtureElapsedMinutes(b)||0));
+    const batches=[];if(fixtures.length)batches.push(fixtures.slice(0,3));for(let i=3;i<fixtures.length;i+=12)batches.push(fixtures.slice(i,i+12));
+    for(const batch of batches){
+      if(request!==_sportsAvailabilityRequest)break;
+      try{const r=await api('/api/sports_availability',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixtures:batch,force:!!force})});if(request!==_sportsAvailabilityRequest)break;if(!r.error){if(r.logged_in===false){const unavailable={};for(const f of batch)unavailable[sportsFixtureKey(f)]={logged_in:false,matches:[],ppv_hits:[]};applySportsAvailability(unavailable);break;}applySportsAvailability(r.availability||{});}}catch(e){}
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+  }
   _sportsAvailabilityTimer=setTimeout(()=>{if(!document.getElementById('teamsView').classList.contains('hide'))loadSportsAvailability(true);},15*60*1000);
 }
 async function checkTeamFixtures(btn){
@@ -6412,9 +6430,11 @@ function fixtureStoredChannelsHtml(f){
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
 }
 async function loadStoredFixtureChannels(card){
-  const panel=card&&card.querySelector('.fixturechannelresults');if(!card||!panel||panel.innerHTML.trim())return;
-  const fixture={home:card.getAttribute('data-home')||'',away:card.getAttribute('data-away')||'',start:card.getAttribute('data-start')||'',by_country:{}};
-  try{const result=await api('/api/sports_event_channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixture:fixture,cached_only:true})});if(result.cached){Object.assign(fixture,result);panel.innerHTML=fixtureStoredChannelsHtml(fixture);}}catch(e){}
+  const panel=card&&card.querySelector('.fixturechannelresults');if(!card||!panel)return;
+  const waiting=panel.textContent.includes(tr('Checking your channels...'));if(panel.innerHTML.trim()&&!waiting)return;
+  const eventKey=card.getAttribute('data-event-key')||'',source=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===eventKey)||{};
+  const fixture=Object.assign({},source,{home:card.getAttribute('data-home')||source.home||'',away:card.getAttribute('data-away')||source.away||'',start:card.getAttribute('data-start')||source.start||'',by_country:source.by_country||{}});
+  try{const result=await api('/api/sports_event_channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixture:fixture})});if(!result.error){Object.assign(fixture,result);applySportsAvailability({[eventKey]:result});panel.innerHTML=fixtureStoredChannelsHtml(fixture);}}catch(e){}
 }
 async function toggleTeamFavorite(name,star,teamId){
   const r=await favPost({action:'toggle_team',team:{name:name,team_id:teamId||''}});
@@ -11472,8 +11492,8 @@ def run_self_tests():
         if not condition:
             raise AssertionError(name)
         checks.append(name)
-    check("version ordering", _parse_ver("0.777.b384") > _parse_ver("0.777.b383"))
-    check("version equality", _parse_ver("v0.777.b384") == _parse_ver("0.777.b384"))
+    check("version ordering", _parse_ver("0.777.b385") > _parse_ver("0.777.b384"))
+    check("version equality", _parse_ver("v0.777.b385") == _parse_ver("0.777.b385"))
     cache_busted = _cache_busted_url(
         "https://raw.githubusercontent.com/example/app/main/version.txt?source=manual",
         "123")
@@ -11583,6 +11603,12 @@ def run_self_tests():
     check("playlist V Sport search finds compact names and ranks Norway first",
           [row[0] for row in catalog_matches] ==
           ["NO: V Sport 2 HD", "NOR VSPORT 1 RAW", "SWE: V Sport 1 HD"])
+    check("fixture availability loads priority results progressively",
+          "batches.push(fixtures.slice(0,3))" in PAGE and
+          "for(let i=3;i<fixtures.length;i+=12)" in PAGE)
+    check("opening a waiting fixture triggers a targeted channel lookup",
+          "panel.textContent.includes(tr('Checking your channels...'))" in PAGE and
+          "body:JSON.stringify({fixture:fixture})" in PAGE)
     check("sports search keeps partial PPV hits in possible categories",
           "const possiblePpv=[]" in PAGE and
           "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
