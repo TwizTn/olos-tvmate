@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b388"
+VERSION = "0.777.b389"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3733,6 +3733,8 @@ def complete_team_fixtures(term, team_id, countries):
 # --------------------------------------------------------------------------
 
 _QUALITY_RE = re.compile(r"\b(4k|uhd|fhd|hd|sd)\b", re.I)
+_CHANNEL_TECH_RE = re.compile(
+    r"\b(raw|hevc|h\.?26[45]|x26[45]|avc|mpeg[24]?|hdr10?|sdr)\b", re.I)
 _NOISE_RE = re.compile(r"[^a-z0-9 ]+")
 # strip a leading provider tag like "GOLD: ", "SPO: ", "NO| ", "VIP - "
 _PREFIX_RE = re.compile(r"^\s*[a-z0-9]{1,5}\s*[:|\-]\s*", re.I)
@@ -3752,6 +3754,7 @@ def normalise(name):
     n = _PAREN_CC_RE.sub("", n)       # drop trailing "(NO)"
     n = _FPS_RE.sub(" ", n)           # drop "50fps"/"60fps"
     n = _QUALITY_RE.sub(" ", n)       # ignore quality words
+    n = _CHANNEL_TECH_RE.sub(" ", n)  # ignore codec/source variants
     n = n.replace("&", "and")
     n = _NOISE_RE.sub(" ", n)         # strip superscripts/symbols/punct
     n = re.sub(r"\s+", " ", n).strip()
@@ -3764,6 +3767,7 @@ def normalise_event_name(name):
     n = _PAREN_CC_RE.sub("", n)
     n = _FPS_RE.sub(" ", n)
     n = _QUALITY_RE.sub(" ", n)
+    n = _CHANNEL_TECH_RE.sub(" ", n)
     n = n.replace("&", "and")
     n = _NOISE_RE.sub(" ", n)
     return re.sub(r"\s+", " ", n).strip()
@@ -4012,6 +4016,17 @@ def _sports_channel_index(channels, cats):
         return cached
     return _build_sports_channel_index(channels, cats)
 
+def _viaplay_listing(name, country):
+    """Accept the common country spellings used by TV-guide providers."""
+    value = normalise(str(name or ""))
+    aliases = {
+        "NO": {"no", "nor", "norway", "norge", "norwegian"},
+        "SE": {"se", "swe", "sweden", "swedish"},
+        "DK": {"dk", "dnk", "denmark", "danish"},
+        "FI": {"fi", "fin", "finland", "finnish"},
+    }.get(str(country or "").upper(), set())
+    return value == "viaplay" or value in {"viaplay " + alias for alias in aliases}
+
 def _sports_fixture_channel_shortlist(fixture, channels, cats):
     """Use cheap indexed terms to avoid fuzzy-scoring the full IPTV catalogue."""
     if not channels:
@@ -4034,8 +4049,7 @@ def _sports_fixture_channel_shortlist(fixture, channels, cats):
                 selected.update(index["compact"].get(compact, ()))
             for token in _distinctive(normalized.split()):
                 selected.update(index["tokens"].get(token, ()))
-            if normalized in {"viaplay", "viaplay norway", "viaplay finland",
-                              "viaplay sweden", "viaplay denmark"}:
+            if _viaplay_listing(normalized, country):
                 selected.update(index["tokens"].get("sport", ()))
     if broadcaster_compacts:
         for channel_index, compact in enumerate(index["compact_values"]):
@@ -4150,15 +4164,13 @@ def match_channels(by_country, xtream_channels, cats, threshold):
         xset = set(xn.split())
         best, best_src, best_country, best_exact_provider = 0.0, "", "", False
         for orig, bcountry, allowed, sn, sset in srcs:
-            viaplay_no_feed = (bcountry == "NO" and sn in {"viaplay", "viaplay norway"} and
+            viaplay_no_feed = (bcountry == "NO" and _viaplay_listing(sn, bcountry) and
                                _viaplay_norway_linear_feed(xn))
-            viaplay_fi_feed = (bcountry == "FI" and sn in {"viaplay", "viaplay finland"} and
+            viaplay_fi_feed = (bcountry == "FI" and _viaplay_listing(sn, bcountry) and
                                _viaplay_finland_linear_feed(xn))
             nordic_viaplay = (
-                (bcountry in {"NO", "SE", "DK", "FI"} and sn == "viaplay") or
-                (bcountry, sn) in {
-                    ("NO", "viaplay norway"), ("SE", "viaplay sweden"),
-                    ("DK", "viaplay denmark"), ("FI", "viaplay finland")})
+                bcountry in {"NO", "SE", "DK", "FI"} and
+                _viaplay_listing(sn, bcountry))
             shared_4k_feed = (nordic_viaplay and _is_4k_category(category) and
                               _viaplay_norway_linear_feed(xn))
             # Country rule: if the channel HAS a recognised country prefix and
@@ -4332,7 +4344,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v19|" + _vod_cache_key(x) + "|" + str(
+    return "football-v20|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -11698,6 +11710,15 @@ def run_self_tests():
     check("Viaplay Norway expands from bare-prefix V Sport name",
           len(viaplay_bare_v_sport) == 1 and
           viaplay_bare_v_sport[0]["score"] == 0.94)
+    viaplay_codec_variants = match_channels(
+        {"NO": ["Viaplay (NO)"]},
+        [{"name": "NO V SPORT 1 HEVC RAW HD", "stream_id": 133,
+          "category_id": "misc"},
+         {"name": "NOR: V SPORT PREMIER LEAGUE 2 H.265",
+          "stream_id": 134, "category_id": "misc"}],
+        {"misc": "VIP GOLD"}, 0.62)
+    check("Viaplay NO expands codec-labelled Norwegian V Sport feeds",
+          {row["stream_id"] for row in viaplay_codec_variants} == {133, 134})
     check("exact V Sport provider sorts ahead of possible event channels",
           "const sure=ch=>ch&&ch.provider_exact===true?2:" in PAGE and
           "channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)" in PAGE)
