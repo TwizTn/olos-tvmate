@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b402"
+VERSION = "0.777.b403"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3821,7 +3821,8 @@ def _is_streaming(name):
 
 def _is_ppv_category(catname):
     c = (catname or "").lower()
-    return ("ppv" in c) or ("play" in c) or ("event" in c)
+    return ("ppv" in c) or ("event" in c) or bool(re.search(
+        r"(?<![a-z0-9])play(?![a-z0-9])", c))
 
 def _is_4k_category(catname):
     """True for provider buckets that collect UHD channels across countries."""
@@ -4217,12 +4218,11 @@ def match_channels(by_country, xtream_channels, cats, threshold, league_name="")
             # OTT/access-platform listings describe where a fixture is
             # available, not every linear channel carrying that brand.  A
             # bare DAZN or MEO listing must not pull in DAZN La Liga/F1 or
-            # MEO-packaged CNN/MTV/Globo.  Explicit PPV/Play/Event feeds remain
-            # useful; fixture-title channels are discovered independently by
-            # find_team_channels().
-            if (_is_streaming(orig) and
-                    not (_is_ppv_category(category) or
-                         _is_ppv_category(cname))):
+            # MEO-packaged CNN/MTV/Globo.  Explicit PPV/Play/Event *channel
+            # names* remain useful, but a broad category cannot make DK2 or a
+            # film channel relevant. Fixture-title channels are discovered
+            # independently by find_team_channels().
+            if (_is_streaming(orig) and not _is_ppv_category(cname)):
                 continue
             if _numbers_conflict(xn, sn):
                 continue
@@ -4494,7 +4494,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v31|" + _vod_cache_key(x) + "|" + str(
+    return "football-v32|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -12193,7 +12193,7 @@ def run_self_tests():
         {"NO": ["TV 2 Play (NO)"]}, sample_channels, sample_cats, 0.49)}
     check("streaming platform candidates retained", platform_ids == {5})
     platform_noise = match_channels(
-        {"PT": ["MEO"], "ES": ["DAZN"]},
+        {"PT": ["MEO"], "ES": ["DAZN"], "DK": ["Viaplay Denmark"]},
         [{"name": "PT|MEO: CNN PORTUGAL", "stream_id": 51,
           "category_id": "meo"},
          {"name": "PT|MEO: MTV PORTUGAL", "stream_id": 52,
@@ -12205,11 +12205,23 @@ def run_self_tests():
          {"name": "AV: DAZN F1", "stream_id": 55,
           "category_id": "dazn"},
          {"name": "ES: DAZN PPV 1", "stream_id": 56,
-          "category_id": "dazn-ppv"}],
+          "category_id": "dazn-ppv"},
+         {"name": "DK: VIAPLAY FILM ACTION", "stream_id": 57,
+          "category_id": "viaplay-film"},
+         {"name": "DK: VIAPLAY PPV 1", "stream_id": 58,
+          "category_id": "viaplay-ppv"},
+         {"name": "DK: VIAPLAY DK2", "stream_id": 59,
+          "category_id": "viaplay-ppv"}],
         {"meo": "PT|MEO", "dazn": "ES|DAZN",
-         "dazn-ppv": "ES|DAZN PPV"}, 0.49)
+         "dazn-ppv": "ES|DAZN PPV",
+         "viaplay-film": "DK|VIAPLAY FILM ACTION",
+         "viaplay-ppv": "DK|VIAPLAY PPV"}, 0.49)
     check("platform listings exclude unrelated package channels",
-          {row["stream_id"] for row in platform_noise} == {56})
+          {row["stream_id"] for row in platform_noise} == {56, 58})
+    check("Viaplay does not make a category a standalone Play bucket",
+          not _is_ppv_category("DK|VIAPLAY FILM ACTION") and
+          _is_ppv_category("NO|TV 2 PLAY") and
+          _is_ppv_category("DK|VIAPLAY PPV"))
     provider_rows = match_channels(
         {"NO": ["TV 2 Sport 1", "TV 2 Play (NO)"]},
         sample_channels, sample_cats, 0.49)
