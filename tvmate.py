@@ -117,7 +117,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b391"
+VERSION = "0.777.b392"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4062,6 +4062,10 @@ def _sports_fixture_channel_shortlist(fixture, channels, cats):
                 token for token in normalized.split() if len(token) >= 3]
             for token in terms:
                 selected.update(index["event_tokens"].get(token, ()))
+    league = normalise_event_name(fixture.get("league_name") or "")
+    for token in _distinctive(league.split()):
+        if len(token) >= 4:
+            selected.update(index["event_tokens"].get(token, ()))
     if not selected:
         return channels
     return [channels[channel_index] for channel_index in sorted(selected)]
@@ -4274,10 +4278,10 @@ def rank_fixture_channels(rows, home, away):
         home_hit, away_hit = hit(home_forms), hit(away_forms)
         row["fixture_match"] = "exact" if home_hit and away_hit else (
             "partial" if home_hit or away_hit else "generic")
-        # A one-team event title usually belongs to a different fixture; rank
-        # unknown/generic PPV slots above it because those may carry this game.
-        priority = 2 if row["fixture_match"] == "exact" else (
-            1 if row["fixture_match"] == "generic" else 0)
+        # Exact two-team titles are strongest. A one-team title is useful but
+        # remains possible; generic PPV slots follow it as fallback choices.
+        priority = 3 if row["fixture_match"] == "exact" else (
+            2 if row["fixture_match"] == "partial" else 1)
         ranked.append((priority, float(row.get("score") or 0), index, row))
     ranked.sort(key=lambda item: (-item[0], -item[1], item[2]))
     return [item[3] for item in ranked]
@@ -4327,7 +4331,34 @@ def find_team_channels(team_terms, xtream_channels, cats, x):
                 "logo": ch.get("stream_icon", ""),
                 "quality": quality_tag(cname),
                 "url": x.stream_url(ch["stream_id"]),
+                "fixture_match": "exact" if hits >= 2 else "partial",
             })
+    return out
+
+def find_competition_channels(fixture, xtream_channels, cats, x):
+    """Return possible channels explicitly named for the fixture competition."""
+    league = normalise_event_name(fixture.get("league_name") or "")
+    distinctive = _distinctive(league.split())
+    if not league or not distinctive:
+        return []
+    phrase = re.compile(r"(?<![a-z0-9])" + re.escape(league) + r"(?![a-z0-9])")
+    out = []
+    for ch in xtream_channels:
+        cname = str(ch.get("name") or "")
+        category = ch.get("_match_category", cats.get(ch.get("category_id"), ""))
+        if (_NON_FOOTBALL_CHANNEL_RE.search(cname) or
+                _NON_FOOTBALL_CHANNEL_RE.search(category)):
+            continue
+        hay = normalise_event_name(cname + " " + category)
+        if not phrase.search(hay):
+            continue
+        out.append({
+            "xtream_name": cname, "stream_id": ch.get("stream_id"),
+            "category": category, "logo": ch.get("stream_icon", ""),
+            "quality": quality_tag(cname), "url": x.stream_url(ch.get("stream_id")),
+            "fixture_match": "league", "league_match": True,
+            "matched": fixture.get("league_name") or league,
+        })
     return out
 
 _RACING_CHANNEL_TERMS = {
@@ -4349,7 +4380,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v21|" + _vod_cache_key(x) + "|" + str(
+    return "football-v22|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -4532,10 +4563,18 @@ def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
             fixture.get("home"), fixture.get("away"))
     for row in matches:
         row["url"] = x.stream_url(row["stream_id"])
+        league = normalise_event_name(fixture.get("league_name") or "")
+        hay = normalise_event_name(str(row.get("xtream_name") or "") + " " +
+                                   str(row.get("category") or ""))
+        row["league_match"] = bool(league and re.search(
+            r"(?<![a-z0-9])" + re.escape(league) + r"(?![a-z0-9])", hay))
     hits = find_team_channels([fixture.get("home", ""), fixture.get("away", "")],
                               candidates, cats, x)
     have = {str(row.get("stream_id")) for row in matches}
     ppv_hits = [row for row in hits if str(row.get("stream_id")) not in have]
+    have.update(str(row.get("stream_id")) for row in ppv_hits)
+    ppv_hits.extend(row for row in find_competition_channels(
+        fixture, candidates, cats, x) if str(row.get("stream_id")) not in have)
     return {"logged_in": True, "availability_checked": True,
             "matches": matches, "ppv_hits": ppv_hits}
 
@@ -7083,9 +7122,9 @@ function fixtureChannelRank(m,f){
   // backend metadata before the broadcaster list is sorted.
   if(homeHit&&awayHit)return 3;
   if(m&&m.fixture_match==='exact')return 3;
-  if(m&&m.fixture_match==='generic')return 2;
-  if(m&&m.fixture_match==='partial')return 1;
-  return homeHit||awayHit?1:2;
+  if(m&&m.fixture_match==='partial')return 2;
+  if(m&&m.fixture_match==='generic')return 1;
+  return homeHit||awayHit?2:1;
 }
 function channelLocalePriority(ch){
   const text=[ch&&ch.category,ch&&ch.xtream_name,ch&&ch.quality].filter(Boolean).join(' ');
@@ -7107,7 +7146,8 @@ function preferredChannelSort(a,b){
   // list. Keep it ahead of generic fixture/PPV candidates inside the same
   // locale tier. EPG confirmation is the next-best signal.
   const sure=ch=>ch&&ch.provider_exact===true?2:(ch&&ch.epg_confirmed===true?1:0);
-  return channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
+  const relevance=ch=>{if(ch&&ch.fixture_match==='exact')return 500;if(ch&&ch.league_match===true&&/viaplay/i.test(String(ch.matched||'')))return 400;if(ch&&ch.fixture_match==='partial')return 300;if(ch&&ch.league_match===true)return 200;return 0;};
+  return channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)||relevance(b)-relevance(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
 }
 function groupedPossibleChannels(rows){
   const groups=new Map();for(const ch of rows.slice().sort(preferredChannelSort)){const category=String(ch.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(ch);}
@@ -11777,6 +11817,10 @@ def run_self_tests():
     check("possible channel categories use shared locale ordering",
           "groupedPossibleChannels(other)" in PAGE and
           "groupedPossibleChannels(possiblePpv)" in PAGE)
+    check("fixture and competition relevance promote possible channels",
+          "fixture_match==='exact'" in PAGE and
+          "league_match===true&&/viaplay/i" in PAGE and
+          "fixture_match==='partial'" in PAGE)
     indexed_channels = [
         {"name": f"Noise Channel {i}", "stream_id": 3000 + i,
          "category_id": "misc"} for i in range(120)] + [
@@ -11793,6 +11837,28 @@ def run_self_tests():
     check("sports index shortlists broadcaster and fixture channels",
           len(indexed_shortlist) < len(indexed_channels) and
           {row["stream_id"] for row in indexed_shortlist} == {4001, 4002})
+    class _CompetitionTestX:
+        @staticmethod
+        def stream_url(stream_id):
+            return f"stream:{stream_id}"
+    competition_channels = [
+        {"name": "NO: V Sport Premier League 1 HD", "stream_id": 4010,
+         "category_id": "no"},
+        {"name": "UK Premier League Sport 1", "stream_id": 4011,
+         "category_id": "uk"},
+        {"name": "NO: V Sport 1", "stream_id": 4012,
+         "category_id": "no"}]
+    competition_fixture = {"home": "Leeds United", "away": "Nottingham Forest",
+                           "league_name": "Premier League", "by_country": {}}
+    competition_shortlist = _sports_fixture_channel_shortlist(
+        competition_fixture, competition_channels,
+        {"no": "NO | SPORTS", "uk": "UK | SPORTS"})
+    competition_rows = find_competition_channels(
+        competition_fixture, competition_shortlist,
+        {"no": "NO | SPORTS", "uk": "UK | SPORTS"}, _CompetitionTestX())
+    check("Premier League fixture adds named competition alternatives",
+          {row["stream_id"] for row in competition_rows} == {4010, 4011} and
+          all(row.get("league_match") for row in competition_rows))
     check("sports search keeps partial PPV hits in possible categories",
           "const possiblePpv=[]" in PAGE and
           "(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3" in PAGE)
@@ -12106,8 +12172,10 @@ def run_self_tests():
         {"xtream_name": "APOLLON LIMASSOL - BRANN | VGTV PPV 3",
          "stream_id": 11, "score": 0.80}], "Apollon Limassol", "Brann")
     check("exact fixture sorted first", exact_ranked[0]["stream_id"] == 11)
-    check("generic PPV candidate retained", ranked[0]["fixture_match"] == "generic")
-    check("wrong one-team event ranked last", ranked[-1]["fixture_match"] == "partial")
+    check("one-team PPV title is promoted but remains possible",
+          ranked[0]["fixture_match"] == "partial")
+    check("generic PPV candidate remains a fallback",
+          ranked[-1]["fixture_match"] == "generic")
     check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
     check("live fallback is bounded and recent results remain visible",
           "if(f.is_live)return mins<=150" in PAGE and
