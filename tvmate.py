@@ -119,7 +119,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b406"
+VERSION = "0.777.b407"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -11875,7 +11875,17 @@ def main():
                 _close_launcher_console()
                 return
     bind_host = "0.0.0.0" if cfg.get("allow_lan") else "127.0.0.1"
-    server = ThreadingHTTPServer((bind_host, port), Handler)
+    try:
+        server = ThreadingHTTPServer((bind_host, port), Handler)
+    except OSError as lan_error:
+        # Some Windows firewall/security configurations refuse a public bind.
+        # Never let an optional LAN setting prevent the local app from opening.
+        if bind_host == "127.0.0.1":
+            raise
+        cfg["allow_lan"] = False
+        cfg["lan_bind_error"] = str(lan_error)[:300]
+        save_config(cfg)
+        server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     _STOP_EVENT.clear()
     _mark_app_activity()
     if not hide_console and sys.platform.startswith("win"):
