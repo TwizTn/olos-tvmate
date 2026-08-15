@@ -121,7 +121,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b414"
+VERSION = "0.777.b415"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5781,7 +5781,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
    <button data-mobile-target="navSettings" onclick="mobileGo(showSettings)"><span>&#9881;</span><span data-i18n="Settings">Settings</span></button>
    <button data-mobile-target="navMytimeline" onclick="mobileGo(showMytimeline)"><span>&#128336;</span><span data-i18n="Timeline">Timeline</span></button>
   </div>
-  <div class="mobilemoretools"><button onclick="setLang('en')">English</button><button onclick="setLang('no')">Norsk</button><button class="stopbtn" onclick="stopTVMate()" data-i18n="Stop TVMate">Stop TVMate</button></div>
+  <div class="mobilemoretools"><button onclick="setLang('en')">English</button><button onclick="setLang('no')">Norsk</button><button onclick="location.href='/desktop'">Desktop</button><button class="stopbtn" onclick="stopTVMate()" data-i18n="Stop TVMate">Stop TVMate</button></div>
  </div>
 </div>
 <div id="profileSetupOverlay" class="setupoverlay hide">
@@ -9361,6 +9361,18 @@ checkForUpdate();
 </body></html>
 """
 
+# Phones receive their own page endpoint. The shared application functions and
+# API stay identical, while the body identity lets mobile structure and styling
+# evolve independently without changing the desktop URL or presentation.
+MOBILE_PAGE = PAGE.replace(
+    "<title>Olo's TVMate</title>", "<title>Olo's TVMate Mobile</title>", 1
+).replace("<body>", '<body class="mobileapp">', 1)
+
+def _mobile_browser(user_agent):
+    return bool(re.search(
+        r"android|iphone|ipod|windows phone|mobile|opera mini|iemobile",
+        str(user_agent or ""), flags=re.IGNORECASE))
+
 # --------------------------------------------------------------------------
 # Request handler
 # --------------------------------------------------------------------------
@@ -9568,6 +9580,23 @@ class Handler(BaseHTTPRequestHandler):
             return
         q = urllib.parse.parse_qs(u.query)
         try:
+            if u.path in ("/", "/index.html"):
+                cookie = str(self.headers.get("Cookie") or "")
+                desktop_override = bool(re.search(r"(?:^|;\s*)tvmate_view=desktop(?:;|$)", cookie))
+                if _mobile_browser(self.headers.get("User-Agent")) and not desktop_override:
+                    return self._send(302, "", "text/plain", {"Location": "/mobile"})
+                return self._send(200, PAGE.replace("__VERSION__", VERSION), "text/html")
+
+            if u.path == "/mobile":
+                return self._send(200, MOBILE_PAGE.replace("__VERSION__", VERSION), "text/html", {
+                    "Set-Cookie": "tvmate_view=mobile; Path=/; SameSite=Strict",
+                })
+
+            if u.path == "/desktop":
+                return self._send(200, PAGE.replace("__VERSION__", VERSION), "text/html", {
+                    "Set-Cookie": "tvmate_view=desktop; Path=/; SameSite=Strict",
+                })
+
             if u.path in {"/api/f1_schedule", "/api/racing", "/api/racing_availability",
                            "/api/racing_drivers", "/api/racing_driver_image",
                            "/api/f1_teams", "/api/f1_team_logo"}:
@@ -9641,9 +9670,6 @@ class Handler(BaseHTTPRequestHandler):
                 if not os.path.isfile(path):
                     return self._send(404, {"error": "artwork not found"})
                 return self._send_image_file(path, "image/jpeg")
-
-            if u.path in ("/", "/index.html"):
-                return self._send(200, PAGE.replace("__VERSION__", VERSION), "text/html")
 
             if u.path == "/api/status":
                 cfg = load_config()
