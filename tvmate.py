@@ -119,7 +119,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b407"
+VERSION = "0.777.b408"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -11874,18 +11874,25 @@ def main():
             if _launch_without_console():
                 _close_launcher_console()
                 return
-    bind_host = "0.0.0.0" if cfg.get("allow_lan") else "127.0.0.1"
-    try:
-        server = ThreadingHTTPServer((bind_host, port), Handler)
-    except OSError as lan_error:
-        # Some Windows firewall/security configurations refuse a public bind.
-        # Never let an optional LAN setting prevent the local app from opening.
-        if bind_host == "127.0.0.1":
-            raise
-        cfg["allow_lan"] = False
-        cfg["lan_bind_error"] = str(lan_error)[:300]
-        save_config(cfg)
-        server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    # Keep the desktop listener independent from optional Wi-Fi access. Binding
+    # to the PC's exact LAN address avoids exposing VPN and other adapters, while
+    # a rejected LAN bind can no longer prevent localhost from starting.
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    lan_server = None
+    if cfg.get("allow_lan"):
+        lan_host = _local_lan_ip()
+        if lan_host:
+            try:
+                lan_server = ThreadingHTTPServer((lan_host, port), Handler)
+                cfg.pop("lan_bind_error", None)
+            except OSError as lan_error:
+                cfg["allow_lan"] = False
+                cfg["lan_bind_error"] = str(lan_error)[:300]
+                save_config(cfg)
+        else:
+            cfg["allow_lan"] = False
+            cfg["lan_bind_error"] = "No local Wi-Fi address was found"
+            save_config(cfg)
     _STOP_EVENT.clear()
     _mark_app_activity()
     if not hide_console and sys.platform.startswith("win"):
@@ -11909,6 +11916,8 @@ def main():
         print("  " + "=" * 56)
     # Serve the app in the background so the server is ready before we open.
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    if lan_server is not None:
+        threading.Thread(target=lan_server.serve_forever, daemon=True).start()
     threading.Thread(target=_auto_shutdown_watchdog, daemon=True).start()
     if hide_console:
         # Hidden mode cannot wait for console input: launch the UI immediately.
@@ -11941,6 +11950,10 @@ def main():
         print("\n  Stopping Olo's TVMate. Bye!")
     finally:
         server.shutdown()
+        server.server_close()
+        if lan_server is not None:
+            lan_server.shutdown()
+            lan_server.server_close()
 
 def _t_sleep(sec):
     import time as _t
