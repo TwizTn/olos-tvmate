@@ -121,7 +121,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b412"
+VERSION = "0.777.b413"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5691,6 +5691,43 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .setupoverlay{padding:8px 8px calc(66px + env(safe-area-inset-bottom))}
   .editprofiledialog,.setupwizard{max-height:100%;padding-left:15px;padding-right:15px}
   .updatebanner{bottom:calc(58px + env(safe-area-inset-bottom));top:auto;align-items:stretch;flex-direction:column;padding:10px 12px;text-align:center}
+  main *,main.wide *{min-width:0}
+  .mydash.layout-timeline{display:block!important;width:100%;max-width:100%}
+  .mydash.layout-timeline .mydashteamonly{width:100%;display:grid;grid-template-columns:58px minmax(0,1fr);gap:10px;padding:10px}
+  .mydash.layout-timeline .mydashteamonly>img{grid-row:1/3}
+  .mydash.layout-timeline .mydashsportinfo,.mydash.layout-timeline .mydashsportsingle,.mydash.layout-timeline .mydashf1names{width:100%}
+  .mydash.layout-timeline .mydashsportevent{width:100%;max-width:100%;flex-basis:auto;padding:5px 0 0;grid-column:2}
+  .mydashsportsingletop{grid-template-columns:1fr;gap:4px}
+  .mydashsporteventline{justify-content:flex-start;text-align:left}
+  .mydashsportphotos{grid-column:1}.mydashsportnames{min-width:0}
+  .playlistsearch{padding:13px 12px}
+  .playlistsearch .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+  .ch4,.ch4cats,.ch4group,.ch4col{display:block;width:100%;max-width:100%;height:auto;min-height:0}
+  .ch4cats{padding:0}
+  #catlist{display:block;max-height:52vh;padding:9px;overflow-y:auto}
+  .catitem{min-height:38px;width:100%;padding:7px 3px}
+  .ch4group{margin-top:14px;overflow:visible}
+  .ch4col{padding:13px 11px;border-left:0!important;border-top:1px solid var(--line)}
+  .ch4col:first-child{border-top:0}
+  .pcol{max-height:48vh}
+  .tvguidehead{height:52px}.tvchancol{width:100%;border-right:0}.tvtimeline{display:none}
+  .tvrail{width:92px;flex-basis:92px}.tvguide{width:calc(100% - 92px)}
+  .tvchan{width:100%;padding:6px;gap:5px}.tvchan .tvvlc{padding:5px 7px;min-height:38px}.tvchan .tvflag{display:none}.tvchan .favstar{margin-left:auto}
+  .tvprog{display:none}.tvrow{height:58px;min-height:58px}.tvplayerslot{left:0}
+  .teamswrap,.teamsmain,#teamFixtures,.teamfixturegrid,.topfixturegrid{width:100%;max-width:100%;padding-left:0;padding-right:0}
+  .teamfixture,.teamfixturebroadcasts,.matchfixture,.matchfixturebody,.bcastlist,.bcrow{width:100%;max-width:100%}
+  .teamfixturebroadcasts{display:block}.teamfixturebroadcasts>.bcrow{margin-bottom:7px}
+  .teamfixtureteams{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start}
+  .teamfixtureside{overflow:hidden}.teamfixtureside span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chline{display:grid;grid-template-columns:minmax(0,1fr) auto;width:100%}.chline .matchchan{overflow:hidden}
+  .showfavs{max-height:none!important;overflow:visible}
+  .showfav{display:grid;grid-template-columns:76px minmax(0,1fr) 42px;align-items:center;gap:12px;min-height:116px;padding:9px 0}
+  .showfavposter{width:76px;height:114px}.showfavinfo{padding:0;justify-content:flex-start}.showfavname{text-align:left;font-size:15px}
+  .showremove{position:static;grid-column:3;grid-row:1;align-self:center;width:42px;height:42px;padding:0}
+  .racinglayout{padding:0}.racingdetailhero{grid-template-columns:90px minmax(0,1fr)}.racingdetailhero>img{width:90px;height:120px}
+  .racingdetailpeople{grid-template-columns:1fr}.racingdetailnextgrid{grid-template-columns:1fr}
+  .settingswrap,.settingscard,.settingspanels,.settingspanel,.settingsgroup{width:100%;max-width:100%;overflow-wrap:anywhere}
+  .settingsgroup input,.settingsgroup select{max-width:100%}
  }
 </style></head><body>
 <div id="globalDecor" class="globaldecor"></div>
@@ -6273,7 +6310,7 @@ function applyBackgroundStyle(style){
 }
 function initPancakes(){applyBackgroundStyle(_backgroundStyle);}
 function initPlPancakes(){applyBackgroundStyle(_backgroundStyle);}
-function setNav(id){['navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'].forEach(function(n){const el=document.getElementById(n);if(el)el.classList.toggle('on',n===id);});}
+function setNav(id){let active=null;['navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'].forEach(function(n){const el=document.getElementById(n);if(el){el.classList.toggle('on',n===id);if(n===id)active=el;}});if(active&&window.matchMedia('(max-width:700px)').matches)setTimeout(()=>active.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}),0);}
 const _SLOGANS={
   search:["Find the match. Pick a channel. Pour the syrup."],
   mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
