@@ -121,7 +121,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b411"
+VERSION = "0.777.b412"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5638,6 +5638,60 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .setupactions{display:flex;align-items:center;gap:9px;margin:22px 28px 0;padding:17px 0 23px;border-top:1px solid var(--line)}.setupactions .setupspacer{flex:1}.setupactions button{min-width:94px}
  .setuptest{font-size:12px;color:var(--mut);min-height:18px;margin-top:8px}.setuptest.ok{color:#70d18a}.setuptest.err{color:#ff7676}
  @media(max-width:650px){.setupfields,.setupfeatures,.setupstartergrid,.setupfinishopts{grid-template-columns:1fr}.setupfields .full{grid-column:1}.setupbrand{padding:17px 18px 12px}.setupsteps{margin:0 18px 22px}.setupstep{padding:0 18px;min-height:0}.setupactions{margin:20px 18px 0;flex-wrap:wrap}}
+ @media(max-width:700px){
+  html{scroll-padding-bottom:76px}
+  body{font-size:15px;padding-bottom:calc(66px + env(safe-area-inset-bottom));overflow-x:hidden}
+  body>header{position:fixed;top:auto;left:0;right:0;bottom:0;height:calc(58px + env(safe-area-inset-bottom));padding:6px 7px env(safe-area-inset-bottom);gap:3px;overflow-x:auto;overflow-y:hidden;z-index:2500;background:rgba(12,15,20,.97);border-top:1px solid var(--line2);border-bottom:0;box-shadow:0 -8px 24px rgba(0,0,0,.42);scroll-snap-type:x proximity}
+  body>header::-webkit-scrollbar{display:none}
+  body>header h1,body>header .slogan,body>header #status,body>header .headerstop,body>header .langsel{display:none!important}
+  body>header>a{display:flex;align-items:center;justify-content:center;min-width:72px;height:46px;padding:5px 8px;border:0;border-radius:9px;font-size:11.5px;line-height:1.1;text-align:center;scroll-snap-align:center}
+  body>header>a.on{background:#16233d;color:#dce9ff;box-shadow:inset 0 0 0 1px #294c82}
+  main,main.wide{width:100%;max-width:none;padding:13px 10px 26px!important;overflow:hidden}
+  section{min-width:0}
+  input,select,textarea{font-size:16px!important;min-height:44px}
+  button{min-height:42px;touch-action:manipulation}
+  .globaldecor{display:none}
+  #teamFixtures{display:block;overflow:visible;padding:0;scroll-snap-type:none}
+  #teamFixtures>.card{width:100%;max-width:none;min-width:0;margin:0 0 12px}
+  .teamtabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+  .teamtab{min-height:42px;white-space:nowrap;padding:8px 13px}
+  .matchfixturehead{padding:12px 11px 10px}
+  .matchfixtureteamsline{gap:6px}
+  .matchfixtureteam{font-size:13px;gap:5px;flex:1}
+  .matchfixtureteamlogo{width:27px;height:27px;flex-basis:27px}
+  .matchfixtureavailability{font-size:9px;padding:2px 5px}
+  .matchfixturebody{padding:9px}
+  .bchead{min-height:46px;padding:10px;font-size:13px}
+  .chline,.chrow{align-items:flex-start;gap:8px;padding:10px 7px}
+  .matchchan,.chname{min-width:0;line-height:1.25}
+  .chn,.fixturechanneltitle,.chname{font-size:12.5px;white-space:normal;overflow-wrap:anywhere}
+  .chbtns,.chrow>div:last-child{gap:4px;flex-wrap:wrap;justify-content:flex-end}
+  .btnplay,.btnvlc,.chbtns button,.favcardbtns button{min-height:36px;padding:6px 9px;font-size:11px;margin:0}
+  .chanlogo{width:26px;height:26px;flex-basis:26px}
+  .favstar{margin-right:4px;min-width:24px;min-height:32px;display:inline-flex;align-items:center;justify-content:center}
+  .mylayout{gap:12px}.mlcats{width:100%}
+  .mydash{padding:2px 0 20px}.mylistprofile{margin-bottom:18px}.mydashblock{margin-bottom:22px}
+  .mydashgrid,.mydashepisodes,.mydashchannels,.moviegrid,.showgrid,.gamesgrid,.racinggrid,.racingdrivers{grid-template-columns:1fr!important}
+  .mylistprofileemblem{width:48px;height:48px;flex-basis:48px}.mylistprofileemblem svg{width:48px;height:48px}.mylistprofilename{font-size:19px}
+  .movieswrap,.showswrap,.teamswrap,.racinglayout{display:block}
+  .moviefavs,.showfavs,.teamfavs,.racingsidebar{position:static;width:100%;max-width:none;max-height:220px;overflow:auto;margin-bottom:14px;padding:0 0 12px;border-right:0;border-bottom:1px solid var(--line)}
+  .settingswrap{padding:4px 0 24px;display:block}
+  .settingswrap .brandblock{display:none}
+  .settingstabs{flex-wrap:nowrap;overflow-x:auto;margin:0 0 12px;padding-bottom:7px}
+  .settingstab{white-space:nowrap;min-height:42px}
+  .settingspanels,#settingsProfile .grid2,.settingsgroup .grid2{grid-template-columns:1fr!important}
+  .settingsgroup{padding:14px 12px;border-radius:10px}
+  .settingsactions{bottom:calc(64px + env(safe-area-inset-bottom));padding:9px}
+  .settingsactions .push{width:100%;margin-left:0}
+  .tvwrap{height:calc(100vh - 96px);min-height:420px;border-radius:8px}
+  .tvrail{width:82px;padding:5px}.tvsrc{font-size:10px;padding:7px 4px}
+  .tvchancol,.tvchan{width:190px}.tvplayerslot{left:190px}
+  .pmodal,.tvplayerslot.mini{position:fixed;inset:0 0 calc(58px + env(safe-area-inset-bottom));width:100vw;height:auto;border-radius:0}
+  .pbox{border-radius:0;border-left:0;border-right:0}
+  .setupoverlay{padding:8px 8px calc(66px + env(safe-area-inset-bottom))}
+  .editprofiledialog,.setupwizard{max-height:100%;padding-left:15px;padding-right:15px}
+  .updatebanner{bottom:calc(58px + env(safe-area-inset-bottom));top:auto;align-items:stretch;flex-direction:column;padding:10px 12px;text-align:center}
+ }
 </style></head><body>
 <div id="globalDecor" class="globaldecor"></div>
 <header>
