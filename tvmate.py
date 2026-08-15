@@ -42,6 +42,8 @@ import webbrowser
 import hashlib
 import shutil
 import datetime
+import secrets
+import socket
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -117,7 +119,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b405"
+VERSION = "0.777.b406"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -166,6 +168,8 @@ DEFAULT_CONFIG = {
     "background_style": "float",
     "hide_cmd_window": True,
     "auto_shutdown_minutes": 0,
+    "allow_lan": False,
+    "lan_access_token": "",
     "start_section": "mylist",
     "setup_complete": False,
     "setup_demo_content": False,
@@ -173,6 +177,36 @@ DEFAULT_CONFIG = {
     "steam_wishlist_id": "",
     "steam_wishlist_synced_at": 0,
 }
+
+def _local_lan_ip():
+    """Return the preferred private/LAN address without sending any data."""
+    probe = None
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe.connect(("192.0.2.1", 9))
+        address = probe.getsockname()[0]
+        if address and not address.startswith("127."):
+            return address
+    except OSError:
+        pass
+    finally:
+        if probe is not None:
+            probe.close()
+    try:
+        address = socket.gethostbyname(socket.gethostname())
+        return address if address and not address.startswith("127.") else ""
+    except OSError:
+        return ""
+
+def _lan_access_url(cfg, port=PORT, include_token=True):
+    address = _local_lan_ip()
+    if not address:
+        return ""
+    url = f"http://{address}:{int(port)}/"
+    token = str(cfg.get("lan_access_token") or "")
+    if include_token and token:
+        url += "?token=" + urllib.parse.quote(token, safe="")
+    return url
 
 def artwork_cache_dir():
     return os.path.join(app_dir(), "artwork")
@@ -6042,6 +6076,16 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         </label>
         </div>
        </div>
+       <div class="settingsgroup" data-settings-panel="general" hidden>
+        <div class="colh">Local Wi-Fi access</div>
+        <div class="muted">Open TVMate from a phone or another device connected to the same Wi-Fi. The private access link protects your IPTV settings and app controls.</div>
+        <div class="settingschecks"><label class="settingscheck">
+          <input id="s_allowlan" type="checkbox" style="width:auto;margin:0">
+          <span>Allow access on local Wi-Fi</span>
+        </label></div>
+        <div id="s_lanhelp" class="muted" style="margin-top:10px"></div>
+        <div class="row" style="margin-top:10px"><button type="button" class="ghost" id="s_copylan" onclick="copyLanAddress(this)" disabled>Copy phone link</button></div>
+       </div>
       </div>
       <div id="settingsSetup" class="settingspanel">
       <div class="settingsgroup" data-settings-panel="iptv" hidden>
@@ -7037,7 +7081,21 @@ async function loadSettings(){
   s_games.checked=c.games_enabled!==false;
   s_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   s_autoshutdown.value=String(c.auto_shutdown_minutes||0);
+  s_allowlan.checked=!!c.allow_lan;
+  renderLanAccess(c);
   loadArtworkCacheSize();
+}
+function renderLanAccess(c){
+  const help=document.getElementById('s_lanhelp'),btn=document.getElementById('s_copylan');
+  window._tvmateLanUrl=String((c&&c.lan_url)||'');
+  if(!c||!c.allow_lan){help.textContent='Enable this setting, save, then restart TVMate.';btn.disabled=true;return;}
+  if(!window._tvmateLanUrl){help.textContent='Wi-Fi access is enabled, but no local network address was found. Restart TVMate after connecting to Wi-Fi.';btn.disabled=true;return;}
+  help.textContent='Phone link: '+window._tvmateLanUrl+' — restart TVMate if this was just enabled.';btn.disabled=false;
+}
+async function copyLanAddress(btn){
+  const value=window._tvmateLanUrl||'';if(!value)return;
+  try{await navigator.clipboard.writeText(value);const old=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=old,1200);}
+  catch(e){prompt('Copy this private TVMate link:',value);}
 }
 async function saveSettings(){
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
@@ -7047,12 +7105,13 @@ async function saveSettings(){
     refresh_iptv_on_startup:s_refreshiptv.checked,refresh_sports_on_startup:s_refreshsports.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
     profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
-    f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0)};
+    f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0),allow_lan:s_allowlan.checked};
   if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
   if(!body.football_enabled&&body.start_section==='teams')body.start_section='mylist';
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  s_msg.textContent=r.ok?'Saved.':'Error saving.';
+  s_msg.textContent=r.ok?(r.restart_required?'Saved. Restart TVMate to apply the Wi-Fi access change.':'Saved.'):'Error saving.';
+  if(r.ok)renderLanAccess(r);
   if(r.ok){setLang(body.preferred_language);applyProfileConfig(body);toast('Saved.');if(!body.football_enabled&&!teamsView.classList.contains('hide'))showMylist();if(!body.games_enabled&&!gamesView.classList.contains('hide'))showMylist();if(!body.f1_enabled&&!racingView.classList.contains('hide'))showMylist();}
   refreshStatus();
 }
@@ -9242,7 +9301,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _send(self, code, body, ctype="application/json"):
+    def _send(self, code, body, ctype="application/json", headers=None):
         if isinstance(body, (dict, list)):
             body = json.dumps(body)
         data = body.encode("utf-8")
@@ -9250,6 +9309,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(code)
             self.send_header("Content-Type", ctype + "; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -9257,6 +9318,37 @@ class Handler(BaseHTTPRequestHandler):
             # Browsers routinely cancel obsolete API requests during reloads,
             # navigation and app updates. The response has nowhere to go.
             return
+
+    def _is_loopback(self):
+        return str(self.client_address[0]) in ("127.0.0.1", "::1")
+
+    def _authorize_lan(self, parsed):
+        """Authorize remote LAN browsers; localhost remains passwordless."""
+        if self._is_loopback():
+            return True
+        cfg = load_config()
+        expected = str(cfg.get("lan_access_token") or "")
+        if not cfg.get("allow_lan") or not expected:
+            self._send(403, {"error": "Local Wi-Fi access is disabled"})
+            return False
+        supplied = urllib.parse.parse_qs(parsed.query).get("token", [""])[0]
+        cookies = {}
+        for part in str(self.headers.get("Cookie") or "").split(";"):
+            if "=" in part:
+                name, value = part.strip().split("=", 1)
+                cookies[name] = value
+        valid_query = bool(supplied) and secrets.compare_digest(supplied, expected)
+        valid_cookie = bool(cookies.get("tvmate_lan")) and secrets.compare_digest(cookies["tvmate_lan"], expected)
+        if valid_query:
+            self._send(302, "", "text/plain", {
+                "Location": parsed.path or "/",
+                "Set-Cookie": "tvmate_lan=" + expected + "; Path=/; HttpOnly; SameSite=Strict",
+            })
+            return False
+        if valid_cookie:
+            return True
+        self._send(401, {"error": "Open TVMate using the private phone link shown in Settings"})
+        return False
 
     def _send_image_file(self, path, ctype=None, cache_control="public, max-age=31536000, immutable"):
         with open(path, "rb") as f:
@@ -9333,6 +9425,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
+        if not self._authorize_lan(u):
+            return
         q = urllib.parse.parse_qs(u.query)
         try:
             if u.path in {"/api/f1_schedule", "/api/racing", "/api/racing_availability",
@@ -9727,7 +9821,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(502, {"error": str(e)})
 
             if u.path == "/api/config":
-                return self._send(200, load_config())
+                cfg = load_config()
+                public_cfg = dict(cfg)
+                public_cfg.pop("lan_access_token", None)
+                public_cfg["lan_url"] = _lan_access_url(cfg, self.server.server_address[1], self._is_loopback()) if cfg.get("allow_lan") else ""
+                return self._send(200, public_cfg)
 
             if u.path == "/api/artwork_cache":
                 return self._send(200, {"bytes": artwork_cache_size()})
@@ -10676,6 +10774,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
+        if not self._authorize_lan(u):
+            return
         length = int(self.headers.get("Content-Length", 0))
         if length > 5 * 1024 * 1024:
             return self._send(413, {"error": "Backup or request is too large"})
@@ -10866,13 +10966,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(502, {"error": "Steam wishlist: " + str(e)})
         if u.path == "/api/config":
             cfg = load_config()
+            lan_before = bool(cfg.get("allow_lan"))
             provider_before = tuple(str(cfg.get(k) or "") for k in
                                     ("xtream_host", "xtream_port", "xtream_user", "xtream_pass"))
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_iptv_on_startup", "refresh_sports_on_startup", "profile_name",
                       "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
-                      "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes"):
+                      "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes", "allow_lan"):
                 if k in payload:
                     cfg[k] = payload[k]
             if cfg.get("stream_ext") not in ("ts", "m3u8"):
@@ -10906,6 +11007,9 @@ class Handler(BaseHTTPRequestHandler):
             cfg["check_shows_on_startup"] = bool(cfg.get("check_shows_on_startup"))
             cfg["refresh_iptv_on_startup"] = bool(cfg.get("refresh_iptv_on_startup"))
             cfg["refresh_sports_on_startup"] = bool(cfg.get("refresh_sports_on_startup"))
+            cfg["allow_lan"] = bool(cfg.get("allow_lan"))
+            if cfg["allow_lan"] and not str(cfg.get("lan_access_token") or ""):
+                cfg["lan_access_token"] = secrets.token_urlsafe(24)
             cfg.pop("refresh_all_on_startup", None)
             cfg.pop("startup_refresh_mode", None)
             save_config(cfg)
@@ -10913,7 +11017,9 @@ class Handler(BaseHTTPRequestHandler):
                                    ("xtream_host", "xtream_port", "xtream_user", "xtream_pass"))
             if provider_after != provider_before:
                 _clear_provider_caches()
-            return self._send(200, {"ok": True})
+            return self._send(200, {"ok": True, "allow_lan": cfg["allow_lan"],
+                                    "lan_url": _lan_access_url(cfg) if cfg["allow_lan"] else "",
+                                    "restart_required": lan_before != cfg["allow_lan"]})
 
         if u.path == "/api/clear_artwork_cache":
             root = artwork_cache_dir()
@@ -11768,7 +11874,8 @@ def main():
             if _launch_without_console():
                 _close_launcher_console()
                 return
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    bind_host = "0.0.0.0" if cfg.get("allow_lan") else "127.0.0.1"
+    server = ThreadingHTTPServer((bind_host, port), Handler)
     _STOP_EVENT.clear()
     _mark_app_activity()
     if not hide_console and sys.platform.startswith("win"):
