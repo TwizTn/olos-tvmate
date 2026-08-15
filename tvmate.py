@@ -87,6 +87,7 @@ def _default_data_dir():
 
 CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
+_ACTIVE_PORT = PORT
 _CONFIG_LOCK = threading.RLock()
 _FAVORITES_LOCK = threading.RLock()
 _CACHE_WRITE_LOCK = threading.RLock()
@@ -119,7 +120,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b408"
+VERSION = "0.777.b409"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -11018,7 +11019,7 @@ class Handler(BaseHTTPRequestHandler):
             if provider_after != provider_before:
                 _clear_provider_caches()
             return self._send(200, {"ok": True, "allow_lan": cfg["allow_lan"],
-                                    "lan_url": _lan_access_url(cfg) if cfg["allow_lan"] else "",
+                                    "lan_url": _lan_access_url(cfg, _ACTIVE_PORT) if cfg["allow_lan"] else "",
                                     "restart_required": lan_before != cfg["allow_lan"]})
 
         if u.path == "/api/clear_artwork_cache":
@@ -11841,6 +11842,7 @@ def _existing_tvmate(port):
         return False
 
 def main():
+    global _ACTIVE_PORT
     port = PORT
     if "--port" in sys.argv:
         try:
@@ -11877,7 +11879,19 @@ def main():
     # Keep the desktop listener independent from optional Wi-Fi access. Binding
     # to the PC's exact LAN address avoids exposing VPN and other adapters, while
     # a rejected LAN bind can no longer prevent localhost from starting.
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = None
+    bind_errors = []
+    for candidate in range(port, port + 11):
+        try:
+            server = ThreadingHTTPServer(("127.0.0.1", candidate), Handler)
+            port = candidate
+            break
+        except OSError as bind_error:
+            bind_errors.append(f"{candidate}: {bind_error}")
+    if server is None:
+        raise OSError("Could not open a local TVMate port (" + "; ".join(bind_errors) + ")")
+    _ACTIVE_PORT = port
+    url = f"http://localhost:{port}"
     lan_server = None
     if cfg.get("allow_lan"):
         lan_host = _local_lan_ip()
@@ -12666,4 +12680,17 @@ if __name__ == "__main__":
         passed = run_self_tests()
         print("Self-test passed: " + ", ".join(passed))
     else:
-        main()
+        try:
+            main()
+        except Exception:
+            # The normal launcher is console-less. Preserve startup failures in
+            # the data folder so a bad network/port state is never invisible.
+            try:
+                import traceback
+                error_path = os.path.join(app_dir(), "startup-error.txt")
+                _atomic_write_bytes(error_path, traceback.format_exc().encode("utf-8"))
+                if sys.platform.startswith("win"):
+                    os.startfile(error_path)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            raise
