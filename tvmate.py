@@ -121,7 +121,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b413"
+VERSION = "0.777.b414"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4875,6 +4875,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .langflag{background:none;border:1px solid transparent;border-radius:6px;padding:2px 6px;font-size:17px;line-height:1;cursor:pointer;opacity:.45;filter:grayscale(.5);transition:all .12s}
  .langflag:hover{opacity:.85;filter:none}
  .langflag.on{opacity:1;filter:none;border-color:var(--line2);background:var(--card2)}
+ .mobiletop,.mobilenav,.mobilemorebackdrop{display:none}
  @media(max-width:1500px){header{gap:12px;padding-left:16px;padding-right:16px}header a{font-size:13px}.slogan{font-size:11px}}
  @media(max-width:1100px){header{overflow-x:auto;scrollbar-width:none}header::-webkit-scrollbar{display:none}.slogan{display:none}.langsel{margin-left:auto}}
  .updatebanner{position:fixed;top:0;left:0;right:0;background:#16233d;border-bottom:1px solid var(--acc);padding:10px 18px;display:flex;align-items:center;gap:12px;justify-content:center;z-index:300;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
@@ -5640,12 +5641,19 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:650px){.setupfields,.setupfeatures,.setupstartergrid,.setupfinishopts{grid-template-columns:1fr}.setupfields .full{grid-column:1}.setupbrand{padding:17px 18px 12px}.setupsteps{margin:0 18px 22px}.setupstep{padding:0 18px;min-height:0}.setupactions{margin:20px 18px 0;flex-wrap:wrap}}
  @media(max-width:700px){
   html{scroll-padding-bottom:76px}
-  body{font-size:15px;padding-bottom:calc(66px + env(safe-area-inset-bottom));overflow-x:hidden}
-  body>header{position:fixed;top:auto;left:0;right:0;bottom:0;height:calc(58px + env(safe-area-inset-bottom));padding:6px 7px env(safe-area-inset-bottom);gap:3px;overflow-x:auto;overflow-y:hidden;z-index:2500;background:rgba(12,15,20,.97);border-top:1px solid var(--line2);border-bottom:0;box-shadow:0 -8px 24px rgba(0,0,0,.42);scroll-snap-type:x proximity}
-  body>header::-webkit-scrollbar{display:none}
-  body>header h1,body>header .slogan,body>header #status,body>header .headerstop,body>header .langsel{display:none!important}
-  body>header>a{display:flex;align-items:center;justify-content:center;min-width:72px;height:46px;padding:5px 8px;border:0;border-radius:9px;font-size:11.5px;line-height:1.1;text-align:center;scroll-snap-align:center}
-  body>header>a.on{background:#16233d;color:#dce9ff;box-shadow:inset 0 0 0 1px #294c82}
+  body{font-size:15px;padding-top:54px;padding-bottom:calc(72px + env(safe-area-inset-bottom));overflow-x:hidden}
+  body>header{display:none!important}
+  .mobiletop{position:fixed;display:flex;align-items:center;gap:10px;top:0;left:0;right:0;height:54px;padding:6px 12px;z-index:2490;background:rgba(12,15,20,.97);border-bottom:1px solid var(--line2);box-shadow:0 5px 18px rgba(0,0,0,.25);backdrop-filter:blur(12px)}
+  .mobilebrand{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.mobilebrand svg{width:32px;height:32px;flex:0 0 32px}.mobilebrandtext{min-width:0}.mobilebrandtext b{display:block;font-size:14px;line-height:1.1}.mobilepagetitle{display:block;color:var(--mut);font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mobilemoreopen{width:42px;height:42px;min-height:42px;padding:0;border-radius:11px;background:var(--card);border:1px solid var(--line2);color:var(--fg);font-size:22px}
+  .mobilenav{position:fixed;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));left:0;right:0;bottom:0;height:calc(64px + env(safe-area-inset-bottom));padding:5px 5px env(safe-area-inset-bottom);z-index:2500;background:rgba(10,13,17,.98);border-top:1px solid var(--line2);box-shadow:0 -8px 24px rgba(0,0,0,.42);backdrop-filter:blur(12px)}
+  .mobilenav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;min-height:54px;padding:3px 2px;border:0;border-radius:10px;background:transparent;color:var(--mut);font-size:10px;line-height:1.05}
+  .mobilenav button .mobileicon{font-size:19px;line-height:1}.mobilenav button.on{background:#16233d;color:#dce9ff;box-shadow:inset 0 0 0 1px #294c82}
+  .mobilemorebackdrop{position:fixed;display:flex;align-items:flex-end;inset:0;z-index:2700;background:rgba(0,0,0,.66);padding:0}.mobilemorebackdrop.hide{display:none}
+  .mobilemoresheet{width:100%;max-height:82vh;overflow:auto;padding:10px 14px calc(18px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0;border:1px solid var(--line2);border-bottom:0;background:#12161c;box-shadow:0 -20px 70px rgba(0,0,0,.65)}
+  .mobilemorehandle{width:42px;height:4px;border-radius:4px;background:#4b5360;margin:2px auto 13px}.mobilemorehead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.mobilemorehead b{font-size:17px}.mobilemoreclose{width:42px;height:42px;padding:0;background:var(--card);color:var(--mut);border:1px solid var(--line2);border-radius:10px;font-size:20px}
+  .mobilemoregrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.mobilemoregrid button{display:flex;align-items:center;gap:10px;min-height:52px;padding:10px 12px;text-align:left;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:11px}.mobilemoregrid button span:first-child{font-size:20px}.mobilemoregrid button.on{border-color:#3967a8;background:#16233d}
+  .mobilemoretools{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.mobilemoretools button{flex:1}.mobilemoretools .stopbtn{color:#ff8e94;border-color:#6d3035}
   main,main.wide{width:100%;max-width:none;padding:13px 10px 26px!important;overflow:hidden}
   section{min-width:0}
   input,select,textarea{font-size:16px!important;min-height:44px}
@@ -5686,11 +5694,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .tvwrap{height:calc(100vh - 96px);min-height:420px;border-radius:8px}
   .tvrail{width:82px;padding:5px}.tvsrc{font-size:10px;padding:7px 4px}
   .tvchancol,.tvchan{width:190px}.tvplayerslot{left:190px}
-  .pmodal,.tvplayerslot.mini{position:fixed;inset:0 0 calc(58px + env(safe-area-inset-bottom));width:100vw;height:auto;border-radius:0}
+  .pmodal,.tvplayerslot.mini{position:fixed;inset:54px 0 calc(64px + env(safe-area-inset-bottom));width:100vw;height:auto;border-radius:0}
   .pbox{border-radius:0;border-left:0;border-right:0}
   .setupoverlay{padding:8px 8px calc(66px + env(safe-area-inset-bottom))}
   .editprofiledialog,.setupwizard{max-height:100%;padding-left:15px;padding-right:15px}
-  .updatebanner{bottom:calc(58px + env(safe-area-inset-bottom));top:auto;align-items:stretch;flex-direction:column;padding:10px 12px;text-align:center}
+  .updatebanner{bottom:calc(64px + env(safe-area-inset-bottom));top:auto;align-items:stretch;flex-direction:column;padding:10px 12px;text-align:center}
   main *,main.wide *{min-width:0}
   .mydash.layout-timeline{display:block!important;width:100%;max-width:100%}
   .mydash.layout-timeline .mydashteamonly{width:100%;display:grid;grid-template-columns:58px minmax(0,1fr);gap:10px;padding:10px}
@@ -5751,6 +5759,31 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <button class="langflag" id="langNO" onclick="setLang('no')" title="Norsk">&#127475;&#127476;</button>
   </div>
 </header>
+<div class="mobiletop">
+ <div class="mobilebrand"><svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="58" width="150" height="120" rx="16" fill="#3a2c1f"/><rect x="38" y="70" width="126" height="96" rx="8" fill="#1b3a6b"/><ellipse cx="101" cy="140" rx="44" ry="11" fill="#e7a94e"/><ellipse cx="101" cy="128" rx="42" ry="11" fill="#f0b95e"/><ellipse cx="101" cy="116" rx="40" ry="11" fill="#f5c56e"/></svg><div class="mobilebrandtext"><b>Olo's TVMate</b><span id="mobilePageTitle" class="mobilepagetitle">Profile</span></div></div>
+ <button class="mobilemoreopen" type="button" onclick="openMobileMore()" aria-label="More">&#8942;</button>
+</div>
+<nav class="mobilenav" aria-label="Mobile navigation">
+ <button id="mobileNavMylist" onclick="showMylist()"><span class="mobileicon">&#8962;</span><span data-i18n="Profile">Profile</span></button>
+ <button id="mobileNavChannels" onclick="showChannels()"><span class="mobileicon">&#9776;</span><span data-i18n="Playlists">Playlists</span></button>
+ <button id="mobileNavMytv" onclick="showMytv()"><span class="mobileicon">&#9654;</span><span data-i18n="Live TV">Live TV</span></button>
+ <button id="mobileNavTeams" onclick="showTeams()"><span class="mobileicon">&#9917;</span><span data-i18n="Sports">Sports</span></button>
+ <button id="mobileNavMore" onclick="openMobileMore()"><span class="mobileicon">&#8226;&#8226;&#8226;</span><span>More</span></button>
+</nav>
+<div id="mobileMore" class="mobilemorebackdrop hide" onclick="if(event.target===this)closeMobileMore()">
+ <div class="mobilemoresheet" role="dialog" aria-modal="true" aria-label="More navigation">
+  <div class="mobilemorehandle"></div><div class="mobilemorehead"><b>More</b><button class="mobilemoreclose" onclick="closeMobileMore()">&#10005;</button></div>
+  <div class="mobilemoregrid">
+   <button data-mobile-target="navMovies" onclick="mobileGo(showMovies)"><span>&#127916;</span><span data-i18n="Movies">Movies</span></button>
+   <button data-mobile-target="navShows" onclick="mobileGo(showShows)"><span>&#128250;</span><span data-i18n="Shows">Shows</span></button>
+   <button data-mobile-target="navGames" onclick="mobileGo(showGames)"><span>&#127918;</span><span data-i18n="Games">Games</span></button>
+   <button data-mobile-target="navRacing" onclick="mobileGo(showRacing)"><span>&#127950;</span><span data-i18n="Racing">Racing</span></button>
+   <button data-mobile-target="navSettings" onclick="mobileGo(showSettings)"><span>&#9881;</span><span data-i18n="Settings">Settings</span></button>
+   <button data-mobile-target="navMytimeline" onclick="mobileGo(showMytimeline)"><span>&#128336;</span><span data-i18n="Timeline">Timeline</span></button>
+  </div>
+  <div class="mobilemoretools"><button onclick="setLang('en')">English</button><button onclick="setLang('no')">Norsk</button><button class="stopbtn" onclick="stopTVMate()" data-i18n="Stop TVMate">Stop TVMate</button></div>
+ </div>
+</div>
 <div id="profileSetupOverlay" class="setupoverlay hide">
   <div class="setupwizard" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
     <div class="setupbrand"><span id="setupBrandEmblem"></span><b>Olo's TVMate</b><span id="setupStepMeta" class="setupstepmeta"></span></div>
@@ -6310,7 +6343,10 @@ function applyBackgroundStyle(style){
 }
 function initPancakes(){applyBackgroundStyle(_backgroundStyle);}
 function initPlPancakes(){applyBackgroundStyle(_backgroundStyle);}
-function setNav(id){let active=null;['navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'].forEach(function(n){const el=document.getElementById(n);if(el){el.classList.toggle('on',n===id);if(n===id)active=el;}});if(active&&window.matchMedia('(max-width:700px)').matches)setTimeout(()=>active.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}),0);}
+function openMobileMore(){const el=document.getElementById('mobileMore');if(el)el.classList.remove('hide');}
+function closeMobileMore(){const el=document.getElementById('mobileMore');if(el)el.classList.add('hide');}
+function mobileGo(fn){closeMobileMore();if(typeof fn==='function')fn();}
+function setNav(id){let active=null;const ids=['navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'];ids.forEach(function(n){const el=document.getElementById(n);if(el){el.classList.toggle('on',n===id);if(n===id)active=el;}});const primary={navMylist:'mobileNavMylist',navChannels:'mobileNavChannels',navMytv:'mobileNavMytv',navTeams:'mobileNavTeams'},primaryId=primary[id]||'mobileNavMore';document.querySelectorAll('.mobilenav button').forEach(btn=>btn.classList.toggle('on',btn.id===primaryId));document.querySelectorAll('[data-mobile-target]').forEach(btn=>btn.classList.toggle('on',btn.dataset.mobileTarget===id));const title=document.getElementById('mobilePageTitle');if(title)title.textContent=active?active.textContent.trim():'Olo’s TVMate';closeMobileMore();}
 const _SLOGANS={
   search:["Find the match. Pick a channel. Pour the syrup."],
   mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
