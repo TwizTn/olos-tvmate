@@ -88,6 +88,8 @@ def _default_data_dir():
 CONFIG_PATH = os.path.join(app_dir(), "config.json")
 PORT = 777
 _ACTIVE_PORT = PORT
+LAN_PORT = 778
+_ACTIVE_LAN_PORT = 0
 _CONFIG_LOCK = threading.RLock()
 _FAVORITES_LOCK = threading.RLock()
 _CACHE_WRITE_LOCK = threading.RLock()
@@ -120,7 +122,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b409"
+VERSION = "0.777.b410"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -7089,9 +7091,9 @@ async function loadSettings(){
 function renderLanAccess(c){
   const help=document.getElementById('s_lanhelp'),btn=document.getElementById('s_copylan');
   window._tvmateLanUrl=String((c&&c.lan_url)||'');
-  if(!c||!c.allow_lan){help.textContent='Enable this setting, save, then restart TVMate.';btn.disabled=true;return;}
-  if(!window._tvmateLanUrl){help.textContent='Wi-Fi access is enabled, but no local network address was found. Restart TVMate after connecting to Wi-Fi.';btn.disabled=true;return;}
-  help.textContent='Phone link: '+window._tvmateLanUrl+' — restart TVMate if this was just enabled.';btn.disabled=false;
+  if(!c||!c.allow_lan){help.textContent='Enable this setting and save to start Wi-Fi access on a separate port.';btn.disabled=true;return;}
+  if(!window._tvmateLanUrl){help.textContent='Wi-Fi access could not start. Connect this PC to Wi-Fi and save again.';btn.disabled=true;return;}
+  help.textContent='Phone link: '+window._tvmateLanUrl;btn.disabled=false;
 }
 async function copyLanAddress(btn){
   const value=window._tvmateLanUrl||'';if(!value)return;
@@ -9825,7 +9827,7 @@ class Handler(BaseHTTPRequestHandler):
                 cfg = load_config()
                 public_cfg = dict(cfg)
                 public_cfg.pop("lan_access_token", None)
-                public_cfg["lan_url"] = _lan_access_url(cfg, self.server.server_address[1], self._is_loopback()) if cfg.get("allow_lan") else ""
+                public_cfg["lan_url"] = _lan_access_url(cfg, _ACTIVE_LAN_PORT or LAN_PORT, self._is_loopback()) if cfg.get("allow_lan") else ""
                 return self._send(200, public_cfg)
 
             if u.path == "/api/artwork_cache":
@@ -11018,9 +11020,14 @@ class Handler(BaseHTTPRequestHandler):
                                    ("xtream_host", "xtream_port", "xtream_user", "xtream_pass"))
             if provider_after != provider_before:
                 _clear_provider_caches()
+            if cfg["allow_lan"]:
+                lan_ok = _start_lan_server()
+            else:
+                _stop_lan_server()
+                lan_ok = False
             return self._send(200, {"ok": True, "allow_lan": cfg["allow_lan"],
-                                    "lan_url": _lan_access_url(cfg, _ACTIVE_PORT) if cfg["allow_lan"] else "",
-                                    "restart_required": lan_before != cfg["allow_lan"]})
+                                    "lan_url": _lan_access_url(cfg, _ACTIVE_LAN_PORT or LAN_PORT) if lan_ok else "",
+                                    "restart_required": False})
 
         if u.path == "/api/clear_artwork_cache":
             root = artwork_cache_dir()
@@ -11649,6 +11656,48 @@ class Handler(BaseHTTPRequestHandler):
 # --------------------------------------------------------------------------
 
 _STOP_EVENT = threading.Event()
+_LAN_SERVER = None
+_LAN_SERVER_LOCK = threading.RLock()
+
+def _start_lan_server():
+    """Start optional Wi-Fi access after localhost is already healthy."""
+    global _LAN_SERVER, _ACTIVE_LAN_PORT
+    with _LAN_SERVER_LOCK:
+        if _LAN_SERVER is not None:
+            return True
+        cfg = load_config()
+        if not cfg.get("allow_lan"):
+            return False
+        host = _local_lan_ip()
+        if not host:
+            cfg["lan_bind_error"] = "No local Wi-Fi address was found"
+            save_config(cfg)
+            return False
+        errors = []
+        for candidate in range(LAN_PORT, LAN_PORT + 11):
+            try:
+                lan_server = ThreadingHTTPServer((host, candidate), Handler)
+                threading.Thread(target=lan_server.serve_forever, daemon=True).start()
+                _LAN_SERVER = lan_server
+                _ACTIVE_LAN_PORT = candidate
+                cfg.pop("lan_bind_error", None)
+                save_config(cfg)
+                return True
+            except OSError as bind_error:
+                errors.append(f"{candidate}: {bind_error}")
+        cfg["lan_bind_error"] = "Could not start Wi-Fi access (" + "; ".join(errors) + ")"
+        save_config(cfg)
+        return False
+
+def _stop_lan_server():
+    global _LAN_SERVER, _ACTIVE_LAN_PORT
+    with _LAN_SERVER_LOCK:
+        lan_server = _LAN_SERVER
+        _LAN_SERVER = None
+        _ACTIVE_LAN_PORT = 0
+    if lan_server is not None:
+        lan_server.shutdown()
+        lan_server.server_close()
 
 def _auto_shutdown_watchdog():
     while not _STOP_EVENT.wait(15):
@@ -11876,9 +11925,8 @@ def main():
             if _launch_without_console():
                 _close_launcher_console()
                 return
-    # Keep the desktop listener independent from optional Wi-Fi access. Binding
-    # to the PC's exact LAN address avoids exposing VPN and other adapters, while
-    # a rejected LAN bind can no longer prevent localhost from starting.
+    # Start localhost only. Optional Wi-Fi access is deliberately started later
+    # on its own port, after the desktop app is already healthy.
     server = None
     bind_errors = []
     for candidate in range(port, port + 11):
@@ -11892,21 +11940,6 @@ def main():
         raise OSError("Could not open a local TVMate port (" + "; ".join(bind_errors) + ")")
     _ACTIVE_PORT = port
     url = f"http://localhost:{port}"
-    lan_server = None
-    if cfg.get("allow_lan"):
-        lan_host = _local_lan_ip()
-        if lan_host:
-            try:
-                lan_server = ThreadingHTTPServer((lan_host, port), Handler)
-                cfg.pop("lan_bind_error", None)
-            except OSError as lan_error:
-                cfg["allow_lan"] = False
-                cfg["lan_bind_error"] = str(lan_error)[:300]
-                save_config(cfg)
-        else:
-            cfg["allow_lan"] = False
-            cfg["lan_bind_error"] = "No local Wi-Fi address was found"
-            save_config(cfg)
     _STOP_EVENT.clear()
     _mark_app_activity()
     if not hide_console and sys.platform.startswith("win"):
@@ -11930,8 +11963,8 @@ def main():
         print("  " + "=" * 56)
     # Serve the app in the background so the server is ready before we open.
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    if lan_server is not None:
-        threading.Thread(target=lan_server.serve_forever, daemon=True).start()
+    if cfg.get("allow_lan"):
+        threading.Thread(target=_start_lan_server, daemon=True).start()
     threading.Thread(target=_auto_shutdown_watchdog, daemon=True).start()
     if hide_console:
         # Hidden mode cannot wait for console input: launch the UI immediately.
@@ -11965,9 +11998,7 @@ def main():
     finally:
         server.shutdown()
         server.server_close()
-        if lan_server is not None:
-            lan_server.shutdown()
-            lan_server.server_close()
+        _stop_lan_server()
 
 def _t_sleep(sec):
     import time as _t
