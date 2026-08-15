@@ -42,7 +42,6 @@ import webbrowser
 import hashlib
 import shutil
 import datetime
-import secrets
 import socket
 import urllib.parse
 import urllib.request
@@ -122,7 +121,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b410"
+VERSION = "0.777.b411"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -210,6 +209,16 @@ def _lan_access_url(cfg, port=PORT, include_token=True):
     if include_token and token:
         url += "?token=" + urllib.parse.quote(token, safe="")
     return url
+
+def _secure_equal(left, right):
+    """Constant-time token comparison without optional stdlib dependencies."""
+    left = str(left or "").encode("utf-8")
+    right = str(right or "").encode("utf-8")
+    mismatch = len(left) ^ len(right)
+    size = max(len(left), len(right))
+    for index in range(size):
+        mismatch |= (left[index] if index < len(left) else 0) ^ (right[index] if index < len(right) else 0)
+    return mismatch == 0
 
 def artwork_cache_dir():
     return os.path.join(app_dir(), "artwork")
@@ -9340,8 +9349,8 @@ class Handler(BaseHTTPRequestHandler):
             if "=" in part:
                 name, value = part.strip().split("=", 1)
                 cookies[name] = value
-        valid_query = bool(supplied) and secrets.compare_digest(supplied, expected)
-        valid_cookie = bool(cookies.get("tvmate_lan")) and secrets.compare_digest(cookies["tvmate_lan"], expected)
+        valid_query = bool(supplied) and _secure_equal(supplied, expected)
+        valid_cookie = bool(cookies.get("tvmate_lan")) and _secure_equal(cookies["tvmate_lan"], expected)
         if valid_query:
             self._send(302, "", "text/plain", {
                 "Location": parsed.path or "/",
@@ -11012,7 +11021,7 @@ class Handler(BaseHTTPRequestHandler):
             cfg["refresh_sports_on_startup"] = bool(cfg.get("refresh_sports_on_startup"))
             cfg["allow_lan"] = bool(cfg.get("allow_lan"))
             if cfg["allow_lan"] and not str(cfg.get("lan_access_token") or ""):
-                cfg["lan_access_token"] = secrets.token_urlsafe(24)
+                cfg["lan_access_token"] = hashlib.sha256(os.urandom(48)).hexdigest()
             cfg.pop("refresh_all_on_startup", None)
             cfg.pop("startup_refresh_mode", None)
             save_config(cfg)
