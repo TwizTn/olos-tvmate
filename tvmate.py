@@ -121,7 +121,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b418"
+VERSION = "0.777.b419"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4824,9 +4824,11 @@ def find_racing_channels(event, xtream_channels, cats, x):
             continue
         # Event title beats a dedicated series channel; generic series entries
         # in PPV/Play/Event buckets remain useful but are only possible matches.
-        match_kind = ("broadcaster" if norway_f1 else
+        # IndyCar's Norway V Sport feeds are treated as a broadcaster-level match
+        # so they rank at the top instead of being truncated by the result cap.
+        match_kind = ("broadcaster" if (norway_f1 or indycar_vsport_no) else
                       ("event" if (event_hit or (series_hit and session_hit)) else
-                      ("possible" if (ppv_context or indycar_vsport_no or viaplay_event_feed) else "series")))
+                      ("possible" if (ppv_context or viaplay_event_feed) else "series")))
         out.append({"xtream_name": cname, "stream_id": ch.get("stream_id"),
                     "category": category, "logo": ch.get("stream_icon", ""),
                     "quality": quality_tag(cname),
