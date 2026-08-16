@@ -121,7 +121,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b417"
+VERSION = "0.777.b418"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4806,20 +4806,27 @@ def find_racing_channels(event, xtream_channels, cats, x):
         norway_f1 = bool(
             series == "f1" and channel_cc == "no" and
             re.fullmatch(r"v sport 1", f1_feed_name))
+        # Viaplay carries IndyCar in the Nordics too. F1 reliably maps to V Sport 1,
+        # but Viaplay spreads IndyCar across whichever V Sport feed fits the slot,
+        # so we can't pin it to one channel - we surface Viaplay/V Sport feeds as
+        # "possible" instead of a definitive broadcaster match.
         viaplay_event_feed = bool(
-            series == "f1" and channel_cc == "no" and
+            series in ("f1", "indycar") and channel_cc == "no" and
             "viaplay" in normalise(cname + " " + category) and
             _is_ppv_category(cname))
+        indycar_vsport_no = bool(
+            series == "indycar" and channel_cc == "no" and
+            re.match(r"v sport\b", f1_feed_name))
         ppv_context = _is_ppv_category(category) or _is_ppv_category(cname)
         event_context = ppv_context or _is_4k_category(category)
-        if not (norway_f1 or viaplay_event_feed or series_hit or
+        if not (norway_f1 or viaplay_event_feed or indycar_vsport_no or series_hit or
                 (event_hit and event_context)):
             continue
         # Event title beats a dedicated series channel; generic series entries
         # in PPV/Play/Event buckets remain useful but are only possible matches.
         match_kind = ("broadcaster" if norway_f1 else
                       ("event" if (event_hit or (series_hit and session_hit)) else
-                      ("possible" if ppv_context else "series")))
+                      ("possible" if (ppv_context or indycar_vsport_no or viaplay_event_feed) else "series")))
         out.append({"xtream_name": cname, "stream_id": ch.get("stream_id"),
                     "category": category, "logo": ch.get("stream_icon", ""),
                     "quality": quality_tag(cname),
