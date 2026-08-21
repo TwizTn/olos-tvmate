@@ -89,6 +89,7 @@ PORT = 777
 _ACTIVE_PORT = PORT
 LAN_PORT = 778
 _ACTIVE_LAN_PORT = 0
+_SERVER_INSTANCE_ID = hashlib.sha256(os.urandom(32)).hexdigest()[:20]
 _CONFIG_LOCK = threading.RLock()
 _FAVORITES_LOCK = threading.RLock()
 _CACHE_WRITE_LOCK = threading.RLock()
@@ -121,7 +122,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b419"
+VERSION = "0.777.b431"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -170,6 +171,7 @@ DEFAULT_CONFIG = {
     "background_style": "float",
     "hide_cmd_window": True,
     "auto_shutdown_minutes": 0,
+    "dev_mode": False,
     "allow_lan": False,
     "lan_access_token": "",
     "start_section": "mylist",
@@ -2880,8 +2882,8 @@ def search_daily_matches(term):
             continue
         home = str(home_obj.get("name") or "")
         away = str(away_obj.get("name") or "")
-        hay = (home + " " + away).lower()
-        if not any(value in hay for value in wanted):
+        if not (_team_field_matches(home, wanted, term_l) or
+                _team_field_matches(away, wanted, term_l)):
             continue
         start = str(status.get("utcTime") or match.get("startDate") or "")
         is_finished = bool(status.get("finished"))
@@ -3287,6 +3289,34 @@ def fetch_team_profile(team_id, team_name=""):
     data = http_get_json(FOTMOB_TEAM_API.format(team_id=urllib.parse.quote(team_id)), timeout=15)
     return _remember_team_profile(team_id, team_name, data)
 
+def _fixture_candidate_involves_team(item, team_id, team_name="",
+                                     trusted_opponent=False):
+    """Prove a fixture-shaped object belongs to the requested team.
+
+    Opponent-only rows are safe only when they came from the team's explicit
+    fixture list.  A recursive scrape of the wider team payload can contain
+    opponent-shaped rows for unrelated competitions and must identify the team
+    by id or name instead.
+    """
+    if not isinstance(item, dict):
+        return False
+    team_id = str(team_id or "").strip()
+    home_obj = item.get("home") if isinstance(item.get("home"), dict) else {}
+    away_obj = item.get("away") if isinstance(item.get("away"), dict) else {}
+    if (str(home_obj.get("id") or "") == team_id or
+            str(away_obj.get("id") or "") == team_id):
+        return True
+    opponent = item.get("opponent")
+    if (trusted_opponent and isinstance(opponent, dict) and
+            str(opponent.get("name") or "").strip()):
+        return True
+    team_alias = _expand_terms(str(team_name or "").lower().strip()) if team_name else set()
+    if not team_alias:
+        return False
+    term_l = str(team_name or "").lower().strip()
+    return (_team_field_matches(home_obj.get("name"), team_alias, term_l) or
+            _team_field_matches(away_obj.get("name"), team_alias, term_l))
+
 def fetch_team_schedule(team_id, team_name=""):
     """Fetch a team's real FotMob fixture/status feed (not the TV guide)."""
     team_id = str(team_id or "").strip()
@@ -3296,7 +3326,7 @@ def fetch_team_schedule(team_id, team_name=""):
     cached = _TEAM_FIXTURE_CACHE.get(team_id)
     if cached and now - cached["ts"] < _TEAM_FIXTURE_TTL:
         return [dict(row) for row in cached["fixtures"]]
-    disk = _load_timed_data_cache(f"team-fixtures-{team_id}.json", _TEAM_FIXTURE_TTL)
+    disk = _load_timed_data_cache(f"team-fixtures-v2-{team_id}.json", _TEAM_FIXTURE_TTL)
     # b169 adds competition metadata for timeline artwork. Refresh older
     # schedule caches once instead of waiting for their normal long TTL.
     if (isinstance(disk, list) and disk and
@@ -3313,7 +3343,10 @@ def fetch_team_schedule(team_id, team_name=""):
     # FotMob moves an in-progress match into overview/ongoing data, so it can
     # disappear from allFixtures while it is live. Collect fixture-shaped
     # objects from the full response as well, then deduplicate below.
-    candidates = list(raw)
+    # Keep provenance: opponent-only rows are trusted only inside the team's
+    # explicit fixture list, never merely because the recursive payload scrape
+    # happened to find an `opponent` object.
+    candidates = [(item, True) for item in raw]
     def collect_current(obj):
         if isinstance(obj, dict):
             status = obj.get("status")
@@ -3323,7 +3356,7 @@ def fetch_team_schedule(team_id, team_name=""):
             if (isinstance(status, dict) and
                     ((isinstance(home, dict) and isinstance(away, dict)) or
                      isinstance(opponent, dict))):
-                candidates.append(obj)
+                candidates.append((obj, False))
             for value in obj.values():
                 collect_current(value)
         elif isinstance(obj, list):
@@ -3338,14 +3371,18 @@ def fetch_team_schedule(team_id, team_name=""):
             home = match.get("home") or {}
             away = match.get("away") or {}
             if str(home.get("id") or "") == team_id or str(away.get("id") or "") == team_id:
-                candidates.append(match)
+                candidates.append((match, False))
                 if match.get("id") is not None:
                     daily_status[str(match.get("id"))] = match.get("status") or {}
     except Exception:
         pass
     out = []
     seen_fixtures = set()
-    for item in candidates:
+    # `collect_current` deliberately scrapes fixture-shaped objects from the
+    # whole team payload (FotMob relocates a live match out of allFixtures).
+    # That payload also carries unrelated matches, so every candidate must be
+    # proven to involve THIS team before it becomes part of the schedule.
+    for item, trusted_opponent in candidates:
         if not isinstance(item, dict):
             continue
         home_obj = item.get("home") or {}
@@ -3368,6 +3405,9 @@ def fetch_team_schedule(team_id, team_name=""):
                 else:
                     home, away = str(opponent.get("name")), team_name
         if not (home and away):
+            continue
+        if not _fixture_candidate_involves_team(
+                item, team_id, team_name, trusted_opponent=trusted_opponent):
             continue
         status = item.get("status") or {}
         if not isinstance(status, dict):
@@ -3421,7 +3461,7 @@ def fetch_team_schedule(team_id, team_name=""):
     # from FotMob's short-lived daily feed when My Teams is rendered.
     base_out = [dict(row, is_live=False, live_minute=None) for row in out]
     _TEAM_FIXTURE_CACHE[team_id] = {"ts": now, "fixtures": base_out}
-    _save_timed_data_cache(f"team-fixtures-{team_id}.json", base_out)
+    _save_timed_data_cache(f"team-fixtures-v2-{team_id}.json", base_out)
     return [dict(row) for row in base_out]
 
 def _slug_name(url):
@@ -3548,6 +3588,43 @@ def _fetch_country_guides(countries, max_workers=6):
             errors.append(f"{_display_cc(country)}: {error}")
     return rows, errors
 
+def _team_field_matches(field, want, term_l=""):
+    """True if any wanted alias identifies this team field. Uses word-aware
+    matching anchored to the START of the name so a nickname like 'wolves' does
+    not match an unrelated club that merely contains the word ('Red Wolves').
+    A full multi-word alias may also match anywhere as a whole-word phrase."""
+    name = normalise(str(field or "")).strip()
+    if not name:
+        return False
+    words = name.split()
+    tl = normalise(term_l).strip()
+    for alias in want:
+        a = normalise(str(alias)).strip()
+        if not a:
+            continue
+        awords = a.split()
+        # Whole-name exact match always counts.
+        if name == a:
+            return True
+        # A short single-word alias (a nickname like "real", "inter", "milan")
+        # is collision-prone. Only allow it to anchor the name when the USER
+        # actually searched that short term - not when it was pulled in as a
+        # secondary alias of a more specific multi-word search.
+        short_nick = (len(awords) == 1 and len(a) <= 5)
+        if short_nick and tl and tl != a and len(tl.split()) > 1:
+            continue
+        # Anchored: the team name begins with the alias words. Matches
+        # "wolves"->"wolves" / "wolverhampton..." but NOT "red wolves sc".
+        if words[:len(awords)] == awords:
+            return True
+        # A specific multi-word alias (>=2 words) may appear as a contiguous
+        # whole-word phrase anywhere; multi-word aliases rarely collide.
+        if len(awords) >= 2:
+            for i in range(len(words) - len(awords) + 1):
+                if words[i:i + len(awords)] == awords:
+                    return True
+    return False
+
 def search_fixtures(term, countries):
     term_l = term.lower().strip()
     want = _expand_terms(term_l)
@@ -3555,11 +3632,12 @@ def search_fixtures(term, countries):
     guides, errors = _fetch_country_guides(countries)
     for country, fx in guides:
         for f in fx:
-            hay = " ".join([
-                f.get("home", ""), f.get("away", ""),
-                f.get("home_slug", ""), f.get("away_slug", "")
-            ]).lower()
-            if not any(w in hay for w in want):
+            # Match each TEAM field on its own, using word-aware matching, so a
+            # short nickname like "wolves" doesn't match a coincidental
+            # substring in an unrelated club ("Chattanooga Red Wolves SC").
+            fields = [f.get("home", ""), f.get("away", ""),
+                      f.get("home_slug", ""), f.get("away_slug", "")]
+            if not any(_team_field_matches(field, want, term_l) for field in fields):
                 continue
             day = (f["start"] or "")[:10]
             key = f"{f['home'].lower()}|{f['away'].lower()}|{day}"
@@ -5240,6 +5318,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  button:disabled{opacity:.48;cursor:not-allowed;filter:none}
  button:focus-visible,a:focus-visible,.favstar:focus-visible{outline:2px solid #76a7ff;outline-offset:2px}
  button.stopbtn{background:#7a1f26;color:#fff}
+ button.headerrestart{background:#1e5f8a}
  button.ghost{background:var(--card2);border:1px solid var(--line2);color:var(--fg);font-weight:400}
  button.ghost:hover{border-color:var(--acc);filter:none}
  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
@@ -5385,6 +5464,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
  .moviesmain{width:100%;max-width:1500px;min-width:0;margin:0 auto}
  .moviecatalogs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:20px;align-items:start}
+ .moviecatalogs.hide{display:none}
  .moviecatalogs.noxtream{grid-template-columns:minmax(0,1200px);justify-content:center}
  .moviecatalogs.noxtream #recentMoviesSection{display:none}
  .moviecatalogs.noxtream .moviecatalogcolumn+.moviecatalogcolumn{padding-left:0;border-left:0}
@@ -5403,7 +5483,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .recentmovie:hover{border-color:#496b9f;background:var(--card2);transform:translateY(-1px)}
  .latestshowcard{cursor:pointer}
  .latestshowcard:hover{border-color:var(--acc)}
- .movieposter{width:92px;height:138px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;color:#737b89;font-size:30px}
+ .movieposter{position:relative;width:92px;height:138px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;color:#737b89;font-size:30px}
+ .movieavail{display:block;margin:8px auto 0;width:fit-content;background:rgba(30,120,60,.94);color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;letter-spacing:.02em;line-height:1.3}
+ .moviecard .movieinfo{display:flex;flex-direction:column;align-items:center;text-align:center}
+ .moviecard .movieactions{justify-content:center}
+ .moviecard .moviestar{font-size:26px;margin-right:0}
  .movieposter img{width:100%;height:100%;object-fit:cover;display:block}
  .movieinfo{display:flex;flex:1;min-width:0;flex-direction:column;gap:9px}
  .movietitle{font-weight:600;line-height:1.3}
@@ -5762,6 +5846,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
   <span id="status" class="muted"></span>
+  <button type="button" id="restartBtn" class="stopbtn headerstop headerrestart hide" onclick="restartTVMate()" data-i18n="Restart TVMate" title="Restart TVMate (reload edited tvmate.py)">Restart TVMate</button>
   <button type="button" class="stopbtn headerstop" onclick="stopTVMate()" data-i18n="Stop TVMate" title="Stop TVMate">Stop TVMate</button>
   <div class="langsel">
     <button class="langflag on" id="langEN" onclick="setLang('en')" title="English">&#127468;&#127463;</button>
@@ -6375,6 +6460,7 @@ function setSlogan(section){
 let _lang='en';
 const _I18N={
   "Search":"Søk","Playlist Builder":"Lag spilleliste","Playlists":"Spillelister","Timeline":"Tidslinje","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger","Stop TVMate":"Stopp TVMate",
+  "Restart TVMate":"Start TVMate på nytt",
   "Welcome to TVMate":"Velkommen til TVMate","Let's make it yours. Everything here can be changed later from Settings or Edit Profile.":"La oss gjøre TVMate til ditt. Alt her kan endres senere i Innstillinger eller Rediger profil.","Your name":"Navnet ditt","Pick an emblem":"Velg et emblem","Emblem":"Emblem",
   "Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what My Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Min profil ser ut.","Optional: add a favorite show or movie now, or let TVMate add demo items so you can see what Profile looks like.":"Valgfritt: legg til en favorittserie eller film nå, eller la TVMate legge til demo-innhold så du kan se hvordan Profil ser ut.","If you don't add anything yet, TVMate will add a couple of demo items. They disappear permanently when you favorite your first real movie or show.":"Hvis du ikke legger til noe ennå, legger TVMate inn et par demo-elementer. De forsvinner permanent når du favorittmerker din første ekte film eller serie.",
   "How should TVMate open?":"Hvordan skal TVMate åpnes?","TVMate opens straight in your browser. Use Stop TVMate in the top-right when you want to shut the app down.":"TVMate åpnes rett i nettleseren. Bruk Stopp TVMate øverst til høyre når du vil avslutte appen.","Modern TVMate":"Moderne TVMate","TVMate opens straight in your browser with no CMD window.":"Tvmate åpnes rett i nettleseren","Bookmark TVMate":"Bokmerk TVMate","Press Ctrl+D to bookmark TVMate for an easy way back.":"Trykk Ctrl+D for å bokmerke TVMate, så finner du enkelt tilbake.","Copy address":"Kopier adresse","Stop TVMate after":"Stopp TVMate etter","Activity in TVMate resets the timer.":"Aktivitet i TVMate nullstiller tidsuret.",
@@ -6429,6 +6515,7 @@ const _I18N={
   "Today":"i dag","Tomorrow":"i morgen","in":"om","day":"dag","days":"dager",
   "hour":"time","hours":"timer","minute":"minutt","minutes":"minutter",
   "Not available":"Ikke tilgjengelig",
+  "Available":"Tilgjengelig","Available in your IPTV":"Tilgjengelig i din IPTV","Add to Favorites":"Legg til i favoritter","Remove from Favorites":"Fjern fra favoritter",
   "Maintenance & Playback":"Vedlikehold og avspilling","Refresh all content":"Oppdater alt innhold",
   "Data & Refresh":"Data og oppdatering","Choose exactly which TVMate data should be updated.":"Velg nøyaktig hvilke TVMate-data som skal oppdateres.",
   "Refresh IPTV & EPG":"Oppdater IPTV og EPG","Refresh sports, racing & games":"Oppdater sport, racing og spill","Refresh everything":"Oppdater alt",
@@ -6553,6 +6640,7 @@ function updateProfileName(name){
 }
 let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
 let _selectedEmblem='tvstack',_footballEnabled=true,_f1Enabled=true,_gamesEnabled=true,_myListLayout='timeline';
+let _devMode=false;
 function profileEmblemSvg(key){return _PROFILE_EMBLEMS[key]||_PROFILE_EMBLEMS.tvstack;}
 function renderEmblemPicker(){
   const el=document.getElementById('s_emblems');if(!el)return;
@@ -6709,6 +6797,7 @@ function applyProfileConfig(c){
   if(!_footballEnabled)_myListTeamMoments=[];
   if(!_f1Enabled){_myListF1Moments=[];_myListRacingDrivers=[];}
   if(!_gamesEnabled)_myListGameMoments=[];
+  applyDevMode(_profileConfig.dev_mode===true);
   const nav=document.getElementById('navTeams'),teamBlock=document.getElementById('myListTeamsBlock'),sportHeading=document.getElementById('myListSportHeading'),gamesNav=document.getElementById('navGames'),gamesStart=document.getElementById('startGamesOption'),racingNav=document.getElementById('navRacing'),racingStart=document.getElementById('startRacingOption');
   if(nav)nav.classList.toggle('hide',!_footballEnabled);
   if(teamBlock)teamBlock.classList.toggle('hide',!(_footballEnabled||_f1Enabled));
@@ -7288,6 +7377,27 @@ async function stopTVMate(){
     document.body.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;background:#0d1013;color:#e7e7e7;font-family:system-ui,sans-serif"><div style="text-align:center"><div style="font-size:54px">📺</div><h1>TVMate has stopped</h1><p style="color:#999">You can close this tab. Start TVMate again whenever you are ready.</p></div></div>';
   }catch(e){toast('Could not stop TVMate.');}
 }
+async function restartTVMate(){
+  if(!confirm('Restart TVMate now? It will relaunch and reload the current tvmate.py (useful after editing it).'))return;
+  try{
+    const before=await api('/api/ping');
+    const oldInstance=String(before.instance||'');
+    const j=await api('/api/restart',{method:'POST'});
+    if(j.error||!j.ok)throw new Error(j.error||'restart failed');
+    if(j.relaunch===false){
+      document.body.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;background:#0d1013;color:#e7e7e7;font-family:system-ui,sans-serif"><div style="text-align:center"><div style="font-size:54px">🔁</div><h1>TVMate is stopping</h1><p style="color:#999">Could not auto-relaunch from here. Please start TVMate again manually.</p></div></div>';
+      return;
+    }
+    document.body.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;background:#0d1013;color:#e7e7e7;font-family:system-ui,sans-serif"><div style="text-align:center"><div style="font-size:54px">🔁</div><h1>Restarting TVMate…</h1><p style="color:#999">This tab will reconnect automatically in a few seconds.</p></div></div>';
+    // Poll until the server is back, then reload the page.
+    let tries=0;
+    const timer=setInterval(async function(){
+      tries++;
+      try{const r=await fetch('/api/ping',{cache:'no-store'});if(r.ok){const ping=await r.json();if(ping&&String(ping.instance||'')&&String(ping.instance)!==oldInstance){clearInterval(timer);location.reload();return;}}}catch(e){}
+      if(tries>40){clearInterval(timer);document.body.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;background:#0d1013;color:#e7e7e7;font-family:system-ui,sans-serif"><div style="text-align:center"><div style="font-size:54px">⚠️</div><h1>Restart did not complete</h1><p style="color:#999">Please start TVMate manually.</p></div></div>';}
+    },1000);
+  }catch(e){toast('Could not restart TVMate.');}
+}
 let _lastActivityPing=0;
 function markTVMateActivity(){const now=Date.now();if(now-_lastActivityPing<20000)return;_lastActivityPing=now;fetch('/api/activity',{method:'POST',keepalive:true}).catch(()=>{});}
 document.addEventListener('pointerdown',markTVMateActivity,{passive:true});
@@ -7312,13 +7422,27 @@ async function resetColdStart(btn){
   }
 }
 let _devSequence='';
+function applyDevMode(on){
+  _devMode=!!on;
+  const panel=document.getElementById('devSettings');
+  if(panel)panel.classList.toggle('hide',!_devMode);
+  const rb=document.getElementById('restartBtn');
+  if(rb)rb.classList.toggle('hide',!_devMode);
+}
+async function setDevMode(on){
+  applyDevMode(on);
+  try{await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dev_mode:!!on})});}catch(e){}
+}
 document.addEventListener('keydown',function(e){
   const settings=document.getElementById('settingsView');
   if(!settings||settings.classList.contains('hide')){_devSequence='';return;}
   if(e.key==='7')_devSequence=(_devSequence+'7').slice(-3);else _devSequence='';
   if(_devSequence==='777'){
-    document.getElementById('devSettings').classList.remove('hide');
-    _devSequence='';setSettingsTab('maintenance');toast('Developer tools unlocked.');
+    _devSequence='';
+    const turningOn=!_devMode;
+    setDevMode(turningOn);
+    if(turningOn){setSettingsTab('maintenance');toast('Developer tools unlocked.');}
+    else{toast('Developer tools locked.');}
   }
 });
 async function testLogin(){
@@ -7803,20 +7927,26 @@ function cleanMovieSearchTitle(name){
     .replace(/\\s*\\((?:19|20)\\d{2}\\)\\s*$/,'')
     .trim();
 }
-function movieCard(m,showYear,recent){
+function movieCard(m,showYear,recent,discover){
   const sid=escAttr(String(m.stream_id==null?'':m.stream_id)), ext=escAttr(m.extension||'mp4'), key=String(m.catalog_id||m.stream_id||'');
   const fav=_favMovieSet.has(key)?' on':'';
-  const displayName=recent?cleanMovieSearchTitle(m.name):m.name;
+  const favTitle=_favMovieSet.has(key)?tr('Remove from Favorites'):tr('Add to Favorites');
+  // Recent AND Discover cards are "browse" cards: clicking searches your IPTV
+  // for that title. Only actual search results get a VLC/play button.
+  const browse=recent||discover;
+  const displayName=browse?cleanMovieSearchTitle(m.name):m.name;
   const poster=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(127916)">':'&#127916;';
   let meta='';
   if(showYear&&m.year)meta+=esc(m.year);
   if(m.rating)meta+=(meta?' &nbsp; ':'')+'Rating: '+esc(m.rating);
-  const cardClass='moviecard'+(recent?' recentmovie':'');
-  const cardData=recent?' data-query="'+escAttr(cleanMovieSearchTitle(m.name))+'"':'';
+  const cardClass='moviecard'+(browse?' recentmovie':'');
+  const cardData=browse?' data-query="'+escAttr(cleanMovieSearchTitle(m.name))+'"':'';
+  const availBadge=(browse&&m.stream_found)?'<span class="movieavail" title="'+escAttr(tr('Available in your IPTV'))+'">&#10003; '+tr('Available')+'</span>':'';
   return '<div class="'+cardClass+'"'+cardData+'><div class="movieposter">'+poster+'</div><div class="movieinfo"><div class="movietitle">'+esc(displayName)+'</div>'
     +(meta?'<div class="moviemeta">'+meta+'</div>':'')
-    +'<div class="movieactions"><span class="favstar moviestar'+fav+'" data-key="'+escAttr(key)+'" data-catalog="'+escAttr(m.catalog_id||'')+'" data-sid="'+sid+'" data-name="'+escAttr(m.name||'')+'" data-ext="'+ext+'" data-year="'+escAttr(m.year||'')+'" data-rating="'+escAttr(m.rating||'')+'" data-cover="'+escAttr(m.cover||'')+'" title="Favorite">&#9733;</span>'
-    +(recent?'':(m.stream_found?'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button>':'<button class="ghost" disabled>'+tr('Not available')+'</button>'))+'</div></div></div>';
+    +'<div class="movieactions"><span class="favstar moviestar'+fav+'" data-key="'+escAttr(key)+'" data-catalog="'+escAttr(m.catalog_id||'')+'" data-sid="'+sid+'" data-name="'+escAttr(m.name||'')+'" data-ext="'+ext+'" data-year="'+escAttr(m.year||'')+'" data-rating="'+escAttr(m.rating||'')+'" data-cover="'+escAttr(m.cover||'')+'" title="'+escAttr(favTitle)+'">&#9733;</span>'
+    +(browse?'':(m.stream_found?'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button>':'<button class="ghost" disabled>'+tr('Not available')+'</button>'))+'</div>'
+    +availBadge+'</div></div>';
 }
 async function loadRecentMovies(limit){
   limit=limit||9;
@@ -7849,7 +7979,7 @@ async function loadCinemetaMovies(catalog){
   const cached=_movieCatalogCache[_movieCatalog];
   if(cached){
     setMovieProviderLayout(cached.logged_in);
-    el.innerHTML='<div class="moviegrid" style="margin-top:0">'+cached.movies.map(m=>movieCard(m,true,false)).join('')+'</div>';
+    el.innerHTML='<div class="moviegrid" style="margin-top:0">'+cached.movies.map(m=>movieCard(m,true,false,true)).join('')+'</div>';
     return;
   }
   el.innerHTML='<span class="muted">Loading...</span>';
@@ -7860,7 +7990,7 @@ async function loadCinemetaMovies(catalog){
     if(!r.movies.length){el.innerHTML='<span class="muted">No movies found.</span>';return;}
     _movieCatalogCache[_movieCatalog]={movies:r.movies,logged_in:!!r.logged_in};
     await loadMovieFavorites();
-    el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,true,false)).join('')+'</div>';
+    el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,true,false,true)).join('')+'</div>';
   }catch(e){el.innerHTML='<span class="muted">Could not load movie catalog.</span>';}
 }
 async function checkMovies(btn){
@@ -7900,6 +8030,7 @@ async function toggleMovieFavorite(movie,starEl){
   _favMovieSet=new Set((r.movie_ids||[]).map(String));
   if(_favMovieSet.has(String(movie.catalog_id||movie.stream_id)))_profileConfig.setup_demo_content=false;
   if(starEl)starEl.classList.toggle('on',_favMovieSet.has(String(movie.catalog_id||movie.stream_id)));
+  if(starEl)starEl.title=tr(_favMovieSet.has(String(movie.catalog_id||movie.stream_id))?'Remove from Favorites':'Add to Favorites');
   await loadMovieFavorites();
 }
 async function removeMovieFavorite(key){
@@ -8159,18 +8290,30 @@ function racingEventHtml(event){
   const ts=new Date(event.start),locale=_lang==='no'?'nb-NO':undefined;
   const when=event.all_day?(event.date_text||ts.toLocaleDateString(locale,{weekday:'short',day:'numeric',month:'short'})):ts.toLocaleString(locale,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
   const channels=event.channels||[],tv=channels.length?'<span class="cc racingeventtv">TV</span>':'',details=channels.length?'<div class="racingeventchannels hide">'+racingChannelSections(channels)+'</div>':'';
-  return '<div class="racingevent'+(channels.length?' haschannels':'')+'" data-url="'+escAttr(event.url||'')+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+tv+'</div><div class="moviemeta">'+esc(when)+(event.session?' · '+esc(event.session):'')+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div>'+details+'</div>';
+  return '<div class="racingevent'+(channels.length?' haschannels':'')+'" data-url="'+escAttr(event.url||'')+'" data-evkey="'+escAttr(racingAvailabilityKey(event))+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+tv+'</div><div class="moviemeta">'+esc(when)+(event.session?' · '+esc(event.session):'')+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div>'+details+'</div>';
 }
 function racingAvailabilityKey(event){return [event.series||'',event.race||'',event.session||'',event.start||''].join('|');}
 function applyRacingAvailability(map,events){for(const event of (events||[]))event.channels=(map&&map[racingAvailabilityKey(event)])||[];}
 function renderRacingScheduleCards(){
   const info=document.getElementById('racingInfo');if(!info)return;const now=Date.now(),groups=new Map();
+  // Remember which event cards are currently expanded so a re-render (e.g. when
+  // channel availability arrives) doesn't collapse what the user opened.
+  const openKeys=new Set();
+  info.querySelectorAll('.racingevent').forEach(function(el){
+    const box=el.querySelector('.racingeventchannels');
+    if(box&&!box.classList.contains('hide')){const k=el.getAttribute('data-evkey');if(k)openKeys.add(k);}
+  });
   const selectedDriver=_racingDriverRows.find(row=>String(row.key||'')===String(_racingDetailKey||''));
   const selectedSeries=_racingDetailKey==='f1-team'?'f1':String((selectedDriver&&selectedDriver.series)||'');
   for(const event of _racingEventRows){const ts=new Date(event.start).getTime();if(!Number.isFinite(ts)||ts<now-24*3600000)continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
   let h='';const orderedSeries=_RACING_SERIES.filter(row=>_racingSelected.has(row[0])).sort((a,b)=>(a[0]===selectedSeries?-1:0)-(b[0]===selectedSeries?-1:0));
   for(const row of orderedSeries){const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard series-'+escAttr(row[0])+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
   info.innerHTML=h||'<span class="muted">'+esc(tr('Choose at least one racing series above.'))+'</span>';
+  // Restore expanded state.
+  if(openKeys.size)info.querySelectorAll('.racingevent').forEach(function(el){
+    const k=el.getAttribute('data-evkey');
+    if(k&&openKeys.has(k)){const box=el.querySelector('.racingeventchannels');if(box)box.classList.remove('hide');}
+  });
 }
 async function loadRacingAvailability(){
   try{const a=await api('/api/racing_availability');applyRacingAvailability(a.availability||{},_racingEventRows);renderRacingScheduleCards();renderRacingDriverDetail();const drivers=document.getElementById('racingDrivers');if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);}catch(e){}
@@ -10013,7 +10156,8 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/ping":
                 # Cheap local identity check used to prevent duplicate app
                 # instances regardless of what the launcher .exe is named.
-                return self._send(200, {"app": "olos-tvmate", "version": VERSION})
+                return self._send(200, {"app": "olos-tvmate", "version": VERSION,
+                                        "instance": _SERVER_INSTANCE_ID})
 
             if u.path == "/api/proxy":
                 # Lightweight media relay for browser playback.  This never
@@ -11018,6 +11162,66 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"ok": True})
             _STOP_EVENT.set()
             return
+        if path == "/api/restart":
+            # Relaunch TVMate without swapping any files, so a locally edited
+            # tvmate.py is picked up on the next start. Reuses the same
+            # launcher-detection rules as the updater: only relaunch a real
+            # permanent .exe / interpreter, never a temp-extracted python.
+            try:
+                if not bool(load_config().get("dev_mode")):
+                    return self._send(403, {"ok": False,
+                                            "error": "Developer mode is disabled"})
+                launcher_exe = os.environ.get("TVMATE_EXE")
+                cur = os.path.join(app_dir(), "tvmate.py")
+                relaunch = None
+                if launcher_exe and os.path.exists(launcher_exe) and launcher_exe.lower().endswith(".exe"):
+                    relaunch = '"' + launcher_exe + '"'
+                elif getattr(sys, "frozen", False) and os.path.exists(sys.argv[0]):
+                    relaunch = '"' + sys.argv[0] + '"'
+                elif not getattr(sys, "frozen", False) and "temp" not in (sys.executable or "").lower():
+                    relaunch = '"' + sys.executable + '" "' + cur + '"'
+                if not relaunch:
+                    # Can't safely auto-relaunch; just stop and tell the client.
+                    self._send(200, {"ok": True, "relaunch": False})
+                    _STOP_EVENT.set()
+                    return
+                if sys.platform.startswith("win"):
+                    helper = os.path.join(app_dir(), "_restart.bat")
+                    launcher_name = os.path.basename(launcher_exe or "")
+                    known_launcher = bool(re.fullmatch(
+                        r"(?:OTVM|OlosTVMate)(?:\s*\(\d+\))?\.exe",
+                        launcher_name, flags=re.IGNORECASE))
+                    lines = ["@echo off\r\n",
+                             'cd /d "' + app_dir() + '"\r\n',
+                             "timeout /t 2 /nobreak >nul\r\n"]
+                    if known_launcher:
+                        lines.extend(['taskkill /f /im "' + launcher_name + '" >nul 2>&1\r\n',
+                                      "timeout /t 1 /nobreak >nul\r\n"])
+                    lines.extend(['start "" ' + relaunch + "\r\n",
+                                  "timeout /t 2 /nobreak >nul\r\n",
+                                  'del "%~f0"\r\n'])
+                    with open(helper, "w", encoding="utf-8", newline="") as f:
+                        f.writelines(lines)
+                    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+                    subprocess.Popen(["cmd.exe", "/d", "/c", helper],
+                                     cwd=app_dir(), creationflags=flags,
+                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL, close_fds=True)
+                else:
+                    helper = os.path.join(app_dir(), "_restart.sh")
+                    body = "#!/bin/sh\nsleep 2\n" + relaunch + " &\nrm -- \"$0\"\n"
+                    with open(helper, "w", encoding="utf-8") as f:
+                        f.write(body)
+                    os.chmod(helper, 0o755)
+                    subprocess.Popen(["/bin/sh", helper], start_new_session=True)
+                self._send(200, {"ok": True, "relaunch": True,
+                                 "instance": _SERVER_INSTANCE_ID})
+                def _bye():
+                    import time as _t; _t.sleep(1); os._exit(0)
+                import threading as _th; _th.Thread(target=_bye, daemon=True).start()
+                return
+            except Exception as e:
+                return self._send(500, {"ok": False, "error": str(e)})
         if path == "/api/test_credentials":
             test_cfg = dict(DEFAULT_CONFIG)
             test_cfg.update({"xtream_host": str(payload.get("xtream_host") or "").strip(),
@@ -11062,7 +11266,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(raw.decode("utf-8") or "{}")
         except Exception:
             payload = {}
-        if u.path in {"/api/activity", "/api/shutdown", "/api/test_credentials",
+        if u.path in {"/api/activity", "/api/shutdown", "/api/restart", "/api/test_credentials",
                       "/api/match_strictness", "/api/racing_series"}:
             return self._post_core_api(u.path, payload)
         if u.path == "/api/profile_backup_export":
@@ -11251,7 +11455,7 @@ class Handler(BaseHTTPRequestHandler):
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_iptv_on_startup", "refresh_sports_on_startup", "profile_name",
                       "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
-                      "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes", "allow_lan"):
+                      "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes", "allow_lan", "dev_mode"):
                 if k in payload:
                     cfg[k] = payload[k]
             if cfg.get("stream_ext") not in ("ts", "m3u8"):
@@ -11286,6 +11490,7 @@ class Handler(BaseHTTPRequestHandler):
             cfg["refresh_iptv_on_startup"] = bool(cfg.get("refresh_iptv_on_startup"))
             cfg["refresh_sports_on_startup"] = bool(cfg.get("refresh_sports_on_startup"))
             cfg["allow_lan"] = bool(cfg.get("allow_lan"))
+            cfg["dev_mode"] = bool(cfg.get("dev_mode"))
             if cfg["allow_lan"] and not str(cfg.get("lan_access_token") or ""):
                 cfg["lan_access_token"] = hashlib.sha256(os.urandom(48)).hexdigest()
             cfg.pop("refresh_all_on_startup", None)
@@ -12184,6 +12389,20 @@ def main():
             pass
         return
     cfg = load_config()
+    # b429: team schedules used to include unrelated fixtures scraped from the
+    # FotMob team payload. Those bad lists were cached for a week, so drop the
+    # old-format files once; the new v2 caches are written by the fixed code.
+    try:
+        root = data_cache_dir()
+        if os.path.isdir(root):
+            for name in os.listdir(root):
+                if name.startswith("team-fixtures-") and not name.startswith("team-fixtures-v2-"):
+                    try:
+                        os.remove(os.path.join(root, name))
+                    except OSError:
+                        pass
+    except OSError:
+        pass
     hide_console = True
     hidden_child = os.environ.get("TVMATE_HIDDEN_CHILD") == "1"
     if sys.platform.startswith("win") and not hidden_child:
@@ -12581,6 +12800,13 @@ def run_self_tests():
         "start": "2026-08-16T18:30:00Z", "by_country": {"US": ["ESPN Select"]}}])
     check("team schedule overlay cannot append partial-name fixtures",
           len(unrelated_test) == 1)
+    opponent_shape = {"status": {"utcTime": "2026-08-16T18:30:00Z"},
+                      "opponent": {"name": "Chattanooga Red Wolves SC"}}
+    check("recursive opponent rows require team provenance",
+          not _fixture_candidate_involves_team(
+              opponent_shape, "8602", "Wolverhampton Wanderers", False) and
+          _fixture_candidate_involves_team(
+              opponent_shape, "8602", "Wolverhampton Wanderers", True))
     current_test = _current_and_upcoming_fixtures([
         {"home": "Old", "away": "May", "start": "2026-05-01T12:00:00Z"},
         {"home": "Hearts", "away": "Benfica", "start": "2026-08-13T18:45:00Z"}],
@@ -12975,6 +13201,13 @@ def run_self_tests():
     check("generic PPV candidate remains a fallback",
           ranked[-1]["fixture_match"] == "generic")
     check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
+    check("restart requires dev mode and waits for a new process instance",
+          'if not bool(load_config().get("dev_mode"))' in source_text and
+          '"instance": _SERVER_INSTANCE_ID' in source_text and
+          "String(ping.instance)!==oldInstance" in PAGE)
+    check("movie favorite tooltip follows current state",
+          "tr('Remove from Favorites')" in PAGE and
+          "starEl.title=tr(" in PAGE)
     check("live fallback is bounded and recent results remain visible",
           "if(f.is_live)return mins<=150" in PAGE and
           "mins<=360&&!fixtureIsLive(f)" in PAGE and
