@@ -122,7 +122,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b432"
+VERSION = "0.777.b433"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -956,6 +956,9 @@ _VOD_CACHE = {"provider": "", "ts": 0, "movies": []}
 _SERIES_CACHE = {"provider": "", "ts": 0, "shows": []}
 _SHOW_INFO_CACHE = {}  # (provider,user,series_id) -> {ts,data}
 _TVMAZE_CACHE = {}  # normalized title/year -> {"ts": epoch, "covers": {season:url}}
+_XT_CHANNELS_LOCK = threading.Lock()
+_XT_MOVIES_LOCK = threading.Lock()
+_XT_SERIES_LOCK = threading.Lock()
 _XT_TTL = 24 * 3600       # catalogs stay local for the session/day; manual refresh overrides
 _SHOW_INFO_TTL = 24 * 3600
 _EPG_CACHE = {}   # stream_id -> {"ts": epoch, "programmes": [...]}
@@ -1392,18 +1395,23 @@ def get_xtream_channels(cfg, force=False):
     if ((not force) and _XT_CACHE.get("provider") == provider and
             _XT_CACHE["channels"] and (now - _XT_CACHE["ts"] < _XT_TTL)):
         return _XT_CACHE["channels"], _XT_CACHE["cats"]
-    if force:
-        _clear_racing_availability_cache()
-    channels = x.live_streams()
-    try:
-        cats = x.categories()
-    except Exception:
-        cats = {}
-    sports_index = _build_sports_channel_index(channels, cats)
-    _XT_CACHE.update({"provider": provider, "ts": now, "channels": channels,
-                      "cats": cats, "sports_index": sports_index})
-    _sync_favorite_channel_icons(channels)
-    return channels, cats
+    with _XT_CHANNELS_LOCK:
+        now = time.time()
+        if ((not force) and _XT_CACHE.get("provider") == provider and
+                _XT_CACHE["channels"] and (now - _XT_CACHE["ts"] < _XT_TTL)):
+            return _XT_CACHE["channels"], _XT_CACHE["cats"]
+        if force:
+            _clear_racing_availability_cache()
+        channels = x.live_streams()
+        try:
+            cats = x.categories()
+        except Exception:
+            cats = {}
+        sports_index = _build_sports_channel_index(channels, cats)
+        _XT_CACHE.update({"provider": provider, "ts": now, "channels": channels,
+                          "cats": cats, "sports_index": sports_index})
+        _sync_favorite_channel_icons(channels)
+        return channels, cats
 
 def get_xtream_movies(cfg, force=False):
     now = time.time()
@@ -1411,17 +1419,20 @@ def get_xtream_movies(cfg, force=False):
     provider = _vod_cache_key(x)
     if (not force) and _VOD_CACHE.get("provider") == provider and _VOD_CACHE["movies"]:
         return _VOD_CACHE["movies"]
-    disk_movies = _load_vod_catalog_cache(x)
-    if not force and disk_movies:
-        _VOD_CACHE.update({"provider": provider, "ts": now, "movies": disk_movies})
-        return disk_movies
-    movies = x.vod_streams()
-    if movies:
-        movies = _save_vod_catalog_cache(x, movies)
-    elif disk_movies:
-        movies = disk_movies
-    _VOD_CACHE.update({"provider": provider, "ts": now, "movies": movies})
-    return movies
+    with _XT_MOVIES_LOCK:
+        if (not force) and _VOD_CACHE.get("provider") == provider and _VOD_CACHE["movies"]:
+            return _VOD_CACHE["movies"]
+        disk_movies = _load_vod_catalog_cache(x)
+        if not force and disk_movies:
+            _VOD_CACHE.update({"provider": provider, "ts": now, "movies": disk_movies})
+            return disk_movies
+        movies = x.vod_streams()
+        if movies:
+            movies = _save_vod_catalog_cache(x, movies)
+        elif disk_movies:
+            movies = disk_movies
+        _VOD_CACHE.update({"provider": provider, "ts": now, "movies": movies})
+        return movies
 
 def get_xtream_series(cfg, force=False):
     now = time.time()
@@ -1430,9 +1441,14 @@ def get_xtream_series(cfg, force=False):
     if ((not force) and _SERIES_CACHE.get("provider") == provider and
             _SERIES_CACHE["shows"] and (now - _SERIES_CACHE["ts"] < _XT_TTL)):
         return _SERIES_CACHE["shows"]
-    shows = x.series()
-    _SERIES_CACHE.update({"provider": provider, "ts": now, "shows": shows})
-    return shows
+    with _XT_SERIES_LOCK:
+        now = time.time()
+        if ((not force) and _SERIES_CACHE.get("provider") == provider and
+                _SERIES_CACHE["shows"] and (now - _SERIES_CACHE["ts"] < _XT_TTL)):
+            return _SERIES_CACHE["shows"]
+        shows = x.series()
+        _SERIES_CACHE.update({"provider": provider, "ts": now, "shows": shows})
+        return shows
 
 def refresh_favorite_show_episodes(cfg):
     """Refresh favorite-show episode counts and report newly added episodes."""
@@ -2324,6 +2340,20 @@ def _racing_weekend_date(value, year):
     except ValueError:
         return ""
 
+def _racing_weekend_end(value, year):
+    """Return the final day of an official F2/F3 weekend date range."""
+    text = re.sub(r"\s+", " ", str(value or "").strip().upper())
+    match = re.search(r"\b(\d{1,2})\s*(?:-|–|—)\s*(\d{1,2})\s+([A-Z]{3})\b", text)
+    if not match:
+        return ""
+    try:
+        dt = datetime.datetime.strptime(
+            f"{match.group(2)} {match.group(3)} {year}", "%d %b %Y")
+        return dt.replace(hour=23, minute=59, second=59,
+                          tzinfo=datetime.timezone.utc).isoformat()
+    except ValueError:
+        return ""
+
 def get_fia_racing_weekends(series, force=False):
     """Read the official FIA F2/F3 season page; weekend dates are cached for a week."""
     series = str(series or "").lower()
@@ -2332,7 +2362,7 @@ def get_fia_racing_weekends(series, force=False):
     filename = f"racing-{series}.json"
     if not force:
         disk = _load_timed_data_cache(filename, _F1_TTL)
-        if isinstance(disk, list) and disk:
+        if isinstance(disk, list) and disk and all(row.get("end") for row in disk):
             return disk
     year = datetime.datetime.now().year
     host = "www.fiaformula2.com" if series == "f2" else "www.fiaformula3.com"
@@ -2346,12 +2376,14 @@ def get_fia_racing_weekends(series, force=False):
         if path in seen:
             continue
         start = _racing_weekend_date(html.unescape(dates).strip(), year)
-        if not start:
+        end = _racing_weekend_end(html.unescape(dates).strip(), year)
+        if not start or not end:
             continue
         seen.add(path)
         rows.append({"series": series, "series_name": series.upper(),
                      "race": html.unescape(circuit).strip(), "session": "Race weekend",
                      "circuit": html.unescape(circuit).strip(), "start": start,
+                     "end": end,
                      "all_day": True, "date_text": html.unescape(dates).strip(),
                      "url": f"https://{host}{path}"})
     rows.sort(key=lambda row: row.get("start") or "")
@@ -5113,15 +5145,17 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mydashsportsingle{display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:0;flex:1}
  .mydashsportsingletop{display:grid;grid-template-columns:minmax(120px,1fr) minmax(200px,260px);align-items:center;gap:16px;min-width:0}
  .mydashsportsingletop .mydashsportname,.mydashsportsingletop .mydashsportnext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mydashsportevents{display:flex;flex-direction:column;align-items:stretch;justify-self:end;width:100%;min-width:0;gap:4px}
  .mydashsporteventline{display:flex;align-items:baseline;justify-content:center;justify-self:end;width:100%;gap:6px;min-width:0;text-align:center}
  .mydashsporteventline .mydashsportnext{flex:0 1 auto}
  .mydashsporteventline .mydashsportcount{flex:0 0 auto;white-space:nowrap}
  .mydashf1names{display:flex;flex-direction:column;gap:5px;min-width:0;align-self:start}
  .mydashf1names .mydashsportname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .mydashf1card .mydashsporteventline{align-self:center}
- .mydashsportrace{margin-top:1px;color:var(--mut);font-size:11px}
+ .mydashsportrace{padding-top:4px;border-top:1px solid var(--line);color:var(--mut);font-size:11px}
  .mydashsportrace .mydashsportnext{font-size:11px;color:var(--mut)}
  .mydashsportrace .mydashsportcount{font-size:11px}
+ .mydashsporteventmeta{font-size:10px;color:var(--mut);line-height:1.25;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .mydashsportheading{font-size:10px;font-weight:750;letter-spacing:.75px;text-transform:uppercase}
  .mydashsportheading.sport{color:#70c987}
  .mydashsportsubhead{font-size:10px;font-weight:750;letter-spacing:.75px;text-transform:uppercase;margin:15px 0 8px;padding-left:2px}
@@ -7257,13 +7291,23 @@ async function doChannelSearch(inputId, targetId){
   }
   el.innerHTML=html;
 }
+const _apiInflight=new Map();
+const _coalescedPosts=new Set(['/api/refresh_xtream','/api/refresh_racing','/api/refresh_football','/api/check_show_updates','/api/import_steam_wishlist']);
 async function api(p,o){
-  const r=await fetch(p,o);let j;
-  try{j=await r.json();}catch(e){return {error:'Invalid server response',status:r.status};}
-  if(!j||typeof j!=='object')j={data:j};
-  if(!r.ok&&!j.error)j.error='HTTP '+r.status;
-  j._httpStatus=r.status;j._httpOk=r.ok;
-  return j;
+  const method=String((o&&o.method)||'GET').toUpperCase(),path=String(p||'').split('?')[0];
+  const canCoalesce=method==='GET'||(method==='POST'&&_coalescedPosts.has(path));
+  const key=canCoalesce?method+' '+p+' '+String((o&&o.body)||''):'';
+  if(key&&_apiInflight.has(key))return _apiInflight.get(key);
+  const request=(async function(){
+    const r=await fetch(p,o);let j;
+    try{j=await r.json();}catch(e){return {error:'Invalid server response',status:r.status};}
+    if(!j||typeof j!=='object')j={data:j};
+    if(!r.ok&&!j.error)j.error='HTTP '+r.status;
+    j._httpStatus=r.status;j._httpOk=r.ok;
+    return j;
+  })();
+  if(key)_apiInflight.set(key,request);
+  try{return await request;}finally{if(key&&_apiInflight.get(key)===request)_apiInflight.delete(key);}
 }
 async function favPost(body){return api('/api/favorites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
 async function refreshStatus(){
@@ -7473,11 +7517,11 @@ async function refreshIptvContent(btn,quiet){
 async function refreshOtherContent(btn,quiet){
   return withRefreshButton(btn,'Refreshing content...',async function(){
     const c=await api('/api/config'),parts=[],failures=[];refreshMessage('Refreshing sports, racing and games...');
-    if(c.f1_enabled!==false){const racing=await api('/api/refresh_racing',{method:'POST'});if(!racing.error&&racing.ok)parts.push((racing.series||0)+' racing series');else failures.push('racing');}
-    if(c.football_enabled!==false){const sports=await api('/api/refresh_football',{method:'POST'});if(!sports.error&&sports.ok){parts.push((sports.matches||0)+' matches, '+(sports.teams||0)+' teams, '+(sports.guides||0)+' TV guides');if(sports.listing_notice)toast(sports.listing_notice,7000);}else failures.push('sports');}
-    if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim()){
-      const steam=await api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})});if(!steam.error&&steam.ok)parts.push((steam.imported||0)+' Steam games');else failures.push('games');
-    }
+    const jobs=[];
+    if(c.f1_enabled!==false)jobs.push(api('/api/refresh_racing',{method:'POST'}).then(racing=>{if(!racing.error&&racing.ok)parts.push((racing.series||0)+' racing series');else failures.push('racing');},()=>failures.push('racing')));
+    if(c.football_enabled!==false)jobs.push(api('/api/refresh_football',{method:'POST'}).then(sports=>{if(!sports.error&&sports.ok){parts.push((sports.matches||0)+' matches, '+(sports.teams||0)+' teams, '+(sports.guides||0)+' TV guides');if(sports.listing_notice)toast(sports.listing_notice,7000);}else failures.push('sports');},()=>failures.push('sports')));
+    if(c.games_enabled!==false&&String(c.steam_wishlist_url||'').trim())jobs.push(api('/api/import_steam_wishlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.steam_wishlist_url})}).then(steam=>{if(!steam.error&&steam.ok)parts.push((steam.imported||0)+' Steam games');else failures.push('games');},()=>failures.push('games')));
+    await Promise.all(jobs);
     const summary='Sports, racing & games: '+(parts.length?parts.join(' · '):'nothing enabled')+(failures.length?' · Failed: '+failures.join(', '):'');refreshMessage(summary);if(!quiet)toast(summary,7000);return {summary:summary,failures:failures};
   });
 }
@@ -8173,7 +8217,11 @@ let _racingDriverRows=[],_racingEventRows=[],_racingDetailKey='';
 function racingEventIsLive(event,now){
   now=now||Date.now();const start=new Date(event.start).getTime();if(!Number.isFinite(start))return false;
   const explicit=event.end?new Date(event.end).getTime():NaN;
-  if(Number.isFinite(explicit))return now>=start-(event.all_day?12*3600000:0)&&now<=explicit;
+  if(event.all_day){
+    const startDay=osloDayNumber(new Date(start)),endDay=Number.isFinite(explicit)?osloDayNumber(new Date(explicit)):startDay,nowDay=osloDayNumber(new Date(now));
+    return nowDay>=startDay&&nowDay<=endDay;
+  }
+  if(Number.isFinite(explicit))return now>=start&&now<=explicit;
   let duration=2*3600000;
   if(event.all_day)duration=24*3600000;
   else if(String(event.session||'').toLowerCase()==='race')duration=4*3600000;
@@ -8181,7 +8229,7 @@ function racingEventIsLive(event,now){
 }
 function nextDriverRace(driver,events,now){
   now=now||Date.now();
-  return (events||[]).filter(e=>String(e.series||'')===String(driver.series||'')&&(driver.series!=='f1'||String(e.session||'').toLowerCase()==='race')).map(e=>({event:e,ts:new Date(e.start).getTime()})).filter(x=>Number.isFinite(x.ts)&&x.ts>=now-6*3600000).sort((a,b)=>a.ts-b.ts)[0]?.event||null;
+  return (events||[]).filter(e=>String(e.series||'')===String(driver.series||'')&&(driver.series!=='f1'||String(e.session||'').toLowerCase()==='race')).map(e=>({event:e,ts:new Date(e.start).getTime(),live:racingEventIsLive(e,now)})).filter(x=>Number.isFinite(x.ts)&&(x.live||x.ts>=now)).sort((a,b)=>(a.live?-1:0)-(b.live?-1:0)||a.ts-b.ts)[0]?.event||null;
 }
 function racingDetailWhen(event){
   if(!event)return '';
@@ -8193,11 +8241,40 @@ function racingCountdown(event){
   const target=new Date(event.start),now=new Date(),remaining=target-now;if(!Number.isFinite(remaining))return '';
   if(remaining<=0&&racingEventIsLive(event,now.getTime()))return 'LIVE';
   if(remaining<=0)return '';
+  if(event.all_day){
+    const days=Math.round(osloDayNumber(target)-osloDayNumber(now));
+    if(days===0)return tr('Today');
+    if(days===1)return tr('Tomorrow');
+    return tr('in')+' '+Math.max(1,days)+' '+tr(days===1?'day':'days');
+  }
   const minutes=Math.max(1,Math.ceil(remaining/60000));
   if(minutes<60)return tr('in')+' '+minutes+' '+tr(minutes===1?'minute':'minutes');
   if(remaining<24*3600000){const hours=Math.ceil(minutes/60);return tr('in')+' '+hours+' '+tr(hours===1?'hour':'hours');}
   const days=Math.max(1,Math.round(osloDayNumber(target)-osloDayNumber(now)));
   return tr('in')+' '+days+' '+tr(days===1?'day':'days');
+}
+function racingSessionLabel(event){
+  let value=String((event&&event.session)||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]+/g,' ').replace(/\\s+/g,' ').trim();
+  const key=value.toLowerCase(),labels={'rallyweekend':'Rally weekend','rally weekend':'Rally weekend','raceweekend':'Race weekend','race weekend':'Race weekend','grandprixweekend':'Grand Prix weekend','grand prix weekend':'Grand Prix weekend'};
+  return tr(labels[key]||value||'Event');
+}
+function racingShortDate(event){
+  if(!event)return '';
+  if(event.all_day&&event.date_text)return String(event.date_text).replace(/\\s+/g,' ').trim();
+  const d=new Date(event.start);if(Number.isNaN(d.getTime()))return '';
+  return d.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Oslo'});
+}
+function racingProfileMeta(event){
+  if(!event)return '';
+  const session=racingSessionLabel(event),date=event.all_day?racingShortDate(event):'';
+  return [session,date].filter(Boolean).join(' · ');
+}
+function racingTimelineMeta(event){
+  if(!event)return '';
+  const parts=[event.series_name||'Racing',racingSessionLabel(event)];
+  if(event.all_day){const date=racingShortDate(event);if(date)parts.push(date);}
+  else if(event.circuit&&event.circuit!==event.race)parts.push(event.circuit);
+  return parts.filter(Boolean).join(' · ');
 }
 function racingArtError(img){
   const fallback=String(img.dataset.fallback||'');
@@ -8213,9 +8290,9 @@ function racingEventVisual(event,countdown){
   return '<div class="racingeventvisual">'+image+fallback+(countdown?'<div class="racingdetailcountdown">'+esc(countdown)+'</div>':'')+'</div>';
 }
 function racingDetailNext(event){
-  if(!event)return '<div class="racingdetailnext"><div class="racingdetailnextlabel">'+esc(tr('Next race'))+'</div><span class="muted">'+esc(tr('No upcoming race found.'))+'</span></div>';
+  if(!event)return '<div class="racingdetailnext"><div class="racingdetailnextlabel">'+esc(tr('Next event'))+'</div><span class="muted">'+esc(tr('No upcoming race found.'))+'</span></div>';
   const countdown=racingCountdown(event);
-  return '<div class="racingdetailnext"><div class="racingdetailnextlabel">'+esc(tr('Next race'))+'</div><div class="racingdetailnextgrid"><div><b>'+esc(event.race||event.circuit||'Race')+'</b><div class="racingdetailmeta">'+esc(racingDetailWhen(event))+(event.session?'<br>'+esc(event.session):'')+(event.circuit&&event.circuit!==event.race?'<br>'+esc(event.circuit):'')+'</div></div>'+racingEventVisual(event,countdown)+'</div></div>';
+  return '<div class="racingdetailnext"><div class="racingdetailnextlabel">'+esc(tr('Next event'))+'</div><div class="racingdetailnextgrid"><div><b>'+esc(event.race||event.circuit||'Race')+'</b><div class="racingdetailmeta">'+esc(racingDetailWhen(event))+'<br>'+esc(racingSessionLabel(event))+(event.circuit&&event.circuit!==event.race?'<br>'+esc(event.circuit):'')+'</div></div>'+racingEventVisual(event,countdown)+'</div></div>';
 }
 function racingSeriesLogo(key){const src=String(_RACING_LOGOS[key]||'');return src?'<img class="racingserieslogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'';}
 function renderRacingTeamControl(){
@@ -8293,7 +8370,7 @@ function racingEventHtml(event){
   const ts=new Date(event.start),locale=_lang==='no'?'nb-NO':undefined;
   const when=event.all_day?(event.date_text||ts.toLocaleDateString(locale,{weekday:'short',day:'numeric',month:'short'})):ts.toLocaleString(locale,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
   const channels=event.channels||[],tv=channels.length?'<span class="cc racingeventtv">TV</span>':'',details=channels.length?'<div class="racingeventchannels hide">'+racingChannelSections(channels)+'</div>':'';
-  return '<div class="racingevent'+(channels.length?' haschannels':'')+'" data-url="'+escAttr(event.url||'')+'" data-evkey="'+escAttr(racingAvailabilityKey(event))+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+tv+'</div><div class="moviemeta">'+esc(when)+(event.session?' · '+esc(event.session):'')+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div>'+details+'</div>';
+  return '<div class="racingevent'+(channels.length?' haschannels':'')+'" data-url="'+escAttr(event.url||'')+'" data-evkey="'+escAttr(racingAvailabilityKey(event))+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+tv+'</div><div class="moviemeta">'+esc(when)+' · '+esc(racingSessionLabel(event))+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div>'+details+'</div>';
 }
 function racingAvailabilityKey(event){return [event.series||'',event.race||'',event.session||'',event.start||''].join('|');}
 function applyRacingAvailability(map,events){for(const event of (events||[]))event.channels=(map&&map[racingAvailabilityKey(event)])||[];}
@@ -8308,7 +8385,7 @@ function renderRacingScheduleCards(){
   });
   const selectedDriver=_racingDriverRows.find(row=>String(row.key||'')===String(_racingDetailKey||''));
   const selectedSeries=_racingDetailKey==='f1-team'?'f1':String((selectedDriver&&selectedDriver.series)||'');
-  for(const event of _racingEventRows){const ts=new Date(event.start).getTime();if(!Number.isFinite(ts)||ts<now-24*3600000)continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
+  for(const event of _racingEventRows){const ts=new Date(event.start).getTime(),live=racingEventIsLive(event,now);if(!Number.isFinite(ts)||(!live&&ts<now-24*3600000))continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
   let h='';const orderedSeries=_RACING_SERIES.filter(row=>_racingSelected.has(row[0])).sort((a,b)=>(a[0]===selectedSeries?-1:0)-(b[0]===selectedSeries?-1:0));
   for(const row of orderedSeries){const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard series-'+escAttr(row[0])+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
   info.innerHTML=h||'<span class="muted">'+esc(tr('Choose at least one racing series above.'))+'</span>';
@@ -8578,7 +8655,8 @@ async function refreshFavState(){
     _favChanSet=new Set((r.channels||[]).map(function(c){return String(c.stream_id);}));
   }catch(e){}
 }
-async function loadFavorites(){
+let _loadFavoritesPromise=null;
+async function _loadFavoritesNow(){
   const r=await api('/api/favorites');
   _favCatSet=new Set(r.categories||[]);
   _favChanSet=new Set((r.channels||[]).map(function(c){return String(c.stream_id);}));
@@ -8590,11 +8668,18 @@ async function loadFavorites(){
   applyMyListLayout();
   renderMyListChannels();
   const racingDataPromise=_f1Enabled?api('/api/racing'):null;
-  if(_footballEnabled||_f1Enabled)loadMyListTeams(r,racingDataPromise);
-  if(_f1Enabled)loadMyListRacing(racingDataPromise);else{_myListF1Moments=[];scheduleMyListTimelineRender();}
-  loadMyListMovies();
+  const loads=[];
+  if(_footballEnabled||_f1Enabled)loads.push(loadMyListTeams(r,racingDataPromise));
+  if(_f1Enabled)loads.push(loadMyListRacing(racingDataPromise));else{_myListF1Moments=[];scheduleMyListTimelineRender();}
+  loads.push(loadMyListMovies());
   if(_gamesEnabled)loadMyListGames(r);else{_myListGameMoments=[];scheduleMyListTimelineRender();}
-  loadMyListShows();
+  loads.push(loadMyListShows());
+  await Promise.allSettled(loads);
+}
+async function loadFavorites(){
+  if(_loadFavoritesPromise)return _loadFavoritesPromise;
+  _loadFavoritesPromise=_loadFavoritesNow();
+  try{return await _loadFavoritesPromise;}finally{_loadFavoritesPromise=null;}
 }
 let _myListLoaded=false,_myListFavData={channels:[],teams:[],f1_teams:[]},_myListSelectedChannels=[],_myListTeamMoments=[],_myListF1Moments=[],_myListMovieMoments=[],_myListGameMoments=[],_myListShowMoments=[],_myListRacingDrivers=[];
 let _myTimelineFilter='all',_myTimelineSettings={recent:true,live:true,upcoming:true,maxPerCategory:0},_myTimelinePrefsLoaded=false;
@@ -8719,7 +8804,7 @@ async function loadMyListTeams(favorites,racingDataPromise){
       const f1Drivers=allDrivers.filter(driver=>String(driver.series||'')==='f1');
       if(_myListLayout==='timeline'){
         const cards=[];
-        if(f1Drivers.length){const f1Events=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').map(e=>({event:e,ts:new Date(e.start).getTime()})).filter(row=>Number.isFinite(row.ts)&&row.ts>=now-6*3600000).sort((a,b)=>a.ts-b.ts),next=f1Events[0]?.event||null,race=nextDriverRace(f1Drivers[0],racingData.events||[],now);cards.push({kind:'f1',drivers:f1Drivers,next:next,race:race,ts:next?new Date(next.start).getTime():Infinity});}
+        if(f1Drivers.length){const f1Events=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').map(e=>({event:e,ts:new Date(e.start).getTime(),live:racingEventIsLive(e,now)})).filter(row=>Number.isFinite(row.ts)&&(row.live||row.ts>=now)).sort((a,b)=>(a.live?-1:0)-(b.live?-1:0)||a.ts-b.ts),next=f1Events[0]?.event||null,race=nextDriverRace(f1Drivers[0],racingData.events||[],now);cards.push({kind:'f1',drivers:f1Drivers,next:next,race:race,ts:next?new Date(next.start).getTime():Infinity});}
         for(const driver of allDrivers){if(String(driver.series||'')==='f1')continue;const next=nextDriverRace(driver,racingData.events||[],now);cards.push({kind:'driver',driver:driver,next:next,ts:next?new Date(next.start).getTime():Infinity});}
         // Racing follows the calendar: nearest next event first. Football team
         // cards above deliberately retain the user's favorite/order sequence.
@@ -8729,12 +8814,12 @@ async function loadMyListTeams(favorites,racingDataPromise){
           if(card.kind==='f1'){
             const drivers=card.drivers,live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now)),team=drivers[0].team||'',raceEvent=card.race,raceCountdown=raceEvent?racingCountdown(raceEvent):'';
             const photos=drivers.slice(0,2).map(driver=>'<img class="driver" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()">').join('');
-            const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),session=next?(next.session||next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),raceName=raceEvent?(raceEvent.race||raceEvent.circuit||tr('Race')):tr('No upcoming race found.'),raceLine=raceEvent?'<div class="mydashsporteventline mydashsportrace"><span class="mydashsportnext">'+esc(tr('Race')+': '+raceName)+'</span><span class="mydashsportcount">'+esc(raceCountdown)+'</span></div>':'';
-            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(session)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div>'+raceLine+'</div></div>';
+            const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),session=next?racingSessionLabel(next):tr('No upcoming race found.'),raceName=raceEvent?(raceEvent.race||raceEvent.circuit||tr('Race')):tr('No upcoming race found.'),raceLine=raceEvent?'<div class="mydashsporteventline mydashsportrace"><span class="mydashsportnext">'+esc(raceName+' · '+tr('Race'))+'</span><span class="mydashsportcount">'+esc(raceCountdown)+'</span></div>':'';
+            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsportevents"><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(session)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div>'+raceLine+'</div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div></div>';
           }else{
             const driver=card.driver,live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
             const meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × '),nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
-            h+='<div class="mydashteamonly" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div></div>';
+            h+='<div class="mydashteamonly" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsportevents"><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div>'+(next?'<div class="mydashsporteventmeta">'+esc(racingProfileMeta(next))+'</div>':'')+'</div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div></div>';
           }
         }
       }else for(const driver of allDrivers){
@@ -8796,6 +8881,8 @@ function timelineUpcomingWhen(ts,dateOnly){
   }
   const dayDiff=Math.round(osloDayNumber(target)-osloDayNumber(now));
   const time=target.toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Oslo'});
+  if(dateOnly&&dayDiff===0)return tr('Today');
+  if(dateOnly&&dayDiff===1)return tr('Tomorrow');
   if(!dateOnly&&dayDiff===0)return tr('Today')+' · '+time;
   if(!dateOnly&&dayDiff===1)return tr('Tomorrow')+' · '+time;
   const date=target.toLocaleDateString(locale,{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Oslo'});
@@ -8925,9 +9012,9 @@ function renderMyListTimeline(){
       h+='<div class="mylisttimelineentry'+(row.live?' is-live':'')+'">'+(row.live?'':'<div class="mylisttimelinewhen">'+esc(when)+'</div>')+'<div class="mylisttimelinebody mylisttimelinecontent"><span class="mylisttimelinekind sport">'+esc(tr('Sports'))+'</span>'+myListSportArtwork(f)+teamFixtureCard(f,row.live,true)+'</div></div>';
     }else if(moment.kind==='f1'){
       const row=moment.data,event=row.event,date=new Date(row.ts),when=moment.live?tr('Live now'):timelineUpcomingWhen(row.ts,!!event.all_day);
-      const racingUrl=event.url||('https://www.formula1.com/en/racing/'+date.getFullYear()),series=event.series_name||'Formula 1';
+      const racingUrl=event.url||('https://www.formula1.com/en/racing/'+date.getFullYear());
       const available=(event.channels||[]).length?'<span class="cc mylisttimelineavail" title="'+escAttr(tr('Channels available'))+'">TV</span>':'';
-      h+='<div class="mylisttimelineentry'+(moment.live?' is-live':'')+'">'+(moment.live?'':'<div class="mylisttimelinewhen">'+esc(when)+'</div>')+'<div class="mylisttimelinebody mylisttimelinecontent mylisttimelinef1'+((event.channels||[]).length?' haschannels':'')+'" data-driver-key="'+escAttr(myListRacingDetailKey(event))+'" data-url="'+escAttr(racingUrl)+'"><span class="mylisttimelinekind f1">'+esc(tr('Racing'))+'</span>'+myListRacingArtwork(event)+'<div><b>'+esc(event.race)+'</b><div class="moviemeta">'+esc(series)+' · '+esc(event.session)+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div></div>'+available+'</div></div>';
+      h+='<div class="mylisttimelineentry'+(moment.live?' is-live':'')+'">'+(moment.live?'':'<div class="mylisttimelinewhen">'+esc(when)+'</div>')+'<div class="mylisttimelinebody mylisttimelinecontent mylisttimelinef1'+((event.channels||[]).length?' haschannels':'')+'" data-driver-key="'+escAttr(myListRacingDetailKey(event))+'" data-url="'+escAttr(racingUrl)+'"><span class="mylisttimelinekind f1">'+esc(tr('Racing'))+'</span>'+myListRacingArtwork(event)+'<div><b>'+esc(event.race)+'</b><div class="moviemeta">'+esc(racingTimelineMeta(event))+'</div></div>'+available+'</div></div>';
     }else if(moment.kind==='movie'){
       const row=moment.data,m=row.movie,cover=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'',when=row.ts<Date.now()?timelineReleasedWhen(row.ts):timelineUpcomingWhen(row.ts,true);
       const action=m.stream_found?'<div class="movieactions"><span class="moviemeta">'+tr('Stream found in playlist')+'</span><button class="btnvlc movievlc" data-sid="'+escAttr(String(m.stream_id))+'" data-ext="'+escAttr(m.extension||'mp4')+'">&#9658; VLC</button></div>':'<div class="movieactions"><button class="ghost" disabled>'+tr('Not available')+'</button></div>';
@@ -13182,6 +13269,23 @@ def run_self_tests():
     check("racing UI separates confirmed broadcasters from dedicated series",
           "ch.match_kind==='event'||ch.match_kind==='broadcaster'" in PAGE and
           "Confirmed racing channels" in PAGE)
+    check("F2 and F3 weekends retain their final calendar day",
+          _racing_weekend_end("04 - 06 SEP", 2026).startswith("2026-09-06T23:59:59"))
+    check("profile racing rows keep event details in one aligned column",
+          "mydashsportevents" in PAGE and "mydashsporteventmeta" in PAGE)
+    check("racing labels normalize compact weekend source values",
+          "racingSessionLabel(event)" in PAGE and
+          "'rallyweekend':'Rally weekend'" in PAGE)
+    check("all-day racing uses calendar-day live windows",
+          "nowDay>=startDay&&nowDay<=endDay" in PAGE)
+    check("multi-day racing remains visible throughout a live weekend",
+          "(x.live||x.ts>=now)" in PAGE and
+          "(!live&&ts<now-24*3600000)" in PAGE)
+    check("duplicate browser requests share one in-flight operation",
+          "_apiInflight.has(key)" in PAGE and "_coalescedPosts" in PAGE)
+    check("cold Xtream catalogue requests are source-locked",
+          all(lock in source_text for lock in
+              ("_XT_CHANNELS_LOCK", "_XT_MOVIES_LOCK", "_XT_SERIES_LOCK")))
     event_ids = {row["stream_id"] for row in find_team_channels(
         ["Brann", "HamKam"], sample_channels, sample_cats, _TestXtream())}
     check("both fixture teams rank", 3 in event_ids)
