@@ -122,7 +122,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b431"
+VERSION = "0.777.b432"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5119,6 +5119,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mydashf1names{display:flex;flex-direction:column;gap:5px;min-width:0;align-self:start}
  .mydashf1names .mydashsportname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .mydashf1card .mydashsporteventline{align-self:center}
+ .mydashsportrace{margin-top:1px;color:var(--mut);font-size:11px}
+ .mydashsportrace .mydashsportnext{font-size:11px;color:var(--mut)}
+ .mydashsportrace .mydashsportcount{font-size:11px}
  .mydashsportheading{font-size:10px;font-weight:750;letter-spacing:.75px;text-transform:uppercase}
  .mydashsportheading.sport{color:#70c987}
  .mydashsportsubhead{font-size:10px;font-weight:750;letter-spacing:.75px;text-transform:uppercase;margin:15px 0 8px;padding-left:2px}
@@ -8716,7 +8719,7 @@ async function loadMyListTeams(favorites,racingDataPromise){
       const f1Drivers=allDrivers.filter(driver=>String(driver.series||'')==='f1');
       if(_myListLayout==='timeline'){
         const cards=[];
-        if(f1Drivers.length){const next=nextDriverRace(f1Drivers[0],racingData.events||[],now);cards.push({kind:'f1',drivers:f1Drivers,next:next,ts:next?new Date(next.start).getTime():Infinity});}
+        if(f1Drivers.length){const f1Events=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').map(e=>({event:e,ts:new Date(e.start).getTime()})).filter(row=>Number.isFinite(row.ts)&&row.ts>=now-6*3600000).sort((a,b)=>a.ts-b.ts),next=f1Events[0]?.event||null,race=nextDriverRace(f1Drivers[0],racingData.events||[],now);cards.push({kind:'f1',drivers:f1Drivers,next:next,race:race,ts:next?new Date(next.start).getTime():Infinity});}
         for(const driver of allDrivers){if(String(driver.series||'')==='f1')continue;const next=nextDriverRace(driver,racingData.events||[],now);cards.push({kind:'driver',driver:driver,next:next,ts:next?new Date(next.start).getTime():Infinity});}
         // Racing follows the calendar: nearest next event first. Football team
         // cards above deliberately retain the user's favorite/order sequence.
@@ -8724,10 +8727,10 @@ async function loadMyListTeams(favorites,racingDataPromise){
         for(const card of cards){
           const next=card.next,countdown=next?racingCountdown(next):'';
           if(card.kind==='f1'){
-            const drivers=card.drivers,live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now)),team=drivers[0].team||'';
+            const drivers=card.drivers,live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now)),team=drivers[0].team||'',raceEvent=card.race,raceCountdown=raceEvent?racingCountdown(raceEvent):'';
             const photos=drivers.slice(0,2).map(driver=>'<img class="driver" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()">').join('');
-            const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),race=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.');
-            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(race)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div></div>';
+            const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),session=next?(next.session||next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),raceName=raceEvent?(raceEvent.race||raceEvent.circuit||tr('Race')):tr('No upcoming race found.'),raceLine=raceEvent?'<div class="mydashsporteventline mydashsportrace"><span class="mydashsportnext">'+esc(tr('Race')+': '+raceName)+'</span><span class="mydashsportcount">'+esc(raceCountdown)+'</span></div>':'';
+            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(session)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div>'+raceLine+'</div></div>';
           }else{
             const driver=card.driver,live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
             const meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × '),nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
