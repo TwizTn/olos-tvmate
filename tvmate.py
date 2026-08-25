@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b443"
+VERSION = "0.777.b444"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5103,6 +5103,11 @@ def find_racing_channels(event, xtream_channels, cats, x):
         session_terms.add("kvalifisering")
     if "sprint" in session_terms:
         session_terms.add("sprintkval")
+    race_name = normalise(str(event.get("race") or ""))
+    race_phrases = {race_name}
+    if "grand prix" in race_name:
+        race_phrases.add(race_name.replace("grand prix", "gp"))
+    race_phrases.discard("")
     out = []
     for ch in xtream_channels:
         cname = str(ch.get("name") or "")
@@ -5118,9 +5123,14 @@ def find_racing_channels(event, xtream_channels, cats, x):
         event_hits = sum(1 for word in event_words
                          if re.search(r"(?<![a-z0-9])" + re.escape(word) +
                                       r"(?![a-z0-9])", hay))
-        # One distinctive place/event word is enough inside an explicit PPV
-        # category (e.g. "Dutch Grand Prix" need not also say Zandvoort).
-        event_hit = event_hits >= 1
+        event_phrase_hit = any(
+            re.search(r"(?<![a-z0-9])" + re.escape(phrase) +
+                      r"(?![a-z0-9])", hay)
+            for phrase in race_phrases)
+        # A country adjective or circuit word alone is weak evidence: "Italian"
+        # and "Monza" occur in unrelated news, football and other motorsport.
+        # Accept the full race title, or require the requested racing series too.
+        event_hit = event_phrase_hit or (series_hit and event_hits >= 1)
         session_hit = bool(session_terms and any(
             re.search(r"(?<![a-z0-9])" + re.escape(word) +
                       r"(?![a-z0-9])", hay) for word in session_terms))
@@ -13760,7 +13770,15 @@ def run_self_tests():
          {"name": "NO: VIAPLAY FILM ACTION", "stream_id": 26, "category_id": "no"},
          {"name": "DK: VIAPLAY DK2", "stream_id": 27, "category_id": "dk"},
          {"name": "NO: F1 SPRINTKVAL", "stream_id": 28, "category_id": "no"},
-         {"name": "NO: F1 NEDERLAND GP", "stream_id": 29, "category_id": "no"}],
+         {"name": "NO: F1 NEDERLAND GP", "stream_id": 29, "category_id": "no"},
+         {"name": "AR: HULU ITALIAN 4K", "stream_id": 30, "category_id": "4k"},
+         {"name": "UK: SERIE A - MONZA 4K", "stream_id": 31, "category_id": "4k"},
+         {"name": "IT: ITALIAN FISHING TV", "stream_id": 32, "category_id": "4k"},
+         {"name": "Formula 4 Italian Championship", "stream_id": 33,
+          "category_id": "ppv"},
+         {"name": "Italian Grand Prix PPV 2", "stream_id": 34,
+          "category_id": "ppv"},
+         {"name": "F1 Monza 4K", "stream_id": 35, "category_id": "4k"}],
         dict(sample_cats, no="NO| NORWAY", dk="DK| VIAPLAY"),
         _TestRacingXtream())
     racing_kinds = {row["stream_id"]: row.get("match_kind") for row in racing_rows}
@@ -13774,6 +13792,24 @@ def run_self_tests():
           26 not in racing_kinds and 27 not in racing_kinds)
     check("Dutch GP aliases and session titles are definite racing matches",
           racing_kinds.get(28) == "event" and racing_kinds.get(29) == "event")
+    check("racing event matching rejects another race title",
+          not ({30, 31, 32, 33, 34} & set(racing_kinds)))
+    italian_rows = find_racing_channels(
+        {"series": "f1", "race": "Italian Grand Prix", "circuit": "Monza",
+         "session": "Practice 1"},
+        [{"name": "AR: HULU ITALIAN 4K", "stream_id": 30, "category_id": "4k"},
+         {"name": "UK: SERIE A - MONZA 4K", "stream_id": 31, "category_id": "4k"},
+         {"name": "IT: ITALIAN FISHING TV", "stream_id": 32, "category_id": "4k"},
+         {"name": "Formula 4 Italian Championship", "stream_id": 33,
+          "category_id": "ppv"},
+         {"name": "Italian Grand Prix PPV 2", "stream_id": 34,
+          "category_id": "ppv"},
+         {"name": "F1 Monza 4K", "stream_id": 35, "category_id": "4k"}],
+        sample_cats, _TestRacingXtream())
+    italian_kinds = {row["stream_id"]: row.get("match_kind") for row in italian_rows}
+    check("Italian GP matching rejects adjective and circuit word noise",
+          not ({30, 31, 32, 33} & set(italian_kinds)) and
+          italian_kinds.get(34) == "event" and italian_kinds.get(35) == "event")
     check("racing UI separates confirmed broadcasters from dedicated series",
           "ch.match_kind==='event'||ch.match_kind==='broadcaster'" in PAGE and
           "Confirmed racing channels" in PAGE)
