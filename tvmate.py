@@ -40,11 +40,14 @@ import difflib
 import threading
 import webbrowser
 import hashlib
+import hmac
+import ipaddress
 import shutil
 import datetime
 import socket
 import urllib.parse
 import urllib.request
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # --------------------------------------------------------------------------
@@ -89,9 +92,14 @@ PORT = 777
 _ACTIVE_PORT = PORT
 LAN_PORT = 778
 _ACTIVE_LAN_PORT = 0
+REMOTE_PORT = 779
+_ACTIVE_REMOTE_PORT = 0
 _SERVER_INSTANCE_ID = hashlib.sha256(os.urandom(32)).hexdigest()[:20]
 _CONFIG_LOCK = threading.RLock()
 _FAVORITES_LOCK = threading.RLock()
+_RELAY_TOKEN_LOCK = threading.RLock()
+_RELAY_TOKENS = {}
+_RELAY_TARGET_TOKENS = {}
 _CACHE_WRITE_LOCK = threading.RLock()
 
 def _atomic_write_bytes(path, raw):
@@ -122,7 +130,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b434"
+VERSION = "0.777.b435"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -174,6 +182,7 @@ DEFAULT_CONFIG = {
     "dev_mode": False,
     "allow_lan": False,
     "lan_access_token": "",
+    "private_remote_relay": False,
     "start_section": "mylist",
     "setup_complete": False,
     "setup_demo_content": False,
@@ -202,6 +211,37 @@ def _local_lan_ip():
     except OSError:
         return ""
 
+def _parse_tailscale_ipv4(output):
+    for line in str(output or "").splitlines():
+        value = line.strip()
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError:
+            continue
+        if address.version == 4 and address in ipaddress.ip_network("100.64.0.0/10"):
+            return value
+    return ""
+
+def _tailscale_ipv4():
+    """Return this device's active Tailscale IPv4 address, if available."""
+    candidates = ["tailscale"]
+    if sys.platform.startswith("win"):
+        for root in (os.environ.get("ProgramFiles"), os.environ.get("ProgramW6432")):
+            if root:
+                candidates.append(os.path.join(root, "Tailscale", "tailscale.exe"))
+    for executable in dict.fromkeys(candidates):
+        try:
+            result = subprocess.run([executable, "ip", "-4"], capture_output=True,
+                                    text=True, timeout=4,
+                                    creationflags=(getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                                                   if sys.platform.startswith("win") else 0))
+            address = _parse_tailscale_ipv4(result.stdout) if result.returncode == 0 else ""
+            if address:
+                return address
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return ""
+
 def _lan_access_url(cfg, port=PORT, include_token=True):
     address = _local_lan_ip()
     if not address:
@@ -211,6 +251,90 @@ def _lan_access_url(cfg, port=PORT, include_token=True):
     if include_token and token:
         url += "?token=" + urllib.parse.quote(token, safe="")
     return url
+
+def _private_remote_url(cfg, port=REMOTE_PORT, include_token=True):
+    address = _tailscale_ipv4()
+    if not address:
+        return ""
+    url = f"http://{address}:{int(port)}/"
+    token = str(cfg.get("lan_access_token") or "")
+    if include_token and token:
+        url += "?token=" + urllib.parse.quote(token, safe="")
+    return url
+
+def _relay_signing_key(cfg=None):
+    cfg = cfg or load_config()
+    return str(cfg.get("lan_access_token") or "").encode("utf-8")
+
+def _relay_token(target, lifetime=6 * 3600, cfg=None):
+    key = _relay_signing_key(cfg)
+    if not key:
+        return ""
+    target = str(target)
+    expires = int(time.time()) + int(lifetime)
+    with _RELAY_TOKEN_LOCK:
+        now = int(time.time())
+        for old_id, record in list(_RELAY_TOKENS.items()):
+            if int(record[1]) < now:
+                _RELAY_TOKENS.pop(old_id, None)
+                if _RELAY_TARGET_TOKENS.get(str(record[0])) == old_id:
+                    _RELAY_TARGET_TOKENS.pop(str(record[0]), None)
+        token_id = _RELAY_TARGET_TOKENS.get(target, "") if lifetime > 300 else ""
+        record = _RELAY_TOKENS.get(token_id)
+        if not record or int(record[1]) < now + 300:
+            token_id = os.urandom(24).hex()
+            _RELAY_TOKENS[token_id] = (target, expires)
+            if lifetime > 300:
+                _RELAY_TARGET_TOKENS[target] = token_id
+    signature = hmac.new(key, token_id.encode("ascii"), hashlib.sha256).hexdigest()
+    return token_id + "." + signature
+
+def _relay_target(token, cfg=None):
+    try:
+        token_id, signature = str(token or "").rsplit(".", 1)
+        key = _relay_signing_key(cfg)
+        expected = hmac.new(key, token_id.encode("ascii"), hashlib.sha256).hexdigest()
+        if not key or not hmac.compare_digest(signature, expected):
+            return ""
+        with _RELAY_TOKEN_LOCK:
+            record = _RELAY_TOKENS.get(token_id)
+            if not record or int(record[1]) < int(time.time()):
+                _RELAY_TOKENS.pop(token_id, None)
+                return ""
+            return str(record[0])
+    except (ValueError, TypeError):
+        return ""
+
+def _safe_relay_target(target, initial=False, cfg=None):
+    """Allow configured-provider URLs and public playlist children; block SSRF."""
+    cfg = cfg or load_config()
+    parsed = urllib.parse.urlsplit(str(target or ""))
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False
+    provider = urllib.parse.urlsplit(str(cfg.get("xtream_host") or ""))
+    if initial:
+        return bool(provider.hostname and parsed.hostname.lower() == provider.hostname.lower() and
+                    (parsed.port or (443 if parsed.scheme == "https" else 80)) ==
+                    (provider.port or (443 if provider.scheme == "https" else 80)))
+    if provider.hostname and parsed.hostname.lower() == provider.hostname.lower():
+        return True
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(parsed.hostname, parsed.port or 443,
+                                                                type=socket.SOCK_STREAM)}
+        return bool(addresses) and all(not (ipaddress.ip_address(address).is_private or
+                                            ipaddress.ip_address(address).is_loopback or
+                                            ipaddress.ip_address(address).is_link_local or
+                                            ipaddress.ip_address(address).is_reserved)
+                                       for address in addresses)
+    except (OSError, ValueError):
+        return False
+
+class _SafeRelayRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        absolute = urllib.parse.urljoin(req.full_url, newurl)
+        if not _safe_relay_target(absolute):
+            raise urllib.error.HTTPError(absolute, 403, "unsafe relay redirect", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, absolute)
 
 def _secure_equal(left, right):
     """Constant-time token comparison without optional stdlib dependencies."""
@@ -6431,6 +6555,16 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div id="devSettings" class="settingsgroup hide" data-settings-panel="maintenance" hidden>
         <div class="colh" data-i18n="Developer tools">Developer tools</div>
         <div class="muted" data-i18n="Testing controls that clear temporary performance data.">Testing controls that clear temporary performance data.</div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+          <div class="colh">Experimental private remote relay</div>
+          <div class="muted">Runs a relay only on this PC's Tailscale address. It does not use an exit node or change routing. Remote playback stays behind the home OTVM server.</div>
+          <div class="settingschecks"><label class="settingscheck">
+            <input id="s_privaterelay" type="checkbox" style="width:auto;margin:0">
+            <span>Enable private Tailscale relay</span>
+          </label></div>
+          <div id="s_remotehelp" class="muted" style="margin-top:10px"></div>
+          <div class="row" style="margin-top:10px"><button type="button" class="ghost" id="s_copyremote" onclick="copyRemoteAddress(this)" disabled>Copy private remote link</button></div>
+        </div>
         <div class="row" style="margin-top:10px">
           <button class="ghost" onclick="resetColdStart(this)" data-i18n="Reset for cold-start test">Reset for cold-start test</button>
         </div>
@@ -7394,7 +7528,9 @@ async function loadSettings(){
   s_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   s_autoshutdown.value=String(c.auto_shutdown_minutes||0);
   s_allowlan.checked=!!c.allow_lan;
+  s_privaterelay.checked=!!c.private_remote_relay;
   renderLanAccess(c);
+  renderRemoteAccess(c);
   loadArtworkCacheSize();
 }
 function renderLanAccess(c){
@@ -7409,6 +7545,18 @@ async function copyLanAddress(btn){
   try{await navigator.clipboard.writeText(value);const old=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=old,1200);}
   catch(e){prompt('Copy this private TVMate link:',value);}
 }
+function renderRemoteAccess(c){
+  const help=document.getElementById('s_remotehelp'),btn=document.getElementById('s_copyremote');
+  window._tvmateRemoteUrl=String((c&&c.private_remote_url)||'');
+  if(!c||!c.private_remote_relay){help.textContent='Disabled. Install and connect Tailscale on both PCs before enabling.';btn.disabled=true;return;}
+  if(!window._tvmateRemoteUrl){help.textContent='Tailscale was not detected or the private server could not bind.';btn.disabled=true;return;}
+  help.textContent='Private link: '+window._tvmateRemoteUrl;btn.disabled=false;
+}
+async function copyRemoteAddress(btn){
+  const value=window._tvmateRemoteUrl||'';if(!value)return;
+  try{await navigator.clipboard.writeText(value);const old=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=old,1200);}
+  catch(e){prompt('Copy this private OTVM link:',value);}
+}
 async function saveSettings(){
   const body={xtream_host:s_host.value,xtream_user:s_user.value,
     xtream_pass:s_pass.value,stream_ext:s_ext.value,
@@ -7417,13 +7565,13 @@ async function saveSettings(){
     refresh_iptv_on_startup:s_refreshiptv.checked,refresh_sports_on_startup:s_refreshsports.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
     profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
-    f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0),allow_lan:s_allowlan.checked};
+    f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0),allow_lan:s_allowlan.checked,private_remote_relay:(_devMode&&s_privaterelay.checked)};
   if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
   if(!body.football_enabled&&body.start_section==='teams')body.start_section='mylist';
   const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   s_msg.textContent=r.ok?(r.restart_required?'Saved. Restart TVMate to apply the Wi-Fi access change.':'Saved.'):'Error saving.';
-  if(r.ok)renderLanAccess(r);
+  if(r.ok){renderLanAccess(r);renderRemoteAccess(r);}
   if(r.ok){setLang(body.preferred_language);applyProfileConfig(body);toast('Saved.');if(!body.football_enabled&&!teamsView.classList.contains('hide'))showMylist();if(!body.games_enabled&&!gamesView.classList.contains('hide'))showMylist();if(!body.f1_enabled&&!racingView.classList.contains('hide'))showMylist();}
   refreshStatus();
 }
@@ -7863,7 +8011,8 @@ function startSmartStream(video,urls,setStatus,setEngine){
     if(!(window.mpegts&&mpegts.isSupported&&mpegts.isSupported())||!urls.ts){status('Could not play this stream in the browser. Try VLC.');return;}
     status(reason?'HLS unavailable — trying MPEG-TS...':'Trying MPEG-TS...');
     try{
-      tsPlayer=mpegts.createPlayer({type:'mpegts',isLive:true,url:'/api/proxy?u='+encodeURIComponent(urls.ts)},
+      const tsSource=urls.relay?urls.ts:'/api/proxy?u='+encodeURIComponent(urls.ts);
+      tsPlayer=mpegts.createPlayer({type:'mpegts',isLive:true,url:tsSource},
         {enableWorker:true,lazyLoad:false,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
       tsPlayer.attachMediaElement(video);publish();
       let failed=false;
@@ -7876,7 +8025,7 @@ function startSmartStream(video,urls,setStatus,setEngine){
   function startHls(src,viaProxy){
     clear();publish();if(stopped)return;
     if(window.Hls&&Hls.isSupported()){
-      status(viaProxy?'Routing HLS through local relay...':'Loading HLS...');
+      status(viaProxy?(urls.relay?'Relaying securely through home...':'Routing HLS through local relay...'):'Loading HLS...');
       hls=new Hls({manifestLoadingTimeOut:12000,levelLoadingTimeOut:12000,fragLoadingTimeOut:20000,backBufferLength:30,maxBufferLength:45});publish();
       hls.on(Hls.Events.ERROR,function(ev,data){
         if(stopped||!data.fatal)return;
@@ -7895,7 +8044,7 @@ function startSmartStream(video,urls,setStatus,setEngine){
     }
     startTs(true);
   }
-  startHls(urls.hls,false);
+  startHls(urls.hls,!!urls.relay);
   return {stop:function(){stopped=true;clear();publish();try{video.pause();video.removeAttribute('src');video.load();}catch(e){}}};
 }
 async function playBrowser(sid,name){
@@ -7990,6 +8139,7 @@ async function playVLC(sid,btn){
   try{
     const j=await api('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:sid})});
     if(j.error){alert(j.error||'Could not launch VLC.');}
+    else if(j.playlist){window.location.href=j.playlist;}
   }catch(e){alert('Could not launch VLC.');}
   if(btn){setTimeout(()=>{btn.textContent=old;},1200);}
 }
@@ -9701,9 +9851,9 @@ function startMobileStream(video,urls,status){
     }
     status('Kunne ikke spille i appen. Prøv VLC.');
   }
-  tryHls(urls.hls,false);
+  tryHls(urls.hls,!!urls.relay);
 }
-async function vlc(id){try{await api('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:id})})}catch(e){alert('Kunne ikke starte VLC på PC-en.')}}
+async function vlc(id){try{const j=await api('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stream_id:id})});if(j.playlist)window.location.href=j.playlist;else if(j.error)throw new Error(j.error)}catch(e){alert('Kunne ikke starte VLC på PC-en.')}}
 function channelRow(c){return '<div class="row">'+art(c.logo||c.stream_icon||('/api/channel_logo?id='+encodeURIComponent(c.stream_id||'')))+'<div class="grow"><div class="title">'+esc(c.name||c.xtream_name||'Kanal')+'</div><div class="meta">'+esc(c.category||c.category_name||'')+' <span class="quality">'+esc(c.quality||'')+'</span></div>'+streamActions(c)+'</div></div>'}
 async function loadHome(force){try{const [f,m,e]=await Promise.all([api('/api/favorites'),api('/api/my_teams'),api('/api/latest_episodes?limit=5'+(force?'&refresh=1':''))]);const fixtures=(m.fixtures||[]).filter(x=>!x.is_finished).slice(0,3);$('homeSport').innerHTML=fixtures.length?fixtures.map(f=>fixtureCard(f,false)).join(''):empty('Ingen kommende favorittkamper.');$('homeChannels').innerHTML=(f.channels||[]).slice(0,5).map(channelRow).join('')||empty('Legg til favorittkanaler i Live TV.');$('homeEpisodes').innerHTML=(e.episodes||[]).slice(0,5).map(x=>'<div class="card"><div class="row">'+art(x.image||x.cover,'poster')+'<div class="grow"><div class="title">'+esc(x.show_name||x.name||'Episode')+'</div><div class="meta">'+esc(x.episode_name||x.title||'')+'</div></div></div></div>').join('')||empty('Ingen nye episoder.')}catch(e){$('homeSport').innerHTML=empty('Kunne ikke laste innhold.')}}
 function fixtureCard(f,details=true){const live=f.is_live?'<span class="tag live">LIVE</span>':'';let extra='';if(details){const secure=f.matches||[],possible=f.ppv_hits||[];if(secure.length)extra='<div class="channelgroup"><b>Sikre kanaltreff</b>'+secure.slice(0,5).map(channelRow).join('')+'</div>';if(possible.length)extra+='<details class="channelgroup"><summary>Mulige kanaler ('+possible.length+')</summary>'+possible.slice(0,30).map(channelRow).join('')+'</details>';}return '<article class="card"><div class="fixture"><div class="teams"><span>'+esc(f.home||'')+'</span><span class="versus">–</span><span>'+esc(f.away||'')+'</span><div class="grow"></div>'+live+'</div><div class="meta">'+esc(f.league_name||'')+' · '+esc(fmtDate(f.start))+'</div>'+(details&&!extra?'<div class="actions"><button class="action primary" onclick="checkFixture(this)">Finn kanaler</button></div>':'')+'</div>'+extra+'</article>'}
@@ -9847,14 +9997,20 @@ class Handler(BaseHTTPRequestHandler):
     def _is_loopback(self):
         return str(self.client_address[0]) in ("127.0.0.1", "::1")
 
+    def _is_private_remote_listener(self):
+        try:
+            return ipaddress.ip_address(str(self.server.server_address[0])) in ipaddress.ip_network("100.64.0.0/10")
+        except ValueError:
+            return False
+
     def _authorize_lan(self, parsed):
         """Authorize remote LAN browsers; localhost remains passwordless."""
         if self._is_loopback():
             return True
         cfg = load_config()
         expected = str(cfg.get("lan_access_token") or "")
-        if not cfg.get("allow_lan") or not expected:
-            self._send(403, {"error": "Local Wi-Fi access is disabled"})
+        if not (cfg.get("allow_lan") or cfg.get("private_remote_relay")) or not expected:
+            self._send(403, {"error": "Private device access is disabled"})
             return False
         supplied = urllib.parse.parse_qs(parsed.query).get("token", [""])[0]
         cookies = {}
@@ -9950,9 +10106,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
-        if not self._authorize_lan(u):
-            return
         q = urllib.parse.parse_qs(u.query)
+        relay_target = ""
+        if u.path == "/api/relay":
+            relay_target = _relay_target(q.get("t", [""])[0])
+            if not relay_target or not _safe_relay_target(relay_target):
+                return self._send(403, {"error": "invalid or expired relay token"})
+        elif not self._authorize_lan(u):
+            return
         try:
             if u.path in ("/", "/index.html"):
                 cookie = str(self.headers.get("Cookie") or "")
@@ -10263,13 +10424,44 @@ class Handler(BaseHTTPRequestHandler):
                                         "current": VERSION, "latest": remote})
 
             if u.path == "/api/hls":
-                # Build the HLS url for a stream_id and return it (for direct-try).
+                # Remote clients receive only signed relay URLs; provider
+                # credentials and destinations never leave the home server.
                 sid = (q.get("id", [""])[0]).strip()
                 cfg = load_config()
                 x = Xtream(cfg)
                 if not (x.configured() and sid):
                     return self._send(400, {"error": "bad request"})
+                if self._is_private_remote_listener() and cfg.get("private_remote_relay"):
+                    hls_url, ts_url = x.hls_url(sid), x.stream_url(sid)
+                    if not (_safe_relay_target(hls_url, initial=True, cfg=cfg) and
+                            _safe_relay_target(ts_url, initial=True, cfg=cfg)):
+                        return self._send(503, {"error": "provider relay target rejected"})
+                    hls_token = _relay_token(hls_url, cfg=cfg)
+                    ts_token = _relay_token(ts_url, cfg=cfg)
+                    if not (hls_token and ts_token):
+                        return self._send(503, {"error": "private relay unavailable"})
+                    return self._send(200, {
+                        "hls": "/api/relay?t=" + urllib.parse.quote(hls_token, safe=""),
+                        "ts": "/api/relay?t=" + urllib.parse.quote(ts_token, safe=""),
+                        "relay": True})
                 return self._send(200, {"hls": x.hls_url(sid), "ts": x.stream_url(sid)})
+
+            if u.path == "/api/remote_vlc":
+                sid = (q.get("id", [""])[0]).strip()
+                cfg = load_config(); x = Xtream(cfg)
+                if not self._is_private_remote_listener() or not cfg.get("private_remote_relay"):
+                    return self._send(403, {"error": "private relay is not active"})
+                if not (x.configured() and sid):
+                    return self._send(400, {"error": "bad request"})
+                target = x.stream_url(sid)
+                if not _safe_relay_target(target, initial=True, cfg=cfg):
+                    return self._send(503, {"error": "provider relay target rejected"})
+                token = _relay_token(target, cfg=cfg)
+                host, port = self.server.server_address[:2]
+                relay = f"http://{host}:{port}/api/relay?t=" + urllib.parse.quote(token, safe="")
+                body = "#EXTM3U\n#EXTINF:-1,OTVM private relay\n" + relay + "\n"
+                return self._send(200, body, "audio/x-mpegurl", {
+                    "Content-Disposition": 'attachment; filename="otvm-private-stream.m3u"'})
 
             if u.path == "/api/ping":
                 # Cheap local identity check used to prevent duplicate app
@@ -10277,13 +10469,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"app": "olos-tvmate", "version": VERSION,
                                         "instance": _SERVER_INSTANCE_ID})
 
-            if u.path == "/api/proxy":
+            if u.path in ("/api/proxy", "/api/relay"):
                 # Lightweight media relay for browser playback.  This never
                 # transcodes: playlists are rewritten and media bytes are streamed
                 # through unchanged so HLS and MPEG-TS can work around CORS.
-                target = q.get("u", [""])[0]
+                target = relay_target if u.path == "/api/relay" else q.get("u", [""])[0]
                 if not target:
                     return self._send(400, {"error": "no url"})
+                if u.path == "/api/proxy" and self._is_private_remote_listener():
+                    return self._send(403, {"error": "unsigned remote proxy disabled"})
                 parsed_target = urllib.parse.urlsplit(target)
                 if parsed_target.scheme not in ("http", "https"):
                     return self._send(400, {"error": "unsupported url"})
@@ -10295,9 +10489,14 @@ class Handler(BaseHTTPRequestHandler):
                     if range_header:
                         headers["Range"] = range_header
                     req = urllib.request.Request(target, headers=headers)
-                    with urllib.request.urlopen(req, timeout=20) as resp:
+                    opener = (urllib.request.build_opener(_SafeRelayRedirectHandler())
+                              if u.path == "/api/relay" else urllib.request.build_opener())
+                    with opener.open(req, timeout=20) as resp:
+                        effective_target = str(resp.geturl() or target)
+                        if u.path == "/api/relay" and not _safe_relay_target(effective_target):
+                            raise ValueError("unsafe relay destination")
                         ctype = resp.headers.get("Content-Type", "application/octet-stream")
-                        path_low = parsed_target.path.lower()
+                        path_low = urllib.parse.urlsplit(effective_target).path.lower()
                         is_playlist = ("mpegurl" in ctype.lower() or
                                        path_low.endswith(".m3u8"))
                         if is_playlist:
@@ -10310,7 +10509,12 @@ class Handler(BaseHTTPRequestHandler):
                             out_lines = []
 
                             def proxy_url(child):
-                                absolute = urllib.parse.urljoin(target, child)
+                                absolute = urllib.parse.urljoin(effective_target, child)
+                                if u.path == "/api/relay":
+                                    if not _safe_relay_target(absolute):
+                                        return ""
+                                    child_token = _relay_token(absolute)
+                                    return "/api/relay?t=" + urllib.parse.quote(child_token, safe="")
                                 return "/api/proxy?u=" + urllib.parse.quote(absolute, safe="")
 
                             for line in text.splitlines():
@@ -10365,6 +10569,9 @@ class Handler(BaseHTTPRequestHandler):
                 public_cfg = dict(cfg)
                 public_cfg.pop("lan_access_token", None)
                 public_cfg["lan_url"] = _lan_access_url(cfg, _ACTIVE_LAN_PORT or LAN_PORT, self._is_loopback()) if cfg.get("allow_lan") else ""
+                public_cfg["private_remote_url"] = (_private_remote_url(
+                    cfg, _ACTIVE_REMOTE_PORT or REMOTE_PORT, self._is_loopback())
+                    if cfg.get("private_remote_relay") else "")
                 return self._send(200, public_cfg)
 
             if u.path == "/api/artwork_cache":
@@ -11565,13 +11772,14 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/config":
             cfg = load_config()
             lan_before = bool(cfg.get("allow_lan"))
+            remote_before = bool(cfg.get("private_remote_relay"))
             provider_before = tuple(str(cfg.get(k) or "") for k in
                                     ("xtream_host", "xtream_port", "xtream_user", "xtream_pass"))
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_iptv_on_startup", "refresh_sports_on_startup", "profile_name",
                       "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
-                      "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes", "allow_lan", "dev_mode"):
+                      "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes", "allow_lan", "dev_mode", "private_remote_relay"):
                 if k in payload:
                     cfg[k] = payload[k]
             if cfg.get("stream_ext") not in ("ts", "m3u8"):
@@ -11607,7 +11815,8 @@ class Handler(BaseHTTPRequestHandler):
             cfg["refresh_sports_on_startup"] = bool(cfg.get("refresh_sports_on_startup"))
             cfg["allow_lan"] = bool(cfg.get("allow_lan"))
             cfg["dev_mode"] = bool(cfg.get("dev_mode"))
-            if cfg["allow_lan"] and not str(cfg.get("lan_access_token") or ""):
+            cfg["private_remote_relay"] = bool(cfg.get("private_remote_relay")) and cfg["dev_mode"]
+            if (cfg["allow_lan"] or cfg["private_remote_relay"]) and not str(cfg.get("lan_access_token") or ""):
                 cfg["lan_access_token"] = hashlib.sha256(os.urandom(48)).hexdigest()
             cfg.pop("refresh_all_on_startup", None)
             cfg.pop("startup_refresh_mode", None)
@@ -11621,8 +11830,15 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 _stop_lan_server()
                 lan_ok = False
+            if cfg["private_remote_relay"]:
+                remote_ok = _start_remote_server()
+            else:
+                _stop_remote_server()
+                remote_ok = False
             return self._send(200, {"ok": True, "allow_lan": cfg["allow_lan"],
                                     "lan_url": _lan_access_url(cfg, _ACTIVE_LAN_PORT or LAN_PORT) if lan_ok else "",
+                                    "private_remote_relay": cfg["private_remote_relay"],
+                                    "private_remote_url": _private_remote_url(cfg, _ACTIVE_REMOTE_PORT or REMOTE_PORT) if remote_ok else "",
                                     "restart_required": False})
 
         if u.path == "/api/clear_artwork_cache":
@@ -12146,6 +12362,10 @@ class Handler(BaseHTTPRequestHandler):
             x = Xtream(cfg)
             if not (x.configured() and sid):
                 return self._send(400, {"error": "bad request"})
+            if self._is_private_remote_listener() and cfg.get("private_remote_relay"):
+                return self._send(200, {"ok": True,
+                                        "playlist": "/api/remote_vlc?id=" +
+                                                    urllib.parse.quote(sid, safe="")})
             url = x.stream_url(sid)
             vlc = _find_vlc()
             if not vlc:
@@ -12254,6 +12474,8 @@ class Handler(BaseHTTPRequestHandler):
 _STOP_EVENT = threading.Event()
 _LAN_SERVER = None
 _LAN_SERVER_LOCK = threading.RLock()
+_REMOTE_SERVER = None
+_REMOTE_SERVER_LOCK = threading.RLock()
 
 def _start_lan_server():
     """Start optional Wi-Fi access after localhost is already healthy."""
@@ -12295,10 +12517,53 @@ def _stop_lan_server():
         lan_server.shutdown()
         lan_server.server_close()
 
+def _start_remote_server():
+    """Bind the experimental relay only to this device's Tailscale address."""
+    global _REMOTE_SERVER, _ACTIVE_REMOTE_PORT
+    with _REMOTE_SERVER_LOCK:
+        if _REMOTE_SERVER is not None:
+            return True
+        cfg = load_config()
+        if not (cfg.get("dev_mode") and cfg.get("private_remote_relay")):
+            return False
+        host = _tailscale_ipv4()
+        if not host:
+            cfg["private_remote_error"] = "Tailscale is not connected on this PC"
+            save_config(cfg)
+            return False
+        errors = []
+        for candidate in range(REMOTE_PORT, REMOTE_PORT + 11):
+            try:
+                remote_server = ThreadingHTTPServer((host, candidate), Handler)
+                threading.Thread(target=remote_server.serve_forever, daemon=True).start()
+                _REMOTE_SERVER = remote_server
+                _ACTIVE_REMOTE_PORT = candidate
+                cfg.pop("private_remote_error", None)
+                save_config(cfg)
+                return True
+            except OSError as bind_error:
+                errors.append(f"{candidate}: {bind_error}")
+        cfg["private_remote_error"] = "Could not bind the Tailscale relay (" + "; ".join(errors) + ")"
+        save_config(cfg)
+        return False
+
+def _stop_remote_server():
+    global _REMOTE_SERVER, _ACTIVE_REMOTE_PORT
+    with _REMOTE_SERVER_LOCK:
+        remote_server = _REMOTE_SERVER
+        _REMOTE_SERVER = None
+        _ACTIVE_REMOTE_PORT = 0
+    if remote_server is not None:
+        remote_server.shutdown()
+        remote_server.server_close()
+
 def _auto_shutdown_watchdog():
     while not _STOP_EVENT.wait(15):
         try:
             cfg = load_config()
+            if (cfg.get("dev_mode") and cfg.get("private_remote_relay") and
+                    _REMOTE_SERVER is None):
+                _start_remote_server()
             minutes = max(0, int(cfg.get("auto_shutdown_minutes") or 0))
             if cfg.get("hide_cmd_window") and minutes and _inactive_seconds() >= minutes * 60:
                 _STOP_EVENT.set()
@@ -12575,6 +12840,8 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     if cfg.get("allow_lan"):
         threading.Thread(target=_start_lan_server, daemon=True).start()
+    if cfg.get("dev_mode") and cfg.get("private_remote_relay"):
+        threading.Thread(target=_start_remote_server, daemon=True).start()
     threading.Thread(target=_auto_shutdown_watchdog, daemon=True).start()
     if hide_console:
         # Hidden mode cannot wait for console input: launch the UI immediately.
@@ -12609,6 +12876,7 @@ def main():
         server.shutdown()
         server.server_close()
         _stop_lan_server()
+        _stop_remote_server()
 
 def _t_sleep(sec):
     import time as _t
@@ -12628,6 +12896,25 @@ def run_self_tests():
         "123")
     check("update URLs preserve queries and bypass raw-content caches",
           "source=manual" in cache_busted and "_tvmate=123" in cache_busted)
+    check("Tailscale detection accepts only CGNAT device addresses",
+          _parse_tailscale_ipv4("100.101.102.103\n") == "100.101.102.103" and
+          _parse_tailscale_ipv4("192.168.1.8\n") == "")
+    relay_cfg = {"lan_access_token": "offline-relay-test"}
+    relay_secret_url = "https://provider.example/live/private-user/private-pass/77.ts"
+    relay_test_token = _relay_token(relay_secret_url, lifetime=60, cfg=relay_cfg)
+    check("private relay tokens are opaque and tamper resistant",
+          relay_secret_url not in relay_test_token and
+          "private-user" not in relay_test_token and
+          _relay_target(relay_test_token, cfg=relay_cfg) == relay_secret_url and
+          _relay_target(relay_test_token + "x", cfg=relay_cfg) == "")
+    expired_token = _relay_token(relay_secret_url, lifetime=-1, cfg=relay_cfg)
+    check("expired private relay tokens fail closed",
+          _relay_target(expired_token, cfg=relay_cfg) == "")
+    check("private relay remains hidden and developer gated",
+          'id="s_privaterelay"' in PAGE and
+          'id="devSettings" class="settingsgroup hide"' in PAGE and
+          'cfg["private_remote_relay"] = bool(cfg.get("private_remote_relay")) and cfg["dev_mode"]'
+          in open(__file__, "r", encoding="utf-8").read())
     check("sports event cache key normalizes teams",
           _sports_event_key("Leeds United", "Man Utd", "2026-08-12T20:30:00Z") ==
           _sports_event_key(" leeds united ", "MAN UTD", "2026-08-12T20:30:59Z"))
