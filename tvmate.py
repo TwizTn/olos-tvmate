@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b444"
+VERSION = "0.777.b446"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
