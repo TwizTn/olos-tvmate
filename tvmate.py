@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b437"
+VERSION = "0.777.b438"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1328,6 +1328,14 @@ def _update_manifest():
         checksum = ""
     return version, checksum
 
+def _rejected_update_version():
+    try:
+        with open(os.path.join(app_dir(), "update-rejected.txt"), "r", encoding="utf-8") as handle:
+            value = handle.readline(200).strip()
+        return value if re.fullmatch(r"[0-9A-Za-z._-]+", value) else ""
+    except OSError:
+        return ""
+
 def _parse_ver(v):
     """Turn '0.777.b1' into a comparable tuple. Higher = newer."""
     v = (v or "").strip().lstrip("v").strip()
@@ -1345,6 +1353,8 @@ def check_for_update():
     remote, _checksum = _update_manifest()
     if not remote:
         return (False, None)
+    if remote == _rejected_update_version():
+        return (False, remote)
     try:
         newer = _parse_ver(remote) > _parse_ver(VERSION)
     except Exception:
@@ -1354,6 +1364,8 @@ def check_for_update():
 def download_update():
     """Download and validate a new tvmate.py. Return its local path or None."""
     remote_version, expected_sha = _update_manifest()
+    if remote_version and remote_version == _rejected_update_version():
+        return None
     text = _fetch_text(UPDATE_SCRIPT_URL, timeout=30, cache_bust=True)
     if not remote_version or not text or len(text.encode("utf-8")) < 100000:
         return None
@@ -9757,6 +9769,8 @@ async function checkForUpdate(manual){
       _updateLatest=j.latest;
       document.getElementById('updateMsg').textContent=tr('Update available')+': v'+j.latest+' ('+tr('you have')+' v'+j.current+')';
       document.getElementById('updateBanner').classList.remove('hide');
+    }else if(j.skipped_bad_version&&j.rejected_version){
+      if(manual)toast('Version '+j.rejected_version+' previously failed startup and is being skipped. OTVM will wait for a newer release.',7000);
     }else if(manual){
       toast(tr('You are on the latest version')+' (v'+(j.current||'')+')');
     }
@@ -9800,7 +9814,7 @@ async function doUpdateRestart(){
             setTimeout(()=>location.reload(),1000);return;
           }
           if(ping&&ping.app==='olos-tvmate'&&expected&&String(ping.version)!==expected&&Date.now()-started>45000){
-            document.getElementById('updateMsg').textContent='The new version did not start correctly. OTVM restored v'+String(ping.version||'the previous version')+' from backup.';
+            document.getElementById('updateMsg').textContent='The new version did not start correctly. OTVM restored v'+String(ping.version||'the previous version')+' from backup and will skip the bad update until a newer release is available.';
             btn.textContent=tr('Later');btn.disabled=false;btn.onclick=dismissUpdate;return;
           }
         }catch(e){}
@@ -10465,8 +10479,11 @@ class Handler(BaseHTTPRequestHandler):
 
             if u.path == "/api/update_check":
                 available, remote = check_for_update()
+                rejected = _rejected_update_version()
                 return self._send(200, {"available": available,
-                                        "current": VERSION, "latest": remote})
+                                        "current": VERSION, "latest": remote,
+                                        "skipped_bad_version": bool(remote and remote == rejected),
+                                        "rejected_version": rejected})
 
             if u.path == "/api/update_status":
                 report = os.path.join(app_dir(), "update-rollback.txt")
@@ -12395,10 +12412,12 @@ class Handler(BaseHTTPRequestHandler):
                                           "timeout /t 1 /nobreak >nul\r\n"])
                         lines.extend([
                              'if exist "' + cur + '.backup" copy /y "' + cur + '.backup" "' + cur + '" >nul\r\n',
-                             '>"' + os.path.join(app_dir(), "update-rollback.txt") + '" echo OTVM v' + expected_version + ' failed its startup health check and the previous version was restored.\r\n',
+                             '>"' + os.path.join(app_dir(), "update-rejected.txt") + '" echo ' + expected_version + '\r\n',
+                             '>"' + os.path.join(app_dir(), "update-rollback.txt") + '" echo OTVM v' + expected_version + ' failed its startup health check. The previous version was restored, and the bad update will be skipped until a newer release is available.\r\n',
                              "goto rollbackrelaunch\r\n",
                              ":healthok\r\n",
                              'del /f /q "' + os.path.join(app_dir(), "update-rollback.txt") + '" >nul 2>&1\r\n',
+                             'del /f /q "' + os.path.join(app_dir(), "update-rejected.txt") + '" >nul 2>&1\r\n',
                              "echo OTVM v" + expected_version + " started successfully.\r\n",
                              "goto done\r\n",
                              ":rollbackrelaunch\r\n",
@@ -13743,6 +13762,11 @@ def run_self_tests():
           "downloaded and verified" in PAGE and
           "automatically restore the backup if startup fails" in PAGE and
           "restored v" in PAGE and "/api/update_status" in PAGE)
+    check("failed update version is quarantined until a newer release",
+          "update-rejected.txt" in source_text and
+          "remote == _rejected_update_version()" in source_text and
+          "skipped_bad_version" in source_text and
+          "will skip the bad update until a newer release is available" in source_text)
     check("movie favorite tooltip follows current state",
           "tr('Remove from Favorites')" in PAGE and
           "starEl.title=tr(" in PAGE)
