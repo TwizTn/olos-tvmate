@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b440"
+VERSION = "0.777.b441"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3721,6 +3721,7 @@ _TEAM_ALIAS_GROUPS = [
     ["nottingham forest", "nottm forest", "nott'm forest", "nottm. forest",
      "notts forest"],
     ["leeds united", "leeds utd", "leeds"],
+    ["bodø/glimt", "bodø glimt", "bodo glimt", "bodoglimt"],
     ["bayern munich", "bayern munchen", "fc bayern", "bayern"],
     ["borussia dortmund", "dortmund", "bvb"],
     ["borussia monchengladbach", "monchengladbach", "gladbach"],
@@ -4091,6 +4092,10 @@ _PREFIX_RE = re.compile(r"^\s*[a-z0-9]{1,5}\s*[:|\-]\s*", re.I)
 _PAREN_CC_RE = re.compile(r"\s*\((?:no|uk|us|usa|espanol|espa\w*|[a-z]{2,3})\)\s*$", re.I)
 _HASH_RE = re.compile(r"#+")                 # "###### SPORT ######"
 _FPS_RE = re.compile(r"\b\d{2,3}\s*fps\b", re.I)
+_LATIN_FOLD = str.maketrans({"ø": "o", "æ": "ae", "å": "a",
+                            "ö": "o", "ä": "a", "ü": "u",
+                            "é": "e", "è": "e", "á": "a", "í": "i",
+                            "ó": "o", "ú": "u", "ñ": "n", "ç": "c"})
 
 # Words that carry no identifying power on their own.
 _GENERIC = {"sport", "sports", "tv", "play", "channel", "the", "hd", "sd",
@@ -4098,7 +4103,7 @@ _GENERIC = {"sport", "sports", "tv", "play", "channel", "the", "hd", "sd",
             "fps", "dolby", "audio", "live", "1", "one"}
 
 def normalise(name):
-    n = name.lower()
+    n = name.lower().translate(_LATIN_FOLD)
     n = _HASH_RE.sub(" ", n)          # remove ### decoration
     n = _PREFIX_RE.sub("", n)         # drop leading provider tag
     n = _PAREN_CC_RE.sub("", n)       # drop trailing "(NO)"
@@ -4112,7 +4117,7 @@ def normalise(name):
 
 def normalise_event_name(name):
     """Normalize an event channel without stripping its leading team name."""
-    n = str(name or "").lower()
+    n = str(name or "").lower().translate(_LATIN_FOLD)
     n = _HASH_RE.sub(" ", n)
     n = _PAREN_CC_RE.sub("", n)
     n = _FPS_RE.sub(" ", n)
@@ -4634,6 +4639,16 @@ def match_channels(by_country, xtream_channels, cats, threshold, league_name="")
     rows.sort(key=lambda r: r["score"], reverse=True)
     return rows
 
+def _team_form_hit(hay, values):
+    """Match normal and compact spellings such as Bodø/Glimt and BodoGlimt."""
+    compact_hay = re.sub(r"\s+", "", hay)
+    return any(
+        re.search(r"(?<![a-z0-9])" + re.escape(value) +
+                  r"(?![a-z0-9])", hay) or
+        (len(value.split()) >= 2 and len(value.replace(" ", "")) >= 5 and
+         value.replace(" ", "") in compact_hay)
+        for value in values if value)
+
 def rank_fixture_channels(rows, home, away):
     """Put exact fixture channels first without removing generic PPV slots."""
     def forms(team):
@@ -4653,8 +4668,7 @@ def rank_fixture_channels(rows, home, away):
         row = dict(original)
         hay = normalise_event_name(row.get("xtream_name", ""))
         def hit(values):
-            return any(re.search(r"(?<![a-z0-9])" + re.escape(value) +
-                                 r"(?![a-z0-9])", hay) for value in values)
+            return _team_form_hit(hay, values)
         home_hit, away_hit = hit(home_forms), hit(away_forms)
         row["fixture_match"] = "exact" if home_hit and away_hit else (
             "partial" if home_hit or away_hit else "generic")
@@ -4705,9 +4719,7 @@ def find_team_channels(team_terms, xtream_channels, cats, x):
             if any(re.fullmatch(re.escape(form) + r"\s+[2-9]\d*", hay)
                    for form in forms):
                 reserve_team = True
-            matched_forms = [form for form in forms
-                             if re.search(r"(?<![a-z0-9])" + re.escape(form) +
-                                          r"(?![a-z0-9])", hay)]
+            matched_forms = [form for form in forms if _team_form_hit(hay, [form])]
             if matched_forms:
                 hits += 1
         if hits >= 1 and not reserve_team:
@@ -4849,7 +4861,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v33|" + _vod_cache_key(x) + "|" + str(
+    return "football-v34|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -4879,9 +4891,7 @@ def _fixture_title_has_both_teams(title, home, away):
     def side_hit(team):
         forms = {normalise(value) for value in _expand_terms(
             str(team or "").lower().strip())}
-        return any(value and re.search(r"(?<![a-z0-9])" + re.escape(value) +
-                                       r"(?![a-z0-9])", hay)
-                   for value in forms)
+        return _team_form_hit(hay, forms)
     return side_hit(home) and side_hit(away)
 
 def _cached_epg_discovery(fixtures, channels, cats, x):
@@ -7880,9 +7890,10 @@ function fixtureMatchesDeepLink(f){
 }
 function _teamNamesEquivalentForUi(a,b){const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').trim();const variant=s=>{const x=clean(s);if(/(^| )(women|womens|ladies|kvinner|damer|femmes|femenina|femenino|w)( |$)/.test(x))return'women';const youth=x.match(/(^| )u(17|18|19|20|21|23)( |$)/);if(youth)return'u'+youth[2];if(/(^| )(reserves?|academy|b|ii)( |$)/.test(x))return'reserve';return'senior';};const x=clean(a),y=clean(b);return !!x&&!!y&&variant(x)===variant(y)&&(x===y||x.includes(y)||y.includes(x));}
 function fixtureChannelRank(m,f){
-  const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').replace(/\\s+/g,' ').trim();
+  const clean=s=>String(s||'').toLowerCase().replace(/[øö]/g,'o').replace(/æ/g,'ae').replace(/[åä]/g,'a').replace(/[^a-z0-9]+/g,' ').replace(/\\s+/g,' ').trim();
   const name=clean(m&&m.xtream_name),home=clean(f&&f.home),away=clean(f&&f.away);
-  const homeHit=!!home&&name.includes(home),awayHit=!!away&&name.includes(away);
+  const teamHit=team=>!!team&&(name.includes(team)||(team.includes(' ')&&team.replace(/\\s+/g,'').length>=5&&name.replace(/\\s+/g,'').includes(team.replace(/\\s+/g,''))));
+  const homeHit=teamHit(home),awayHit=teamHit(away);
   // Visible two-team text is definitive and must override stale/mistaken
   // backend metadata before the broadcaster list is sorted.
   if(homeHit&&awayHit)return 3;
@@ -13795,6 +13806,16 @@ def run_self_tests():
         {"xtream_name": "APOLLON LIMASSOL - BRANN | VGTV PPV 3",
          "stream_id": 11, "score": 0.80}], "Apollon Limassol", "Brann")
     check("exact fixture sorted first", exact_ranked[0]["stream_id"] == 11)
+    bodo_ranked = rank_fixture_channels([
+        {"xtream_name": "Soccer: BodoGlimt vs NEC @ Aug 25 20:00 | TV2Play NO 23",
+         "stream_id": 13, "score": 0.96}], "Bodø/Glimt", "NEC")
+    check("Bodø Glimt compact channel title is an exact fixture",
+          bodo_ranked[0]["fixture_match"] == "exact" and
+          _filter_streaming_platform_slots([
+              dict(bodo_ranked[0], matched="TV 2 Play (NO)")]))
+    check("Bodø Glimt compact EPG title confirms both teams",
+          _fixture_title_has_both_teams(
+              "Soccer: BodoGlimt vs NEC", "Bodø/Glimt", "NEC"))
     check("one-team PPV title is promoted but remains possible",
           ranked[0]["fixture_match"] == "partial")
     check("generic PPV candidate remains a fallback",
