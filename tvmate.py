@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b436"
+VERSION = "0.777.b437"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -9663,7 +9663,7 @@ window.addEventListener('popstate',function(ev){
 });
 refreshStatus();
 // --- auto-update ---
-let _updateLatest=null;
+let _updateLatest=null,_updateRollbackVisible=false;
 async function openConfigFolder(){
   try{
     const j=await api('/api/open_folder',{method:'POST'});
@@ -9768,10 +9768,11 @@ async function checkForUpdate(manual){
 async function doUpdateNow(){
   const btn=document.getElementById('updateNowBtn');
   btn.textContent=tr('Downloading...');btn.disabled=true;
+  document.getElementById('updateMsg').textContent='Downloading v'+(_updateLatest||'')+' and verifying its checksum. OTVM will keep running during this step.';
   try{
     const j=await api('/api/update_download',{method:'POST'});
     if(!j.ok){throw new Error('dl');}
-    document.getElementById('updateMsg').textContent=tr('Update downloaded. Restart now to finish updating?');
+    document.getElementById('updateMsg').textContent='Version '+(_updateLatest||'')+' downloaded and verified. Restart now to install it? The current version will be backed up first.';
     btn.textContent=tr('Restart now');btn.disabled=false;
     btn.onclick=doUpdateRestart;
   }catch(e){
@@ -9787,16 +9788,24 @@ async function doUpdateRestart(){
     if(j.relaunch===false){
       document.getElementById('updateMsg').textContent=tr('Update installed. Please close this window and open Olo’s TVMate again.');
     }else{
-      document.getElementById('updateMsg').textContent=tr('Updating... this window will reload shortly.');
+      const expected=String(j.expected_version||_updateLatest||'');
+      document.getElementById('updateMsg').textContent='Installing v'+expected+'. OTVM is testing the new version and will automatically restore the backup if startup fails.';
       const started=Date.now();
       const waitForRestart=async function(){
         try{
           const response=await fetch('/api/ping',{cache:'no-store'});
           const ping=await response.json();
-          if(ping&&ping.app==='olos-tvmate'){location.reload();return;}
+          if(ping&&ping.app==='olos-tvmate'&&(!expected||String(ping.version)===expected)){
+            document.getElementById('updateMsg').textContent='Update successful. OTVM v'+String(ping.version||expected)+' is running.';
+            setTimeout(()=>location.reload(),1000);return;
+          }
+          if(ping&&ping.app==='olos-tvmate'&&expected&&String(ping.version)!==expected&&Date.now()-started>45000){
+            document.getElementById('updateMsg').textContent='The new version did not start correctly. OTVM restored v'+String(ping.version||'the previous version')+' from backup.';
+            btn.textContent=tr('Later');btn.disabled=false;btn.onclick=dismissUpdate;return;
+          }
         }catch(e){}
-        if(Date.now()-started<60000)setTimeout(waitForRestart,1500);
-        else document.getElementById('updateMsg').textContent=tr('Restart failed. Please close and reopen the app.');
+        if(Date.now()-started<90000)setTimeout(waitForRestart,1500);
+        else document.getElementById('updateMsg').textContent='OTVM did not return after the update check. Close and reopen the app; the backup remains available as tvmate.py.backup.';
       };
       setTimeout(waitForRestart,5000);
     }
@@ -9804,8 +9813,18 @@ async function doUpdateRestart(){
     document.getElementById('updateMsg').textContent=tr('Restart failed. Please close and reopen the app.');
   }
 }
-function dismissUpdate(){document.getElementById('updateBanner').classList.add('hide');}
-checkForUpdate();
+async function checkUpdateRecovery(){
+  try{
+    const j=await api('/api/update_status');
+    if(!j.rollback)return false;
+    _updateRollbackVisible=true;
+    document.getElementById('updateMsg').textContent=j.message||'A failed update was rolled back and the previous OTVM version was restored.';
+    const btn=document.getElementById('updateNowBtn');btn.textContent=tr('Later');btn.disabled=false;btn.onclick=dismissUpdate;
+    document.getElementById('updateBanner').classList.remove('hide');return true;
+  }catch(e){return false;}
+}
+function dismissUpdate(){document.getElementById('updateBanner').classList.add('hide');if(_updateRollbackVisible){_updateRollbackVisible=false;api('/api/update_status_ack',{method:'POST'}).catch(()=>{});}}
+checkUpdateRecovery().then(found=>{if(!found)checkForUpdate();});
 </script>
 </body></html>
 """
@@ -10448,6 +10467,15 @@ class Handler(BaseHTTPRequestHandler):
                 available, remote = check_for_update()
                 return self._send(200, {"available": available,
                                         "current": VERSION, "latest": remote})
+
+            if u.path == "/api/update_status":
+                report = os.path.join(app_dir(), "update-rollback.txt")
+                try:
+                    with open(report, "r", encoding="utf-8") as handle:
+                        message = handle.read(4096).strip()
+                except OSError:
+                    message = ""
+                return self._send(200, {"rollback": bool(message), "message": message})
 
             if u.path == "/api/hls":
                 # Remote clients receive only signed relay URLs; provider
@@ -12266,6 +12294,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True})
             return self._send(500, {"ok": False, "error": "download failed"})
 
+        if u.path == "/api/update_status_ack":
+            try:
+                os.remove(os.path.join(app_dir(), "update-rollback.txt"))
+            except OSError:
+                pass
+            return self._send(200, {"ok": True})
+
         if u.path == "/api/update_restart":
             # Swap tvmate_new.py -> tvmate.py and relaunch, via a small helper.
             new = os.path.join(app_dir(), "tvmate_new.py")
@@ -12274,6 +12309,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"ok": False, "error": "no update downloaded"})
             try:
                 _remote_version, recovery_sha = _update_manifest()
+                expected_version = (str(_remote_version or "").strip()
+                                    if re.fullmatch(r"[0-9A-Za-z._-]+", str(_remote_version or "").strip())
+                                    else "")
                 # Determine how to relaunch. ONLY relaunch the permanent launcher
                 # .exe - never a temp-extracted python.exe (which vanishes).
                 launcher_exe = os.environ.get("TVMATE_EXE")
@@ -12307,7 +12345,7 @@ class Handler(BaseHTTPRequestHandler):
                                       '" >nul 2>&1\r\n',
                                       "timeout /t 1 /nobreak >nul\r\n"])
                     lines.extend([
-                             'copy /y "' + cur + '" "' + cur + '.backup" >nul\r\n',
+                             'copy /y "' + cur + '" "' + cur + '.backup" >nul || goto backupfailed\r\n',
                              "for /l %%I in (1,1,20) do (\r\n",
                              '  move /y "' + new + '" "' + cur + '" >nul 2>&1 && goto updated\r\n',
                              "  timeout /t 1 /nobreak >nul\r\n",
@@ -12326,17 +12364,50 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         lines.append("echo Update manifest checksum is unavailable.\r\n")
                     lines.extend([
+                             ":backupfailed\r\n",
+                             "echo Could not create the update backup. The update was cancelled.\r\n",
+                             "goto rollbackrelaunch\r\n",
                              ":recoverfailed\r\n",
-                             "echo Clean download failed. Restoring the previous version.\r\n",
+                             "echo Update installation failed. Restoring the previous version.\r\n",
                              'if exist "' + cur + '.backup" copy /y "' + cur + '.backup" "' + cur + '" >nul\r\n',
-                             "goto relaunch\r\n",
+                             "goto rollbackrelaunch\r\n",
                              ":updated\r\n",
-                             "echo Update installed successfully.\r\n",
-                             ":relaunch\r\n"])
+                             "echo Update installed. Starting the new version for a health check.\r\n"])
                     if relaunch:
-                        lines.extend(["echo Starting TVMate...\r\n",
-                                      'start "" ' + relaunch + "\r\n"])
-                    lines.extend(["timeout /t 3 /nobreak >nul\r\n",
+                        health_url = f"http://127.0.0.1:{int(_ACTIVE_PORT)}/api/ping"
+                        ps_health = ('$ProgressPreference=\'SilentlyContinue\'; try { '
+                                     '$j=Invoke-RestMethod -UseBasicParsing -TimeoutSec 2 -Uri \'' +
+                                     health_url.replace("'", "''") + '?update-health=1\'; '
+                                     "if ($j.app -ne 'olos-tvmate' -or $j.version -ne '" +
+                                     expected_version.replace("'", "''") + "') { exit 1 }; exit 0 "
+                                     '} catch { exit 1 }')
+                        lines.extend([
+                             'start "" ' + relaunch + "\r\n",
+                             "echo Waiting for OTVM v" + expected_version + " to report healthy...\r\n",
+                             "for /l %%I in (1,1,35) do (\r\n",
+                             "  timeout /t 1 /nobreak >nul\r\n",
+                             '  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "' + ps_health + '"\r\n',
+                             "  if not errorlevel 1 goto healthok\r\n",
+                             ")\r\n",
+                             "echo New version failed its startup health check. Rolling back.\r\n"])
+                        if known_launcher:
+                            lines.extend(['taskkill /f /im "' + launcher_name + '" >nul 2>&1\r\n',
+                                          "timeout /t 1 /nobreak >nul\r\n"])
+                        lines.extend([
+                             'if exist "' + cur + '.backup" copy /y "' + cur + '.backup" "' + cur + '" >nul\r\n',
+                             '>"' + os.path.join(app_dir(), "update-rollback.txt") + '" echo OTVM v' + expected_version + ' failed its startup health check and the previous version was restored.\r\n',
+                             "goto rollbackrelaunch\r\n",
+                             ":healthok\r\n",
+                             'del /f /q "' + os.path.join(app_dir(), "update-rollback.txt") + '" >nul 2>&1\r\n',
+                             "echo OTVM v" + expected_version + " started successfully.\r\n",
+                             "goto done\r\n",
+                             ":rollbackrelaunch\r\n",
+                             "echo Starting the restored OTVM version...\r\n",
+                             'start "" ' + relaunch + "\r\n"])
+                    else:
+                        lines.extend([":rollbackrelaunch\r\n", "goto done\r\n"])
+                    lines.extend([":done\r\n",
+                                  "timeout /t 3 /nobreak >nul\r\n",
                                   'del "%~f0"\r\n'])
                     with open(helper, "w", encoding="utf-8", newline="") as f:
                         f.writelines(lines)
@@ -12364,7 +12435,9 @@ class Handler(BaseHTTPRequestHandler):
                 def _bye():
                     import time as _t; _t.sleep(1); os._exit(0)
                 import threading as _th; _th.Thread(target=_bye, daemon=True).start()
-                return self._send(200, {"ok": True, "relaunch": bool(relaunch)})
+                return self._send(200, {"ok": True, "relaunch": bool(relaunch),
+                                        "expected_version": expected_version,
+                                        "automatic_rollback": bool(relaunch and sys.platform.startswith("win"))})
             except Exception as e:
                 return self._send(500, {"ok": False, "error": str(e)})
 
@@ -13661,6 +13734,15 @@ def run_self_tests():
           'if not bool(load_config().get("dev_mode"))' in source_text and
           '"instance": _SERVER_INSTANCE_ID' in source_text and
           "String(ping.instance)!==oldInstance" in PAGE)
+    check("Windows updates health-check and automatically restore backup",
+          "Waiting for OTVM v" in source_text and
+          "New version failed its startup health check. Rolling back." in source_text and
+          'copy /y \"' in source_text and ".backup" in source_text and
+          "update-rollback.txt" in source_text)
+    check("browser explains verification, startup testing, and rollback",
+          "downloaded and verified" in PAGE and
+          "automatically restore the backup if startup fails" in PAGE and
+          "restored v" in PAGE and "/api/update_status" in PAGE)
     check("movie favorite tooltip follows current state",
           "tr('Remove from Favorites')" in PAGE and
           "starEl.title=tr(" in PAGE)
