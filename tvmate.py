@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b441"
+VERSION = "0.777.b442"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -12916,6 +12916,11 @@ def _existing_tvmate(port):
 
 def main():
     global _ACTIVE_PORT
+    # INTENTIONAL TEST RELEASE: b442 must fail startup so b441's transactional
+    # updater can prove backup restoration, browser reporting, and quarantine.
+    # Remove this guard in b443 immediately after the rollback test is complete.
+    if VERSION == "0.777.b442":
+        raise RuntimeError("Intentional b442 startup failure for updater rollback test")
     port = PORT
     if "--port" in sys.argv:
         try:
