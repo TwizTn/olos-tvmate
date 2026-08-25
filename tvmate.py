@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b438"
+VERSION = "0.777.b439"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5203,7 +5203,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamtab.on{background:var(--acc);border-color:var(--acc);color:#08131f;font-weight:600}
  .teamtab:hover{filter:brightness(1.1)}
  #teamFixtures{display:flex;gap:12px;align-items:flex-start;overflow-x:auto;padding:2px 1px 10px;scrollbar-color:#48515f transparent;scrollbar-width:thin;scroll-snap-type:x proximity}
- #teamFixtures>.card{flex:0 0 min(410px,88vw);margin:0;scroll-snap-align:start}
+ #teamFixtures>.card{flex:0 0 min(480px,92vw);margin:0;scroll-snap-align:start}
  .matchfixture{padding:0!important;overflow:hidden;border-color:var(--line2)!important;background:linear-gradient(180deg,#181c23,#15181e)!important}
  .matchfixturehead{padding:13px 14px 12px;border-bottom:1px solid var(--line);background:rgba(27,32,41,.75)}
  .matchfixtureteamsline{display:flex;align-items:center;gap:9px;min-width:0}.matchfixtureteam{display:flex;align-items:center;gap:7px;min-width:0;font-size:14px;font-weight:650}.matchfixtureteam span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -5230,6 +5230,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .matchchan .favstar.on{color:#f5c542}
  .chn{font-size:13px}.fixturechanneltitle{cursor:pointer}.fixturechanneltitle:hover{color:var(--acc)}
  .chbtns{display:flex;gap:6px;flex-shrink:0}
+ .matchfixture .chbtns{gap:4px}.matchfixture .btnplay,.matchfixture .btnvlc{padding-left:8px;padding-right:8px;margin-right:0}
  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
  .pclose{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
  .pclose:hover{color:var(--fg);filter:none}
@@ -7904,6 +7905,11 @@ function preferredChannelSort(a,b){
   return channelLocalePriority(b)-channelLocalePriority(a)||sure(b)-sure(a)||channelMatchPriority(b)-channelMatchPriority(a)||Number(b.score||0)-Number(a.score||0)||String(a.xtream_name||'').localeCompare(String(b.xtream_name||''));
 }
 function channelMatchPriority(ch){if(ch&&ch.fixture_match==='exact')return 500;if(ch&&ch.league_match===true&&/viaplay/i.test(String(ch.matched||'')))return 400;if(ch&&ch.fixture_match==='partial')return 300;if(ch&&ch.league_match===true)return 200;return Math.round(Number(ch&&ch.score||0)*100);}
+function preferredExactProvider(ch){
+  // Exact foreign listings remain available in their country group, but the
+  // primary secure list is reserved for fixture/EPG proof and Nordic/4K feeds.
+  return !!(ch&&ch.provider_exact===true&&channelLocalePriority(ch)>300);
+}
 function groupedPossibleChannels(rows){
   const groups=new Map();for(const ch of rows.slice().sort(preferredChannelSort)){const category=String(ch.category||tr('Other possible channels'));if(!groups.has(category))groups.set(category,[]);groups.get(category).push(ch);}
   const categoryTier=category=>{const text=String(category||'');if(/(^|[^a-z0-9])(no|nor|norway|norge|norwegian)([^a-z0-9]|$)/i.test(text))return 400;if(/(^|[^a-z0-9])(se|swe|sweden|swedish)([^a-z0-9]|$)/i.test(text))return 300;if(/(^|[^a-z0-9])(dk|den|dnk|denmark|danish)([^a-z0-9]|$)/i.test(text))return 200;if(/\\b(4k|uhd)\\b/i.test(text))return 100;return 0;};
@@ -7932,7 +7938,7 @@ function renderFixtureCard(f,fi){
   // Pull every definite fixture-title hit into one visible section before
   // the broader broadcaster/provider categories. Keep those categories broad.
   const strictSeen=new Set(),strictResults=[];
-  [...(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true||m.competition_secure===true||customPremierLeagueSecure(m,f)),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||m.provider_exact===true||m.epg_confirmed===true||m.competition_secure===true||customPremierLeagueSecure(m,f))].forEach(function(m){
+  [...(f.ppv_hits||[]).filter(m=>fixtureChannelRank(m,f)===3||preferredExactProvider(m)||m.epg_confirmed===true||m.competition_secure===true||customPremierLeagueSecure(m,f)),...(f.matches||[]).filter(m=>fixtureChannelRank(m,f)===3||preferredExactProvider(m)||m.epg_confirmed===true||m.competition_secure===true||customPremierLeagueSecure(m,f))].forEach(function(m){
     const key=String(m.stream_id||'');
     if(key&&!strictSeen.has(key)){strictSeen.add(key);strictResults.push(m);}
   });
@@ -8036,7 +8042,7 @@ function playbtns(sid,name,url,showCopy){
     +'<button class="btnvlc" data-sid="'+s+'">&#9658; VLC</button>'
     +(showCopy?'<button class="copy" data-url="'+u+'">'+tr('Copy URL')+'</button>':'');
 }
-let _hls=null,_mpegts=null;
+let _hls=null,_mpegts=null,_browserPlayRequest=0,_browserPendingSid='';
 function destroyMpegtsPlayer(p){
   if(!p)return;
   try{p.pause();}catch(e){}try{p.unload();}catch(e){}try{p.detachMediaElement();}catch(e){}try{p.destroy();}catch(e){}
@@ -8092,6 +8098,10 @@ async function playBrowser(sid,name){
   const modal=document.getElementById('playerModal');
   const video=document.getElementById('pVideo');
   const msg=document.getElementById('pMsg');
+  const sidKey=String(sid);
+  if(_browserPendingSid===sidKey)return;
+  _browserPendingSid=sidKey;
+  const request=++_browserPlayRequest;
   document.getElementById('pTitle').textContent=name||'Player';
   msg.textContent='Loading...';
   modal.classList.remove('hide');
@@ -8102,7 +8112,8 @@ async function playBrowser(sid,name){
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
   if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
   let urls;
-  try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){msg.textContent='Could not build stream URL.';return;}
+  try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){if(request===_browserPlayRequest)msg.textContent='Could not build stream URL.';return;}finally{if(request===_browserPlayRequest)_browserPendingSid='';}
+  if(request!==_browserPlayRequest)return;
   const controller=startSmartStream(video,urls,s=>msg.textContent=s,function(h,t){_hls=h;_mpegts=t;});
   modal._playbackController=controller;
 }
@@ -8164,6 +8175,7 @@ function syncPlayerFullscreenExit(){
 document.addEventListener('fullscreenchange',syncPlayerFullscreenExit);
 document.addEventListener('webkitfullscreenchange',syncPlayerFullscreenExit);
 function closePlayer(){
+  _browserPlayRequest++;_browserPendingSid='';
   const modal=document.getElementById('playerModal');
   const video=document.getElementById('pVideo');
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
@@ -9287,6 +9299,7 @@ function toast(msg,duration){
 let _tvSource='__fav__';   // '__fav__' or a category name
 let _tvChannels=[];
 let _tvPlaying=null;
+let _tvPlayRequest=0,_tvPendingSid='';
 async function initMytv(){
   await buildTvRail();
   await loadTvSource('__fav__');
@@ -9466,6 +9479,10 @@ function tvSetMini(mini){
 }
 async function tvPlay(sid,name){
   const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
+  const sidKey=String(sid);
+  if(_tvPendingSid===sidKey)return;
+  _tvPendingSid=sidKey;
+  const request=++_tvPlayRequest;
   const wasMini=slot.classList.contains('mini');
   _tvPlaying=sid;
   slot.classList.add('on');
@@ -9474,9 +9491,10 @@ async function tvPlay(sid,name){
   tvSetMini(wasMini);
   renderTvGuide();
   const video=document.getElementById('tvVideo');
-  let urls;
-  try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){return;}
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
+  let urls;
+  try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){return;}finally{if(request===_tvPlayRequest)_tvPendingSid='';}
+  if(request!==_tvPlayRequest)return;
   window._tvPlaybackController=startSmartStream(video,urls,function(s){
     const bar=slot.querySelector('.tvplayerbar span');if(bar)bar.title=s||'';
   },function(h,t){window._tvhls=h;window._tvmpegts=t;});
@@ -9495,6 +9513,7 @@ function tvToggleMini(){
   tvSetMini(true);
 }
 function tvStop(){
+  _tvPlayRequest++;_tvPendingSid='';
   _tvPlaying=null;
   document.body.classList.remove('tvsectionplay');
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
@@ -13198,6 +13217,11 @@ def run_self_tests():
           "items.length-5" in PAGE and
           "secureQualityPriority(b)-secureQualityPriority(a)" in PAGE and
           "securematchexpand" in PAGE)
+    check("sports cards show longer channel titles and avoid duplicate player launches",
+          "min(480px,92vw)" in PAGE and
+          "preferredExactProvider(m)" in PAGE and
+          "_browserPendingSid===sidKey" in PAGE and
+          "_tvPendingSid===sidKey" in PAGE)
     check("secure show-more expands on its first click",
           "querySelectorAll('.securematchextra[data-secure-group=" in PAGE)
     check("possible channel categories use shared locale ordering",
