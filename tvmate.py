@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b442"
+VERSION = "0.777.b443"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6646,7 +6646,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <div id="updateBanner" class="updatebanner hide">
   <span id="updateMsg"></span>
   <button onclick="doUpdateNow()" id="updateNowBtn" data-i18n="Update now">Update now</button>
-  <button class="ghost" onclick="dismissUpdate()" data-i18n="Later">Later</button>
+  <button class="ghost" onclick="dismissUpdate()" id="updateLaterBtn" data-i18n="Later">Later</button>
 </div>
 <div id="playerModal" class="pmodal hide" onclick="if(event.target===this)closePlayer()">
   <div class="pbox">
@@ -9812,6 +9812,8 @@ async function checkForUpdate(manual){
     const j=await api('/api/update_check');
     if(j.available&&j.latest){
       _updateLatest=j.latest;
+      const updateBtn=document.getElementById('updateNowBtn');updateBtn.classList.remove('hide');updateBtn.textContent=tr('Update now');updateBtn.disabled=false;updateBtn.onclick=doUpdateNow;
+      document.getElementById('updateLaterBtn').classList.remove('hide');
       document.getElementById('updateMsg').textContent=tr('Update available')+': v'+j.latest+' ('+tr('you have')+' v'+j.current+')';
       document.getElementById('updateBanner').classList.remove('hide');
     }else if(j.skipped_bad_version&&j.rejected_version){
@@ -9860,7 +9862,7 @@ async function doUpdateRestart(){
           }
           if(ping&&ping.app==='olos-tvmate'&&expected&&String(ping.version)!==expected&&Date.now()-started>45000){
             document.getElementById('updateMsg').textContent='The new version did not start correctly. OTVM restored v'+String(ping.version||'the previous version')+' from backup and will skip the bad update until a newer release is available.';
-            btn.textContent=tr('Later');btn.disabled=false;btn.onclick=dismissUpdate;return;
+            btn.classList.add('hide');document.getElementById('updateLaterBtn').classList.remove('hide');return;
           }
         }catch(e){}
         if(Date.now()-started<90000)setTimeout(waitForRestart,1500);
@@ -9878,7 +9880,7 @@ async function checkUpdateRecovery(){
     if(!j.rollback)return false;
     _updateRollbackVisible=true;
     document.getElementById('updateMsg').textContent=j.message||'A failed update was rolled back and the previous OTVM version was restored.';
-    const btn=document.getElementById('updateNowBtn');btn.textContent=tr('Later');btn.disabled=false;btn.onclick=dismissUpdate;
+    document.getElementById('updateNowBtn').classList.add('hide');document.getElementById('updateLaterBtn').classList.remove('hide');
     document.getElementById('updateBanner').classList.remove('hide');return true;
   }catch(e){return false;}
 }
@@ -12444,6 +12446,7 @@ class Handler(BaseHTTPRequestHandler):
                                      expected_version.replace("'", "''") + "') { exit 1 }; exit 0 "
                                      '} catch { exit 1 }')
                         lines.extend([
+                             '>"' + os.path.join(app_dir(), "update-in-progress.txt") + '" echo ' + expected_version + '\r\n',
                              'start "" ' + relaunch + "\r\n",
                              "echo Waiting for OTVM v" + expected_version + " to report healthy...\r\n",
                              "for /l %%I in (1,1,35) do (\r\n",
@@ -12461,11 +12464,13 @@ class Handler(BaseHTTPRequestHandler):
                              '>"' + os.path.join(app_dir(), "update-rollback.txt") + '" echo OTVM v' + expected_version + ' failed its startup health check. The previous version was restored, and the bad update will be skipped until a newer release is available.\r\n',
                              "goto rollbackrelaunch\r\n",
                              ":healthok\r\n",
+                             'del /f /q "' + os.path.join(app_dir(), "update-in-progress.txt") + '" >nul 2>&1\r\n',
                              'del /f /q "' + os.path.join(app_dir(), "update-rollback.txt") + '" >nul 2>&1\r\n',
                              'del /f /q "' + os.path.join(app_dir(), "update-rejected.txt") + '" >nul 2>&1\r\n',
                              "echo OTVM v" + expected_version + " started successfully.\r\n",
                              "goto done\r\n",
                              ":rollbackrelaunch\r\n",
+                             'del /f /q "' + os.path.join(app_dir(), "update-in-progress.txt") + '" >nul 2>&1\r\n',
                              "echo Starting the restored OTVM version...\r\n",
                              'start "" ' + relaunch + "\r\n"])
                     else:
@@ -12916,11 +12921,6 @@ def _existing_tvmate(port):
 
 def main():
     global _ACTIVE_PORT
-    # INTENTIONAL TEST RELEASE: b442 must fail startup so b441's transactional
-    # updater can prove backup restoration, browser reporting, and quarantine.
-    # Remove this guard in b443 immediately after the rollback test is complete.
-    if VERSION == "0.777.b442":
-        raise RuntimeError("Intentional b442 startup failure for updater rollback test")
     port = PORT
     if "--port" in sys.argv:
         try:
@@ -13844,6 +13844,11 @@ def run_self_tests():
           "remote == _rejected_update_version()" in source_text and
           "skipped_bad_version" in source_text and
           "will skip the bad update until a newer release is available" in source_text)
+    check("managed update failures stay in browser with one dismiss action",
+          "update-in-progress.txt" in source_text and
+          "and not managed_update" in source_text and
+          'id="updateLaterBtn"' in PAGE and
+          "getElementById('updateNowBtn').classList.add('hide')" in PAGE)
     check("movie favorite tooltip follows current state",
           "tr('Remove from Favorites')" in PAGE and
           "starEl.title=tr(" in PAGE)
@@ -13867,7 +13872,8 @@ if __name__ == "__main__":
                 import traceback
                 error_path = os.path.join(app_dir(), "startup-error.txt")
                 _atomic_write_bytes(error_path, traceback.format_exc().encode("utf-8"))
-                if sys.platform.startswith("win"):
+                managed_update = os.path.exists(os.path.join(app_dir(), "update-in-progress.txt"))
+                if sys.platform.startswith("win") and not managed_update:
                     os.startfile(error_path)  # type: ignore[attr-defined]
             except Exception:
                 pass
