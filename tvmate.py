@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b439"
+VERSION = "0.777.b440"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4666,6 +4666,12 @@ def rank_fixture_channels(rows, home, away):
     ranked.sort(key=lambda item: (-item[0], -item[1], item[2]))
     return [item[3] for item in ranked]
 
+def _filter_streaming_platform_slots(rows):
+    """Do not guess a numbered OTT event slot from the platform name alone."""
+    return [row for row in rows
+            if not _is_streaming(row.get("matched")) or
+            row.get("fixture_match") == "exact"]
+
 def find_team_channels(team_terms, xtream_channels, cats, x):
     """Find plausible match-specific PPV/event channels.
 
@@ -4843,7 +4849,7 @@ def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
 def _sports_cache_signature(cfg, x):
-    return "football-v32|" + _vod_cache_key(x) + "|" + str(
+    return "football-v33|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
 
 def _sports_result_for_storage(result):
@@ -5027,6 +5033,11 @@ def _match_sports_fixture_channels(fixture, cfg, channels, cats, x):
             match_channels(fixture.get("by_country") or {}, channels, cats, threshold,
                            fixture.get("league_name") or ""),
             fixture.get("home"), fixture.get("away"))
+    # An OTT listing (TV 2 Play, Viaplay, DAZN, etc.) proves the platform, not
+    # which numbered event slot carries this fixture. Only retain one of those
+    # slots when its visible channel title names both teams; cached EPG can
+    # independently confirm channels whose catalogue name is generic.
+    matches = _filter_streaming_platform_slots(matches)
     for row in matches:
         row["url"] = x.stream_url(row["stream_id"])
         league = normalise_event_name(fixture.get("league_name") or "")
@@ -5231,6 +5242,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .chn{font-size:13px}.fixturechanneltitle{cursor:pointer}.fixturechanneltitle:hover{color:var(--acc)}
  .chbtns{display:flex;gap:6px;flex-shrink:0}
  .matchfixture .chbtns{gap:4px}.matchfixture .btnplay,.matchfixture .btnvlc{padding-left:8px;padding-right:8px;margin-right:0}
+ .fixturechannelresults .racingeventchannel,.matchfixture .chline{display:grid;grid-template-columns:22px minmax(0,1fr);align-items:center;column-gap:8px;row-gap:6px}
+ .fixturechannelresults .racingeventchannel>.chn,.matchfixture .chline>.matchchan{grid-column:2;min-width:0;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+ .fixturechannelresults .racingeventchannel>.chanlogo,.matchfixture .chline>.matchchan>.chanlogo{grid-column:1;grid-row:1}
+ .fixturechannelresults .racingeventchannel>.chbtns,.matchfixture .chline>.chbtns{grid-column:2;grid-row:2;justify-content:flex-start}
  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
  .pclose{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
  .pclose:hover{color:var(--fg);filter:none}
@@ -7251,7 +7266,7 @@ function openMyTeamsFixture(target){
 function fixtureStoredChannelsHtml(f){
   if(!f.logged_in)return '<span class="muted">'+esc(tr('Log in via Settings first.'))+'</span>';
   const all=[...(f.matches||[]),...(f.ppv_hits||[])],seen=new Set(),definite=[],other=[];
-  for(const ch of all){const id=String(ch.stream_id||'');if(!id||seen.has(id))continue;seen.add(id);if(fixtureChannelRank(ch,f)===3||ch.provider_exact===true||ch.competition_secure===true||customPremierLeagueSecure(ch,f))definite.push(ch);else other.push(ch);}
+  for(const ch of all){const id=String(ch.stream_id||'');if(!id||seen.has(id))continue;seen.add(id);if(fixtureChannelRank(ch,f)===3||preferredExactProvider(ch)||ch.epg_confirmed===true||ch.competition_secure===true||customPremierLeagueSecure(ch,f))definite.push(ch);else other.push(ch);}
   definite.sort(preferredChannelSort);other.sort(preferredChannelSort);
   const line=ch=>'<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn fixturechanneltitle" data-sid="'+escAttr(String(ch.stream_id||''))+'" data-name="'+escAttr(ch.xtream_name||'Channel')+'">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
   let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+secureMatchGroupsHtml(definite,line,'stored'+Math.random().toString(36).slice(2));
@@ -13222,6 +13237,9 @@ def run_self_tests():
           "preferredExactProvider(m)" in PAGE and
           "_browserPendingSid===sidKey" in PAGE and
           "_tvPendingSid===sidKey" in PAGE)
+    check("compact fixture rows preserve titles and reject unrelated OTT slots",
+          "grid-template-columns:22px minmax(0,1fr)" in PAGE and
+          "preferredExactProvider(ch)" in PAGE)
     check("secure show-more expands on its first click",
           "querySelectorAll('.securematchextra[data-secure-group=" in PAGE)
     check("possible channel categories use shared locale ordering",
@@ -13455,6 +13473,15 @@ def run_self_tests():
     platform_ids = {row["stream_id"] for row in match_channels(
         {"NO": ["TV 2 Play (NO)"]}, sample_channels, sample_cats, 0.49)}
     check("streaming platform candidates retained", platform_ids == {5})
+    check("unrelated numbered streaming slots are removed from fixture results",
+          [row["stream_id"] for row in _filter_streaming_platform_slots([
+              {"stream_id": 5, "matched": "TV 2 Play (NO)",
+               "fixture_match": "generic"},
+              {"stream_id": 6, "matched": "TV 2 Play (NO)",
+               "fixture_match": "exact"},
+              {"stream_id": 7, "matched": "TV 2 Sport 1",
+               "fixture_match": "generic"},
+          ])] == [6, 7])
     platform_noise = match_channels(
         {"PT": ["MEO"], "ES": ["DAZN"], "DK": ["Viaplay Denmark"]},
         [{"name": "PT|MEO: CNN PORTUGAL", "stream_id": 51,
