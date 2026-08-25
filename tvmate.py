@@ -40,8 +40,6 @@ import difflib
 import threading
 import webbrowser
 import hashlib
-import hmac
-import ipaddress
 import shutil
 import datetime
 import socket
@@ -130,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b435"
+VERSION = "0.777.b436"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -214,13 +212,37 @@ def _local_lan_ip():
 def _parse_tailscale_ipv4(output):
     for line in str(output or "").splitlines():
         value = line.strip()
-        try:
-            address = ipaddress.ip_address(value)
-        except ValueError:
-            continue
-        if address.version == 4 and address in ipaddress.ip_network("100.64.0.0/10"):
+        if _is_tailscale_ipv4(value):
             return value
     return ""
+
+def _ipv4_number(value):
+    try:
+        packed = socket.inet_aton(str(value or ""))
+        return int.from_bytes(packed, "big") if len(packed) == 4 else None
+    except OSError:
+        return None
+
+def _is_tailscale_ipv4(value):
+    number = _ipv4_number(value)
+    return number is not None and 0x64400000 <= number <= 0x647fffff
+
+def _unsafe_relay_address(value):
+    number = _ipv4_number(value)
+    if number is not None:
+        ranges = ((0x00000000, 0x00ffffff), (0x0a000000, 0x0affffff),
+                  (0x64400000, 0x647fffff), (0x7f000000, 0x7fffffff),
+                  (0xa9fe0000, 0xa9feffff), (0xac100000, 0xac1fffff),
+                  (0xc0000000, 0xc00000ff), (0xc0a80000, 0xc0a8ffff),
+                  (0xc6120000, 0xc613ffff), (0xe0000000, 0xffffffff))
+        return any(start <= number <= end for start, end in ranges)
+    try:
+        packed = socket.inet_pton(socket.AF_INET6, str(value or ""))
+        return (packed == b"\x00" * 15 + b"\x01" or packed == b"\x00" * 16 or
+                packed[0] == 0xff or (packed[0] & 0xfe) == 0xfc or
+                (packed[0] == 0xfe and (packed[1] & 0xc0) == 0x80))
+    except OSError:
+        return True
 
 def _tailscale_ipv4():
     """Return this device's active Tailscale IPv4 address, if available."""
@@ -266,6 +288,17 @@ def _relay_signing_key(cfg=None):
     cfg = cfg or load_config()
     return str(cfg.get("lan_access_token") or "").encode("utf-8")
 
+def _hmac_sha256(key, message):
+    """HMAC-SHA256 without importing modules absent from legacy launchers."""
+    block_size = 64
+    key = bytes(key)
+    if len(key) > block_size:
+        key = hashlib.sha256(key).digest()
+    key = key.ljust(block_size, b"\0")
+    inner = bytes(byte ^ 0x36 for byte in key)
+    outer = bytes(byte ^ 0x5c for byte in key)
+    return hashlib.sha256(outer + hashlib.sha256(inner + bytes(message)).digest()).hexdigest()
+
 def _relay_token(target, lifetime=6 * 3600, cfg=None):
     key = _relay_signing_key(cfg)
     if not key:
@@ -286,15 +319,15 @@ def _relay_token(target, lifetime=6 * 3600, cfg=None):
             _RELAY_TOKENS[token_id] = (target, expires)
             if lifetime > 300:
                 _RELAY_TARGET_TOKENS[target] = token_id
-    signature = hmac.new(key, token_id.encode("ascii"), hashlib.sha256).hexdigest()
+    signature = _hmac_sha256(key, token_id.encode("ascii"))
     return token_id + "." + signature
 
 def _relay_target(token, cfg=None):
     try:
         token_id, signature = str(token or "").rsplit(".", 1)
         key = _relay_signing_key(cfg)
-        expected = hmac.new(key, token_id.encode("ascii"), hashlib.sha256).hexdigest()
-        if not key or not hmac.compare_digest(signature, expected):
+        expected = _hmac_sha256(key, token_id.encode("ascii"))
+        if not key or not _secure_equal(signature, expected):
             return ""
         with _RELAY_TOKEN_LOCK:
             record = _RELAY_TOKENS.get(token_id)
@@ -321,11 +354,7 @@ def _safe_relay_target(target, initial=False, cfg=None):
     try:
         addresses = {item[4][0] for item in socket.getaddrinfo(parsed.hostname, parsed.port or 443,
                                                                 type=socket.SOCK_STREAM)}
-        return bool(addresses) and all(not (ipaddress.ip_address(address).is_private or
-                                            ipaddress.ip_address(address).is_loopback or
-                                            ipaddress.ip_address(address).is_link_local or
-                                            ipaddress.ip_address(address).is_reserved)
-                                       for address in addresses)
+        return bool(addresses) and all(not _unsafe_relay_address(address) for address in addresses)
     except (OSError, ValueError):
         return False
 
@@ -9998,10 +10027,7 @@ class Handler(BaseHTTPRequestHandler):
         return str(self.client_address[0]) in ("127.0.0.1", "::1")
 
     def _is_private_remote_listener(self):
-        try:
-            return ipaddress.ip_address(str(self.server.server_address[0])) in ipaddress.ip_network("100.64.0.0/10")
-        except ValueError:
-            return False
+        return _is_tailscale_ipv4(str(self.server.server_address[0]))
 
     def _authorize_lan(self, parsed):
         """Authorize remote LAN browsers; localhost remains passwordless."""
