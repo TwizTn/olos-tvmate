@@ -122,7 +122,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b433"
+VERSION = "0.777.b434"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2899,12 +2899,39 @@ def featured_daily_fixtures():
                     "status_known": True, "by_country": {}, "favorite_teams": []})
     return sorted(out, key=lambda row: row.get("start") or "")
 
-def search_daily_matches(term):
+def _team_squad_variant(name):
+    """Classify explicit non-senior team markers without guessing from club names."""
+    value = str(name or "").lower().strip()
+    normalized = re.sub(r"[^a-z0-9æøå]+", " ", value).strip()
+    if re.search(r"(?:^|\s)(?:women|womens|ladies|kvinner|damer|femmes|femenin[oa]|w)(?:\s|$)", normalized):
+        return "women"
+    youth = re.search(r"(?:^|\s)u(?:17|18|19|20|21|23)(?:\s|$)", normalized)
+    if youth:
+        return youth.group(0).strip()
+    if re.search(r"(?:^|\s)(?:reserves?|academy|b|ii)(?:\s|$)", normalized):
+        return "reserve"
+    return "senior"
+
+def _daily_match_involves_team(match, term, team_id=""):
+    home_obj = match.get("home") or {}
+    away_obj = match.get("away") or {}
+    requested_id = str(team_id or "").strip()
+    home_id = str(home_obj.get("id") or "").strip()
+    away_id = str(away_obj.get("id") or "").strip()
+    if requested_id and (home_id or away_id):
+        return requested_id in (home_id, away_id)
+    term_l = str(term or "").lower().strip()
+    wanted = _expand_terms(term_l)
+    wanted_variant = _team_squad_variant(term_l)
+    return any(_team_squad_variant(name) == wanted_variant and
+               _team_field_matches(name, wanted, term_l)
+               for name in (home_obj.get("name"), away_obj.get("name")))
+
+def search_daily_matches(term, team_id=""):
     """Find today's live/upcoming fixtures independent of TV coverage."""
     term_l = str(term or "").lower().strip()
     if not term_l:
         return []
-    wanted = _expand_terms(term_l)
     out = []
     for match in fetch_fotmob_daily_matches():
         home_obj = match.get("home") or {}
@@ -2914,8 +2941,7 @@ def search_daily_matches(term):
             continue
         home = str(home_obj.get("name") or "")
         away = str(away_obj.get("name") or "")
-        if not (_team_field_matches(home, wanted, term_l) or
-                _team_field_matches(away, wanted, term_l)):
+        if not _daily_match_involves_team(match, term_l, team_id):
             continue
         start = str(status.get("utcTime") or match.get("startDate") or "")
         is_finished = bool(status.get("finished"))
@@ -3578,6 +3604,8 @@ def _team_names_equivalent(a, b):
     a = str(a or "").lower().strip()
     b = str(b or "").lower().strip()
     if not (a and b):
+        return False
+    if _team_squad_variant(a) != _team_squad_variant(b):
         return False
     return a == b or b in _expand_terms(a) or a in _expand_terms(b)
 
@@ -7645,7 +7673,7 @@ function fixtureMatchesDeepLink(f){
   if(!_teamDeepLink.start||!f.start)return true;
   const a=new Date(f.start).getTime(),b=new Date(_teamDeepLink.start).getTime();return Number.isFinite(a)&&Number.isFinite(b)?Math.abs(a-b)<6*3600000:true;
 }
-function _teamNamesEquivalentForUi(a,b){const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').trim();const x=clean(a),y=clean(b);return !!x&&!!y&&(x===y||x.includes(y)||y.includes(x));}
+function _teamNamesEquivalentForUi(a,b){const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').trim();const variant=s=>{const x=clean(s);if(/(^| )(women|womens|ladies|kvinner|damer|femmes|femenina|femenino|w)( |$)/.test(x))return'women';const youth=x.match(/(^| )u(17|18|19|20|21|23)( |$)/);if(youth)return'u'+youth[2];if(/(^| )(reserves?|academy|b|ii)( |$)/.test(x))return'reserve';return'senior';};const x=clean(a),y=clean(b);return !!x&&!!y&&variant(x)===variant(y)&&(x===y||x.includes(y)||y.includes(x));}
 function fixtureChannelRank(m,f){
   const clean=s=>String(s||'').toLowerCase().replace(/[^a-z0-9æøå]+/g,' ').replace(/\\s+/g,' ').trim();
   const name=clean(m&&m.xtream_name),home=clean(f&&f.home),away=clean(f&&f.away);
@@ -11072,7 +11100,7 @@ class Handler(BaseHTTPRequestHandler):
                     # A week-long schedule cache is fine for future fixtures, but live
                     # state must come from today's short-lived feed on every render.
                     try:
-                        daily_team = search_daily_matches(team_name)
+                        daily_team = search_daily_matches(team_name, team_id)
                     except Exception as e:
                         errors.append(f"{team_name} live status: {e}")
                         daily_team = []
@@ -11082,10 +11110,8 @@ class Handler(BaseHTTPRequestHandler):
                         for fixture in fixtures:
                             if dday and str(fixture.get("start") or "")[:10] != dday:
                                 continue
-                            home_ok = (normalise(fixture.get("home", "")) == normalise(daily.get("home", "")) or
-                                       daily.get("home", "").lower() in _expand_terms(fixture.get("home", "").lower()))
-                            away_ok = (normalise(fixture.get("away", "")) == normalise(daily.get("away", "")) or
-                                       daily.get("away", "").lower() in _expand_terms(fixture.get("away", "").lower()))
+                            home_ok = _team_names_equivalent(fixture.get("home"), daily.get("home"))
+                            away_ok = _team_names_equivalent(fixture.get("away"), daily.get("away"))
                             if home_ok and away_ok:
                                 duplicate = fixture
                                 break
@@ -12635,6 +12661,16 @@ def run_self_tests():
     check("FotMob Nottm Forest abbreviation matches LTV Nottingham Forest",
           _team_names_equivalent("Nottm Forest", "Nottingham Forest") and
           _team_names_equivalent("Nottingham Forest", "Nottm Forest"))
+    check("senior favorites do not match women or reserve squads",
+          not _team_names_equivalent("Brann", "Brann (W)") and
+          not _team_names_equivalent("Brann", "Brann B"))
+    check("daily favorites use exact team ids when supplied",
+          not _daily_match_involves_team(
+              {"home": {"id": 22, "name": "Brann (W)"},
+               "away": {"id": 23, "name": "Austria Wien W"}}, "Brann", "21") and
+          _daily_match_involves_team(
+              {"home": {"id": 21, "name": "Brann"},
+               "away": {"id": 24, "name": "PAOK"}}, "Brann", "21"))
     abbreviated_fixture = [{"home": "Nottm Forest", "away": "Leeds United",
                             "start": "2026-08-22T14:00:00Z", "by_country": {}}]
     _overlay_fixture_rows(abbreviated_fixture, [{
