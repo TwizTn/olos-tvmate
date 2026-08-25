@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b446"
+VERSION = "0.777.b447"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4850,7 +4850,7 @@ _RACING_CHANNEL_TERMS = {
     "wec": ("wec", "world endurance"),
     "formulae": ("formula e", "formulae"),
     "motogp": ("motogp", "moto gp"),
-    "wrc": ("wrc", "world rally"),
+    "wrc": ("wrc", "world rally", "rally tv", "rally"),
 }
 _RACING_AVAILABILITY_CACHE = {"key": "", "ts": 0, "availability": {}}
 _RACING_AVAILABILITY_TTL = 15 * 60
@@ -5099,6 +5099,7 @@ def find_racing_channels(event, xtream_channels, cats, x):
                            if word not in event_words)
     session = normalise(str(event.get("session") or ""))
     session_terms = set(_distinctive(session.split()))
+    session_terms.difference_update({"race", "rally", "weekend"})
     if "qualifying" in session_terms:
         session_terms.add("kvalifisering")
     if "sprint" in session_terms:
@@ -8643,6 +8644,15 @@ function racingEventHtml(event){
 }
 function racingAvailabilityKey(event){return [event.series||'',event.race||'',event.session||'',event.start||''].join('|');}
 function applyRacingAvailability(map,events){for(const event of (events||[]))event.channels=(map&&map[racingAvailabilityKey(event)])||[];}
+function racingVisibleSeriesEvents(events,series,defaultLimit){
+  const data=row=>row.event||row,stamp=row=>row.ts||new Date(data(row).start).getTime();
+  const rows=(events||[]).slice().sort((a,b)=>stamp(a)-stamp(b));
+  if(series!=='f1'||!rows.length)return rows.slice(0,defaultLimit);
+  // F1 has several sessions before Sunday. Keep the complete nearest weekend
+  // so an early-session limit can never hide qualifying, sprint, or the race.
+  const first=data(rows[0]),weekend=rows.filter(row=>{const event=data(row);return String(event.round||'')===String(first.round||'')&&String(event.race||'')===String(first.race||'');});
+  return (weekend.length?weekend:rows).slice(0,6);
+}
 function renderRacingScheduleCards(){
   const info=document.getElementById('racingInfo');if(!info)return;const now=Date.now(),groups=new Map();
   // Remember which event cards are currently expanded so a re-render (e.g. when
@@ -8656,7 +8666,7 @@ function renderRacingScheduleCards(){
   const selectedSeries=_racingDetailKey==='f1-team'?'f1':String((selectedDriver&&selectedDriver.series)||'');
   for(const event of _racingEventRows){const ts=new Date(event.start).getTime(),live=racingEventIsLive(event,now);if(!Number.isFinite(ts)||(!live&&ts<now-24*3600000))continue;const key=event.series||'racing';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(event);}
   let h='';const orderedSeries=_RACING_SERIES.filter(row=>_racingSelected.has(row[0])).sort((a,b)=>(a[0]===selectedSeries?-1:0)-(b[0]===selectedSeries?-1:0));
-  for(const row of orderedSeries){const events=(groups.get(row[0])||[]).slice(0,4);h+='<div class="racingcard series-'+escAttr(row[0])+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
+  for(const row of orderedSeries){const events=racingVisibleSeriesEvents(groups.get(row[0])||[],row[0],4);h+='<div class="racingcard series-'+escAttr(row[0])+(selectedSeries===row[0]?' selected':'')+'"><h3>'+racingSeriesLogo(row[0])+'<span>'+esc(row[1])+'</span></h3>'+(events.length?events.map(racingEventHtml).join(''):'<span class="muted">'+esc(tr('No upcoming events found.'))+'</span>')+'</div>';}
   info.innerHTML=h||'<span class="muted">'+esc(tr('Choose at least one racing series above.'))+'</span>';
   // Restore expanded state.
   if(openKeys.size)info.querySelectorAll('.racingevent').forEach(function(el){
@@ -9115,7 +9125,7 @@ async function loadMyListRacing(racingDataPromise){
     }
     // Keep the timeline balanced when several championships are enabled:
     // a session-heavy F1 weekend should not crowd WRC/MotoGP/etc. off it.
-    _myListF1Moments=Array.from(groups.values()).flatMap(rows=>rows.sort((a,b)=>a.ts-b.ts).slice(0,3)).sort((a,b)=>a.ts-b.ts).slice(0,18);
+    _myListF1Moments=Array.from(groups.entries()).flatMap(([series,rows])=>racingVisibleSeriesEvents(rows.sort((a,b)=>a.ts-b.ts),series,3)).sort((a,b)=>a.ts-b.ts).slice(0,18);
     scheduleMyListTimelineRender();
     try{const a=await api('/api/racing_availability');for(const row of _myListF1Moments)row.event.channels=(a.availability||{})[racingAvailabilityKey(row.event)]||[];}catch(e){}
   }catch(e){}
@@ -13813,6 +13823,19 @@ def run_self_tests():
     check("Italian GP matching rejects adjective and circuit word noise",
           not ({30, 31, 32, 33} & set(italian_kinds)) and
           italian_kinds.get(34) == "event" and italian_kinds.get(35) == "event")
+    wrc_rows = find_racing_channels(
+        {"series": "wrc", "race": "Rally del Paraguay", "circuit": "",
+         "session": "Rally weekend"},
+        [{"name": "Rally TV", "stream_id": 40, "category_id": "racing"},
+         {"name": "RALLY", "stream_id": 41, "category_id": "racing"},
+         {"name": "Rallycross TV", "stream_id": 42, "category_id": "racing"},
+         {"name": "Italian Fishing TV", "stream_id": 43,
+          "category_id": "racing"}],
+        dict(sample_cats, racing="Racing"), _TestRacingXtream())
+    wrc_kinds = {row["stream_id"]: row.get("match_kind") for row in wrc_rows}
+    check("WRC recognizes Rally TV and standalone Rally channels",
+          wrc_kinds.get(40) == "series" and wrc_kinds.get(41) == "series" and
+          42 not in wrc_kinds and 43 not in wrc_kinds)
     check("racing UI separates confirmed broadcasters from dedicated series",
           "ch.match_kind==='event'||ch.match_kind==='broadcaster'" in PAGE and
           "Confirmed racing channels" in PAGE)
@@ -13871,6 +13894,11 @@ def run_self_tests():
           "racingEvent.classList.contains('loadingchannels')" in PAGE and
           "const url=racingEvent.getAttribute('data-url')" not in PAGE and
           "racingeventsource" in PAGE)
+    check("F1 timeline and schedule retain the complete nearest race weekend",
+          "function racingVisibleSeriesEvents" in PAGE and
+          "return (weekend.length?weekend:rows).slice(0,6)" in PAGE and
+          "racingVisibleSeriesEvents(groups.get(row[0])||[],row[0],4)" in PAGE and
+          "racingVisibleSeriesEvents(rows.sort((a,b)=>a.ts-b.ts),series,3)" in PAGE)
     check("restart requires dev mode and waits for a new process instance",
           'if not bool(load_config().get("dev_mode"))' in source_text and
           '"instance": _SERVER_INSTANCE_ID' in source_text and
