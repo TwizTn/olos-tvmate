@@ -5974,10 +5974,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .racingcard.series-f2{--series-accent:#20aee5}.racingcard.series-f3{--series-accent:#e86c32}.racingcard.series-indycar{--series-accent:#d8212a}
  .racingcard.series-wec{--series-accent:#7da65a}.racingcard.series-formulae{--series-accent:#19a7b8}.racingcard.series-motogp{--series-accent:#b7bcc4}.racingcard.series-wrc{--series-accent:#f06a22}
  .racingserieslogo{display:block;width:58px;height:28px;object-fit:contain;object-position:left center;flex:0 0 auto;border:0;background:transparent}
- .racingevent{padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
+ .racingevent{padding:9px 0;border-top:1px solid var(--line);cursor:default}
  .racingevent:hover b{color:var(--acc)}
+ .racingevent.haschannels{cursor:pointer}.racingevent.loadingchannels{cursor:wait}.racingevent.loadingchannels:hover b{color:inherit}
  .racingevent:first-of-type{border-top:0}
- .racingeventtop{display:flex;align-items:center;gap:8px}.racingeventtv{margin-left:auto;background:#17351e;border-color:#327443;color:#70d889}.racingeventchannels{margin-top:9px;padding:8px;border:1px solid #294535;border-radius:7px;background:#101814}.racingeventchannels.hide{display:none}.racingeventchannel{display:flex;align-items:center;gap:8px;padding:6px 4px;border-top:1px solid rgba(255,255,255,.055)}.racingeventchannel:first-child{border-top:0}.racingeventchannel .chn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.racingeventchannel .chbtns{flex:0 0 auto}
+ .racingeventtop{display:flex;align-items:center;gap:8px}.racingeventtv{margin-left:auto;background:#17351e;border-color:#327443;color:#70d889}.racingeventloading{margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--mut);font-size:10px;white-space:nowrap}.racingeventspinner{width:12px;height:12px;border:2px solid #39424e;border-top-color:var(--acc);border-radius:50%;animation:racingeventspin .7s linear infinite}@keyframes racingeventspin{to{transform:rotate(360deg)}}.racingeventsource{color:var(--mut);text-decoration:none}.racingeventsource:hover{color:var(--acc);text-decoration:underline}.racingeventchannels{margin-top:9px;padding:8px;border:1px solid #294535;border-radius:7px;background:#101814}.racingeventchannels.hide{display:none}.racingeventchannel{display:flex;align-items:center;gap:8px;padding:6px 4px;border-top:1px solid rgba(255,255,255,.055)}.racingeventchannel:first-child{border-top:0}.racingeventchannel .chn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.racingeventchannel .chbtns{flex:0 0 auto}
  @media(max-width:1600px){.racinglayout{grid-template-columns:320px minmax(0,1fr);gap:24px}}
  @media(max-width:1000px){.racinglayout{grid-template-columns:1fr}.racingsidebar{max-width:520px}.racinggrid{grid-template-columns:1fr}.racingdetail{min-height:0}}
  .setupoverlay{position:fixed;inset:0;z-index:3000;background:rgba(5,7,10,.84);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px}
@@ -6758,7 +6759,7 @@ const _I18N={
   "Nothing airing close to now from your favorite shows.":"Ingenting sendes nær nåtid fra favorittseriene dine.","Could not load your shows.":"Kunne ikke laste seriene dine.",
   "Airs in":"Sendes om","Released":"Utgitt","Releases":"Lanseres","Just released":"Nettopp utgitt","ago":"siden","Stream found in playlist":"Strøm funnet i spillelisten",
   "Live now":"Direkte nå","Next match":"Neste kamp","Next race":"Neste løp","No upcoming race found.":"Ingen kommende løp funnet.",
-  "Choose a driver to see details.":"Velg en fører for å se detaljer.","Driver profile":"Førerprofil","Loading drivers and next race...":"Laster førere og neste løp...","Loading racing schedules...":"Laster racingterminlister...","Loading fixture...":"Laster kamp...","Loading next race...":"Laster neste løp...","Nothing happening around now.":"Ingenting skjer rundt nå.","Play":"Spill av","No upcoming events found.":"Ingen kommende arrangementer funnet.","Choose at least one racing series above.":"Velg minst én racingserie ovenfor.","Could not load racing schedules.":"Kunne ikke laste racingterminlistene.","Definite event matches":"Sikre arrangementstreff","Confirmed racing channels":"Sikre racingkanaler","Dedicated series channels":"Dedikerte seriekanaler","Possible channels by category":"Mulige kanaler etter kategori","Other possible channels":"Andre mulige kanaler",
+  "Choose a driver to see details.":"Velg en fører for å se detaljer.","Driver profile":"Førerprofil","Loading drivers and next race...":"Laster førere og neste løp...","Loading racing schedules...":"Laster racingterminlister...","Checking channels...":"Sjekker kanaler...","Event page":"Arrangementside","Loading fixture...":"Laster kamp...","Loading next race...":"Laster neste løp...","Nothing happening around now.":"Ingenting skjer rundt nå.","Play":"Spill av","No upcoming events found.":"Ingen kommende arrangementer funnet.","Choose at least one racing series above.":"Velg minst én racingserie ovenfor.","Could not load racing schedules.":"Kunne ikke laste racingterminlistene.","Definite event matches":"Sikre arrangementstreff","Confirmed racing channels":"Sikre racingkanaler","Dedicated series channels":"Dedikerte seriekanaler","Possible channels by category":"Mulige kanaler etter kategori","Other possible channels":"Andre mulige kanaler",
   "Recently":"Nylig","Upcoming":"Kommende","Right now":"Akkurat nå",
   "Favorite Channels":"Favorittkanaler","EPG Refresh":"Oppdater EPG","Channels":"Kanaler",
   "All Categories":"Alle kategorier","Selected categories":"Valgte kategorier","Filter Channels":"Kanaler","Playlist":"Spilleliste",
@@ -8480,7 +8481,7 @@ const _RACING_LOGOS={
   wrc:'https://www.canevarally.com/wp-content/uploads/2025/01/311439623_179650897941587_4314845745939251693_n-3-e1714140994320-1302x558-1.jpg'
 };
 let _racingSelected=new Set(['f1']);
-let _racingDriverRows=[],_racingEventRows=[],_racingDetailKey='';
+let _racingDriverRows=[],_racingEventRows=[],_racingDetailKey='',_racingAvailabilityLoading=false;
 function racingEventIsLive(event,now){
   now=now||Date.now();const start=new Date(event.start).getTime();if(!Number.isFinite(start))return false;
   const explicit=event.end?new Date(event.end).getTime():NaN;
@@ -8636,8 +8637,9 @@ function racingChannelSections(channels){
 function racingEventHtml(event){
   const ts=new Date(event.start),locale=_lang==='no'?'nb-NO':undefined;
   const when=event.all_day?(event.date_text||ts.toLocaleDateString(locale,{weekday:'short',day:'numeric',month:'short'})):ts.toLocaleString(locale,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-  const channels=event.channels||[],tv=channels.length?'<span class="cc racingeventtv">TV</span>':'',details=channels.length?'<div class="racingeventchannels hide">'+racingChannelSections(channels)+'</div>':'';
-  return '<div class="racingevent'+(channels.length?' haschannels':'')+'" data-url="'+escAttr(event.url||'')+'" data-evkey="'+escAttr(racingAvailabilityKey(event))+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+tv+'</div><div class="moviemeta">'+esc(when)+' · '+esc(racingSessionLabel(event))+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+'</div>'+details+'</div>';
+  const channels=event.channels||[],loading=_racingAvailabilityLoading,indicator=loading?'<span class="racingeventloading"><span class="racingeventspinner" aria-hidden="true"></span>'+esc(tr('Checking channels...'))+'</span>':(channels.length?'<span class="cc racingeventtv">TV</span>':''),details=channels.length?'<div class="racingeventchannels hide">'+racingChannelSections(channels)+'</div>':'';
+  const source=event.url?' · <a class="racingeventsource" href="'+escAttr(event.url)+'" target="_blank" rel="noopener">'+esc(tr('Event page'))+' ↗</a>':'';
+  return '<div class="racingevent'+(channels.length?' haschannels':'')+(loading?' loadingchannels':'')+'" data-evkey="'+escAttr(racingAvailabilityKey(event))+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+indicator+'</div><div class="moviemeta">'+esc(when)+' · '+esc(racingSessionLabel(event))+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+source+'</div>'+details+'</div>';
 }
 function racingAvailabilityKey(event){return [event.series||'',event.race||'',event.session||'',event.start||''].join('|');}
 function applyRacingAvailability(map,events){for(const event of (events||[]))event.channels=(map&&map[racingAvailabilityKey(event)])||[];}
@@ -8663,7 +8665,8 @@ function renderRacingScheduleCards(){
   });
 }
 async function loadRacingAvailability(){
-  try{const a=await api('/api/racing_availability');applyRacingAvailability(a.availability||{},_racingEventRows);renderRacingScheduleCards();renderRacingDriverDetail();const drivers=document.getElementById('racingDrivers');if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);}catch(e){}
+  _racingAvailabilityLoading=true;renderRacingScheduleCards();
+  try{const a=await api('/api/racing_availability');applyRacingAvailability(a.availability||{},_racingEventRows);}catch(e){}finally{_racingAvailabilityLoading=false;renderRacingScheduleCards();renderRacingDriverDetail();const drivers=document.getElementById('racingDrivers');if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);}
 }
 async function loadRacing(){
   const toggles=document.getElementById('racingSeries'),info=document.getElementById('racingInfo'),drivers=document.getElementById('racingDrivers');
@@ -8674,7 +8677,7 @@ async function loadRacing(){
     toggles.innerHTML=_RACING_SERIES.map(row=>'<button class="racingtoggle'+(_racingSelected.has(row[0])?' on':'')+'" data-key="'+row[0]+'" onclick="toggleRacingSeries(this.dataset.key)">'+esc(row[1])+'</button>').join('');
     const f1Rows=_racingDriverRows.filter(row=>row.series==='f1'),validKeys=new Set(_racingDriverRows.map(row=>String(row.key||'')));if(_racingSelected.has('f1'))validKeys.add('f1-team');
     if(!_racingDetailKey||!validKeys.has(_racingDetailKey))_racingDetailKey=_racingSelected.has('f1')?'f1-team':String((_racingDriverRows[0]||{}).key||'');
-    renderRacingTeamControl();renderRacingDriverDetail();drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);
+    _racingAvailabilityLoading=true;renderRacingTeamControl();renderRacingDriverDetail();drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);
     renderRacingScheduleCards();loadRacingAvailability();
   }catch(e){drivers.innerHTML='';info.innerHTML='<span class="err">'+esc(tr('Could not load racing schedules.'))+'</span>';}
 }
@@ -9632,7 +9635,7 @@ document.addEventListener('click',function(e){
   const timelineF1=e.target.closest('.mylisttimelinef1');
   if(timelineF1){showRacing(timelineF1.getAttribute('data-driver-key')||'');return;}
   const racingEvent=e.target.closest('.racingevent');
-  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc,.bchead')){if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');return;}const url=racingEvent.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
+  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc,.bchead,.racingeventsource')){if(racingEvent.classList.contains('loadingchannels'))return;if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');}return;}
   const lev=e.target.closest('.latestepisodevlc');
   if(lev){playLatestEpisode(lev.getAttribute('data-id'),lev.getAttribute('data-ext'),lev);return;}
   const myListShow=e.target.closest('.mylistshowcard');
@@ -13862,6 +13865,12 @@ def run_self_tests():
     check("generic PPV candidate remains a fallback",
           ranked[-1]["fixture_match"] == "generic")
     check("embedded page version", "v" + VERSION in PAGE.replace("__VERSION__", VERSION))
+    check("racing fixtures expose channel matching without opening source pages",
+          "racingeventspinner" in PAGE and
+          "_racingAvailabilityLoading=true" in PAGE and
+          "racingEvent.classList.contains('loadingchannels')" in PAGE and
+          "const url=racingEvent.getAttribute('data-url')" not in PAGE and
+          "racingeventsource" in PAGE)
     check("restart requires dev mode and waits for a new process instance",
           'if not bool(load_config().get("dev_mode"))' in source_text and
           '"instance": _SERVER_INSTANCE_ID' in source_text and
