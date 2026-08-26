@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b460"
+VERSION = "0.777.b461"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5167,14 +5167,14 @@ def find_racing_channels(event, xtream_channels, cats, x, drivers=()):
             re.search(r"(?<![a-z0-9])" + re.escape(word) +
                       r"(?![a-z0-9])", hay) for word in session_terms))
         # Providers often name a per-driver feed after the driver themselves
-        # ("Formula 1 PPV Max Verstappen"). Treat a followed driver's surname as
-        # event-level evidence when the series also matches, so those feeds are
-        # not missed just because the race title is absent.
-        driver_hit = bool(driver_terms and series_hit and any(
+        # ("Formula 1 PPV Max Verstappen", "F1: ISACK HADJAR | RED BULL | HAD UK").
+        # A followed driver's surname counts as event-level evidence when the
+        # channel also looks like this series or sits in a PPV/event bucket -
+        # the second case matters because those feeds do not always spell the
+        # series out in a way the alias list recognises.
+        driver_name_hit = bool(driver_terms and any(
             re.search(r"(?<![a-z0-9])" + re.escape(word) +
                       r"(?![a-z0-9])", hay) for word in driver_terms))
-        if driver_hit:
-            event_hit = True
         f1_feed_name = re.sub(
             r"\b(vip|gold|raw|dolby|audio|backup|feed)\b", " ", cleaned_name)
         f1_feed_name = re.sub(r"\s+", " ", f1_feed_name).strip()
@@ -5194,8 +5194,11 @@ def find_racing_channels(event, xtream_channels, cats, x, drivers=()):
             re.match(r"v sport\b", f1_feed_name))
         ppv_context = _is_ppv_category(category) or _is_ppv_category(cname)
         event_context = ppv_context or _is_4k_category(category)
+        driver_hit = bool(driver_name_hit and (series_hit or event_context))
+        if driver_hit:
+            event_hit = True
         if not (norway_f1 or viaplay_event_feed or indycar_vsport_no or series_hit or
-                (event_hit and event_context)):
+                driver_hit or (event_hit and event_context)):
             continue
         # Event title beats a dedicated series channel; generic series entries
         # in PPV/Play/Event buckets remain useful but are only possible matches.
@@ -5224,6 +5227,13 @@ def find_racing_channels(event, xtream_channels, cats, x, drivers=()):
                                  0 if row.get("driver_hit") else 1,
                                  str(row.get("category") or ""),
                                  str(row.get("xtream_name") or "")))
+    # The cap keeps the list readable, but a channel named after a driver the
+    # user follows is exactly what they came for, so those are never dropped:
+    # they take the first slots and the rest of the list fills in behind them.
+    driver_rows = [row for row in unique if row.get("driver_hit")]
+    if driver_rows:
+        others = [row for row in unique if not row.get("driver_hit")]
+        return (driver_rows + others)[:30]
     return unique[:30]
 
 def ppv_categories(xtream_channels, cats):
