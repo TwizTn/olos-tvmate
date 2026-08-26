@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b461"
+VERSION = "0.777.b462"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5129,6 +5129,10 @@ def find_racing_channels(event, xtream_channels, cats, x, drivers=()):
     if "grand prix" in race_name:
         race_phrases.add(race_name.replace("grand prix", "gp"))
     race_phrases.discard("")
+    # A one-word venue is not an event title: "Monza" also occurs in football
+    # and other channels. It becomes useful only alongside the series alias.
+    strong_race_phrases = {phrase for phrase in race_phrases
+                           if len(_distinctive(phrase.split())) >= 2}
     # Surnames of the drivers the user follows in THIS series. Surnames are
     # distinctive enough to identify a per-driver feed; first names are not.
     driver_terms = set()
@@ -5158,7 +5162,7 @@ def find_racing_channels(event, xtream_channels, cats, x, drivers=()):
         event_phrase_hit = any(
             re.search(r"(?<![a-z0-9])" + re.escape(phrase) +
                       r"(?![a-z0-9])", hay)
-            for phrase in race_phrases)
+            for phrase in strong_race_phrases)
         # A country adjective or circuit word alone is weak evidence: "Italian"
         # and "Monza" occur in unrelated news, football and other motorsport.
         # Accept the full race title, or require the requested racing series too.
@@ -5181,32 +5185,37 @@ def find_racing_channels(event, xtream_channels, cats, x, drivers=()):
         norway_f1 = bool(
             series == "f1" and channel_cc == "no" and
             re.fullmatch(r"v sport 1", f1_feed_name))
+        formula_ladder_broadcaster = bool(
+            series in ("f2", "f3") and
+            re.fullmatch(r"f1 tv(?: pro)?", f1_feed_name))
         # Viaplay carries IndyCar in the Nordics too. F1 reliably maps to V Sport 1,
         # but Viaplay spreads IndyCar across whichever V Sport feed fits the slot,
         # so we can't pin it to one channel - we surface Viaplay/V Sport feeds as
         # "possible" instead of a definitive broadcaster match.
         viaplay_event_feed = bool(
-            series in ("f1", "indycar") and channel_cc == "no" and
+            series in ("f1", "f2", "f3", "indycar") and channel_cc == "no" and
             "viaplay" in normalise(cname + " " + category) and
             _is_ppv_category(cname))
         indycar_vsport_no = bool(
             series == "indycar" and channel_cc == "no" and
-            re.match(r"v sport\b", f1_feed_name))
+            re.fullmatch(r"v sport(?: [1-3+])?", f1_feed_name))
         ppv_context = _is_ppv_category(category) or _is_ppv_category(cname)
         event_context = ppv_context or _is_4k_category(category)
         driver_hit = bool(driver_name_hit and (series_hit or event_context))
         if driver_hit:
             event_hit = True
-        if not (norway_f1 or viaplay_event_feed or indycar_vsport_no or series_hit or
-                driver_hit or (event_hit and event_context)):
+        if not (norway_f1 or formula_ladder_broadcaster or viaplay_event_feed or
+                indycar_vsport_no or series_hit or driver_hit or
+                (event_hit and event_context)):
             continue
         # Event title beats a dedicated series channel; generic series entries
         # in PPV/Play/Event buckets remain useful but are only possible matches.
-        # IndyCar's Norway V Sport feeds are treated as a broadcaster-level match
-        # so they rank at the top instead of being truncated by the result cap.
-        match_kind = ("broadcaster" if (norway_f1 or indycar_vsport_no) else
+        # A generic Nordic V Sport feed proves the rights holder, not which
+        # linear slot carries this IndyCar event. Keep it as a possible fallback.
+        match_kind = ("broadcaster" if (norway_f1 or formula_ladder_broadcaster) else
                       ("event" if (event_hit or (series_hit and session_hit)) else
-                      ("possible" if (ppv_context or viaplay_event_feed) else "series")))
+                      ("possible" if (ppv_context or viaplay_event_feed or
+                                      indycar_vsport_no) else "series")))
         out.append({"xtream_name": cname, "stream_id": ch.get("stream_id"),
                     "category": category, "logo": ch.get("stream_icon", ""),
                     "quality": quality_tag(cname),
@@ -13947,6 +13956,37 @@ def run_self_tests():
     check("WRC recognizes Rally TV and standalone Rally channels",
           wrc_kinds.get(40) == "series" and wrc_kinds.get(41) == "series" and
           42 not in wrc_kinds and 43 not in wrc_kinds)
+    indy_rows = find_racing_channels(
+        {"series": "indycar", "race": "Freedom 250 Grand Prix of Washington",
+         "circuit": "Streets of Washington", "session": "Race"},
+        [{"name": "INDYCAR FREEDOM 250", "stream_id": 50,
+          "category_id": "ppv"},
+         {"name": "NO: V SPORT 1 HD", "stream_id": 51, "category_id": "no"},
+         {"name": "NO: V SPORT PREMIER LEAGUE", "stream_id": 52,
+          "category_id": "no"},
+         {"name": "NO: V SPORT GOLF", "stream_id": 53, "category_id": "no"}],
+        sample_cats, _TestRacingXtream())
+    indy_kinds = {row["stream_id"]: row.get("match_kind") for row in indy_rows}
+    check("IndyCar keeps generic V Sport possible and rejects specialist feeds",
+          indy_kinds.get(50) == "event" and indy_kinds.get(51) == "possible" and
+          52 not in indy_kinds and 53 not in indy_kinds)
+    f2_rows = find_racing_channels(
+        {"series": "f2", "race": "Monza", "circuit": "Monza",
+         "session": "Feature Race"},
+        [{"name": "UK: SERIE A - MONZA 4K", "stream_id": 60,
+          "category_id": "4k"},
+         {"name": "F2 MONZA FEATURE RACE", "stream_id": 61,
+          "category_id": "ppv"},
+         {"name": "Formula 2", "stream_id": 62, "category_id": "racing"},
+         {"name": "F1 TV", "stream_id": 63, "category_id": "racing"},
+         {"name": "NO: VIAPLAY PPV 4", "stream_id": 64,
+          "category_id": "no"}],
+        dict(sample_cats, racing="Racing"), _TestRacingXtream())
+    f2_kinds = {row["stream_id"]: row.get("match_kind") for row in f2_rows}
+    check("F2 requires series plus venue and retains platform fallbacks",
+          60 not in f2_kinds and f2_kinds.get(61) == "event" and
+          f2_kinds.get(62) == "series" and f2_kinds.get(63) == "broadcaster" and
+          f2_kinds.get(64) == "possible")
     check("racing UI separates confirmed broadcasters from dedicated series",
           "ch.match_kind==='event'||ch.match_kind==='broadcaster'" in PAGE and
           "Confirmed racing channels" in PAGE)
