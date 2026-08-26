@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b447"
+VERSION = "0.777.b460"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5079,7 +5079,24 @@ def _racing_event_key(event):
     return "|".join(str(event.get(k) or "") for k in
                     ("series", "race", "session", "start"))
 
-def find_racing_channels(event, xtream_channels, cats, x):
+# Grand Prix names use the nationality ("Italian"), provider channel names use
+# the country ("ITALY: RACE"). Keep both spellings so either form matches.
+_RACE_COUNTRY_ALIASES = {
+    "italian": ("italy", "italia"), "dutch": ("netherlands", "nederland", "holland"),
+    "british": ("britain", "uk", "england", "great"), "spanish": ("spain", "espana"),
+    "belgian": ("belgium",), "austrian": ("austria",), "hungarian": ("hungary",),
+    "japanese": ("japan",), "mexican": ("mexico",), "brazilian": ("brazil", "brasil"),
+    "canadian": ("canada",), "australian": ("australia",), "french": ("france",),
+    "german": ("germany", "deutschland"), "portuguese": ("portugal",),
+    "singapore": ("singapore",), "qatar": ("qatar",), "bahrain": ("bahrain",),
+    "saudi": ("saudi", "arabia"), "chinese": ("china",), "american": ("usa", "america"),
+    "azerbaijan": ("azerbaijan", "baku"), "monaco": ("monaco",), "emilia": ("imola",),
+    "swedish": ("sweden", "sverige"), "finnish": ("finland",), "norwegian": ("norway", "norge"),
+    "polish": ("poland",), "danish": ("denmark",), "turkish": ("turkey",),
+    "argentine": ("argentina",), "chilean": ("chile",), "paraguay": ("paraguay",),
+}
+
+def find_racing_channels(event, xtream_channels, cats, x, drivers=()):
     """Find dedicated racing or event-named channels already in Xtream.
 
     Event-name-only hits require a PPV/Play/Event context; dedicated series
@@ -5094,9 +5111,12 @@ def find_racing_channels(event, xtream_channels, cats, x):
         for word in _distinctive(normalise(str(value or "")).split()):
             if word not in ignored and len(word) >= 3 and word not in event_words:
                 event_words.append(word)
-    if "dutch" in event_words:
-        event_words.extend(word for word in ("nederland", "netherlands")
-                           if word not in event_words)
+    # Providers name event channels after the COUNTRY ("ITALY: RACE") while the
+    # calendar uses the nationality ("Italian Grand Prix"), so carry both.
+    for word in list(event_words):
+        for extra in _RACE_COUNTRY_ALIASES.get(word, ()):  # italian -> italy...
+            if extra not in event_words:
+                event_words.append(extra)
     session = normalise(str(event.get("session") or ""))
     session_terms = set(_distinctive(session.split()))
     session_terms.difference_update({"race", "rally", "weekend"})
@@ -5109,6 +5129,17 @@ def find_racing_channels(event, xtream_channels, cats, x):
     if "grand prix" in race_name:
         race_phrases.add(race_name.replace("grand prix", "gp"))
     race_phrases.discard("")
+    # Surnames of the drivers the user follows in THIS series. Surnames are
+    # distinctive enough to identify a per-driver feed; first names are not.
+    driver_terms = set()
+    for driver in (drivers or ()):
+        if not isinstance(driver, dict):
+            continue
+        if series and str(driver.get("series") or "").lower() not in ("", series):
+            continue
+        parts = [p for p in normalise(str(driver.get("name") or "")).split() if len(p) >= 4]
+        if parts:
+            driver_terms.add(parts[-1])
     out = []
     for ch in xtream_channels:
         cname = str(ch.get("name") or "")
@@ -5135,6 +5166,15 @@ def find_racing_channels(event, xtream_channels, cats, x):
         session_hit = bool(session_terms and any(
             re.search(r"(?<![a-z0-9])" + re.escape(word) +
                       r"(?![a-z0-9])", hay) for word in session_terms))
+        # Providers often name a per-driver feed after the driver themselves
+        # ("Formula 1 PPV Max Verstappen"). Treat a followed driver's surname as
+        # event-level evidence when the series also matches, so those feeds are
+        # not missed just because the race title is absent.
+        driver_hit = bool(driver_terms and series_hit and any(
+            re.search(r"(?<![a-z0-9])" + re.escape(word) +
+                      r"(?![a-z0-9])", hay) for word in driver_terms))
+        if driver_hit:
+            event_hit = True
         f1_feed_name = re.sub(
             r"\b(vip|gold|raw|dolby|audio|backup|feed)\b", " ", cleaned_name)
         f1_feed_name = re.sub(r"\s+", " ", f1_feed_name).strip()
@@ -5167,7 +5207,7 @@ def find_racing_channels(event, xtream_channels, cats, x):
         out.append({"xtream_name": cname, "stream_id": ch.get("stream_id"),
                     "category": category, "logo": ch.get("stream_icon", ""),
                     "quality": quality_tag(cname),
-                    "match_kind": match_kind,
+                    "match_kind": match_kind, "driver_hit": bool(driver_hit),
                     "url": x.stream_url(ch.get("stream_id"))})
     # Stable unique IDs; a provider can occasionally expose duplicate rows.
     seen, unique = set(), []
@@ -5177,7 +5217,11 @@ def find_racing_channels(event, xtream_channels, cats, x):
             continue
         seen.add(sid); unique.append(row)
     order = {"broadcaster": 0, "event": 1, "series": 2, "possible": 3}
+    # A feed named after a driver the user follows is the most useful hit of
+    # all, so it sorts ahead of its peers and can never fall past the result
+    # cap when a provider carries dozens of per-event PPV channels.
     unique.sort(key=lambda row: (order.get(row.get("match_kind"), 3),
+                                 0 if row.get("driver_hit") else 1,
                                  str(row.get("category") or ""),
                                  str(row.get("xtream_name") or "")))
     return unique[:30]
@@ -5429,17 +5473,18 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mylisttimelineentry.is-live:before{background:#e44752;box-shadow:0 0 0 3px var(--bg),0 0 9px rgba(228,71,82,.7)}
  .mylisttimelineentry:before{content:"";position:absolute;left:-27px;top:8px;width:9px;height:9px;border-radius:50%;background:var(--acc)}
  .mylisttimelinewhen{font-size:11px;color:var(--acc);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
- .mylisttimelinebody{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:11px 13px}
+ .mylisttimelinebody{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:14px 16px}
  .mylisttimelinebody .teamfixture{border:0;background:transparent;padding:0}
  .mylisttimelineepisode{display:flex;align-items:center;gap:10px;cursor:pointer}
- .mylisttimelineepisode img{width:46px;height:69px;object-fit:cover;border-radius:5px;flex:0 0 46px}
- .mylisttimelineavail{margin-left:auto;align-self:center;flex:0 0 auto}
- .mylisttimelinegame{display:flex;align-items:center;gap:10px;cursor:pointer}
+ .mylisttimelineepisode img{width:46px;height:69px;object-fit:cover;border-radius:5px;flex:0 0 46px} .mylisttimelineposter>img{width:48px;height:68px;object-fit:cover;border-radius:5px;justify-self:center} .mylisttimelineposter{cursor:pointer} .tlavail{margin:0;display:inline-block} .tlunavail{font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:5px;padding:2px 8px} .mylisttimelineaside .btnvlc{margin-top:2px}
+ .mylisttimelineavail{align-self:center;justify-self:center}
+ .mylisttimelinegame{cursor:pointer}
  .mylisttimelinef1{cursor:pointer}
- .mylisttimelinegame>img{width:112px;height:52px;object-fit:cover;border-radius:6px;flex:0 0 112px}
- .mylisttimelinecontent{display:flex;align-items:center;gap:12px;min-width:0}
- .mylisttimelinecontent>.teamfixture{flex:1;min-width:0}
- .mylisttimelineart{width:58px;height:58px;flex:0 0 58px;object-fit:contain;border-radius:7px;background:#0d1014;padding:5px;box-sizing:border-box}
+ .mylisttimelinegame>img{width:72px;height:52px;object-fit:cover;border-radius:6px}
+ .mylisttimelinecontent{display:grid;grid-template-columns:50px 72px 150px minmax(0,1fr) 200px 130px 34px;align-items:center;column-gap:20px;min-width:0} .teamfixturerow{display:contents} .mylisttimelinetext.spread{display:contents} .tlfacts{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2px;min-width:0} .tlfacts>.tleptitle{color:var(--fg)}
+ .tlfacts>span{font-size:13.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%} .mylisttimelinetext{flex:1;min-width:0} .mylisttimelineaside{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right;min-width:0} .mylisttimelinecount{font-size:14px;font-weight:650;color:var(--fg);white-space:nowrap;letter-spacing:.1px} .mylisttimelinecount.live{color:#ff8e94} .mylisttimelinechans{font-size:11.5px;color:var(--mut);white-space:nowrap}
+ .mylisttimelinecontent>.teamfixture{flex:1;min-width:0} .teamfixturerow .teamfixtureteams{margin-bottom:0;order:2;min-width:0;font-size:19px;font-weight:700;justify-content:center;flex-wrap:nowrap;overflow:hidden} .teamfixturerow .teamfixturecompetition{margin-bottom:0;order:1;min-width:0;font-size:13.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .teamfixturerow .teamfixturewhen{order:3;min-width:0;font-size:13.5px;white-space:nowrap;text-align:center} .teamfixturerow>.teamfixturetv{order:6;justify-self:center} .teamfixturerow>.mylisttimelineaside{order:5} .teamfixturerow .teamfixturebroadcasts{grid-column:1/-1;width:100%} .mylisttimelinetext.spread .tllead{min-width:0} .mylisttimelinetext.spread .tlheadline{min-width:0;font-size:19px;font-weight:700;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .mylisttimelinetext.spread .tlfact{font-size:13.5px;color:var(--mut);white-space:nowrap;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+ .mylisttimelineart{width:58px;height:58px;flex:0 0 72px;object-fit:contain;border-radius:7px;background:#0d1014;padding:5px;box-sizing:border-box}
  .mylisttimelineart.driver{height:72px;object-fit:cover;object-position:center top;padding:0}
  .mylisttimelineart.driver.car{object-fit:contain;object-position:center;padding:3px}
  .mylisttimelinedrivers{width:72px;height:72px;flex:0 0 72px;display:flex;align-items:flex-end;justify-content:center;gap:2px;overflow:hidden;border-radius:7px;background:#0d1014;padding:3px 2px 0;box-sizing:border-box}
@@ -5979,7 +6024,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .racingevent:hover b{color:var(--acc)}
  .racingevent.haschannels{cursor:pointer}.racingevent.loadingchannels{cursor:wait}.racingevent.loadingchannels:hover b{color:inherit}
  .racingevent:first-of-type{border-top:0}
- .racingeventtop{display:flex;align-items:center;gap:8px}.racingeventtv{margin-left:auto;background:#17351e;border-color:#327443;color:#70d889}.racingeventloading{margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--mut);font-size:10px;white-space:nowrap}.racingeventspinner{width:12px;height:12px;border:2px solid #39424e;border-top-color:var(--acc);border-radius:50%;animation:racingeventspin .7s linear infinite}@keyframes racingeventspin{to{transform:rotate(360deg)}}.racingeventsource{color:var(--mut);text-decoration:none}.racingeventsource:hover{color:var(--acc);text-decoration:underline}.racingeventchannels{margin-top:9px;padding:8px;border:1px solid #294535;border-radius:7px;background:#101814}.racingeventchannels.hide{display:none}.racingeventchannel{display:flex;align-items:center;gap:8px;padding:6px 4px;border-top:1px solid rgba(255,255,255,.055)}.racingeventchannel:first-child{border-top:0}.racingeventchannel .chn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.racingeventchannel .chbtns{flex:0 0 auto}
+ .racingeventtop{display:flex;align-items:center;gap:8px}.racingeventtv{margin-left:auto;background:#17351e;border-color:#327443;color:#70d889}.racingeventloading{margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--mut);font-size:10px;white-space:nowrap}.racingeventspinner{width:12px;height:12px;border:2px solid #39424e;border-top-color:var(--acc);border-radius:50%;animation:racingeventspin .7s linear infinite}@keyframes racingeventspin{to{transform:rotate(360deg)}}.racingeventsource{color:var(--mut);text-decoration:none}.racingeventsource:hover{color:var(--acc);text-decoration:underline}.racingeventchannels{margin-top:9px;padding:8px;border:1px solid #294535;border-radius:7px;background:#101814}.racingeventchannels.hide{display:none}.racingeventchannel{display:flex;align-items:center;gap:8px;padding:6px 4px;border-top:1px solid rgba(255,255,255,.055);cursor:pointer;border-radius:5px}.racingeventchannel:hover{background:rgba(255,255,255,.05)}.racingeventchannel:first-child{border-top:0}.racingeventchannel .chn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.racingeventchannel .chbtns{flex:0 0 auto}
  @media(max-width:1600px){.racinglayout{grid-template-columns:320px minmax(0,1fr);gap:24px}}
  @media(max-width:1000px){.racinglayout{grid-template-columns:1fr}.racingsidebar{max-width:520px}.racinggrid{grid-template-columns:1fr}.racingdetail{min-height:0}}
  .setupoverlay{position:fixed;inset:0;z-index:3000;background:rgba(5,7,10,.84);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px}
@@ -6792,7 +6837,7 @@ const _I18N={
   "Upcoming Episodes":"Kommende episoder","Airs":"Sendes",
   "Today":"i dag","Tomorrow":"i morgen","in":"om","day":"dag","days":"dager",
   "hour":"time","hours":"timer","minute":"minutt","minutes":"minutter",
-  "Not available":"Ikke tilgjengelig",
+  "Not available":"Ikke tilgjengelig","Season":"Sesong","Episode":"Episode",
   "Available":"Tilgjengelig","Available in your IPTV":"Tilgjengelig i din IPTV","Add to Favorites":"Legg til i favoritter","Remove from Favorites":"Fjern fra favoritter",
   "Maintenance & Playback":"Vedlikehold og avspilling","Refresh all content":"Oppdater alt innhold",
   "Data & Refresh":"Data og oppdatering","Choose exactly which TVMate data should be updated.":"Velg nøyaktig hvilke TVMate-data som skal oppdateres.",
@@ -7149,9 +7194,14 @@ function teamFixtureCard(f,live,deepLink){
   const channelHtml=(hasChannels||f.availability_checked)?fixtureStoredChannelsHtml(Object.assign({logged_in:true},f)):'<span class="muted">'+esc(tr('Checking your channels...'))+'</span>';
   const details='<div class="teamfixturebroadcasts hide"><div class="fixturechannelresults" style="width:100%">'+channelHtml+'</div></div>';
   const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-event-key="'+escAttr(sportsFixtureKey(f))+'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
-  return '<div class="teamfixture hastv'+(live?' livefixture':'')+(hasChannels?' haschannels':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
-    +(hasChannels?'<span class="cc teamfixturetv">TV</span>':'')+'</div>'
-    +competition+'<div class="muted">'+esc(when)+' '+status+'</div>'+(owners?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')+details+'</div>';
+  // In the timeline the card is laid out as a wide single row, so the TV badge
+  // moves to the end of that row instead of sitting beside the team names.
+  const tvBadge=hasChannels?'<span class="cc teamfixturetv">TV</span>':'';
+  return '<div class="teamfixture hastv'+(deepLink?' teamfixturerow':'')+(live?' livefixture':'')+(hasChannels?' haschannels':'')+'"'+fixtureAttrs+'><div class="teamfixtureteams"><span class="teamfixtureside">'+homeLogo+esc(f.home)+'</span><span class="teamfixturevs">v</span><span class="teamfixtureside">'+awayLogo+esc(f.away)+'</span>'
+    +(deepLink?'':tvBadge)+'</div>'
+    +competition+'<div class="muted teamfixturewhen">'+esc(when)+' '+status+'</div>'+(owners&&!deepLink?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')
+    +(deepLink?timelineAside(live?'':racingCountdown({start:f.start}),knownChannels.length,live):'')
+    +(deepLink?tvBadge:'')+details+'</div>';
 }
 async function loadMyTeams(){
   const fav=await api('/api/favorites'), teams=fav.teams||[];
@@ -8138,6 +8188,9 @@ async function playBrowser(sid,name){
   const msg=document.getElementById('pMsg');
   const sidKey=String(sid);
   if(_browserPendingSid===sidKey)return;
+  // Only one stream should ever be playing. Opening the popup player always
+  // tears down any Live TV playback first, otherwise both keep running.
+  if(_tvPlaying!==null||window._tvPlaybackController){try{tvStop();}catch(e){}}
   _browserPendingSid=sidKey;
   const request=++_browserPlayRequest;
   document.getElementById('pTitle').textContent=name||'Player';
@@ -8538,6 +8591,33 @@ function racingProfileMeta(event){
   const session=racingSessionLabel(event),date=event.all_day?racingShortDate(event):'';
   return [session,date].filter(Boolean).join(' · ');
 }
+// Second row of a racing profile card. Mirrors the F1 card's race line so every
+// series presents its detail the same way: label on the left, date on the
+// right, separated from the headline by a divider.
+// Right-hand column of a timeline card. The cards are very wide, so the space
+// between the title and the TV badge is used for the countdown and how many of
+// the user's channels carry the event.
+function timelineAside(countdown,channelCount,live){
+  const bits=[];
+  if(live)bits.push('<span class="mylisttimelinecount live">'+esc(tr('Right now'))+'</span>');
+  else if(countdown)bits.push('<span class="mylisttimelinecount">'+esc(countdown)+'</span>');
+  if(channelCount)bits.push('<span class="mylisttimelinechans">'+channelCount+' '+esc(tr(channelCount===1?'channel':'channels'))+'</span>');
+  if(!bits.length)return '';
+  return '<div class="mylisttimelineaside">'+bits.join('')+'</div>';
+}
+// Same facts as racingTimelineMeta, but as separate columns so a wide timeline
+// card spreads them out instead of stacking one dense line on the left.
+function racingTimelineFacts(event,headline){
+  if(!event)return '';
+  const series=event.series_name||'Racing';
+  const rest=[racingSessionLabel(event)];
+  if(event.all_day){const date=racingShortDate(event);if(date)rest.push(date);}
+  else if(event.circuit&&event.circuit!==event.race)rest.push(event.circuit);
+  // Series sits to the left of the headline; everything else follows it.
+  return '<span class="tlfact tllead">'+esc(series)+'</span>'
+    +'<b class="tlheadline">'+(headline||'')+'</b>'
+    +'<div class="tlfacts">'+rest.filter(Boolean).map(p=>'<span>'+esc(p)+'</span>').join('')+'</div>';
+}
 function racingTimelineMeta(event){
   if(!event)return '';
   const parts=[event.series_name||'Racing',racingSessionLabel(event)];
@@ -8621,7 +8701,7 @@ function racingDriversHtml(rows,events){
   return parts.map(part=>part.html).join('');
 }
 function racingChannelLine(ch){
-  return '<div class="racingeventchannel">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
+  return '<div class="racingeventchannel" data-sid="'+escAttr(String(ch.stream_id==null?'':ch.stream_id))+'" data-name="'+escAttr(ch.xtream_name||'')+'">'+channelLogo(ch,'mini')+'<span class="chn">'+esc(ch.xtream_name||'Channel')+(ch.quality?'<span class="tag">'+esc(ch.quality)+'</span>':'')+'</span><span class="chbtns">'+playbtns(ch.stream_id,ch.xtream_name,ch.url)+'</span></div>';
 }
 function racingChannelSections(channels){
   const definite=channels.filter(ch=>ch.match_kind==='event'||ch.match_kind==='broadcaster').sort(preferredChannelSort),dedicated=channels.filter(ch=>ch.match_kind==='series').sort(preferredChannelSort),possible=channels.filter(ch=>!['event','broadcaster','series'].includes(ch.match_kind)).sort(preferredChannelSort);
@@ -9070,7 +9150,7 @@ async function loadMyListTeams(favorites,racingDataPromise){
           const fixtureText=fixture?((fixture.home||'')+' v '+(fixture.away||'')):tr('No upcoming fixture found.');
           const countdown=fixture?(live?'LIVE':racingCountdown({start:fixture.start})):'';
           const teamMeta=mySportTeamMeta(mine);
-          h+='<div class="mydashteamonly" onclick="showTeams()">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(fixtureText)+'</span>'+(countdown?'<span class="mydashsportcount">'+esc(countdown)+'</span>':'')+'</div></div>'+(teamMeta?'<div class="mydashsportmeta">'+esc(teamMeta)+'</div>':'')+'</div></div>';
+          h+='<div class="mydashteamonly" onclick="showTeams()">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(name)+'</div><div class="mydashsportevents"><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(fixtureText)+'</span>'+(countdown?'<span class="mydashsportcount">'+esc(countdown)+'</span>':'')+'</div>'+'</div></div>'+(teamMeta?'<div class="mydashsportmeta">'+esc(teamMeta)+'</div>':'')+'</div></div>';
         }
         else{h+='<div class="mydashfixture"><div class="mydashteam">'+(src?'<img src="'+escAttr(src)+'" alt="" onerror="this.remove()">':'')+'<span>'+esc(name)+'</span></div>'+(fixture?teamFixtureCard(fixture,!!fixture.is_live):'<span class="muted">'+tr('No upcoming fixture found.')+'</span>')+'</div>';}
       }
@@ -9094,12 +9174,12 @@ async function loadMyListTeams(favorites,racingDataPromise){
           if(card.kind==='f1'){
             const drivers=card.drivers,live=(racingData.events||[]).filter(e=>String(e.series||'')==='f1').some(e=>racingEventIsLive(e,now)),team=drivers[0].team||'',raceEvent=card.race,raceCountdown=raceEvent?racingCountdown(raceEvent):'';
             const photos=drivers.slice(0,2).map(driver=>'<img class="driver" src="/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''))+'" alt="" loading="lazy" onerror="this.remove()">').join('');
-            const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),session=next?racingSessionLabel(next):tr('No upcoming race found.'),raceName=raceEvent?(raceEvent.race||raceEvent.circuit||tr('Race')):tr('No upcoming race found.'),raceLine=raceEvent?'<div class="mydashsporteventline mydashsportrace"><span class="mydashsportnext">'+esc(raceName+' · '+tr('Race'))+'</span><span class="mydashsportcount">'+esc(raceCountdown)+'</span></div>':'';
-            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsportevents"><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(session)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div>'+raceLine+'</div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div></div>';
+            const names=drivers.slice(0,2).map(driver=>'<div class="mydashsportname">'+esc(driver.name||'')+'</div>').join(''),session=next?[(next.race||next.circuit||''),racingSessionLabel(next)].filter(Boolean).join(' '):tr('No upcoming race found.');
+            h+='<div class="mydashteamonly mydashf1card" data-driver-key="f1-team" onclick="showRacing(this.dataset.driverKey)"><div class="mydashsportphotos">'+photos+'</div><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashf1names">'+names+'</div><div class="mydashsportevents"><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(session)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div>'+'</div></div><div class="mydashsportmeta">Formula 1'+(team?' × '+esc(team):'')+'</div></div></div>';
           }else{
             const driver=card.driver,live=(racingData.events||[]).filter(e=>String(e.series||'')===String(driver.series||'')).some(e=>racingEventIsLive(e,now)),src='/api/racing_driver_image?id='+encodeURIComponent(String(driver.key||''));
             const meta=[driver.series_name||'Racing',driver.team||''].filter(Boolean).join(' × '),nextText=next?(next.race||next.circuit||tr('Next race')):tr('No upcoming race found.'),imageClass='driver'+(String(driver.key||'')==='f2-martinius-stenshorne'?' car':'');
-            h+='<div class="mydashteamonly" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsportevents"><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div>'+(next?'<div class="mydashsporteventmeta">'+esc(racingProfileMeta(next))+'</div>':'')+'</div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div></div>';
+            h+='<div class="mydashteamonly" data-driver-key="'+escAttr(String(driver.key||''))+'" onclick="showRacing(this.dataset.driverKey)"><img class="'+imageClass+'" src="'+src+'" alt="" loading="lazy" onerror="this.remove()"><div class="mydashsportsingle"><div class="mydashsportsingletop"><div class="mydashsportname">'+esc(driver.name||'')+'</div><div class="mydashsportevents"><div class="mydashsporteventline"><span class="mydashsportnext">'+esc(nextText)+'</span><span class="mydashsportcount">'+esc(live?tr('Right now'):(countdown||''))+'</span></div>'+'</div></div><div class="mydashsportmeta">'+esc(meta)+'</div></div></div>';
           }
         }
       }else for(const driver of allDrivers){
@@ -9294,19 +9374,28 @@ function renderMyListTimeline(){
       const row=moment.data,event=row.event,date=new Date(row.ts),when=moment.live?tr('Live now'):timelineUpcomingWhen(row.ts,!!event.all_day);
       const racingUrl=event.url||('https://www.formula1.com/en/racing/'+date.getFullYear());
       const available=(event.channels||[]).length?'<span class="cc mylisttimelineavail" title="'+escAttr(tr('Channels available'))+'">TV</span>':'';
-      h+='<div class="mylisttimelineentry'+(moment.live?' is-live':'')+'">'+(moment.live?'':'<div class="mylisttimelinewhen">'+esc(when)+'</div>')+'<div class="mylisttimelinebody mylisttimelinecontent mylisttimelinef1'+((event.channels||[]).length?' haschannels':'')+'" data-driver-key="'+escAttr(myListRacingDetailKey(event))+'" data-url="'+escAttr(racingUrl)+'"><span class="mylisttimelinekind f1">'+esc(tr('Racing'))+'</span>'+myListRacingArtwork(event)+'<div><b>'+esc(event.race)+'</b><div class="moviemeta">'+esc(racingTimelineMeta(event))+'</div></div>'+available+'</div></div>';
+      h+='<div class="mylisttimelineentry'+(moment.live?' is-live':'')+'">'+(moment.live?'':'<div class="mylisttimelinewhen">'+esc(when)+'</div>')+'<div class="mylisttimelinebody mylisttimelinecontent mylisttimelinef1'+((event.channels||[]).length?' haschannels':'')+'" data-driver-key="'+escAttr(myListRacingDetailKey(event))+'" data-url="'+escAttr(racingUrl)+'"><span class="mylisttimelinekind f1">'+esc(tr('Racing'))+'</span>'+myListRacingArtwork(event)+'<div class="mylisttimelinetext spread">'+racingTimelineFacts(event,esc(event.race))+'</div>'+timelineAside(moment.live?'':racingCountdown(event),(event.channels||[]).length,moment.live)+available+'</div></div>';
     }else if(moment.kind==='movie'){
       const row=moment.data,m=row.movie,cover=m.cover?'<img src="'+escAttr(m.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'',when=row.ts<Date.now()?timelineReleasedWhen(row.ts):timelineUpcomingWhen(row.ts,true);
       const action=m.stream_found?'<div class="movieactions"><span class="moviemeta">'+tr('Stream found in playlist')+'</span><button class="btnvlc movievlc" data-sid="'+escAttr(String(m.stream_id))+'" data-ext="'+escAttr(m.extension||'mp4')+'">&#9658; VLC</button></div>':'<div class="movieactions"><button class="ghost" disabled>'+tr('Not available')+'</button></div>';
-      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelineepisode"><span class="mylisttimelinekind movie">'+esc(tr('Movie'))+'</span>'+cover+'<div><b>'+esc(m.name)+'</b><div class="moviemeta">'+esc(m.year||'')+'</div>'+action+'</div></div></div>';
+      const movieAhead=row.ts>Date.now()?racingCountdown({start:new Date(row.ts).toISOString()}):'';
+      const movieState=m.stream_found
+        ? '<span class="movieavail tlavail">&#10003; '+esc(tr('Available'))+'</span>'
+        : '<span class="tlunavail">'+esc(tr('Not available'))+'</span>';
+      const movieBtn=m.stream_found?'<button class="btnvlc movievlc" data-sid="'+escAttr(String(m.stream_id))+'" data-ext="'+escAttr(m.extension||'mp4')+'">&#9658; VLC</button>':'';
+      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent mylisttimelineposter"><span class="mylisttimelinekind movie">'+esc(tr('Movie'))+'</span>'+cover+'<div class="mylisttimelinetext spread"><span class="tlfact tllead">'+esc(m.year||tr('Movie'))+'</span><b class="tlheadline">'+esc(m.name)+'</b><div class="tlfacts">'+movieState+'</div></div><div class="mylisttimelineaside">'+(movieAhead?'<span class="mylisttimelinecount">'+esc(movieAhead)+'</span>':'')+movieBtn+'</div></div></div>';
     }else if(moment.kind==='game'){
       const row=moment.data,g=row.game,cover=g.cover?'<img src="'+escAttr(g.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'',when=row.ts<Date.now()?timelineReleasedWhen(row.ts):timelineUpcomingWhen(row.ts,true);
       const gameUrl=g.url||('https://store.steampowered.com/app/'+encodeURIComponent(String(g.app_id||''))+'/');
-      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinegame" data-url="'+escAttr(gameUrl)+'"><span class="mylisttimelinekind game">'+esc(tr('Game'))+'</span>'+cover+'<div><b>'+esc(g.name||'Game')+'</b><div class="moviemeta">'+esc(g.release_text||'')+'</div></div></div></div>';
+      const gameAhead=row.ts>Date.now()?racingCountdown({start:new Date(row.ts).toISOString()}):'';
+      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent mylisttimelinegame" data-url="'+escAttr(gameUrl)+'"><span class="mylisttimelinekind game">'+esc(tr('Game'))+'</span>'+cover+'<div class="mylisttimelinetext spread"><span class="tlfact tllead">Steam</span><b class="tlheadline">'+esc(g.name||'Game')+'</b><div class="tlfacts"><span>'+esc(g.release_text||'')+'</span></div></div>'+timelineAside(gameAhead,0,false)+'</div></div>';
     }else{
       const row=moment.data,ep=row.ep,cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'',available=(!row.upcoming&&ep.available)?'<span class="cc mylisttimelineavail" title="Available to play">&#9654;</span>':'';
       const when=row.ts<Date.now()?timelineReleasedWhen(row.ts):timelineUpcomingWhen(row.ts,false);
-      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelineepisode mylistshowcard" data-series="'+escAttr(String(ep.series_id||''))+'" data-catalog="'+escAttr(ep.catalog_id||'')+'"><span class="mylisttimelinekind show">'+esc(tr('Show'))+'</span>'+cover+'<div><b>'+esc(ep.show_name)+'</b><div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div></div>'+available+'</div></div>';
+      const showAhead=row.ts>Date.now()?racingCountdown({start:new Date(row.ts).toISOString()}):'';
+      const seasonLabel=tr('Season')+' '+esc(ep.season);
+      const episodeLabel=tr('Episode')+' '+esc(ep.episode_num);
+      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent mylisttimelineposter mylistshowcard" data-series="'+escAttr(String(ep.series_id||''))+'" data-catalog="'+escAttr(ep.catalog_id||'')+'"><span class="mylisttimelinekind show">'+esc(tr('Show'))+'</span>'+cover+'<div class="mylisttimelinetext spread"><span class="tlfact tllead">'+esc(seasonLabel)+'</span><b class="tlheadline">'+esc(ep.show_name)+'</b><div class="tlfacts"><span class="tleptitle">'+esc(ep.title||tr('Episode'))+'</span><span>'+esc(episodeLabel)+'</span></div></div>'+(showAhead?'<div class="mylisttimelineaside"><span class="mylisttimelinecount">'+esc(showAhead)+'</span></div>':'<div class="mylisttimelineaside"></div>')+available+'</div></div>';
     }
   }
   const html=h+'</div>';if(el)el.innerHTML=html;if(standalone)standalone.innerHTML=html;
@@ -9533,6 +9622,9 @@ async function tvPlay(sid,name){
   _tvPendingSid=sidKey;
   const request=++_tvPlayRequest;
   const wasMini=slot.classList.contains('mini');
+  // Single-playback rule: starting Live TV closes any open popup player.
+  const pmodal=document.getElementById('playerModal');
+  if(pmodal&&!pmodal.classList.contains('hide')){try{closePlayer();}catch(e){}}
   _tvPlaying=sid;
   slot.classList.add('on');
   if(!wasMini&&guide&&slot.parentElement!==guide)guide.appendChild(slot);
@@ -9644,8 +9736,13 @@ document.addEventListener('click',function(e){
   if(timelineGame){const url=timelineGame.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
   const timelineF1=e.target.closest('.mylisttimelinef1');
   if(timelineF1){showRacing(timelineF1.getAttribute('data-driver-key')||'');return;}
+  const racingChan=e.target.closest('.racingeventchannel');
+  if(racingChan&&!e.target.closest('.btnplay,.btnvlc,.copy')){
+    const csid=racingChan.getAttribute('data-sid')||'';
+    if(csid){playBrowser(csid,racingChan.getAttribute('data-name')||'');return;}
+  }
   const racingEvent=e.target.closest('.racingevent');
-  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc,.bchead,.racingeventsource')){if(racingEvent.classList.contains('loadingchannels'))return;if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');}return;}
+  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc,.bchead,.racingeventsource,.racingeventchannel')){if(racingEvent.classList.contains('loadingchannels'))return;if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');}return;}
   const lev=e.target.closest('.latestepisodevlc');
   if(lev){playLatestEpisode(lev.getAttribute('data-id'),lev.getAttribute('data-ext'),lev);return;}
   const myListShow=e.target.closest('.mylistshowcard');
@@ -10196,6 +10293,10 @@ class Handler(BaseHTTPRequestHandler):
                 channels, cats = get_xtream_channels(cfg)
             except Exception:
                 return self._send(200, {"availability": {}, "logged_in": True})
+            try:
+                followed_drivers = get_racing_drivers()
+            except Exception:
+                followed_drivers = []
             now = time.time(); availability = {}
             for event in events:
                 try:
@@ -10204,7 +10305,7 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 if ets < now - 12 * 3600 or ets > now + 45 * 24 * 3600:
                     continue
-                hits = find_racing_channels(event, channels, cats, x)
+                hits = find_racing_channels(event, channels, cats, x, followed_drivers)
                 if hits:
                     availability[_racing_event_key(event)] = hits
             _RACING_AVAILABILITY_CACHE.update({"key": cache_key, "ts": time.time(),
