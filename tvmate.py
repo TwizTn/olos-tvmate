@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b462"
+VERSION = "0.777.b463"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2388,6 +2388,15 @@ def get_f1_teams(force=False):
     _save_timed_data_cache("f1-teams.json", teams)
     return teams
 
+def _rank_f1_constructor_drivers(drivers, appearances, points):
+    ranked = [dict(driver) for driver in drivers]
+    for driver in ranked:
+        driver["season_appearances"] = int(appearances.get(driver["id"], 0))
+        driver["season_points"] = float(points.get(driver["id"], 0))
+    ranked.sort(key=lambda driver: (-driver["season_appearances"],
+                                    -driver["season_points"], driver["name"].lower()))
+    return ranked[:2]
+
 def get_f1_team_drivers(constructor_id, force=False):
     """Current race drivers for a selected F1 constructor, cached for a week."""
     safe = re.sub(r"[^0-9A-Za-z_-]", "", str(constructor_id or ""))
@@ -2396,7 +2405,8 @@ def get_f1_team_drivers(constructor_id, force=False):
     filename = f"f1-drivers-{safe}.json"
     if not force:
         disk = _load_timed_data_cache(filename, _F1_TTL)
-        if isinstance(disk, list) and disk:
+        if (isinstance(disk, list) and disk and len(disk) <= 2 and
+                all("season_appearances" in row for row in disk)):
             return disk
     year = datetime.datetime.now().year
     data = _f1_api(f"{year}/constructors/{safe}/drivers.json?limit=100")
@@ -2412,6 +2422,32 @@ def get_f1_team_drivers(constructor_id, force=False):
                         "url": "https://www.formula1.com/en/drivers/" +
                                re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-"),
                         "wiki": str(row.get("url") or "")})
+    appearances, points = {}, {}
+    try:
+        results_data = _f1_api(
+            f"{year}/constructors/{safe}/results.json?limit=200")
+        for race in (((results_data.get("MRData") or {}).get("RaceTable") or {}).get("Races") or []):
+            for result in race.get("Results") or []:
+                driver_id = str((result.get("Driver") or {}).get("driverId") or "")
+                if driver_id:
+                    appearances[driver_id] = appearances.get(driver_id, 0) + 1
+    except Exception:
+        pass
+    try:
+        standings_data = _f1_api(f"{year}/driverstandings.json?limit=100")
+        lists = ((standings_data.get("MRData") or {}).get("StandingsTable") or {}).get("StandingsLists") or []
+        for standing in ((lists[0].get("DriverStandings") or []) if lists else []):
+            driver_id = str((standing.get("Driver") or {}).get("driverId") or "")
+            try:
+                points[driver_id] = float(standing.get("points") or 0)
+            except (TypeError, ValueError):
+                points[driver_id] = 0.0
+    except Exception:
+        pass
+    # Constructor endpoints include anyone who substituted during the season.
+    # Rank by actual season participation (then points) so a one-off substitute
+    # cannot evict a regular driver merely because the API returned three rows.
+    drivers = _rank_f1_constructor_drivers(drivers, appearances, points)
     _save_timed_data_cache(filename, drivers)
     return drivers
 
@@ -13915,6 +13951,14 @@ def run_self_tests():
         dict(sample_cats, no="NO| NORWAY", dk="DK| VIAPLAY"),
         _TestRacingXtream())
     racing_kinds = {row["stream_id"]: row.get("match_kind") for row in racing_rows}
+    regulars = _rank_f1_constructor_drivers(
+        [{"id": "lawson", "name": "Liam Lawson"},
+         {"id": "hadjar", "name": "Isack Hadjar"},
+         {"id": "max_verstappen", "name": "Max Verstappen"}],
+        {"lawson": 1, "hadjar": 13, "max_verstappen": 14},
+        {"lawson": 6, "hadjar": 74, "max_verstappen": 112})
+    check("temporary F1 substitute cannot displace regular team drivers",
+          [row["id"] for row in regulars] == ["max_verstappen", "hadjar"])
     check("racing event promoted", racing_kinds.get(20) == "event")
     check("racing series second", racing_kinds.get(21) == "series")
     check("racing category fallback", racing_kinds.get(22) == "possible")
