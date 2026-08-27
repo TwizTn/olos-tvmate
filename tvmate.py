@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b465"
+VERSION = "0.777.b466"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -169,6 +169,7 @@ DEFAULT_CONFIG = {
     "preferred_language": "en",
     "profile_emblem": "tvstack",
     "mylist_layout": "timeline",
+    "sports_layout": "current",
     "football_enabled": True,
     "f1_enabled": True,
     "racing_series": ["f1"],
@@ -6211,6 +6212,60 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
  .teamfixture.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
  .teamfixturebroadcasts.hide{display:none}
+ /* Per-profile Sports layouts. All variants reuse the same fixture cards,
+    matching state and playback actions; only presentation changes. */
+ #teamsView.sports-layout-broadcast .teamswrap{grid-template-columns:minmax(250px,310px) minmax(0,1fr);max-width:1580px;margin:0 auto}
+ #teamsView.sports-layout-broadcast .teamprofilefacts{grid-template-columns:1fr}
+ #teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixturegrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child{grid-column:1/-1;min-height:170px;padding:22px;background:linear-gradient(135deg,rgba(31,73,124,.25),var(--card) 62%);border-left:3px solid var(--acc);display:grid;grid-template-columns:minmax(0,1fr) auto;align-content:center;gap:7px 20px}
+ #teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child .teamfixtureteams{font-size:22px;grid-column:1;margin:0}
+ #teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child .teamfixturecompetition,#teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child .teamfixturewhen,#teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child .teamfixtureowner{grid-column:1;margin:0}
+ #teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child>.teamfixturetv{grid-column:2;grid-row:1/5;align-self:center}
+ #teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child .teamfixturebroadcasts{grid-column:1/-1}
+ #teamsView.sports-layout-broadcast .topfixturegrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+ #teamsView.sports-layout-agenda .teamswrap{grid-template-columns:minmax(230px,280px) minmax(0,1fr);max-width:1500px;margin:0 auto}
+ #teamsView.sports-layout-agenda .teamprofilefacts{display:none}
+ #teamsView.sports-layout-agenda .teamprofiledetail{min-height:0}
+ #teamsView.sports-layout-agenda .teamfixturegrid,#teamsView.sports-layout-agenda .topfixturegrid{grid-template-columns:1fr;gap:0}
+ #teamsView.sports-layout-agenda .teamupcominggroup{margin-bottom:28px}
+ #teamsView.sports-layout-agenda .teamupcomingname{padding:0 0 8px;border-bottom:1px solid var(--line2);text-transform:uppercase;letter-spacing:.06em;font-size:11px;color:var(--mut)}
+ #teamsView.sports-layout-agenda .teamfixture{display:grid;grid-template-columns:minmax(260px,1.45fr) minmax(150px,.8fr) minmax(160px,.75fr) auto;gap:14px;align-items:center;border-width:0 0 1px;border-radius:0;background:transparent;padding:13px 8px}
+ #teamsView.sports-layout-agenda .teamfixture:hover{transform:none;background:rgba(255,255,255,.018)}
+ #teamsView.sports-layout-agenda .teamfixtureteams,#teamsView.sports-layout-agenda .teamfixturecompetition,#teamsView.sports-layout-agenda .teamfixturewhen,#teamsView.sports-layout-agenda .teamfixtureowner{margin:0}
+ #teamsView.sports-layout-agenda .teamfixturebroadcasts{grid-column:1/-1}
+ #teamsView.sports-layout-agenda .topfixtureitem{min-width:0}
+
+ #teamsView.sports-layout-hub .teamswrap{grid-template-columns:minmax(210px,260px) minmax(0,1fr);max-width:1650px;margin:0 auto;gap:22px}
+ #teamsView.sports-layout-hub .teamprofilefacts{grid-template-columns:1fr}
+ #teamsView.sports-layout-hub .teamsmain{max-width:none;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:0 22px;align-items:start}
+ #teamsView.sports-layout-hub .teamsmain>h2,#teamsView.sports-layout-hub .teammatchfinder,#teamsView.sports-layout-hub .teammatchresults{grid-column:1/-1}
+ #teamsView.sports-layout-hub #teamLiveSection{grid-column:2}
+ #teamsView.sports-layout-hub #teamTopSection{grid-column:2;grid-row:3/8}
+ #teamsView.sports-layout-hub #teamUpcomingList{grid-column:1;grid-row:4/10}
+ #teamsView.sports-layout-hub .teamsmain>.colh:last-of-type{grid-column:1;grid-row:3}
+ #teamsView.sports-layout-hub .topfixturegrid,#teamsView.sports-layout-hub .teamfixturegrid{grid-template-columns:1fr}
+ #teamsView.sports-layout-hub .teammatchfinder{padding:13px 15px;margin-bottom:16px}
+ #teamsView.sports-layout-hub .matchfindercontrols{display:none}
+
+ #teamsView.sports-layout-timeline .teamswrap{display:block;max-width:1180px;margin:0 auto;padding:0}
+ #teamsView.sports-layout-timeline .teamfavs{position:static;max-height:none;border:0;border-bottom:1px solid var(--line);padding:0 0 16px;margin-bottom:20px;overflow:visible;display:grid;grid-template-columns:minmax(250px,.8fr) minmax(0,1.2fr);gap:18px}
+ #teamsView.sports-layout-timeline .teamprofiledetail{min-height:0;margin:0}
+ #teamsView.sports-layout-timeline .teamprofilefacts{display:none}
+ #teamsView.sports-layout-timeline .teamfavdivider,#teamsView.sports-layout-timeline .teamfavs>.colh{display:none}
+ #teamsView.sports-layout-timeline .teamfavlist{display:flex;flex-direction:row;flex-wrap:wrap;align-content:flex-start;gap:6px}
+ #teamsView.sports-layout-timeline .teamfavitem{flex:1 1 180px;border:1px solid var(--line);border-radius:8px}
+ #teamsView.sports-layout-timeline .teamfixturegrid,#teamsView.sports-layout-timeline .topfixturegrid{grid-template-columns:1fr;gap:0;position:relative;padding-left:24px}
+ #teamsView.sports-layout-timeline .teamfixturegrid:before,#teamsView.sports-layout-timeline .topfixturegrid:before{content:"";position:absolute;left:7px;top:0;bottom:0;width:1px;background:var(--line2)}
+ #teamsView.sports-layout-timeline .teamfixture{position:relative;display:grid;grid-template-columns:minmax(250px,1.2fr) minmax(150px,.7fr) minmax(165px,.7fr) auto;gap:14px;align-items:center;border-width:0 0 1px;border-radius:0;background:transparent;padding:14px 8px}
+ #teamsView.sports-layout-timeline .teamfixture:before{content:"";position:absolute;left:-21px;top:20px;width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 4px var(--bg)}
+ #teamsView.sports-layout-timeline .teamfixture.livefixture:before{background:#ff5964}
+ #teamsView.sports-layout-timeline .teamfixture:hover{transform:none;background:rgba(255,255,255,.018)}
+ #teamsView.sports-layout-timeline .teamfixtureteams,#teamsView.sports-layout-timeline .teamfixturecompetition,#teamsView.sports-layout-timeline .teamfixturewhen,#teamsView.sports-layout-timeline .teamfixtureowner{margin:0}
+ #teamsView.sports-layout-timeline .teamfixturebroadcasts{grid-column:1/-1}
+ @media(max-width:1050px){#teamsView.sports-layout-hub .teamsmain{display:block}#teamsView.sports-layout-broadcast .topfixturegrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ @media(max-width:860px){#teamsView.sports-layout-broadcast .teamswrap,#teamsView.sports-layout-agenda .teamswrap,#teamsView.sports-layout-hub .teamswrap{grid-template-columns:1fr}#teamsView.sports-layout-timeline .teamfavs{grid-template-columns:1fr}#teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixturegrid{grid-template-columns:1fr}#teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child{grid-column:auto}}
+ @media(max-width:700px){#teamsView.sports-layout-agenda .teamfixture,#teamsView.sports-layout-timeline .teamfixture{grid-template-columns:1fr}#teamsView.sports-layout-agenda .teamfixturebroadcasts,#teamsView.sports-layout-timeline .teamfixturebroadcasts{grid-column:1}#teamsView.sports-layout-broadcast .topfixturegrid{grid-template-columns:1fr}}
  .matchstrict{display:flex;align-items:center;gap:9px;margin-top:9px;color:var(--mut);font-size:11px}
  .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
  .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
@@ -6535,6 +6590,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="full"><label data-i18n="Emblem">Emblem</label><div id="ep_emblems" class="setupemblems"></div></div>
       <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="Profile">Profile</option><option value="mytimeline" data-i18n="Timeline">Timeline</option><option value="channels" data-i18n="Playlists">Playlists</option><option value="mytv" data-i18n="Live TV">Live TV</option><option value="movies" data-i18n="Movies">Movies</option><option value="shows" data-i18n="Shows">Shows</option><option value="games" data-i18n="Games">Games</option><option value="racing" data-i18n="Racing">Racing</option><option value="teams" data-i18n="Sports">Sports</option></select></div>
       <div><label data-i18n="Profile layout">Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
+      <div><label data-i18n="Sports layout">Sports layout</label><select id="ep_sportslayout"><option value="current" data-i18n="Current Sports">Current</option><option value="broadcast" data-i18n="Broadcast Deck">Broadcast Deck</option><option value="agenda" data-i18n="TV Agenda">TV Agenda</option><option value="hub" data-i18n="Sports Hub">Sports Hub</option><option value="timeline" data-i18n="Timeline Rail">Timeline Rail</option></select></div>
       <label class="setupfeature full"><input id="ep_checkshows" type="checkbox"><span><b data-i18n="Check favorite shows on startup">Check favorite shows on startup</b><small data-i18n="Look for newly available episodes when TVMate starts.">Look for newly available episodes when TVMate starts.</small></span></label>
       <label class="setupfeature full"><input id="ep_refreshiptv" type="checkbox"><span><b data-i18n="Refresh IPTV & EPG on startup">Refresh IPTV &amp; EPG on startup</b><small data-i18n="Refresh Xtream channels, movies, shows and TV guide data.">Refresh Xtream channels, movies, shows and TV guide data.</small></span></label>
       <label class="setupfeature full"><input id="ep_refreshsports" type="checkbox"><span><b data-i18n="Refresh sports, racing & games on startup">Refresh sports, racing &amp; games on startup</b><small data-i18n="Refresh matches, regional TV listings, racing and your Steam wishlist.">Refresh matches, regional TV listings, racing and your Steam wishlist.</small></span></label>
@@ -6830,6 +6886,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <div><label data-i18n="Profile layout">Profile layout</label>
             <select id="s_mylistlayout"><option value="balanced" data-i18n="Balanced">Balanced</option><option value="spotlight" data-i18n="Spotlight">Spotlight</option><option value="timeline" data-i18n="Now Timeline">Now Timeline</option><option value="hub" data-i18n="Profile Hub">Profile Hub</option></select>
             <div class="muted" style="margin-top:6px" data-i18n="Changes the arrangement of your Profile page only.">Changes the arrangement of your Profile page only.</div></div>
+          <div><label data-i18n="Sports layout">Sports layout</label>
+            <select id="s_sportslayout"><option value="current" data-i18n="Current Sports">Current</option><option value="broadcast" data-i18n="Broadcast Deck">Broadcast Deck</option><option value="agenda" data-i18n="TV Agenda">TV Agenda</option><option value="hub" data-i18n="Sports Hub">Sports Hub</option><option value="timeline" data-i18n="Timeline Rail">Timeline Rail</option></select>
+            <div class="muted" style="margin-top:6px" data-i18n="Changes the arrangement of your Sports page only.">Changes the arrangement of your Sports page only.</div></div>
           <div><label data-i18n="Preferred language">Preferred language</label>
             <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
           <div><label data-i18n="Default start section">Default start section</label>
@@ -7049,6 +7108,7 @@ function setSlogan(section){
 }
 let _lang='en';
 const _I18N={
+  "Sports layout":"Sportoppsett","Current Sports":"N\u00e5v\u00e6rende","Broadcast Deck":"TV-studio","TV Agenda":"TV-program","Sports Hub":"Sportsoversikt","Timeline Rail":"Tidslinje","Changes the arrangement of your Sports page only.":"Endrer bare oppsettet p\u00e5 sportsiden din.",
   "Search":"Søk","Playlist Builder":"Lag spilleliste","Playlists":"Spillelister","Timeline":"Tidslinje","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger","Stop TVMate":"Stopp TVMate",
   "Restart TVMate":"Start TVMate på nytt",
   "Welcome to TVMate":"Velkommen til TVMate","Let's make it yours. Everything here can be changed later from Settings or Edit Profile.":"La oss gjøre TVMate til ditt. Alt her kan endres senere i Innstillinger eller Rediger profil.","Your name":"Navnet ditt","Pick an emblem":"Velg et emblem","Emblem":"Emblem",
@@ -7204,7 +7264,7 @@ function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
-function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));}
+function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');applySportsLayout();document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));}
 function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
 // Backward compatibility for old bookmarks/configs that still point at Search.
@@ -7228,7 +7288,7 @@ function updateProfileName(name){
   // Profile identity lives inside My Profile now. The permanent top-right
   // action is Stop TVMate, so profile names no longer occupy header space.
 }
-let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
+let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',sports_layout:'current',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
 let _selectedEmblem='tvstack',_footballEnabled=true,_f1Enabled=true,_gamesEnabled=true,_myListLayout='timeline';
 let _devMode=false;
 function profileEmblemSvg(key){return _PROFILE_EMBLEMS[key]||_PROFILE_EMBLEMS.tvstack;}
@@ -7346,13 +7406,13 @@ function selectEditProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_editProf
 async function openEditProfile(){
   let c={};try{c=await api('/api/config');}catch(e){c=_profileConfig||{};}
   ep_name.value=c.profile_name||'';ep_lang.value=c.preferred_language||'en';_editProfileEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEditProfileEmblems();
-  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshiptv.checked=!!c.refresh_iptv_on_startup;ep_refreshsports.checked=!!c.refresh_sports_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
+  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_sportslayout.value=['current','broadcast','agenda','hub','timeline'].includes(c.sports_layout)?c.sports_layout:'current';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshiptv.checked=!!c.refresh_iptv_on_startup;ep_refreshsports.checked=!!c.refresh_sports_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   editProfileOverlay.classList.remove('hide');setTimeout(()=>ep_name.focus(),30);
 }
 function closeEditProfile(){editProfileOverlay.classList.add('hide');}
 function runSetupGuideFromProfile(){closeEditProfile();openProfileSetup(false);}
 async function saveEditProfile(btn){
-  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,check_shows_on_startup:ep_checkshows.checked,refresh_iptv_on_startup:ep_refreshiptv.checked,refresh_sports_on_startup:ep_refreshsports.checked,background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
+  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,sports_layout:ep_sportslayout.value,check_shows_on_startup:ep_checkshows.checked,refresh_iptv_on_startup:ep_refreshiptv.checked,refresh_sports_on_startup:ep_refreshsports.checked,background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
   if(!body.profile_name){ep_name.focus();toast(tr('Enter a profile name.'));return;}if(body.mylist_layout==='timeline'&&body.start_section==='mytimeline')body.start_section='mylist';if(!_gamesEnabled&&body.start_section==='games')body.start_section='mylist';if(!_f1Enabled&&body.start_section==='racing')body.start_section='mylist';if(!_footballEnabled&&body.start_section==='teams')body.start_section='mylist';
   const old=btn.textContent;btn.disabled=true;btn.textContent='Saving...';
   try{const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('save failed');setLang(body.preferred_language);applyProfileConfig(body);closeEditProfile();toast(tr('Profile saved.'));}catch(e){toast(tr('Could not save profile.'));}
@@ -7373,6 +7433,13 @@ function applyMyListLayout(){
   if(timelineNav)timelineNav.classList.toggle('hide',_myListLayout==='timeline');
   if(timelineStart)timelineStart.classList.toggle('hide',_myListLayout==='timeline');
   renderMyListTimeline();
+}
+function applySportsLayout(){
+  const view=document.getElementById('teamsView');if(!view)return;
+  const allowed=['current','broadcast','agenda','hub','timeline'];
+  const layout=allowed.includes(_profileConfig.sports_layout)?_profileConfig.sports_layout:'current';
+  allowed.forEach(name=>view.classList.remove('sports-layout-'+name));
+  view.classList.add('sports-layout-'+layout);
 }
 function applyProfileConfig(c){
   const prevFootball=_footballEnabled,prevRacing=_f1Enabled,prevGames=_gamesEnabled;
@@ -7402,6 +7469,7 @@ function applyProfileConfig(c){
   applyBackgroundStyle(_profileConfig.background_style||(_profileConfig.decorations_enabled===false?'off':'float'));
   renderMyListProfile();
   applyMyListLayout();
+  applySportsLayout();
 }
 
 let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_sportsVisibleFixtures=[],_sportsAvailabilityTimer=null,_sportsAvailabilityRequest=0,_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
@@ -7918,6 +7986,7 @@ async function loadSettings(){
   s_lang.value=c.preferred_language||'en';
   _selectedEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEmblemPicker();
   s_mylistlayout.value=['balanced','spotlight','timeline','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';
+  s_sportslayout.value=['current','broadcast','agenda','hub','timeline'].includes(c.sports_layout)?c.sports_layout:'current';
   s_football.checked=c.football_enabled!==false;
   s_f1.checked=c.f1_enabled!==false;
   s_games.checked=c.games_enabled!==false;
@@ -7960,7 +8029,7 @@ async function saveSettings(){
     start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
     refresh_iptv_on_startup:s_refreshiptv.checked,refresh_sports_on_startup:s_refreshsports.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
-    profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,football_enabled:s_football.checked,
+    profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,sports_layout:s_sportslayout.value,football_enabled:s_football.checked,
     f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0),allow_lan:s_allowlan.checked,private_remote_relay:(_devMode&&s_privaterelay.checked)};
   if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
@@ -12297,7 +12366,7 @@ class Handler(BaseHTTPRequestHandler):
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_iptv_on_startup", "refresh_sports_on_startup", "profile_name",
-                      "preferred_language", "profile_emblem", "mylist_layout", "football_enabled",
+                      "preferred_language", "profile_emblem", "mylist_layout", "sports_layout", "football_enabled",
                       "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes", "allow_lan", "dev_mode", "private_remote_relay"):
                 if k in payload:
                     cfg[k] = payload[k]
@@ -12314,6 +12383,8 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["preferred_language"] = "en"
             if cfg.get("mylist_layout") not in ("balanced", "spotlight", "timeline", "hub"):
                 cfg["mylist_layout"] = "timeline"
+            if cfg.get("sports_layout") not in ("current", "broadcast", "agenda", "hub", "timeline"):
+                cfg["sports_layout"] = "current"
             allowed_starts = ("mylist", "mytimeline", "channels", "mytv", "movies", "shows", "games", "racing", "teams")
             if cfg.get("start_section") not in allowed_starts:
                 cfg["start_section"] = "mylist"
@@ -13460,6 +13531,12 @@ def run_self_tests():
         checks.append(name)
     check("version ordering", _parse_ver("0.777.b388") > _parse_ver("0.777.b387"))
     check("version equality", _parse_ver("v0.777.b388") == _parse_ver("0.777.b388"))
+    check("Sports layout defaults safely and exposes all profile choices",
+          DEFAULT_CONFIG.get("sports_layout") == "current" and
+          all(('value="%s"' % layout) in PAGE
+              for layout in ("current", "broadcast", "agenda", "hub", "timeline")) and
+          all(("sports-layout-" + layout) in PAGE
+              for layout in ("broadcast", "agenda", "hub", "timeline")))
     cache_busted = _cache_busted_url(
         "https://raw.githubusercontent.com/example/app/main/version.txt?source=manual",
         "123")
