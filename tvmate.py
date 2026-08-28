@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b470"
+VERSION = "0.777.b471"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6406,10 +6406,16 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .matchdetailstatus{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.matchdetailupdated{font-size:12px;color:var(--mut)}
  .match-layout-channel-first .matchdetailchannels{grid-column:1/-1;grid-row:2;border-color:var(--acc)}
  .match-layout-channel-first .matchdetailsidepanels{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr))}
- .match-layout-live-centre .matchdetailhero{grid-column:1;background:linear-gradient(135deg,rgba(255,89,100,.14),var(--card) 60%)}
- .match-layout-live-centre .matchdetailchannels{grid-column:2;grid-row:1/4}
- .match-layout-live-centre .matchdetailsidepanels{grid-column:1}
- @media(max-width:820px){.matchdetailpage,.match-layout-live-centre .matchdetailpage{grid-template-columns:1fr}.matchdetailhero,.matchdetailchannels,.matchdetailsidepanels,.match-layout-live-centre .matchdetailhero,.match-layout-live-centre .matchdetailchannels,.match-layout-live-centre .matchdetailsidepanels{grid-column:1;grid-row:auto}.match-layout-channel-first .matchdetailsidepanels{grid-template-columns:1fr}.matchdetailside{font-size:17px}.matchdetailside img{width:58px;height:58px}.matchdetailteams{gap:8px}}
+ .match-layout-live-centre .matchdetailpage{grid-template-columns:minmax(0,1.65fr) minmax(390px,.95fr)}
+ .match-layout-live-centre .matchdetailsticky{grid-column:1;grid-row:1;position:sticky;top:78px;align-self:start;display:grid;gap:18px;min-width:0}
+ .match-layout-live-centre .matchdetailhero{background:linear-gradient(135deg,rgba(255,89,100,.14),var(--card) 60%)}
+ .match-layout-live-centre .matchdetailchannels{grid-column:2;grid-row:1;align-self:start}
+ .match-layout-live-centre .matchdetailsidepanels{display:grid;gap:18px}
+ .matchplayeranchor{width:100%;min-width:0}
+ .matchplayeranchor:not(.on){display:none}
+ .matchplayeranchor .pmodal.matchanchored{position:relative;inset:auto;width:100%;height:auto;aspect-ratio:16/9;z-index:1}
+ .matchplayeranchor .pmodal.matchanchored .pbox{border-color:var(--line2);box-shadow:0 16px 44px rgba(0,0,0,.42)}
+ @media(max-width:820px){.matchdetailpage,.match-layout-live-centre .matchdetailpage{grid-template-columns:1fr}.matchdetailhero,.matchdetailchannels,.matchdetailsidepanels,.match-layout-live-centre .matchdetailsticky,.match-layout-live-centre .matchdetailhero,.match-layout-live-centre .matchdetailchannels,.match-layout-live-centre .matchdetailsidepanels{grid-column:1;grid-row:auto}.match-layout-live-centre .matchdetailsticky{position:static}.match-layout-channel-first .matchdetailsidepanels{grid-template-columns:1fr}.matchdetailside{font-size:17px}.matchdetailside img{width:58px;height:58px}.matchdetailteams{gap:8px}}
  .matchstrict{display:flex;align-items:center;gap:9px;margin-top:9px;color:var(--mut);font-size:11px}
  .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
  .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
@@ -7406,7 +7412,7 @@ function hideAll(keepMytv){
   const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));
   const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
-  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}updateProfileName(_profileConfig.profile_name);
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}updateProfileName(_profileConfig.profile_name);
   if(!keepMytv&&hasPlayback){
     if(leavingLiveTv)tvSetMini(true);
     document.body.classList.add('tvsectionplay');
@@ -7868,15 +7874,22 @@ function fixtureStoredChannelsHtml(f){
 let _matchFixture=null,_matchRefreshTimer=null,_sportsReturnScroll=0;
 function matchTeamArt(id,name){const src=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'<span class="matchdetailfallback">'+esc(String(name||'?').slice(0,2).toUpperCase())+'</span>';}
 function matchBroadcastersHtml(f){const rows=[];for(const [country,names] of Object.entries(f.by_country||{}))for(const name of (names||[])){const label=String(name||'').trim();if(label)rows.push('<span class="matchdetailbroadcaster">'+esc(label)+(country?' · '+esc(country):'')+'</span>');}return rows.length?rows.join(''):'<span class="muted">'+esc(tr('No TV'))+'</span>';}
+function releaseMatchPlayerAnchor(){const modal=document.getElementById('playerModal');if(!modal||modal.parentNode===document.body)return;if(playerFullscreenElement()===modal)exitPlayerFullscreen();modal.classList.remove('matchanchored');document.body.appendChild(modal);}
+function syncMatchPlayerAnchor(){
+  const modal=document.getElementById('playerModal'),anchor=document.getElementById('matchPlayerAnchor'),liveCentre=!!(anchor&&!matchView.classList.contains('hide')&&matchView.classList.contains('match-layout-live-centre'));if(!modal)return;
+  if(liveCentre){if(modal.parentNode!==anchor)anchor.appendChild(modal);modal.classList.add('matchanchored');anchor.classList.toggle('on',!modal.classList.contains('hide'));setPopupPlayerMax(false);}else releaseMatchPlayerAnchor();
+}
 function renderMatchPage(){
   const el=document.getElementById('matchPageContent'),f=_matchFixture;if(!el||!f)return;
+  releaseMatchPlayerAnchor();
   const allowed=['balanced','channel-first','live-centre'],layout=allowed.includes(_profileConfig.match_layout)?_profileConfig.match_layout:'balanced';
   matchView.classList.remove('match-layout-balanced','match-layout-channel-first','match-layout-live-centre');matchView.classList.add('match-layout-'+layout);
   const kick=f.start?new Date(f.start):null,valid=kick&&!Number.isNaN(kick.getTime()),time=valid?kick.toLocaleTimeString(_lang==='no'?'nb-NO':undefined,{hour:'2-digit',minute:'2-digit'}):'—',date=valid?kick.toLocaleDateString(_lang==='no'?'nb-NO':undefined,{weekday:'long',day:'numeric',month:'long'}):'',live=fixtureIsLive(f),recent=fixtureIsRecent(f),status=live?(tr('Live now')+(f.live_minute!=null?' · '+String(f.live_minute)+"'":'')):(recent?tr('Recent match'):time),channels=[...(f.matches||[]),...(f.ppv_hits||[])];
   const hero='<div class="matchdetailhero"><div class="matchdetailcompetition">'+esc(f.league_name||tr('Football'))+'</div><div class="matchdetailteams"><div class="matchdetailside">'+matchTeamArt(f.home_id,f.home)+'<span>'+esc(f.home||'')+'</span></div><div><div class="matchdetailkickoff">'+esc(status)+'</div><div class="matchdetaildate">'+esc(date)+'</div>'+(live?'<div class="matchdetaillive">LIVE</div>':'')+'</div><div class="matchdetailside">'+matchTeamArt(f.away_id,f.away)+'<span>'+esc(f.away||'')+'</span></div></div></div>';
   const channelPanel='<div class="matchdetailpanel matchdetailchannels"><h3>'+esc(tr(layout==='channel-first'?'Watch this match':'Channel matches'))+'</h3><div id="matchChannelResults">'+fixtureStoredChannelsHtml(Object.assign({logged_in:true},f))+'</div></div>';
   const side='<div class="matchdetailsidepanels"><div class="matchdetailpanel"><h3>'+esc(tr('Official broadcasters'))+'</h3><div class="matchdetailbroadcasters">'+matchBroadcastersHtml(f)+'</div></div><div class="matchdetailpanel"><h3>'+esc(tr('Channel matching'))+'</h3><div class="matchdetailstatus"><span class="cc">'+channels.length+' '+esc(tr(channels.length===1?'channel':'channels'))+'</span><span id="matchUpdated" class="matchdetailupdated">'+esc(tr('Updates quietly every 15 minutes'))+'</span></div></div></div>';
-  el.innerHTML=hero+channelPanel+side;
+  el.innerHTML=layout==='live-centre'?'<div class="matchdetailsticky">'+hero+'<div id="matchPlayerAnchor" class="matchplayeranchor"></div>'+side+'</div>'+channelPanel:hero+channelPanel+side;
+  syncMatchPlayerAnchor();
 }
 function showMatchPage(fixture){if(!fixture)return;_matchFixture=fixture;if(!matchView||matchView.classList.contains('hide'))_sportsReturnScroll=window.scrollY||0;rememberLocation('match',{eventKey:sportsFixtureKey(fixture)});hideAll();matchView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');renderMatchPage();window.scrollTo(0,0);if(fixture.availability_checked)_matchRefreshTimer=setTimeout(()=>refreshMatchChannels(null,true),15*60*1000);else refreshMatchChannels(null,false);}
 function openMatchFromCard(card){const key=card&&card.getAttribute('data-event-key')||'',source=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===key);if(source)showMatchPage(source);}
@@ -8738,6 +8751,7 @@ async function playBrowser(sid,name){
   document.getElementById('pTitle').textContent=name||'Player';
   msg.textContent='Loading...';
   modal.classList.remove('hide');
+  syncMatchPlayerAnchor();
   setPopupPlayerMax(false);
   document.body.classList.add('tvsectionplay');
   syncSectionPlayerLayout();
@@ -8816,6 +8830,7 @@ function closePlayer(){
   video.pause();video.removeAttribute('src');video.load();
   modal.classList.add('hide');
   modal.classList.remove('sectionmax');
+  syncMatchPlayerAnchor();
   const liveAway=(_tvPlaying!==null||window._tvPlaybackController)&&mytvView.classList.contains('hide');
   if(!liveAway)document.body.classList.remove('tvsectionplay');
 }
@@ -13770,6 +13785,14 @@ def run_self_tests():
           "match_layout:ep_matchlayout.value" in PAGE and
           "match-layout-channel-first" in PAGE and
           "match-layout-live-centre" in PAGE)
+    check("live centre anchors the player stack while channel hits scroll",
+          'id="matchPlayerAnchor"' in PAGE and
+          'class="matchdetailsticky"' in PAGE and
+          ".matchdetailsticky{grid-column:1;grid-row:1;position:sticky" in PAGE and
+          ".matchdetailchannels{grid-column:2;grid-row:1" in PAGE and
+          "function syncMatchPlayerAnchor()" in PAGE and
+          "anchor.appendChild(modal)" in PAGE and
+          "releaseMatchPlayerAnchor();" in PAGE)
     check("layout-aware pages expose an immediate on-page editor",
           "data-layout-kind=\"profile\"" in PAGE and
           "openLayoutEditor('sports',this)" in PAGE and
