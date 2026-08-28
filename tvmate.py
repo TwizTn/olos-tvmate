@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b466"
+VERSION = "0.777.b467"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5094,15 +5094,34 @@ _RACING_CHANNEL_TERMS = {
 }
 _RACING_AVAILABILITY_CACHE = {"key": "", "ts": 0, "availability": {}}
 _RACING_AVAILABILITY_TTL = 15 * 60
+_RACING_AVAILABILITY_DISK_TTL = 6 * 3600
 _SPORTS_EVENT_CHANNEL_CACHE = {}
 _SPORTS_EVENT_CHANNEL_TTL = 15 * 60
 
 def _sports_availability_cache_path():
     return os.path.join(data_cache_dir(), "sports-availability.json")
 
+def _racing_availability_cache_path():
+    return os.path.join(data_cache_dir(), "racing-availability.json")
+
+def _my_teams_snapshot_path():
+    return os.path.join(data_cache_dir(), "my-teams-snapshot.json")
+
 def _sports_cache_signature(cfg, x):
     return "football-v35|" + _vod_cache_key(x) + "|" + str(
         cfg.get("match_threshold") or 0.62)
+
+def _my_teams_snapshot_signature(favorites, cfg, x):
+    teams = []
+    for favorite in favorites or []:
+        if isinstance(favorite, dict):
+            teams.append((str(favorite.get("team_id") or ""),
+                          str(favorite.get("name") or "").strip().lower()))
+        else:
+            teams.append(("", str(favorite or "").strip().lower()))
+    raw = json.dumps(sorted(teams), ensure_ascii=False, separators=(",", ":"))
+    return "my-teams-v1|" + hashlib.sha256(raw.encode("utf-8")).hexdigest() + "|" + \
+        _sports_cache_signature(cfg, x)
 
 def _sports_result_for_storage(result):
     clean = dict(result or {})
@@ -5122,6 +5141,97 @@ def _sports_result_for_client(result, x):
             rows.append(row)
         hydrated[key] = rows
     return hydrated
+
+def _save_my_teams_snapshot(response, favorites, cfg, x):
+    try:
+        clean = dict(response or {})
+        for key in ("fixtures", "top_fixtures"):
+            clean[key] = [_sports_result_for_storage(row) for row in clean.get(key) or []
+                          if isinstance(row, dict)]
+        with _CACHE_WRITE_LOCK:
+            _atomic_write_json(_my_teams_snapshot_path(), {
+                "signature": _my_teams_snapshot_signature(favorites, cfg, x),
+                "saved_at": time.time(), "response": clean}, compact=True)
+    except Exception:
+        pass
+
+def _load_my_teams_snapshot(favorites, cfg, x):
+    try:
+        with open(_my_teams_snapshot_path(), "r", encoding="utf-8") as f:
+            cached = json.load(f) or {}
+        if cached.get("signature") != _my_teams_snapshot_signature(favorites, cfg, x):
+            return None
+        # A stale snapshot is only the instant first paint; the browser follows
+        # it with a normal refresh. Bound it so very old profiles never linger.
+        if time.time() - float(cached.get("saved_at") or 0) > 14 * 24 * 3600:
+            return None
+        response = dict(cached.get("response") or {})
+        for key in ("fixtures", "top_fixtures"):
+            response[key] = [_sports_result_for_client(row, x)
+                             for row in response.get(key) or []
+                             if isinstance(row, dict)]
+        response["cached"] = True
+        response["cache_age_seconds"] = max(
+            0, int(time.time() - float(cached.get("saved_at") or 0)))
+        return response
+    except Exception:
+        return None
+
+def _sports_match_ttl(fixture, now=None):
+    """Refresh near-live matches quickly and leave distant fixtures stable."""
+    now = time.time() if now is None else float(now)
+    try:
+        kickoff = datetime.datetime.fromisoformat(str(
+            fixture.get("start") or "").replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return _SPORTS_EVENT_CHANNEL_TTL
+    distance = kickoff - now
+    if -6 * 3600 <= distance <= 6 * 3600:
+        return _SPORTS_EVENT_CHANNEL_TTL
+    if distance > 24 * 3600:
+        return 24 * 3600
+    return 6 * 3600
+
+def _racing_result_for_storage(availability):
+    return {key: [{k: v for k, v in dict(row).items() if k != "url"}
+                  for row in rows if isinstance(row, dict)]
+            for key, rows in (availability or {}).items() if isinstance(rows, list)}
+
+def _racing_result_for_client(availability, x):
+    hydrated = {}
+    for key, rows in (availability or {}).items():
+        if not isinstance(rows, list):
+            continue
+        hydrated[key] = []
+        for stored in rows:
+            row = dict(stored)
+            if row.get("stream_id") is not None:
+                row["url"] = x.stream_url(row["stream_id"])
+            hydrated[key].append(row)
+    return hydrated
+
+def _load_racing_disk_cache(cache_key, x):
+    try:
+        with open(_racing_availability_cache_path(), "r", encoding="utf-8") as f:
+            cached = json.load(f) or {}
+        if cached.get("key") != "racing-v1|" + cache_key:
+            return None
+        if time.time() - float(cached.get("ts") or 0) > _RACING_AVAILABILITY_DISK_TTL:
+            return None
+        return {"key": cache_key, "ts": float(cached.get("ts") or 0),
+                "availability": _racing_result_for_client(
+                    cached.get("availability") or {}, x)}
+    except Exception:
+        return None
+
+def _save_racing_disk_cache(cache_key, availability):
+    try:
+        with _CACHE_WRITE_LOCK:
+            _atomic_write_json(_racing_availability_cache_path(), {
+                "key": "racing-v1|" + cache_key, "ts": time.time(),
+                "availability": _racing_result_for_storage(availability)}, compact=True)
+    except Exception:
+        pass
 
 def _fixture_title_has_both_teams(title, home, away):
     """True when an EPG title contains both fixture sides or known aliases."""
@@ -5241,6 +5351,10 @@ def _save_sports_disk_cache(cfg, x, entries):
 
 def _clear_racing_availability_cache():
     _RACING_AVAILABILITY_CACHE.update({"key": "", "ts": 0, "availability": {}})
+    try:
+        os.remove(_racing_availability_cache_path())
+    except OSError:
+        pass
 
 def _clear_sports_event_channel_cache():
     _SPORTS_EVENT_CHANNEL_CACHE.clear()
@@ -7472,7 +7586,7 @@ function applyProfileConfig(c){
   applySportsLayout();
 }
 
-let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_sportsVisibleFixtures=[],_sportsAvailabilityTimer=null,_sportsAvailabilityRequest=0,_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
+let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_sportsVisibleFixtures=[],_sportsAvailabilityTimer=null,_sportsAvailabilityRequest=0,_myTeamsBackgroundRefresh=false,_myTeamsLastRefresh=0,_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
 function sportsFixtureKey(f){return [String(f.home||'').trim().toLowerCase(),String(f.away||'').trim().toLowerCase(),String(f.start||'').slice(0,16)].join('|');}
 function fixtureElapsedMinutes(f){const ts=f&&f.start?new Date(f.start).getTime():NaN;return Number.isFinite(ts)?(Date.now()-ts)/60000:null;}
 function fixtureIsLive(f){
@@ -7538,7 +7652,7 @@ function teamFixtureCard(f,live,deepLink){
     +(deepLink?timelineAside(live?'':racingCountdown({start:f.start}),knownChannels.length,live):'')
     +(deepLink?tvBadge:'')+details+'</div>';
 }
-async function loadMyTeams(){
+async function loadMyTeams(force){
   const fav=await api('/api/favorites'), teams=fav.teams||[];
   _favTeamSet=new Set(teams.map(t=>String(typeof t==='string'?t:t.name).toLowerCase()));
   _favTeamRows=teams.map(favoriteTeamRow).filter(t=>t.name);
@@ -7550,7 +7664,7 @@ async function loadMyTeams(){
   const topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
   if(!teams.length){liveSection.classList.add('hide');upcoming.innerHTML='<span class="muted">Add a favorite team to see its fixtures.</span>';}
   if(!_myTeamFixtures.length)upcoming.innerHTML='<span class="muted">Loading fixtures...</span>';
-  const r=await api('/api/my_teams');
+  const r=await api('/api/my_teams'+(force?'?refresh=1':''));
   if(r.error){upcoming.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
   _myTeamFixtures=r.fixtures||[];_sportsVisibleFixtures=[..._myTeamFixtures,...(r.top_fixtures||[])];renderSelectedTeamProfile(_selectedTeamProfile);
   const live=[], recent=[], future=[];
@@ -7579,6 +7693,11 @@ async function loadMyTeams(){
   }
   upcoming.innerHTML=upcomingHtml||(teams.length?'<span class="muted">No upcoming fixtures found.</span>':'<span class="muted">Add a favorite team to see its fixtures.</span>');
   loadSportsAvailability(false);
+  if(!r.cached)_myTeamsLastRefresh=Date.now();
+  if(r.cached&&!_myTeamsBackgroundRefresh&&Date.now()-_myTeamsLastRefresh>2*60*1000){
+    _myTeamsBackgroundRefresh=true;
+    setTimeout(async function(){try{await loadMyTeams(true);}catch(e){}finally{_myTeamsBackgroundRefresh=false;}},50);
+  }
 }
 
 function applySportsAvailability(availability){
@@ -10625,6 +10744,12 @@ class Handler(BaseHTTPRequestHandler):
                     time.time() - float(cached.get("ts") or 0) < _RACING_AVAILABILITY_TTL):
                 return self._send(200, {"availability": cached.get("availability") or {},
                                         "logged_in": True})
+            disk_cached = _load_racing_disk_cache(cache_key, x)
+            if disk_cached:
+                _RACING_AVAILABILITY_CACHE.update(disk_cached)
+                return self._send(200, {
+                    "availability": disk_cached.get("availability") or {},
+                    "logged_in": True, "cached": True})
             events = get_racing_events(selected)
             try:
                 channels, cats = get_xtream_channels(cfg)
@@ -10647,6 +10772,7 @@ class Handler(BaseHTTPRequestHandler):
                     availability[_racing_event_key(event)] = hits
             _RACING_AVAILABILITY_CACHE.update({"key": cache_key, "ts": time.time(),
                                                "availability": availability})
+            _save_racing_disk_cache(cache_key, availability)
             return self._send(200, {"availability": availability, "logged_in": True})
         if path == "/api/racing_drivers":
             return self._send(200, {"drivers": get_racing_drivers()})
@@ -11860,6 +11986,11 @@ class Handler(BaseHTTPRequestHandler):
                 countries = list(FOTMOB_FALLBACK_COUNTRIES)
                 fav_data = load_favorites()
                 favorites = fav_data.get("teams", [])
+                x = Xtream(cfg)
+                if not q.get("refresh"):
+                    snapshot = _load_my_teams_snapshot(favorites, cfg, x)
+                    if snapshot is not None:
+                        return self._send(200, snapshot)
                 favorites_changed = False
                 merged = {}
                 errors = []
@@ -11940,7 +12071,6 @@ class Handler(BaseHTTPRequestHandler):
                 # Hydrate durable channel matches before the page renders. The
                 # client may refresh stale entries later, but never needs to
                 # replace an already-known match with a Checking placeholder.
-                x = Xtream(cfg)
                 if x.configured():
                     stored_availability = _load_sports_disk_cache(cfg, x)
                     for fixture in fixtures + top_fixtures:
@@ -11950,9 +12080,12 @@ class Handler(BaseHTTPRequestHandler):
                         if isinstance(stored, dict) and isinstance(stored.get("result"), dict):
                             fixture.update(_enforce_fixture_secure_matches(
                                 fixture, _sports_result_for_client(stored["result"], x)))
-                return self._send(200, {"fixtures": fixtures,
-                                        "top_fixtures": top_fixtures,
-                                        "source_errors": list(dict.fromkeys(errors))})
+                response = {"fixtures": fixtures,
+                            "top_fixtures": top_fixtures,
+                            "source_errors": list(dict.fromkeys(errors)),
+                            "cached": False}
+                _save_my_teams_snapshot(response, favorites, cfg, x)
+                return self._send(200, response)
 
             if u.path == "/api/search":
                 term = (q.get("q", [""])[0]).strip()
@@ -12016,7 +12149,7 @@ class Handler(BaseHTTPRequestHandler):
                                             stored["result"], x)),
                                 }
                         if (cached and time.time() - float(cached.get("ts") or 0) <
-                                _SPORTS_EVENT_CHANNEL_TTL):
+                                _sports_match_ttl(f)):
                             result = dict(cached.get("result") or {})
                         else:
                             result = _match_sports_fixture_channels(
@@ -12283,8 +12416,9 @@ class Handler(BaseHTTPRequestHandler):
                     if isinstance(stored, dict) and isinstance(stored.get("result"), dict):
                         cached = {"ts": float(stored.get("ts") or 0),
                                   "result": _sports_result_for_client(stored["result"], x)}
+                fixture_for_ttl = {"start": start}
                 fresh = bool(cached and now - float(cached.get("ts") or 0) <
-                             _SPORTS_EVENT_CHANNEL_TTL)
+                             _sports_match_ttl(fixture_for_ttl, now))
                 if fresh and not payload.get("force"):
                     result = cached.get("result") or {}
                 else:
@@ -12492,6 +12626,7 @@ class Handler(BaseHTTPRequestHandler):
             _TEAM_PROFILE_CACHE.clear()
             _remove_data_cache_prefix("team-fixtures-")
             _remove_data_cache_prefix(f"team-profile-v{_TEAM_PROFILE_CACHE_SCHEMA}-")
+            _remove_data_cache_prefix("my-teams-snapshot")
             refreshed = 0
             errors = []
             changed = False
@@ -12550,6 +12685,7 @@ class Handler(BaseHTTPRequestHandler):
                 _TEAM_PROFILE_CACHE.clear()
                 _remove_data_cache_prefix("team-fixtures-")
                 _remove_data_cache_prefix(f"team-profile-v{_TEAM_PROFILE_CACHE_SCHEMA}-")
+                _remove_data_cache_prefix("my-teams-snapshot")
                 teams = 0
                 errors = []
                 changed = False
@@ -14206,6 +14342,19 @@ def run_self_tests():
           _sports_result_for_storage({"logged_in": True,
               "availability_checked": True, "matches": [], "ppv_hits": []
           }).get("availability_checked") is True)
+    ttl_now = datetime.datetime(2026, 8, 28, 12, 0,
+                                tzinfo=datetime.timezone.utc).timestamp()
+    check("sports match freshness follows kickoff proximity",
+          _sports_match_ttl({"start": "2026-08-28T13:00:00+00:00"}, ttl_now) ==
+          _SPORTS_EVENT_CHANNEL_TTL and
+          _sports_match_ttl({"start": "2026-08-29T00:00:00+00:00"}, ttl_now) ==
+          6 * 3600 and
+          _sports_match_ttl({"start": "2026-08-31T12:00:00+00:00"}, ttl_now) ==
+          24 * 3600)
+    stored_racing = _racing_result_for_storage({"f1|race": [
+        {"stream_id": 77, "url": "http://user:password@example/77", "name": "F1"}]})
+    check("racing disk cache omits credential-bearing URLs",
+          stored_racing["f1|race"] == [{"stream_id": 77, "name": "F1"}])
     old_epg_test = dict(_EPG_CACHE)
     try:
         kickoff_test = datetime.datetime(2026, 8, 13, 18, 45,
@@ -14413,6 +14562,10 @@ def run_self_tests():
           "racingEvent.classList.contains('loadingchannels')" in PAGE and
           "const url=racingEvent.getAttribute('data-url')" not in PAGE and
           "racingeventsource" in PAGE)
+    check("sports uses durable stale-while-refresh snapshots",
+          "api('/api/my_teams'+(force?'?refresh=1':''))" in PAGE and
+          "if(r.cached&&!_myTeamsBackgroundRefresh" in PAGE and
+          "_myTeamsLastRefresh>2*60*1000" in PAGE)
     check("F1 timeline and schedule retain the complete nearest race weekend",
           "function racingVisibleSeriesEvents" in PAGE and
           "return (weekend.length?weekend:rows).slice(0,6)" in PAGE and
