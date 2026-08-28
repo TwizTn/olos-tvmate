@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b468"
+VERSION = "0.777.b469"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5722,7 +5722,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .mylistprofile{display:flex;align-items:center;gap:14px;margin:2px 0 26px;padding-bottom:16px;border-bottom:1px solid var(--line)}
  .mylistprofileemblem{width:64px;height:64px;flex:0 0 64px;display:flex;align-items:center;justify-content:center}
  .mylistprofileemblem svg{width:64px;height:64px;display:block}
- .mylistprofilename{font-size:22px;font-weight:650}
+ .mylistprofilename{font-size:22px;font-weight:650;flex:1}
  .editprofilebtn{padding:5px 9px;font-size:11px;white-space:nowrap}
  .mydashblock{margin-bottom:30px}
  .mydashhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
@@ -6232,6 +6232,13 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .latestsources{display:flex;gap:7px;flex-wrap:wrap;width:100%}
  .showswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
  .showrefresh{position:fixed;top:68px;right:18px;z-index:30;font-size:12px;padding:7px 13px;box-shadow:0 5px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08)}
+ .layouteditfixed{position:fixed;top:68px;right:164px;z-index:30;font-size:12px;padding:7px 13px;box-shadow:0 5px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08)}
+ .layoutpickerdialog{width:min(680px,96vw);background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+ .layoutpickerhead{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}.layoutpickerhead h2{margin:0 0 5px}.layoutpickerclose{padding:6px 10px}
+ .layoutpickerchoices{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+ .layoutpickerchoice{text-align:left;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:14px;min-height:90px;color:var(--fg)}
+ .layoutpickerchoice:hover{border-color:var(--line2)}.layoutpickerchoice.on{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+ .layoutpickerchoice b,.layoutpickerchoice span{display:block}.layoutpickerchoice span{color:var(--mut);font-size:11px;line-height:1.4;margin-top:6px;font-weight:400}
  .showfavs{padding-right:16px;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
  .showfavlist{display:flex;flex-direction:column;gap:8px}
  .showfav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;min-height:100px}
@@ -6408,7 +6415,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:1100px){.moviecatalogs{grid-template-columns:1fr}.moviecatalogcolumn+.moviecatalogcolumn{padding:20px 0 0;border-left:0;border-top:1px solid var(--line)}}
  @media(max-width:850px){.moviecatalogs.noxtream .moviegrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
  @media(max-width:600px){.moviecatalogs.noxtream .moviegrid{grid-template-columns:1fr}}
- @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}.matchfindercontrols{align-items:flex-start;flex-direction:column}main.wide{padding-left:18px;padding-right:18px}}
+ @media(max-width:860px){.movieswrap,.showswrap,.teamswrap{grid-template-columns:1fr;gap:20px}.moviefavs,.showfavs,.teamfavs{position:static;max-height:260px;padding:0 0 15px;border-right:0;border-bottom:1px solid var(--line)}.showrefresh,.layouteditfixed{position:static;float:right;margin:-3px 0 12px 10px}.moviesmain,.showsmain,.teamsmain{clear:both}.sectionsearch{grid-template-columns:minmax(0,1fr) auto}.matchfindercontrols{align-items:flex-start;flex-direction:column}main.wide{padding-left:18px;padding-right:18px}}
  @media(max-width:560px){main,main.wide{padding:18px 12px 34px}.sectionsearch,.sportssearchrow{grid-template-columns:1fr}.sectionsearch button{width:100%}.moviegrid,.showgrid,.teamfixturegrid{grid-template-columns:1fr}.showhero{align-items:flex-start}.showheroart{width:110px;height:165px}.showhero h2{font-size:21px}}
  .racinglayout{display:grid;grid-template-columns:minmax(320px,480px) minmax(0,1250px);gap:32px;width:100%;padding:0 18px;align-items:start}
  .racingwrap{width:100%;min-width:0;margin:0}
@@ -6735,6 +6742,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="editprofileactions"><button type="button" class="ghost" onclick="runSetupGuideFromProfile()" data-i18n="Run setup guide">Run setup guide</button><div class="spacer"></div><button type="button" class="ghost" onclick="closeEditProfile()" data-i18n="Cancel">Cancel</button><button type="button" onclick="saveEditProfile(this)" data-i18n="Save">Save</button></div>
   </div>
 </div>
+<div id="layoutPickerOverlay" class="setupoverlay hide" onclick="if(event.target===this)closeLayoutEditor()">
+  <div class="layoutpickerdialog" role="dialog" aria-modal="true" aria-labelledby="layoutPickerTitle">
+    <div class="layoutpickerhead"><div><h2 id="layoutPickerTitle">Choose layout</h2><div id="layoutPickerIntro" class="muted">Choose how this page should look.</div></div><button type="button" class="ghost layoutpickerclose" onclick="closeLayoutEditor()">&#10005;</button></div>
+    <div id="layoutPickerChoices" class="layoutpickerchoices"></div>
+  </div>
+</div>
 <main>
   <section id="channelsView" class="hide">
     <div class="playlistsearch">
@@ -6955,6 +6968,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </section>
 
   <section id="teamsView" class="hide">
+    <button type="button" class="ghost layouteditfixed" onclick="openLayoutEditor('sports')">&#9998; <span data-i18n="Edit layout">Edit layout</span></button>
     <button id="teamRefreshBtn" class="showrefresh" onclick="checkTeamFixtures(this)">&#8635; <span data-i18n="Refresh fixtures">Refresh fixtures</span></button>
     <div class="teamswrap">
       <aside class="teamfavs">
@@ -6996,7 +7010,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </section>
 
   <section id="matchView" class="hide">
-    <div class="matchdetailtop"><button type="button" class="ghost" onclick="closeMatchPage()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><button id="matchRefreshBtn" type="button" class="ghost" onclick="refreshMatchChannels(this,true)">&#8635; <span data-i18n="Refresh channel matches">Refresh channel matches</span></button></div>
+    <div class="matchdetailtop"><button type="button" class="ghost" onclick="closeMatchPage()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><div class="row"><button type="button" class="ghost" onclick="openLayoutEditor('match')">&#9998; <span data-i18n="Edit layout">Edit layout</span></button><button id="matchRefreshBtn" type="button" class="ghost" onclick="refreshMatchChannels(this,true)">&#8635; <span data-i18n="Refresh channel matches">Refresh channel matches</span></button></div></div>
     <div id="matchPageContent" class="matchdetailpage"></div>
   </section>
 
@@ -7253,6 +7267,7 @@ function setSlogan(section){
 let _lang='en';
 const _I18N={
   "Sports layout":"Sportoppsett","Current Sports":"N\u00e5v\u00e6rende","Broadcast Deck":"TV-studio","TV Agenda":"TV-program","Sports Hub":"Sportsoversikt","Timeline Rail":"Tidslinje","Changes the arrangement of your Sports page only.":"Endrer bare oppsettet p\u00e5 sportsiden din.",
+  "Edit layout":"Rediger oppsett","Choose a layout. Your selection is saved immediately.":"Velg et oppsett. Valget lagres med en gang.","Layout saved.":"Oppsett lagret.","Could not save layout.":"Kunne ikke lagre oppsettet.","Time-ordered overview":"Tidsordnet oversikt","Even content sections":"Jevne innholdsseksjoner","Featured content first":"Fremhevet innhold først","Sidebar dashboard":"Sidepaneloversikt","Familiar two-column view":"Velkjent visning med to kolonner","TV-focused fixture cards":"TV-fokuserte kampkort","Compact schedule rows":"Kompakte programrader","Dashboard columns":"Oversiktskolonner","Wide chronological list":"Bred kronologisk liste","Teams, channels and details":"Lag, kanaler og detaljer","Put playable channels first":"Vis spillbare kanaler først","Live-status dashboard":"Oversikt med livestatus",
   "Search":"Søk","Playlist Builder":"Lag spilleliste","Playlists":"Spillelister","Timeline":"Tidslinje","My List":"Min liste","My Profile":"Min profil","Edit Profile":"Rediger profil","My Timeline":"Min tidslinje","My TV":"Live TV","My Movies":"Mine filmer","My Shows":"Mine serier","My Games":"Mine spill","My Racing":"Min racing","My Teams":"Mine lag","Favorite Movies":"Favorittfilmer","Favorite Shows":"Favorittserier","Favorite Games":"Favorittspill","Favorite Teams":"Favorittlag","Settings":"Innstillinger","Stop TVMate":"Stopp TVMate",
   "Restart TVMate":"Start TVMate på nytt",
   "Welcome to TVMate":"Velkommen til TVMate","Let's make it yours. Everything here can be changed later from Settings or Edit Profile.":"La oss gjøre TVMate til ditt. Alt her kan endres senere i Innstillinger eller Rediger profil.","Your name":"Navnet ditt","Pick an emblem":"Velg et emblem","Emblem":"Emblem",
@@ -7540,10 +7555,28 @@ async function finishProfileSetup(btn,openXtream){
   }catch(e){toast('Could not save profile.');}
   btn.disabled=false;btn.textContent=openXtream?'Set up Xtream':"Let's go, I'm ready";
 }
+const _LAYOUT_EDITORS={
+  profile:{key:'mylist_layout',title:'Profile layout',choices:[['timeline','Now Timeline','Time-ordered overview'],['balanced','Balanced','Even content sections'],['spotlight','Spotlight','Featured content first'],['hub','Profile Hub','Sidebar dashboard']]},
+  sports:{key:'sports_layout',title:'Sports layout',choices:[['current','Current Sports','Familiar two-column view'],['broadcast','Broadcast Deck','TV-focused fixture cards'],['agenda','TV Agenda','Compact schedule rows'],['hub','Sports Hub','Dashboard columns'],['timeline','Timeline Rail','Wide chronological list']]},
+  match:{key:'match_layout',title:'Match page layout',choices:[['balanced','Balanced','Teams, channels and details'],['channel-first','Channel first','Put playable channels first'],['live-centre','Live centre','Live-status dashboard']]}
+};
+let _layoutEditorKind='';
+function openLayoutEditor(kind){
+  const spec=_LAYOUT_EDITORS[kind];if(!spec)return;_layoutEditorKind=kind;
+  layoutPickerTitle.textContent=tr(spec.title);layoutPickerIntro.textContent=tr('Choose a layout. Your selection is saved immediately.');
+  const current=_profileConfig[spec.key];layoutPickerChoices.innerHTML=spec.choices.map(choice=>'<button type="button" class="layoutpickerchoice'+(choice[0]===current?' on':'')+'" data-layout="'+escAttr(choice[0])+'" onclick="choosePageLayout(this.dataset.layout,this)"><b>'+esc(tr(choice[1]))+'</b><span>'+esc(tr(choice[2]))+'</span></button>').join('');
+  layoutPickerOverlay.classList.remove('hide');const selected=layoutPickerChoices.querySelector('.on');setTimeout(()=>{if(selected)selected.focus();},30);
+}
+function closeLayoutEditor(){layoutPickerOverlay.classList.add('hide');_layoutEditorKind='';}
+async function choosePageLayout(value,btn){
+  const spec=_LAYOUT_EDITORS[_layoutEditorKind];if(!spec||!spec.choices.some(choice=>choice[0]===value))return;
+  const payload={[spec.key]:value};layoutPickerChoices.querySelectorAll('button').forEach(button=>button.disabled=true);
+  try{const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok)throw new Error('save failed');applyProfileConfig(payload);if(spec.key==='mylist_layout'){s_mylistlayout.value=value;ep_layout.value=value;}else if(spec.key==='sports_layout'){s_sportslayout.value=value;ep_sportslayout.value=value;}else{s_matchlayout.value=value;ep_matchlayout.value=value;}closeLayoutEditor();toast(tr('Layout saved.'));}catch(e){layoutPickerChoices.querySelectorAll('button').forEach(button=>button.disabled=false);toast(tr('Could not save layout.'));}
+}
 function renderMyListProfile(){
   const el=document.getElementById('myListProfile');if(!el)return;
   const name=String(_profileConfig.profile_name||'').trim()||tr('Profile');
-  el.innerHTML='<div class="mylistprofileemblem">'+profileEmblemSvg(_profileConfig.profile_emblem)+'</div><div class="mylistprofilename">'+esc(name)+'</div><button type="button" class="ghost editprofilebtn" onclick="openEditProfile()" data-i18n="Edit Profile">'+esc(tr('Edit Profile'))+'</button>';
+  el.innerHTML='<div class="mylistprofileemblem">'+profileEmblemSvg(_profileConfig.profile_emblem)+'</div><div class="mylistprofilename">'+esc(name)+'</div><button type="button" class="ghost editprofilebtn" data-layout-kind="profile" onclick="openLayoutEditor(this.dataset.layoutKind)">&#9998; '+esc(tr('Edit layout'))+'</button><button type="button" class="ghost editprofilebtn" onclick="openEditProfile()" data-i18n="Edit Profile">'+esc(tr('Edit Profile'))+'</button>';
 }
 let _editProfileEmblem='tvstack';
 function renderEditProfileEmblems(){const el=document.getElementById('ep_emblems');if(!el)return;el.innerHTML=Object.keys(_PROFILE_EMBLEMS).map(key=>'<button type="button" class="emblemchoice'+(key===_editProfileEmblem?' on':'')+'" data-key="'+key+'" onclick="selectEditProfileEmblem(this.dataset.key)" title="'+key+'">'+profileEmblemSvg(key)+'</button>').join('');}
@@ -13735,6 +13768,14 @@ def run_self_tests():
           "match_layout:ep_matchlayout.value" in PAGE and
           "match-layout-channel-first" in PAGE and
           "match-layout-live-centre" in PAGE)
+    check("layout-aware pages expose an immediate on-page editor",
+          "data-layout-kind=\"profile\"" in PAGE and
+          "openLayoutEditor('sports')" in PAGE and
+          "openLayoutEditor('match')" in PAGE and
+          "const _LAYOUT_EDITORS=" in PAGE and
+          "body:JSON.stringify(payload)" in PAGE and
+          "applyProfileConfig(payload)" in PAGE and
+          "Your selection is saved immediately" in PAGE)
     cache_busted = _cache_busted_url(
         "https://raw.githubusercontent.com/example/app/main/version.txt?source=manual",
         "123")
