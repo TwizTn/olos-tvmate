@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b467"
+VERSION = "0.777.b468"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -170,6 +170,7 @@ DEFAULT_CONFIG = {
     "profile_emblem": "tvstack",
     "mylist_layout": "timeline",
     "sports_layout": "current",
+    "match_layout": "balanced",
     "football_enabled": True,
     "f1_enabled": True,
     "racing_series": ["f1"],
@@ -6380,6 +6381,26 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:1050px){#teamsView.sports-layout-hub .teamsmain{display:block}#teamsView.sports-layout-broadcast .topfixturegrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
  @media(max-width:860px){#teamsView.sports-layout-broadcast .teamswrap,#teamsView.sports-layout-agenda .teamswrap,#teamsView.sports-layout-hub .teamswrap{grid-template-columns:1fr}#teamsView.sports-layout-timeline .teamfavs{grid-template-columns:1fr}#teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixturegrid{grid-template-columns:1fr}#teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child{grid-column:auto}}
  @media(max-width:700px){#teamsView.sports-layout-agenda .teamfixture,#teamsView.sports-layout-timeline .teamfixture{grid-template-columns:1fr}#teamsView.sports-layout-agenda .teamfixturebroadcasts,#teamsView.sports-layout-timeline .teamfixturebroadcasts{grid-column:1}#teamsView.sports-layout-broadcast .topfixturegrid{grid-template-columns:1fr}}
+ #matchView{max-width:1480px;margin:0 auto;padding:0 18px 34px}
+ .matchdetailtop{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
+ .matchdetailpage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:18px;align-items:start}
+ .matchdetailhero{grid-column:1/-1;text-align:center;padding:26px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,rgba(31,73,124,.28),var(--card) 58%,rgba(231,169,78,.08))}
+ .matchdetailcompetition{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--mut);margin-bottom:16px}
+ .matchdetailteams{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:20px;align-items:center;max-width:820px;margin:0 auto}
+ .matchdetailside{font-size:22px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}
+ .matchdetailside img{width:74px;height:74px;object-fit:contain;border-radius:50%;background:var(--card2);padding:7px}
+ .matchdetailfallback{width:74px;height:74px;border-radius:50%;display:grid;place-items:center;background:var(--card2);border:1px solid var(--line2);color:var(--mut);font-size:18px}
+ .matchdetailkickoff{font-size:24px;font-weight:800}.matchdetaildate{font-size:12px;color:var(--mut);margin-top:4px}.matchdetaillive{display:inline-block;color:#ff7a83;font-weight:800;margin-top:5px}
+ .matchdetailpanel{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:17px;min-width:0}
+ .matchdetailpanel h3{margin:0 0 13px;font-size:14px}.matchdetailchannels{grid-row:2/5}.matchdetailsidepanels{display:grid;gap:18px}
+ .matchdetailbroadcasters{display:flex;gap:7px;flex-wrap:wrap}.matchdetailbroadcaster{background:var(--card2);border:1px solid var(--line2);border-radius:7px;padding:7px 9px;font-size:12px}
+ .matchdetailstatus{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.matchdetailupdated{font-size:12px;color:var(--mut)}
+ .match-layout-channel-first .matchdetailchannels{grid-column:1/-1;grid-row:2;border-color:var(--acc)}
+ .match-layout-channel-first .matchdetailsidepanels{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .match-layout-live-centre .matchdetailhero{grid-column:1;background:linear-gradient(135deg,rgba(255,89,100,.14),var(--card) 60%)}
+ .match-layout-live-centre .matchdetailchannels{grid-column:2;grid-row:1/4}
+ .match-layout-live-centre .matchdetailsidepanels{grid-column:1}
+ @media(max-width:820px){.matchdetailpage,.match-layout-live-centre .matchdetailpage{grid-template-columns:1fr}.matchdetailhero,.matchdetailchannels,.matchdetailsidepanels,.match-layout-live-centre .matchdetailhero,.match-layout-live-centre .matchdetailchannels,.match-layout-live-centre .matchdetailsidepanels{grid-column:1;grid-row:auto}.match-layout-channel-first .matchdetailsidepanels{grid-template-columns:1fr}.matchdetailside{font-size:17px}.matchdetailside img{width:58px;height:58px}.matchdetailteams{gap:8px}}
  .matchstrict{display:flex;align-items:center;gap:9px;margin-top:9px;color:var(--mut);font-size:11px}
  .matchstrict input[type=range]{width:170px;accent-color:var(--acc);cursor:pointer}
  .matchstrictvalue{min-width:30px;color:var(--fg);font-variant-numeric:tabular-nums}
@@ -6705,6 +6726,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="Profile">Profile</option><option value="mytimeline" data-i18n="Timeline">Timeline</option><option value="channels" data-i18n="Playlists">Playlists</option><option value="mytv" data-i18n="Live TV">Live TV</option><option value="movies" data-i18n="Movies">Movies</option><option value="shows" data-i18n="Shows">Shows</option><option value="games" data-i18n="Games">Games</option><option value="racing" data-i18n="Racing">Racing</option><option value="teams" data-i18n="Sports">Sports</option></select></div>
       <div><label data-i18n="Profile layout">Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
       <div><label data-i18n="Sports layout">Sports layout</label><select id="ep_sportslayout"><option value="current" data-i18n="Current Sports">Current</option><option value="broadcast" data-i18n="Broadcast Deck">Broadcast Deck</option><option value="agenda" data-i18n="TV Agenda">TV Agenda</option><option value="hub" data-i18n="Sports Hub">Sports Hub</option><option value="timeline" data-i18n="Timeline Rail">Timeline Rail</option></select></div>
+      <div><label data-i18n="Match page layout">Match page layout</label><select id="ep_matchlayout"><option value="balanced" data-i18n="Balanced">Balanced</option><option value="channel-first" data-i18n="Channel first">Channel first</option><option value="live-centre" data-i18n="Live centre">Live centre</option></select></div>
       <label class="setupfeature full"><input id="ep_checkshows" type="checkbox"><span><b data-i18n="Check favorite shows on startup">Check favorite shows on startup</b><small data-i18n="Look for newly available episodes when TVMate starts.">Look for newly available episodes when TVMate starts.</small></span></label>
       <label class="setupfeature full"><input id="ep_refreshiptv" type="checkbox"><span><b data-i18n="Refresh IPTV & EPG on startup">Refresh IPTV &amp; EPG on startup</b><small data-i18n="Refresh Xtream channels, movies, shows and TV guide data.">Refresh Xtream channels, movies, shows and TV guide data.</small></span></label>
       <label class="setupfeature full"><input id="ep_refreshsports" type="checkbox"><span><b data-i18n="Refresh sports, racing & games on startup">Refresh sports, racing &amp; games on startup</b><small data-i18n="Refresh matches, regional TV listings, racing and your Steam wishlist.">Refresh matches, regional TV listings, racing and your Steam wishlist.</small></span></label>
@@ -6973,6 +6995,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     </div>
   </section>
 
+  <section id="matchView" class="hide">
+    <div class="matchdetailtop"><button type="button" class="ghost" onclick="closeMatchPage()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><button id="matchRefreshBtn" type="button" class="ghost" onclick="refreshMatchChannels(this,true)">&#8635; <span data-i18n="Refresh channel matches">Refresh channel matches</span></button></div>
+    <div id="matchPageContent" class="matchdetailpage"></div>
+  </section>
+
   <section id="settingsView" class="hide">
     <div class="settingswrap">
     <div class="brandblock">
@@ -7003,6 +7030,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <div><label data-i18n="Sports layout">Sports layout</label>
             <select id="s_sportslayout"><option value="current" data-i18n="Current Sports">Current</option><option value="broadcast" data-i18n="Broadcast Deck">Broadcast Deck</option><option value="agenda" data-i18n="TV Agenda">TV Agenda</option><option value="hub" data-i18n="Sports Hub">Sports Hub</option><option value="timeline" data-i18n="Timeline Rail">Timeline Rail</option></select>
             <div class="muted" style="margin-top:6px" data-i18n="Changes the arrangement of your Sports page only.">Changes the arrangement of your Sports page only.</div></div>
+          <div><label data-i18n="Match page layout">Match page layout</label>
+            <select id="s_matchlayout"><option value="balanced" data-i18n="Balanced">Balanced</option><option value="channel-first" data-i18n="Channel first">Channel first</option><option value="live-centre" data-i18n="Live centre">Live centre</option></select>
+            <div class="muted" style="margin-top:6px" data-i18n="Changes the dedicated page opened when you select a fixture.">Changes the dedicated page opened when you select a fixture.</div></div>
           <div><label data-i18n="Preferred language">Preferred language</label>
             <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
           <div><label data-i18n="Default start section">Default start section</label>
@@ -7265,6 +7295,7 @@ const _I18N={
   "Choose the stream URL format requested from your IPTV provider. TS is the normal default; use M3U8 if your provider works better with HLS.":"Velg strømformatet som forespørres fra IPTV-leverandøren. TS er vanlig standard; bruk M3U8 hvis leverandøren fungerer bedre med HLS.","Control automatic updates of local data and manage TVMate's local files.":"Styr automatiske oppdateringer av lokale data og administrer TVMates lokale filer.","Choose which content TVMate updates automatically after it opens.":"Velg hvilket innhold TVMate oppdaterer automatisk etter oppstart.","Refresh IPTV & EPG on startup":"Oppdater IPTV og EPG ved oppstart","Refresh sports, racing & games on startup":"Oppdater sport, racing og spill ved oppstart","Refresh Xtream channels, movies, shows and TV guide data.":"Oppdater Xtream-kanaler, filmer, serier og TV-guide.","Refresh matches, regional TV listings, racing and your Steam wishlist.":"Oppdater kamper, regionale TV-oversikter, racing og Steam-ønskelisten din.","Stops the local TVMate server after no interaction or playback. Active video keeps TVMate awake.":"Stopper den lokale TVMate-serveren når det ikke har vært aktivitet eller avspilling. Aktiv video holder TVMate våken.","Testing...":"Tester...","Login successful.":"Innloggingen fungerte.","Login failed.":"Innloggingen mislyktes.",
   "Profile":"Profil","Setup":"Oppsett","Profile name":"Profilnavn","Profile emblem":"Profilemblem","Backup & Import":"Sikkerhetskopi og import","Download a portable backup or merge one into this profile. Caches and artwork are never included.":"Last ned en flyttbar sikkerhetskopi eller slå en sammen med denne profilen. Mellomlager og omslagskunst tas aldri med.","Export profile":"Eksporter profil","Export full backup":"Eksporter full sikkerhetskopi","Import backup":"Importer sikkerhetskopi","Profile backup keeps credentials out. Full backup includes Xtream credentials; store it securely.":"Profilsikkerhetskopien utelater innlogging. Full sikkerhetskopi inkluderer Xtream-innlogging; oppbevar den sikkert.","Backup downloaded.":"Sikkerhetskopien er lastet ned.","Backup imported and merged.":"Sikkerhetskopien er importert og slått sammen.","Full backup restored.":"Full sikkerhetskopi er gjenopprettet.","Could not import this backup.":"Kunne ikke importere denne sikkerhetskopien.",
   "Balanced":"Balansert","Spotlight":"Fremhevet","Now Timeline":"Nå-tidslinje","Profile Hub":"Profiloversikt","Changes the arrangement of your Profile page only.":"Endrer bare oppsettet på profilsiden din.",
+  "Match page layout":"Kampsideoppsett","Channel first":"Kanaler først","Live centre":"Livesenter","Changes the dedicated page opened when you select a fixture.":"Endrer den egne siden som åpnes når du velger en kamp.","Channel matches":"Kanaltreff","Watch this match":"Se denne kampen","Official broadcasters":"Offisielle TV-kanaler","Channel matching":"Kanalsøk","Updates quietly every 15 minutes":"Oppdateres stille hvert 15. minutt",
   "My List layout":"Min liste-oppsett","My Profile layout":"Min profil-oppsett","Now & Next":"Nå og neste",
   "Features & Display":"Funksjoner og visning","Show football features":"Vis fotballfunksjoner","Show Formula 1 features":"Vis Formel 1-funksjoner","Show racing features":"Vis racingfunksjoner","Show game features":"Vis spillfunksjoner","Animated background decorations":"Animerte bakgrunnsdekorasjoner","Choose the racing series you want to follow.":"Velg racingseriene du vil følge.",
   "Preferred language":"Foretrukket språk",
@@ -7358,7 +7389,7 @@ function hideAll(keepMytv){
   const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));
   const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
-  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');updateProfileName(_profileConfig.profile_name);
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}updateProfileName(_profileConfig.profile_name);
   if(!keepMytv&&hasPlayback){
     if(leavingLiveTv)tvSetMini(true);
     document.body.classList.add('tvsectionplay');
@@ -7378,7 +7409,7 @@ function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
-function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');applySportsLayout();document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));}
+function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');applySportsLayout();document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));else if(_sportsReturnScroll)Promise.resolve(loading).finally(()=>{const y=_sportsReturnScroll;_sportsReturnScroll=0;requestAnimationFrame(()=>window.scrollTo(0,y));});}
 function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
 // Backward compatibility for old bookmarks/configs that still point at Search.
@@ -7402,7 +7433,7 @@ function updateProfileName(name){
   // Profile identity lives inside My Profile now. The permanent top-right
   // action is Stop TVMate, so profile names no longer occupy header space.
 }
-let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',sports_layout:'current',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
+let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',sports_layout:'current',match_layout:'balanced',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
 let _selectedEmblem='tvstack',_footballEnabled=true,_f1Enabled=true,_gamesEnabled=true,_myListLayout='timeline';
 let _devMode=false;
 function profileEmblemSvg(key){return _PROFILE_EMBLEMS[key]||_PROFILE_EMBLEMS.tvstack;}
@@ -7520,13 +7551,13 @@ function selectEditProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_editProf
 async function openEditProfile(){
   let c={};try{c=await api('/api/config');}catch(e){c=_profileConfig||{};}
   ep_name.value=c.profile_name||'';ep_lang.value=c.preferred_language||'en';_editProfileEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEditProfileEmblems();
-  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_sportslayout.value=['current','broadcast','agenda','hub','timeline'].includes(c.sports_layout)?c.sports_layout:'current';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshiptv.checked=!!c.refresh_iptv_on_startup;ep_refreshsports.checked=!!c.refresh_sports_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
+  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_sportslayout.value=['current','broadcast','agenda','hub','timeline'].includes(c.sports_layout)?c.sports_layout:'current';ep_matchlayout.value=['balanced','channel-first','live-centre'].includes(c.match_layout)?c.match_layout:'balanced';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshiptv.checked=!!c.refresh_iptv_on_startup;ep_refreshsports.checked=!!c.refresh_sports_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   editProfileOverlay.classList.remove('hide');setTimeout(()=>ep_name.focus(),30);
 }
 function closeEditProfile(){editProfileOverlay.classList.add('hide');}
 function runSetupGuideFromProfile(){closeEditProfile();openProfileSetup(false);}
 async function saveEditProfile(btn){
-  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,sports_layout:ep_sportslayout.value,check_shows_on_startup:ep_checkshows.checked,refresh_iptv_on_startup:ep_refreshiptv.checked,refresh_sports_on_startup:ep_refreshsports.checked,background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
+  const body={profile_name:ep_name.value.trim(),preferred_language:ep_lang.value,profile_emblem:_editProfileEmblem,start_section:ep_start.value,mylist_layout:ep_layout.value,sports_layout:ep_sportslayout.value,match_layout:ep_matchlayout.value,check_shows_on_startup:ep_checkshows.checked,refresh_iptv_on_startup:ep_refreshiptv.checked,refresh_sports_on_startup:ep_refreshsports.checked,background_style:ep_background.value,decorations_enabled:ep_background.value!=='off'};
   if(!body.profile_name){ep_name.focus();toast(tr('Enter a profile name.'));return;}if(body.mylist_layout==='timeline'&&body.start_section==='mytimeline')body.start_section='mylist';if(!_gamesEnabled&&body.start_section==='games')body.start_section='mylist';if(!_f1Enabled&&body.start_section==='racing')body.start_section='mylist';if(!_footballEnabled&&body.start_section==='teams')body.start_section='mylist';
   const old=btn.textContent;btn.disabled=true;btn.textContent='Saving...';
   try{const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('save failed');setLang(body.preferred_language);applyProfileConfig(body);closeEditProfile();toast(tr('Profile saved.'));}catch(e){toast(tr('Could not save profile.'));}
@@ -7584,6 +7615,7 @@ function applyProfileConfig(c){
   renderMyListProfile();
   applyMyListLayout();
   applySportsLayout();
+  if(!matchView.classList.contains('hide')&&_matchFixture)renderMatchPage();
 }
 
 let _favTeamSet=new Set(),_favTeamRows=[],_myTeamFixtures=[],_sportsVisibleFixtures=[],_sportsAvailabilityTimer=null,_sportsAvailabilityRequest=0,_myTeamsBackgroundRefresh=false,_myTeamsLastRefresh=0,_selectedTeamName='',_selectedTeamRow=null,_selectedTeamProfile=null,_teamProfileReq=0,_teamDeepLink=null,_fixtureSearchTeamId='';
@@ -7640,8 +7672,6 @@ function teamFixtureCard(f,live,deepLink){
   const awayLogo=f.away_id?'<img class="teamfixturelogo" src="/api/team_logo?id='+encodeURIComponent(f.away_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
   const competition=f.league_name?'<div class="teamfixturecompetition">'+esc(f.league_name)+'</div>':'';
   const knownChannels=[...(f.matches||[]),...(f.ppv_hits||[])],hasChannels=knownChannels.length>0;
-  const channelHtml=(hasChannels||f.availability_checked)?fixtureStoredChannelsHtml(Object.assign({logged_in:true},f)):'<span class="muted">'+esc(tr('Checking your channels...'))+'</span>';
-  const details='<div class="teamfixturebroadcasts hide"><div class="fixturechannelresults" style="width:100%">'+channelHtml+'</div></div>';
   const fixtureAttrs=' data-fixture-card="1"'+(deepLink?' data-profile-fixture="1"':'')+' data-event-key="'+escAttr(sportsFixtureKey(f))+'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(matchQuery)+'"';
   // In the timeline the card is laid out as a wide single row, so the TV badge
   // moves to the end of that row instead of sitting beside the team names.
@@ -7650,7 +7680,7 @@ function teamFixtureCard(f,live,deepLink){
     +(deepLink?'':tvBadge)+'</div>'
     +competition+'<div class="muted teamfixturewhen">'+esc(when)+' '+status+'</div>'+(owners&&!deepLink?'<div class="teamfixtureowner">'+esc(owners)+'</div>':'')
     +(deepLink?timelineAside(live?'':racingCountdown({start:f.start}),knownChannels.length,live):'')
-    +(deepLink?tvBadge:'')+details+'</div>';
+    +(deepLink?tvBadge:'')+'</div>';
 }
 async function loadMyTeams(force){
   const fav=await api('/api/favorites'), teams=fav.teams||[];
@@ -7787,7 +7817,7 @@ function openMyTeamsFixture(target){
   const cards=Array.from(document.querySelectorAll('#teamsView .teamfixture[data-fixture-card="1"]'));
   const selected=cards.find(card=>_teamNamesEquivalentForUi(card.getAttribute('data-home'),_teamDeepLink.home)&&_teamNamesEquivalentForUi(card.getAttribute('data-away'),_teamDeepLink.away)&&(!_teamDeepLink.start||!card.getAttribute('data-start')||Math.abs(new Date(card.getAttribute('data-start'))-new Date(_teamDeepLink.start))<6*3600000));
   cards.forEach(card=>card.classList.toggle('selectedfixture',card===selected));
-  if(selected){const details=selected.querySelector('.teamfixturebroadcasts');if(details)details.classList.remove('hide');selected.scrollIntoView({behavior:'smooth',block:'center'});}
+  if(selected)openMatchFromCard(selected);
 }
 function fixtureStoredChannelsHtml(f){
   if(!f.logged_in)return '<span class="muted">'+esc(tr('Log in via Settings first.'))+'</span>';
@@ -7798,6 +7828,27 @@ function fixtureStoredChannelsHtml(f){
   let h='';if(definite.length)h+='<div class="muted">'+esc(tr('Definite channel matches'))+'</div>'+secureMatchGroupsHtml(definite,line,'stored'+Math.random().toString(36).slice(2));
   if(other.length){h+='<div class="muted" style="margin-top:8px">'+esc(tr('Possible channels by category'))+'</div>';for(const [name,items] of groupedPossibleChannels(other)){const open=items.length<=5;h+='<div class="bcrow'+(open?' open':'')+'"><div class="bchead"><span class="bcname">'+esc(name)+'</span><span class="muted">'+items.length+' '+esc(tr(items.length===1?'channel':'channels'))+'</span><span class="bcchevron">&#9662;</span></div><div class="bcchans'+(open?'':' hide')+'">'+items.map(line).join('')+'</div></div>';}}
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
+}
+
+let _matchFixture=null,_matchRefreshTimer=null,_sportsReturnScroll=0;
+function matchTeamArt(id,name){const src=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'<span class="matchdetailfallback">'+esc(String(name||'?').slice(0,2).toUpperCase())+'</span>';}
+function matchBroadcastersHtml(f){const rows=[];for(const [country,names] of Object.entries(f.by_country||{}))for(const name of (names||[])){const label=String(name||'').trim();if(label)rows.push('<span class="matchdetailbroadcaster">'+esc(label)+(country?' · '+esc(country):'')+'</span>');}return rows.length?rows.join(''):'<span class="muted">'+esc(tr('No TV'))+'</span>';}
+function renderMatchPage(){
+  const el=document.getElementById('matchPageContent'),f=_matchFixture;if(!el||!f)return;
+  const allowed=['balanced','channel-first','live-centre'],layout=allowed.includes(_profileConfig.match_layout)?_profileConfig.match_layout:'balanced';
+  matchView.classList.remove('match-layout-balanced','match-layout-channel-first','match-layout-live-centre');matchView.classList.add('match-layout-'+layout);
+  const kick=f.start?new Date(f.start):null,valid=kick&&!Number.isNaN(kick.getTime()),time=valid?kick.toLocaleTimeString(_lang==='no'?'nb-NO':undefined,{hour:'2-digit',minute:'2-digit'}):'—',date=valid?kick.toLocaleDateString(_lang==='no'?'nb-NO':undefined,{weekday:'long',day:'numeric',month:'long'}):'',live=fixtureIsLive(f),recent=fixtureIsRecent(f),status=live?(tr('Live now')+(f.live_minute!=null?' · '+String(f.live_minute)+"'":'')):(recent?tr('Recent match'):time),channels=[...(f.matches||[]),...(f.ppv_hits||[])];
+  const hero='<div class="matchdetailhero"><div class="matchdetailcompetition">'+esc(f.league_name||tr('Football'))+'</div><div class="matchdetailteams"><div class="matchdetailside">'+matchTeamArt(f.home_id,f.home)+'<span>'+esc(f.home||'')+'</span></div><div><div class="matchdetailkickoff">'+esc(status)+'</div><div class="matchdetaildate">'+esc(date)+'</div>'+(live?'<div class="matchdetaillive">LIVE</div>':'')+'</div><div class="matchdetailside">'+matchTeamArt(f.away_id,f.away)+'<span>'+esc(f.away||'')+'</span></div></div></div>';
+  const channelPanel='<div class="matchdetailpanel matchdetailchannels"><h3>'+esc(tr(layout==='channel-first'?'Watch this match':'Channel matches'))+'</h3><div id="matchChannelResults">'+fixtureStoredChannelsHtml(Object.assign({logged_in:true},f))+'</div></div>';
+  const side='<div class="matchdetailsidepanels"><div class="matchdetailpanel"><h3>'+esc(tr('Official broadcasters'))+'</h3><div class="matchdetailbroadcasters">'+matchBroadcastersHtml(f)+'</div></div><div class="matchdetailpanel"><h3>'+esc(tr('Channel matching'))+'</h3><div class="matchdetailstatus"><span class="cc">'+channels.length+' '+esc(tr(channels.length===1?'channel':'channels'))+'</span><span id="matchUpdated" class="matchdetailupdated">'+esc(tr('Updates quietly every 15 minutes'))+'</span></div></div></div>';
+  el.innerHTML=hero+channelPanel+side;
+}
+function showMatchPage(fixture){if(!fixture)return;_matchFixture=fixture;if(!matchView||matchView.classList.contains('hide'))_sportsReturnScroll=window.scrollY||0;rememberLocation('match',{eventKey:sportsFixtureKey(fixture)});hideAll();matchView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');renderMatchPage();window.scrollTo(0,0);if(fixture.availability_checked)_matchRefreshTimer=setTimeout(()=>refreshMatchChannels(null,true),15*60*1000);else refreshMatchChannels(null,false);}
+function openMatchFromCard(card){const key=card&&card.getAttribute('data-event-key')||'',source=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===key);if(source)showMatchPage(source);}
+function closeMatchPage(){if(history.state&&history.state.section==='match')history.back();else showTeams();}
+async function refreshMatchChannels(btn,force){
+  if(!_matchFixture)return;const old=btn&&btn.innerHTML;if(btn){btn.disabled=true;btn.textContent=tr('Refreshing channel matches...');}
+  try{const result=await api('/api/sports_event_channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fixture:_matchFixture,force:!!force})});if(!result.error){Object.assign(_matchFixture,result);applySportsAvailability({[sportsFixtureKey(_matchFixture)]:result});renderMatchPage();const updated=document.getElementById('matchUpdated');if(updated)updated.textContent=tr('Channel matches refreshed.');}}catch(e){}finally{if(btn){btn.disabled=false;btn.innerHTML=old;applyLang();}if(_matchRefreshTimer)clearTimeout(_matchRefreshTimer);if(!matchView.classList.contains('hide'))_matchRefreshTimer=setTimeout(()=>refreshMatchChannels(null,true),15*60*1000);}
 }
 
 function secureChannelFamily(ch){return String(ch&&ch.xtream_name||'channel').toLowerCase().replace(/^\\s*[a-z0-9]{1,8}\\s*[:|\\-]\\s*/,'').replace(/^\\s*(no|nor|norway|norge|norwegian)\\s+/,'').replace(/\\b(4k|uhd|fhd|full\\s*hd|hd|sd|raw|hevc|h\\.?26[45]|avc|50\\s*fps|60\\s*fps|vip|gold|dolby|audio|no|nor|norway|norge|norwegian)\\b/g,' ').replace(/[^a-z0-9]+/g,' ').replace(/\\s+/g,' ').trim()||String(ch&&ch.xtream_name||'channel').toLowerCase();}
@@ -8106,6 +8157,7 @@ async function loadSettings(){
   _selectedEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEmblemPicker();
   s_mylistlayout.value=['balanced','spotlight','timeline','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';
   s_sportslayout.value=['current','broadcast','agenda','hub','timeline'].includes(c.sports_layout)?c.sports_layout:'current';
+  s_matchlayout.value=['balanced','channel-first','live-centre'].includes(c.match_layout)?c.match_layout:'balanced';
   s_football.checked=c.football_enabled!==false;
   s_f1.checked=c.f1_enabled!==false;
   s_games.checked=c.games_enabled!==false;
@@ -8148,7 +8200,7 @@ async function saveSettings(){
     start_section:s_start.value,check_shows_on_startup:s_checkshows.checked,
     refresh_iptv_on_startup:s_refreshiptv.checked,refresh_sports_on_startup:s_refreshsports.checked,
     profile_name:s_profile.value.trim(),preferred_language:s_lang.value,
-    profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,sports_layout:s_sportslayout.value,football_enabled:s_football.checked,
+    profile_emblem:_selectedEmblem,mylist_layout:s_mylistlayout.value,sports_layout:s_sportslayout.value,match_layout:s_matchlayout.value,football_enabled:s_football.checked,
     f1_enabled:s_f1.checked,games_enabled:s_games.checked,background_style:s_background.value,decorations_enabled:s_background.value!=='off',hide_cmd_window:true,auto_shutdown_minutes:Number(s_autoshutdown.value||0),allow_lan:s_allowlan.checked,private_remote_relay:(_devMode&&s_privaterelay.checked)};
   if(!body.games_enabled&&body.start_section==='games')body.start_section='mylist';
   if(!body.f1_enabled&&body.start_section==='racing')body.start_section='mylist';
@@ -10174,7 +10226,7 @@ document.addEventListener('click',function(e){
   const timelineTeamFixture=e.target.closest('.teamfixture[data-profile-fixture="1"]');
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const teamFixture=e.target.closest('.teamfixture[data-fixture-card="1"]');
-  if(teamFixture&&!e.target.closest('.btnplay,.btnvlc,.bchead')){const details=teamFixture.querySelector('.teamfixturebroadcasts'),opening=details&&details.classList.contains('hide');document.querySelectorAll('#teamsView .teamfixture.selectedfixture').forEach(card=>card.classList.remove('selectedfixture'));teamFixture.classList.toggle('selectedfixture',!!opening);if(details)details.classList.toggle('hide');if(opening)loadStoredFixtureChannels(teamFixture);return;}
+  if(teamFixture&&!e.target.closest('.btnplay,.btnvlc,.bchead')){openMatchFromCard(teamFixture);return;}
   const teamRemove=e.target.closest('.teamremove');
   if(teamRemove){removeTeamFavorite(teamRemove.getAttribute('data-team-name'));return;}
   const teamFav=e.target.closest('.teamfavitem[data-team-search]');
@@ -10284,7 +10336,7 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
 window.addEventListener('popstate',function(ev){
   const state=ev.state;
   if(!state||!state.tvmate)return;
-  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings};
+  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings,match:function(){const fixture=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===state.eventKey)||_matchFixture;if(fixture)showMatchPage(fixture);else showTeams();}};
   const fn=map[state.section]||showMylist;
   _historyRestoring=true;
   try{
@@ -12500,7 +12552,7 @@ class Handler(BaseHTTPRequestHandler):
             for k in ("xtream_host", "xtream_port", "xtream_user", "xtream_pass",
                       "stream_ext", "match_threshold", "countries", "start_section",
                       "check_shows_on_startup", "refresh_iptv_on_startup", "refresh_sports_on_startup", "profile_name",
-                      "preferred_language", "profile_emblem", "mylist_layout", "sports_layout", "football_enabled",
+                      "preferred_language", "profile_emblem", "mylist_layout", "sports_layout", "match_layout", "football_enabled",
                       "f1_enabled", "games_enabled", "decorations_enabled", "background_style", "setup_complete", "setup_demo_content", "auto_shutdown_minutes", "allow_lan", "dev_mode", "private_remote_relay"):
                 if k in payload:
                     cfg[k] = payload[k]
@@ -12519,6 +12571,8 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["mylist_layout"] = "timeline"
             if cfg.get("sports_layout") not in ("current", "broadcast", "agenda", "hub", "timeline"):
                 cfg["sports_layout"] = "current"
+            if cfg.get("match_layout") not in ("balanced", "channel-first", "live-centre"):
+                cfg["match_layout"] = "balanced"
             allowed_starts = ("mylist", "mytimeline", "channels", "mytv", "movies", "shows", "games", "racing", "teams")
             if cfg.get("start_section") not in allowed_starts:
                 cfg["start_section"] = "mylist"
@@ -13673,6 +13727,14 @@ def run_self_tests():
               for layout in ("current", "broadcast", "agenda", "hub", "timeline")) and
           all(("sports-layout-" + layout) in PAGE
               for layout in ("broadcast", "agenda", "hub", "timeline")))
+    check("match page offers and persists all three layouts",
+          DEFAULT_CONFIG.get("match_layout") == "balanced" and
+          all(('value="%s"' % layout) in PAGE
+              for layout in ("balanced", "channel-first", "live-centre")) and
+          "match_layout:s_matchlayout.value" in PAGE and
+          "match_layout:ep_matchlayout.value" in PAGE and
+          "match-layout-channel-first" in PAGE and
+          "match-layout-live-centre" in PAGE)
     cache_busted = _cache_busted_url(
         "https://raw.githubusercontent.com/example/app/main/version.txt?source=manual",
         "123")
@@ -13851,9 +13913,14 @@ def run_self_tests():
     check("fixture availability loads priority results progressively",
           "batches.push(fixtures.slice(0,3))" in PAGE and
           "for(let i=3;i<fixtures.length;i+=12)" in PAGE)
-    check("opening a waiting fixture triggers a targeted channel lookup",
-          "panel.textContent.includes(tr('Checking your channels...'))" in PAGE and
-          "body:JSON.stringify({fixture:fixture})" in PAGE)
+    check("fixture selection opens a dedicated match page",
+          "openMatchFromCard(teamFixture)" in PAGE and
+          "matchView.classList.remove('hide')" in PAGE and
+          "rememberLocation('match',{eventKey:sportsFixtureKey(fixture)})" in PAGE)
+    check("match page refreshes channels quietly every fifteen minutes",
+          "refreshMatchChannels(null,true),15*60*1000" in PAGE and
+          "else refreshMatchChannels(null,false)" in PAGE and
+          "if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer)" in PAGE)
     check("matched channel titles play without collapsing fixtures",
           "fixturechanneltitle[data-sid]" in PAGE and
           "playBrowser(fixtureChannelTitle.getAttribute('data-sid')" in PAGE)
