@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b471"
+VERSION = "0.777.b472"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -5986,6 +5986,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .favcat .chev{color:var(--acc);font-size:12px;flex-shrink:0}
  main{max-width:960px;margin:0 auto;padding:26px 22px 42px;position:relative;z-index:1}
  main.wide{max-width:none;padding:26px 30px 44px;transition:padding-right .18s ease}
+ body.matchplayerembedded main.wide{padding-right:30px!important}
  @media(min-width:1800px) and (max-width:2199px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,38vw) + 70px)}}
  @media(min-width:2200px){body.tvsectionplay main.wide{padding-right:calc(min(1040px,40vw) + 70px)}}
  @media(min-width:1800px) and (max-width:2199px){
@@ -7874,10 +7875,10 @@ function fixtureStoredChannelsHtml(f){
 let _matchFixture=null,_matchRefreshTimer=null,_sportsReturnScroll=0;
 function matchTeamArt(id,name){const src=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'<span class="matchdetailfallback">'+esc(String(name||'?').slice(0,2).toUpperCase())+'</span>';}
 function matchBroadcastersHtml(f){const rows=[];for(const [country,names] of Object.entries(f.by_country||{}))for(const name of (names||[])){const label=String(name||'').trim();if(label)rows.push('<span class="matchdetailbroadcaster">'+esc(label)+(country?' · '+esc(country):'')+'</span>');}return rows.length?rows.join(''):'<span class="muted">'+esc(tr('No TV'))+'</span>';}
-function releaseMatchPlayerAnchor(){const modal=document.getElementById('playerModal');if(!modal||modal.parentNode===document.body)return;if(playerFullscreenElement()===modal)exitPlayerFullscreen();modal.classList.remove('matchanchored');document.body.appendChild(modal);}
+function releaseMatchPlayerAnchor(){const modal=document.getElementById('playerModal');document.body.classList.remove('matchplayerembedded');if(!modal)return;if(modal.parentNode!==document.body){if(playerFullscreenElement()===modal)exitPlayerFullscreen();modal.classList.remove('matchanchored');document.body.appendChild(modal);}if(!modal.classList.contains('hide'))document.body.classList.add('tvsectionplay');}
 function syncMatchPlayerAnchor(){
   const modal=document.getElementById('playerModal'),anchor=document.getElementById('matchPlayerAnchor'),liveCentre=!!(anchor&&!matchView.classList.contains('hide')&&matchView.classList.contains('match-layout-live-centre'));if(!modal)return;
-  if(liveCentre){if(modal.parentNode!==anchor)anchor.appendChild(modal);modal.classList.add('matchanchored');anchor.classList.toggle('on',!modal.classList.contains('hide'));setPopupPlayerMax(false);}else releaseMatchPlayerAnchor();
+  if(liveCentre){const playing=!modal.classList.contains('hide');if(modal.parentNode!==anchor)anchor.appendChild(modal);modal.classList.add('matchanchored');anchor.classList.toggle('on',playing);document.body.classList.toggle('matchplayerembedded',playing);if(playing)document.body.classList.remove('tvsectionplay');setPopupPlayerMax(false);}else releaseMatchPlayerAnchor();
 }
 function renderMatchPage(){
   const el=document.getElementById('matchPageContent'),f=_matchFixture;if(!el||!f)return;
@@ -8753,7 +8754,7 @@ async function playBrowser(sid,name){
   modal.classList.remove('hide');
   syncMatchPlayerAnchor();
   setPopupPlayerMax(false);
-  document.body.classList.add('tvsectionplay');
+  document.body.classList.toggle('tvsectionplay',!modal.classList.contains('matchanchored'));
   syncSectionPlayerLayout();
   // get the hls url
   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
@@ -13793,6 +13794,11 @@ def run_self_tests():
           "function syncMatchPlayerAnchor()" in PAGE and
           "anchor.appendChild(modal)" in PAGE and
           "releaseMatchPlayerAnchor();" in PAGE)
+    check("embedded match player keeps the full-width page layout",
+          "body.matchplayerembedded main.wide{padding-right:30px!important}" in PAGE and
+          "classList.toggle('matchplayerembedded',playing)" in PAGE and
+          "if(playing)document.body.classList.remove('tvsectionplay')" in PAGE and
+          "classList.toggle('tvsectionplay',!modal.classList.contains('matchanchored'))" in PAGE)
     check("layout-aware pages expose an immediate on-page editor",
           "data-layout-kind=\"profile\"" in PAGE and
           "openLayoutEditor('sports',this)" in PAGE and
