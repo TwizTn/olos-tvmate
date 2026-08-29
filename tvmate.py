@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b492"
+VERSION = "0.777.b493"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1988,7 +1988,7 @@ _LTV_MATCH_FAILURE_TTL = 15 * 60
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
 _TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
-_TEAM_PROFILE_CACHE_SCHEMA = 2  # b257: real FotMob venue/coach/profile paths
+_TEAM_PROFILE_CACHE_SCHEMA = 3  # b479: club facts plus league table context
 _TEAM_ID_CACHE = {}       # normalized favorite name -> FotMob team id
 _DAILY_MATCH_CACHE = {"date": "", "ts": 0, "matches": []}
 _DAILY_MATCH_TTL = 120    # current/live matches: refresh every 2 minutes
@@ -3957,10 +3957,66 @@ def fetch_ltv_daily(date):
         _save_timed_data_cache(f"ltv-daily-v4-{date}.json", rows)
         return rows
 
+def _team_table_from_data(data, team_id, team_name=""):
+    """Find the senior league table embedded in a FotMob team payload."""
+    candidates = []
+    def row_value(row, *keys):
+        for key in keys:
+            if row.get(key) is not None:
+                return row.get(key)
+        return ""
+    def normalized_row(raw, index):
+        if not isinstance(raw, dict):
+            return None
+        team = raw.get("team") if isinstance(raw.get("team"), dict) else {}
+        name = str(row_value(raw, "name", "teamName", "shortName") or
+                   team.get("name") or team.get("shortName") or "").strip()
+        rid = str(row_value(raw, "id", "teamId") or team.get("id") or "").strip()
+        if not name:
+            return None
+        position = row_value(raw, "idx", "position", "rank", "pos")
+        try:
+            position = int(position)
+        except (TypeError, ValueError):
+            position = index + 1
+        return {"position": position, "team_id": rid, "name": name,
+                "played": row_value(raw, "played", "pld", "matches"),
+                "won": row_value(raw, "wins", "won", "w"),
+                "drawn": row_value(raw, "draws", "drawn", "d"),
+                "lost": row_value(raw, "losses", "lost", "l"),
+                "goal_difference": row_value(raw, "goalConDiff", "goalDifference", "gd"),
+                "points": row_value(raw, "pts", "points")}
+    def walk(obj, path=""):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                walk(value, path + "/" + str(key).lower())
+        elif isinstance(obj, list):
+            if any(token in path for token in ("table", "standing")):
+                rows = [normalized_row(value, index) for index, value in enumerate(obj[:40])]
+                rows = [row for row in rows if row]
+                if len(rows) >= 2 and any(row.get("points") != "" for row in rows):
+                    candidates.append(rows)
+            for value in obj[:80]:
+                if isinstance(value, (dict, list)):
+                    walk(value, path)
+    walk(data)
+    if not candidates:
+        return {}, []
+    wanted_id = str(team_id or "")
+    table = max(candidates, key=lambda rows: (any(
+        row["team_id"] == wanted_id or _team_names_equivalent(row["name"], team_name)
+        for row in rows), len(rows)))
+    standing = next((row for row in table if row["team_id"] == wanted_id), None)
+    if standing is None:
+        standing = next((row for row in table
+                         if _team_names_equivalent(row["name"], team_name)), {})
+    return dict(standing or {}), table
+
 def _team_profile_from_data(data, team_id, team_name=""):
     """Extract stable team facts from FotMob without depending on one response layout."""
     profile = {"team_id": str(team_id or ""), "name": str(team_name or "").strip(),
-               "country": "", "league": "", "stadium": "", "coach": ""}
+               "country": "", "league": "", "stadium": "", "coach": "",
+               "standing": {}, "table": []}
     if not isinstance(data, dict):
         return profile
     def display(value):
@@ -4030,6 +4086,8 @@ def _team_profile_from_data(data, team_id, team_name=""):
                 profile["name"] = display(block.get("name"))
             walk(block)
     walk(data)
+    profile["standing"], profile["table"] = _team_table_from_data(
+        data, team_id, profile.get("name") or team_name)
     return profile
 
 def _remember_team_profile(team_id, team_name, data):
@@ -4044,7 +4102,7 @@ def _remember_team_profile(team_id, team_name, data):
 def fetch_team_profile(team_id, team_name=""):
     team_id = str(team_id or "").strip()
     if not team_id:
-        return {"team_id": "", "name": str(team_name or "").strip(), "country": "", "league": "", "stadium": "", "coach": ""}
+        return {"team_id": "", "name": str(team_name or "").strip(), "country": "", "league": "", "stadium": "", "coach": "", "standing": {}, "table": []}
     now = time.time()
     cached = _TEAM_PROFILE_CACHE.get(team_id)
     if cached and now - cached["ts"] < _TEAM_FIXTURE_TTL:
@@ -6648,7 +6706,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .leaguepickerhead{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px}.leaguepickerhead b{font-size:14px}.leaguepickerhead .muted{font-size:11px;margin-top:3px}
  .leaguepickergroups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.leaguepickergroup{border:1px solid var(--line);border-radius:8px;padding:10px}.leaguepickergroup h4{margin:0 0 7px;font-size:11px;color:var(--acc);text-transform:uppercase;letter-spacing:.06em}.leaguepickergroup label{display:flex;gap:8px;align-items:center;padding:5px 2px;font-size:12px}.leaguepickerbuttons{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
  .favoriteteamstrip{display:flex;gap:8px;flex-wrap:wrap}.favoriteteamchip{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px;color:var(--fg);cursor:pointer}.favoriteteamchip:hover{border-color:#49a767;background:rgba(43,112,67,.16)}.favoriteteamchip img{width:28px;height:28px;object-fit:contain}.favoriteteamchip span{font-weight:650}
- .teamdetailpage{max-width:1180px;margin:0 auto;padding:0 18px 34px}.teamdetailtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.teamdetailgrid{display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px;align-items:start}.teamdetailprofile{position:sticky;top:78px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:16px}.teamdetailfixtures .teamfixturegrid{grid-template-columns:1fr}
+ .teamdetailpage{max-width:1260px;margin:0 auto;padding:0 18px 34px}.teamdetailtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.teamdetailtop h2{margin:0;font-size:20px}.teamdetailgrid{display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px;align-items:start}.teamdetailprofile{position:sticky;top:78px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:16px}.teamdetailfixtures .teamfixturegrid{grid-template-columns:1fr}.teamstandingbadge{margin:0 0 13px;padding:11px;border:1px solid #355b42;border-radius:8px;background:rgba(43,112,67,.14)}.teamstandingbadge b{font-size:20px;margin-right:5px}.teamtablewrap{margin-top:24px}.teamtable{width:100%;border-collapse:collapse;font-size:12px}.teamtable th{color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.teamtable th,.teamtable td{padding:8px 7px;border-bottom:1px solid var(--line);text-align:right}.teamtable th:nth-child(2),.teamtable td:nth-child(2){text-align:left}.teamtable tr.selected{background:rgba(43,112,67,.2);color:#dff5e6}.teamtablelogo{width:21px;height:21px;object-fit:contain;vertical-align:middle;margin-right:7px}
  @media(max-width:720px){.leaguepickergroups,.teamdetailgrid{grid-template-columns:1fr}.teamdetailprofile{position:static}.leaguepicker{left:0;right:auto}}
  .teamfixturebroadcasts.hide{display:none}
  /* Per-profile Sports layouts. All variants reuse the same fixture cards,
@@ -7328,7 +7386,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <div id="teamUpcomingList"><span class="muted">Loading...</span></div>
       </div>
     </div>
-    <div id="teamDetailPage" class="teamdetailpage hide"><div class="teamdetailtop"><button type="button" class="ghost" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button></div><div class="teamdetailgrid"><aside id="teamDetailProfile" class="teamdetailprofile"></aside><div class="teamdetailfixtures"><div class="colh" data-i18n="Fixtures">Fixtures</div><div id="teamDetailFixtures" class="teamfixturegrid"></div></div></div></div>
+    <div id="teamDetailPage" class="teamdetailpage hide"><div class="teamdetailtop"><button type="button" class="ghost" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><h2 id="teamDetailTitle"></h2></div><div class="teamdetailgrid"><aside id="teamDetailProfile" class="teamdetailprofile"></aside><div><div class="teamdetailfixtures"><div class="colh" data-i18n="Fixtures">Fixtures</div><div id="teamDetailFixtures" class="teamfixturegrid"></div></div><div id="teamTableWrap" class="teamtablewrap"></div></div></div></div>
   </section>
 
   <section id="matchView" class="hide">
@@ -7607,7 +7665,7 @@ const _I18N={
   "Choose your racing":"Velg racing","Select the series you want on My Racing and your timeline.":"Velg seriene du vil ha i Min racing og på tidslinjen.","Select the series you want in Racing and your timeline.":"Velg seriene du vil ha i Racing og på tidslinjen.","Favorite Formula 1 team":"Favorittlag i Formel 1","Choose a Formula 1 team":"Velg et Formel 1-lag","Add something to watch":"Legg til noe å se på","Search shows":"Søk etter serier","Search movies":"Søk etter filmer",
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
-  "Ended matches":"Ferdige kamper","Ended":"Ferdig","Half-time":"Pause","Cancelled":"Avlyst",
+  "Ended matches":"Ferdige kamper","Ended":"Ferdig","Half-time":"Pause","Cancelled":"Avlyst","League table":"Ligatabell","Table information is not available.":"Tabellinformasjon er ikke tilgjengelig.","points":"poeng","Team":"Lag",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Today's matches":"Dagens kamper","Upcoming Fixtures":"Kommende kamper","Favorite team highlights":"Høydepunkter for favorittlag","Fixtures":"Kamper","Edit leagues & cups":"Rediger ligaer og cuper","Leagues & cups":"Ligaer og cuper","Choose what appears in today's Sports timeline.":"Velg hva som vises i dagens sportstidslinje.","Recommended":"Anbefalt","Leagues saved.":"Ligaer lagret.","Could not load leagues.":"Kunne ikke laste ligaer.","Could not save leagues.":"Kunne ikke lagre ligaer.","Choose at least one league or cup.":"Velg minst én liga eller cup.","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
   "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Loading channel matches...":"Laster kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport","Back to Racing":"Tilbake til Racing","Confirmed broadcasters for this event":"Bekreftede TV-kanaler for dette løpet","Rally days":"Rallydager","Try again":"Prøv igjen","Live coverage":"Direktedekning","Live updates":"Direkteoppdateringer","Live maps":"Direktekart","Live stream":"Direktestrøm","Entry list":"Deltakerliste","Itinerary":"Etappeplan","Refresh":"Oppdater","Refreshing...":"Oppdaterer...","Stages":"Etapper","stages":"etapper","Loading stages...":"Laster etapper...","No stage list published yet.":"Ingen etappeliste publisert ennå.","Could not load the stage list.":"Kunne ikke laste etappelisten.","Power Stage":"Power Stage","Running":"Pågår","Next":"Neste","Today":"I dag","Event detail":"Løpsdetaljer","Circuit":"Bane","Session":"Økt","Official page":"Offisiell side","Running now":"Pågår nå","Race":"Løp","No channels in your list match this event yet.":"Ingen kanaler i listen din matcher dette løpet ennå.","Confirmed broadcasters for this match":"Bekreftede TV-kanaler for denne kampen","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører","Other broadcaster listings":"Andre TV-oppføringer",
@@ -8007,11 +8065,13 @@ function selectedTeamNextFixture(){
 function renderSelectedTeamProfile(profile){
   const el=document.getElementById('teamDetailProfile');if(!el)return;const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase())||(_selectedTeamRow&&String(_selectedTeamRow.name).toLowerCase()===String(_selectedTeamName).toLowerCase()?_selectedTeamRow:null);if(!row){el.innerHTML='<span class="muted">'+esc(tr('Choose a team to see details.'))+'</span>';return;}
   profile=profile||_selectedTeamProfile||{};const src=profile.logo||row.logo||(row.team_id?'/api/team_logo?id='+encodeURIComponent(row.team_id):''),meta=[profile.country,profile.league].filter(Boolean).join(' · ');
-  const facts=[['Home ground',profile.stadium||'—'],['Head coach',profile.coach||'—'],['League',profile.league||'—'],['Country',profile.country||'—']];
+  const facts=[['Home ground',profile.stadium||'—'],['Head coach',profile.coach||'—'],['League',profile.league||'—'],['Country',profile.country||'—']],standing=profile.standing||{};
   const next=selectedTeamNextFixture();let nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(tr('Next match'))+'</div><span class="muted">'+esc(tr('No upcoming fixture found.'))+'</span></div>';
   if(next){const kick=next.start?new Date(next.start):null,live=fixtureIsLive(next),recent=fixtureIsRecent(next),when=live?tr('Live now'):(kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'');nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(live?tr('Live now'):(recent?'Recent match':tr('Next match')))+'</div><b>'+esc(next.home||'')+' v '+esc(next.away||'')+'</b><span class="muted">'+esc(when)+(recent?' · ended':'')+(next.league_name?' · '+esc(next.league_name):'')+'</span></div>';}
-  el.innerHTML='<div class="teamprofilehero"><div class="teamprofilebadge">'+(src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</div><div class="teamprofileidentity"><h2>'+esc(profile.name||row.name)+'</h2><div class="muted">'+esc(meta||tr('Football'))+'</div></div></div><div class="teamprofilefacts">'+facts.map(f=>'<div class="teamprofilefact"><span>'+esc(tr(f[0]))+'</span><b title="'+escAttr(f[1])+'">'+esc(f[1])+'</b></div>').join('')+'</div>'+nextHtml;
+  el.innerHTML='<div class="teamprofilehero"><div class="teamprofilebadge">'+(src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</div><div class="teamprofileidentity"><h2>'+esc(profile.name||row.name)+'</h2><div class="muted">'+esc(meta||tr('Football'))+'</div></div></div>'+(standing.position?'<div class="teamstandingbadge"><b>'+esc(standing.position)+'.</b> '+esc(profile.league||tr('League'))+' · '+esc(standing.points)+' '+esc(tr('points'))+'</div>':'')+'<div class="teamprofilefacts">'+facts.map(f=>'<div class="teamprofilefact"><span>'+esc(tr(f[0]))+'</span><b title="'+escAttr(f[1])+'">'+esc(f[1])+'</b></div>').join('')+'</div>'+nextHtml;
+  renderSelectedTeamTable(profile);
 }
+function renderSelectedTeamTable(profile){const el=document.getElementById('teamTableWrap');if(!el)return;const rows=(profile&&profile.table)||[];if(!rows.length){el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><span class="muted">'+esc(tr('Table information is not available.'))+'</span>';return;}const selected=String((profile.standing||{}).team_id||profile.team_id||'');el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><div style="overflow-x:auto"><table class="teamtable"><thead><tr><th>#</th><th>'+esc(tr('Team'))+'</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>PTS</th></tr></thead><tbody>'+rows.map(row=>'<tr class="'+(String(row.team_id||'')===selected?'selected':'')+'"><td>'+esc(row.position)+'</td><td>'+(row.team_id?'<img class="teamtablelogo" src="/api/team_logo?id='+encodeURIComponent(row.team_id)+'" alt="" loading="lazy" onerror="this.remove()">':'')+esc(row.name)+'</td><td>'+esc(row.played)+'</td><td>'+esc(row.won)+'</td><td>'+esc(row.drawn)+'</td><td>'+esc(row.lost)+'</td><td>'+esc(row.goal_difference)+'</td><td><b>'+esc(row.points)+'</b></td></tr>').join('')+'</tbody></table></div>';}
 async function loadSelectedTeamProfile(row){
   row=row||_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase());if(!row)return;const req=++_teamProfileReq;_selectedTeamProfile={name:row.name,team_id:row.team_id,logo:row.logo};renderSelectedTeamProfile(_selectedTeamProfile);
   try{const r=await api('/api/team_profile?id='+encodeURIComponent(row.team_id||'')+'&name='+encodeURIComponent(row.name));if(req!==_teamProfileReq)return;_selectedTeamProfile=Object.assign({},r.profile||{}, {logo:(r.profile||{}).logo||row.logo});renderSelectedTeamProfile(_selectedTeamProfile);}catch(e){}
@@ -8022,7 +8082,7 @@ function selectMyTeam(name,teamId,logo){
   // does not unexpectedly replace the explicit search results below.
   _selectedTeamName=String(name||'');const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===_selectedTeamName.toLowerCase())||{name:_selectedTeamName,team_id:String(teamId||''),logo:String(logo||'')};_selectedTeamRow=row;renderTeamFavoriteRail();loadSelectedTeamProfile(row);openTeamDetail();
 }
-function openTeamDetail(){const hub=document.getElementById('sportsHubPage'),page=document.getElementById('teamDetailPage'),list=document.getElementById('teamDetailFixtures');if(!hub||!page||!list)return;hub.classList.add('hide');page.classList.remove('hide');const rows=_myTeamFixtures.filter(f=>fixtureBelongsToTeam(f,_selectedTeamName)).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));list.innerHTML=rows.length?rows.map(f=>teamFixtureCard(f,fixtureIsLive(f))).join(''):'<span class="muted">'+esc(tr('No upcoming fixtures found.'))+'</span>';_sportsVisibleFixtures=rows.slice(0,6);loadSportsAvailability(false);window.scrollTo(0,0);}
+function openTeamDetail(){const hub=document.getElementById('sportsHubPage'),page=document.getElementById('teamDetailPage'),list=document.getElementById('teamDetailFixtures'),title=document.getElementById('teamDetailTitle');if(!hub||!page||!list)return;hub.classList.add('hide');page.classList.remove('hide');if(title)title.textContent=_selectedTeamName;const rows=_myTeamFixtures.filter(f=>fixtureBelongsToTeam(f,_selectedTeamName)).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));list.innerHTML=rows.length?rows.map(f=>teamFixtureCard(f,fixtureIsLive(f))).join(''):'<span class="muted">'+esc(tr('No upcoming fixtures found.'))+'</span>';const now=Date.now();_sportsVisibleFixtures=rows.filter(f=>fixtureIsLive(f)||(f.start&&new Date(f.start).getTime()>=now)).slice(0,6);loadSportsAvailability(false);renderSelectedTeamProfile(_selectedTeamProfile);window.scrollTo(0,0);}
 function closeTeamDetail(){document.getElementById('teamDetailPage').classList.add('hide');document.getElementById('sportsHubPage').classList.remove('hide');renderSportsHome();window.scrollTo(0,0);}
 async function toggleLeaguePicker(btn){const el=document.getElementById('leaguePicker');if(!el)return;if(!el.classList.contains('hide')){el.classList.add('hide');btn.setAttribute('aria-expanded','false');return;}el.innerHTML='<span class="muted">'+esc(tr('Loading...'))+'</span>';el.classList.remove('hide');btn.setAttribute('aria-expanded','true');try{const r=await api('/api/sports_competitions'),selected=new Set(r.selected||[]);el.innerHTML='<div class="leaguepickerhead"><div><b>'+esc(tr('Leagues & cups'))+'</b><div class="muted">'+esc(tr("Choose what appears in today's Sports timeline."))+'</div></div></div><div class="leaguepickergroups">'+(r.groups||[]).map(group=>'<div class="leaguepickergroup"><h4>'+esc(group.group)+'</h4>'+group.items.map(item=>'<label><input type="checkbox" value="'+escAttr(item.key)+'"'+(selected.has(item.key)?' checked':'')+'> '+esc(item.name)+'</label>').join('')+'</div>').join('')+'</div><div class="leaguepickerbuttons"><button class="ghost" onclick="resetLeaguePicker()">'+esc(tr('Recommended'))+'</button><button onclick="saveLeaguePicker()">'+esc(tr('Save'))+'</button></div>';el.dataset.defaults=JSON.stringify(r.defaults||[]);}catch(e){el.innerHTML='<span class="muted">'+esc(tr('Could not load leagues.'))+'</span>';}}
 function resetLeaguePicker(){const el=document.getElementById('leaguePicker'),defaults=new Set(JSON.parse(el.dataset.defaults||'[]'));el.querySelectorAll('input[type=checkbox]').forEach(input=>input.checked=defaults.has(input.value));}
@@ -8438,7 +8498,7 @@ async function refreshRaceChannels(btn){
   if(btn){btn.disabled=false;btn.innerHTML=old;}
 }
 function showMatchPage(fixture){if(!fixture)return;_matchFixture=fixture;if(!matchView||matchView.classList.contains('hide'))_sportsReturnScroll=window.scrollY||0;rememberLocation('match',{eventKey:sportsFixtureKey(fixture)});hideAll();matchView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');renderMatchPage();startMatchStatusTracking();window.scrollTo(0,0);if(fixture.availability_checked)_matchRefreshTimer=setTimeout(()=>refreshMatchChannels(null,true),15*60*1000);else refreshMatchChannels(null,false);}
-function openMatchFromCard(card){const key=card&&card.getAttribute('data-event-key')||'',source=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===key);if(source)showMatchPage(source);}
+function openMatchFromCard(card){const key=card&&card.getAttribute('data-event-key')||'',source=[..._sportsVisibleFixtures,..._sportsTopFixtures,..._myTeamFixtures].find(f=>sportsFixtureKey(f)===key);if(source)showMatchPage(source);}
 function closeMatchPage(){if(history.state&&history.state.section==='match')history.back();else showTeams();}
 async function refreshMatchChannels(btn,force){
   if(!_matchFixture)return;const old=btn&&btn.innerHTML;if(btn){btn.disabled=true;btn.textContent=tr('Refreshing channel matches...');}
@@ -14724,6 +14784,22 @@ def run_self_tests():
           "openMatchFromCard(teamFixture)" in PAGE and
           "matchView.classList.remove('hide')" in PAGE and
           "rememberLocation('match',{eventKey:sportsFixtureKey(fixture)})" in PAGE)
+    check("ended fixtures remain openable without joining background channel matching",
+          "[..._sportsVisibleFixtures,..._sportsTopFixtures,..._myTeamFixtures].find" in PAGE and
+          "_sportsVisibleFixtures=rows.filter(f=>fixtureIsLive(f)||" in PAGE)
+    table_sample = {"payload": {"table": [{"idx": 1, "name": "Crystal Palace",
+                                            "id": 9826, "played": 3, "wins": 2,
+                                            "draws": 1, "losses": 0, "goalDifference": 4,
+                                            "points": 7},
+                                           {"idx": 2, "name": "Manchester City",
+                                            "id": 8456, "played": 3, "wins": 2,
+                                            "draws": 0, "losses": 1, "goalDifference": 3,
+                                            "points": 6}]}}
+    standing, league_table = _team_table_from_data(table_sample, "9826", "Crystal Palace")
+    check("favorite team page exposes a parsed league table and selected position",
+          standing.get("name") == "Crystal Palace" and standing.get("points") == 7 and
+          len(league_table) == 2 and "teamTableWrap" in PAGE and
+          "renderSelectedTeamTable(profile)" in PAGE)
     check("match page refreshes channels quietly every fifteen minutes",
           "refreshMatchChannels(null,true),15*60*1000" in PAGE and
           "else refreshMatchChannels(null,false)" in PAGE and
