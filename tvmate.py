@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b495"
+VERSION = "0.777.b496"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6301,9 +6301,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvnowhead:before{content:"";position:absolute;top:4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#e1535c}
  .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
- .tvplayerslot.pipactive{position:fixed!important;left:-10000px!important;right:auto!important;top:0!important;bottom:auto!important;width:320px!important;height:180px!important;min-width:0!important;min-height:0!important;opacity:.01!important;pointer-events:none!important;overflow:hidden!important;border:0!important;box-shadow:none!important}
- .tvplayerslot.pipactive .tvplayerbar,.tvplayerslot.pipactive .tvvideohit{display:none!important}
- #tvPlayerSlot.pipactive #tvVideo{width:320px!important;height:180px!important;display:block!important}
+ .tvplayerslot.pipactive,.tvplayerslot:has(#tvVideo:picture-in-picture){position:fixed!important;left:-10000px!important;right:auto!important;top:0!important;bottom:auto!important;width:320px!important;height:180px!important;min-width:0!important;min-height:0!important;opacity:.01!important;pointer-events:none!important;overflow:hidden!important;border:0!important;box-shadow:none!important}
+ .tvplayerslot.pipactive .tvplayerbar,.tvplayerslot.pipactive .tvvideohit,.tvplayerslot:has(#tvVideo:picture-in-picture) .tvplayerbar,.tvplayerslot:has(#tvVideo:picture-in-picture) .tvvideohit{display:none!important}
+ #tvPlayerSlot.pipactive #tvVideo,#tvPlayerSlot #tvVideo:picture-in-picture{width:320px!important;height:180px!important;display:block!important}
  .tvpipstatus{display:inline-flex;align-items:center;justify-content:center;flex:1 1 360px;max-width:620px;min-width:min(460px,32vw);padding:7px 14px;border:1px solid #3975bf;border-radius:8px;background:#102746;color:#dcecff;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
  .tvpipstatus.hide{display:none}
  .tvpipstatus:hover{border-color:#65a0e7;background:#15335a;filter:none}
@@ -10627,7 +10627,7 @@ let _tvSource='__fav__';   // '__fav__' or a category name
 let _tvChannels=[];
 let _tvPlaying=null;
 let _tvPlayRequest=0,_tvPendingSid='';
-let _tvPipActive=false,_tvPipRestoreMini=false;
+let _tvPipActive=false,_tvPipRestoreMini=false,_tvPipWatchTimer=null;
 async function initMytv(){
   await buildTvRail();
   await loadTvSource('__fav__');
@@ -10799,16 +10799,35 @@ function tvBindPictureInPicture(video){
   if(!video||video._tvmatePipBound)return;
   video._tvmatePipBound=true;
   video.addEventListener('enterpictureinpicture',function(e){
+    tvSyncPictureInPicture(video,e.pictureInPictureWindow);
+  });
+  video.addEventListener('leavepictureinpicture',function(){
+    tvSyncPictureInPicture(video);
+  });
+  tvWatchPictureInPicture(video);
+}
+function tvRememberPipWindow(win){
+  if(!win)return;
+  const remember=function(){try{localStorage.setItem('tvmate_pip_size',JSON.stringify({width:win.width,height:win.height}));}catch(err){}};
+  remember();win.addEventListener('resize',remember);
+}
+function tvSyncPictureInPicture(video,pipWindow){
+  const active=!!(video&&document.pictureInPictureElement===video);
+  if(active&&!_tvPipActive){
     const slot=document.getElementById('tvPlayerSlot');
     _tvPipRestoreMini=!!(slot&&slot.classList.contains('mini'));
     tvSetPipStatus(true);
-    const win=e.pictureInPictureWindow;
-    const remember=function(){try{localStorage.setItem('tvmate_pip_size',JSON.stringify({width:win.width,height:win.height}));}catch(err){}};
-    if(win){remember();win.addEventListener('resize',remember);}
-  });
-  video.addEventListener('leavepictureinpicture',function(){
+    tvRememberPipWindow(pipWindow);
+  }else if(!active&&_tvPipActive){
     tvRestorePlayerLayout();
-  });
+  }
+}
+function tvWatchPictureInPicture(video){
+  if(_tvPipWatchTimer)clearInterval(_tvPipWatchTimer);
+  _tvPipWatchTimer=setInterval(function(){
+    if(video!==document.getElementById('tvVideo')){clearInterval(_tvPipWatchTimer);_tvPipWatchTimer=null;return;}
+    tvSyncPictureInPicture(video);
+  },200);
 }
 function tvRestorePlayerLayout(){
   const slot=document.getElementById('tvPlayerSlot');
@@ -14654,8 +14673,11 @@ def run_self_tests():
           "classList.toggle('tvsectionplay',!modal.classList.contains('matchanchored'))" in PAGE)
     check("PiP uses a header restore control without shrinking app pages",
           'id="tvPipStatus" class="tvpipstatus hide"' in PAGE and
+          ":has(#tvVideo:picture-in-picture)" in PAGE and
           "const layoutPlayback=hasPlayback&&!pipPlayback" in PAGE and
           "if(!keepMytv&&layoutPlayback)" in PAGE and
+          "function tvSyncPictureInPicture(video,pipWindow)" in PAGE and
+          "function tvWatchPictureInPicture(video)" in PAGE and
           "function tvRestorePlayerLayout()" in PAGE and
           "const restoreMini=!!(_tvPipRestoreMini||mytvView.classList.contains('hide'))" in PAGE)
     check("layout-aware pages expose an immediate on-page editor",
