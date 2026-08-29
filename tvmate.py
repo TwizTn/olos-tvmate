@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b475"
+VERSION = "0.777.b476"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -11266,14 +11266,30 @@ class Handler(BaseHTTPRequestHandler):
                         result[sid] = progs
                         cache_changed = True
                     stats["no_data"] += len(skipped)
-                    import concurrent.futures as _futures
                     def _short_epg_one(sid):
                         try:
                             return sid, x.short_epg(sid, _EPG_LISTING_LIMIT)
                         except Exception:
                             return sid, None
-                    with _futures.ThreadPoolExecutor(max_workers=min(4, len(eligible) or 1)) as pool:
-                        fallback_rows = list(pool.map(_short_epg_one, eligible))
+                    # Use the already-bundled threading module rather than
+                    # concurrent.futures, which some single-file builds omit.
+                    fallback_rows = [None] * len(eligible)
+                    fallback_cursor = [0]
+                    fallback_lock = threading.Lock()
+                    def _short_epg_worker():
+                        while True:
+                            with fallback_lock:
+                                index = fallback_cursor[0]
+                                fallback_cursor[0] += 1
+                            if index >= len(eligible):
+                                return
+                            fallback_rows[index] = _short_epg_one(eligible[index])
+                    fallback_threads = [threading.Thread(target=_short_epg_worker,
+                        daemon=True) for _ in range(min(4, len(eligible)))]
+                    for worker in fallback_threads:
+                        worker.start()
+                    for worker in fallback_threads:
+                        worker.join()
                     for sid, progs in fallback_rows:
                         old = _EPG_CACHE.get(sid)
                         if progs is None:
@@ -14674,7 +14690,8 @@ def run_self_tests():
         source_text = open(__file__, encoding="utf-8").read()
         check("EPG bulk misses avoid serial per-channel refreshes",
               "mapped_missing = [s for s in to_fetch" in source_text and
-              "ThreadPoolExecutor(max_workers=min(4" in source_text and
+              "fallback_threads = [threading.Thread" in source_text and
+              "\n                    import concurrent.futures" not in source_text and
               "fallback_priority" in source_text and
               ".epgloadback{position:fixed;z-index:130;top:82px" in PAGE)
     finally:
