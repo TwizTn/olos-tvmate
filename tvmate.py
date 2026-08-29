@@ -43,6 +43,7 @@ import hashlib
 import shutil
 import datetime
 import socket
+import unicodedata
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -128,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b478"
+VERSION = "0.777.b492"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2704,6 +2705,185 @@ def _wrc_wikipedia_schedule(year):
                      "url": "https://www.wrc.com/en/calendar"})
     rows.sort(key=lambda row: row.get("start") or "")
     return rows
+
+_WRC_ITINERARY_TTL = 12 * 3600
+_WRC_DAY_RE = re.compile(
+    r"^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s*"
+    r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$")
+# "09:03: SS1 Cambyreta 1 (24.65 km)" - the colon after the time is not always
+# present, and Shakedown rows carry no time at all.
+_WRC_STAGE_RE = re.compile(
+    r"^(?:(\d{1,2}:\d{2})\s*:?\s*)?"
+    r"((?:SS\s*\d+|Shakedown)[^()]*?)\s*\(([\d.,]+)\s*km\)$", re.I)
+
+def _wrc_fetch(url, timeout=15):
+    """Fetch a wrc.com page with a full browser header set. A bare request gets
+    a challenge page from their CDN, which is why a plain fetch comes back
+    without the itinerary."""
+    req = urllib.request.Request(url, headers={
+        "User-Agent": UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-GB,en;q=0.9",
+        "Referer": "https://www.wrc.com/",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin", "Sec-Fetch-User": "?1",
+    })
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read()
+    if raw[:2] == b"\x1f\x8b":
+        try:
+            import gzip as _gzip
+            raw = _gzip.decompress(raw)
+        except Exception:
+            pass
+    return raw.decode("utf-8", "replace")
+
+def _wrc_json_lines(raw):
+    """WRC ships a Next.js app; when the markup is rendered client-side the
+    stage rows only exist as strings inside the embedded JSON payload."""
+    out = []
+    for match in re.finditer(r'"((?:[^"\\]|\\.){3,200})"', str(raw or "")):
+        try:
+            value = json.loads('"' + match.group(1) + '"')
+        except Exception:
+            continue
+        value = re.sub(r"\s+", " ", html.unescape(value)).strip()
+        if value:
+            out.append(value)
+    return out
+
+def _wrc_text_lines(raw):
+    """Flatten page HTML into trimmed text lines."""
+    body = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", str(raw or ""))
+    body = re.sub(r"(?i)<(br|/p|/div|/li|/h\d|/tr)[^>]*>", "\n", body)
+    body = re.sub(r"<[^>]+>", "\n", body)
+    out = []
+    for line in html.unescape(body).splitlines():
+        line = re.sub(r"\s+", " ", line).strip()
+        if line:
+            out.append(line)
+    return out
+
+def _wrc_itinerary_url(event_url):
+    """Find the itinerary sub-page for a rally from its event page. WRC ships a
+    Next.js app, so the link may only exist inside the embedded JSON payload."""
+    page = _wrc_fetch(event_url, timeout=15)
+    match = re.search(r'href=[\'"](/en/events/[^\'"]*itinerary[^\'"]*)[\'"]', page, re.I)
+    if match:
+        return "https://www.wrc.com" + html.unescape(match.group(1))
+    # Fall back to any itinerary path mentioned anywhere in the payload.
+    match = re.search(r'["\'](/en/events/[^"\']*itinerary[^"\']*)["\']', page, re.I)
+    if match:
+        return "https://www.wrc.com" + html.unescape(match.group(1))
+    match = re.search(r'(https://www\.wrc\.com/en/events/[^"\'\\ ]*itinerary[^"\'\\ ]*)', page, re.I)
+    if match:
+        return html.unescape(match.group(1))
+    # The nav is built client-side, so the link is often absent from the served
+    # markup. The path is derivable though: the event base plus "/itinerary-"
+    # and the slug of the rally's own title, which meta tags do carry.
+    title = ""
+    for pattern in (r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)',
+                    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:title["\']',
+                    r'<title[^>]*>([^<]+)</title>'):
+        found = re.search(pattern, page, re.I)
+        if found:
+            title = html.unescape(found.group(1)).strip()
+            break
+    if title:
+        # Fold accents first: "Bío" must slug to "bio", not "b-o".
+        folded = unicodedata.normalize("NFKD", title.lower())
+        folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
+        slug = re.sub(r"[^a-z0-9]+", "-", folded).strip("-")
+        if slug:
+            return event_url.rstrip("/") + "/itinerary-" + slug
+    return ""
+
+def parse_wrc_itinerary(raw):
+    """Return [{'day','date','stages':[{'time','code','name','km'}]}] from the
+    itinerary page. Stage rows look like '09:03: SS1 Cambyreta 1 (24.65 km)'."""
+    days = _parse_wrc_itinerary_lines(_wrc_text_lines(raw))
+    if not days:
+        days = _parse_wrc_itinerary_lines(_wrc_json_lines(raw))
+    return days
+
+def _parse_wrc_itinerary_lines(lines):
+    days, current = [], None
+    for line in lines:
+        day = _WRC_DAY_RE.match(line)
+        if day:
+            try:
+                date = datetime.datetime.strptime(
+                    f"{day.group(2)} {day.group(3)} {day.group(4)}", "%d %B %Y").date()
+            except ValueError:
+                current = None
+                continue
+            current = {"day": line, "date": date.isoformat(), "stages": []}
+            days.append(current)
+            continue
+        if current is None:
+            continue
+        stage = _WRC_STAGE_RE.match(line)
+        if not stage:
+            continue
+        label = re.sub(r"\s+", " ", stage.group(2)).strip(" -–")
+        code_match = re.match(r"(?i)(SS\s*\d+|Shakedown)", label)
+        code = re.sub(r"\s+", "", code_match.group(1)).upper() if code_match else ""
+        name = label[code_match.end():].strip(" -–") if code_match else label
+        try:
+            km = float(stage.group(3).replace(",", "."))
+        except ValueError:
+            km = 0.0
+        current["stages"].append({
+            "time": stage.group(1) or "", "code": code, "name": name, "km": km,
+            "power_stage": "power stage" in label.lower(),
+        })
+    return [day for day in days if day["stages"]]
+
+def fetch_wrc_itinerary(event_url, force=False):
+    """Stage-by-stage itinerary for one rally, cached for half a day. Returns
+    (days, reason) so the UI can say why a list is missing instead of just
+    showing nothing."""
+    slug = re.sub(r"[^a-z0-9]+", "-", str(event_url or "").lower()).strip("-")[-60:]
+    cache_name = f"wrc-itinerary-{slug}.json"
+    if not force:
+        disk = _load_timed_data_cache(cache_name, _WRC_ITINERARY_TTL)
+        if isinstance(disk, list) and disk:
+            return disk, ""
+    reason = ""
+    try:
+        target = _wrc_itinerary_url(event_url)
+        if not target:
+            _record_source("wrc", False, error="no itinerary link on event page")
+            return [], "No itinerary link found on the rally page"
+        raw = _wrc_fetch(target, timeout=15)
+        days = parse_wrc_itinerary(raw)
+        if not days:
+            # The page is a Next.js shell with no content in it. Next serves the
+            # same page's data as JSON at /_next/data/<buildId><path>.json, and
+            # the build id is embedded in the shell we just fetched.
+            build = re.search(r'"buildId"\s*:\s*"([^"]+)"', raw)
+            if build:
+                path = urllib.parse.urlparse(target).path.rstrip("/")
+                data_url = f"https://www.wrc.com/_next/data/{build.group(1)}{path}.json"
+                try:
+                    days = parse_wrc_itinerary(_wrc_fetch(data_url, timeout=15))
+                except Exception:
+                    days = []
+                if not days:
+                    reason = f"Shell page only ({len(raw)} chars); Next data route returned no stages"
+        if days:
+            _record_source("wrc", True, count=sum(len(d["stages"]) for d in days))
+        else:
+            if not reason:
+                reason = f"Itinerary page fetched ({len(raw)} chars) but no stage rows parsed"
+            _record_source("wrc", False, error=reason)
+    except Exception as exc:
+        _record_source("wrc", False, error=exc)
+        return [], f"{type(exc).__name__}: {exc}"
+    if days:
+        _save_timed_data_cache(cache_name, days)
+    return days, reason
 
 def get_wrc_schedule(force=False):
     """Read the official WRC calendar and cache rally weekends for a week."""
@@ -6526,7 +6706,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:860px){#teamsView.sports-layout-broadcast .teamswrap,#teamsView.sports-layout-agenda .teamswrap,#teamsView.sports-layout-hub .teamswrap{grid-template-columns:1fr}#teamsView.sports-layout-timeline .teamfavs{grid-template-columns:1fr}#teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixturegrid{grid-template-columns:1fr}#teamsView.sports-layout-broadcast #teamUpcomingList .teamupcominggroup:first-child .teamfixture:first-child{grid-column:auto}}
  @media(max-width:700px){#teamsView.sports-layout-agenda .teamfixture,#teamsView.sports-layout-timeline .teamfixture{grid-template-columns:1fr}#teamsView.sports-layout-agenda .teamfixturebroadcasts,#teamsView.sports-layout-timeline .teamfixturebroadcasts{grid-column:1}#teamsView.sports-layout-broadcast .topfixturegrid{grid-template-columns:1fr}}
  #matchView{max-width:1480px;margin:0 auto;padding:0 18px 34px}
- .matchdetailtop{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
+ .raceherobox{display:block} .racehero{display:flex;align-items:center;gap:18px;margin-top:10px} .racehero_art{width:96px;height:96px;object-fit:contain;border-radius:10px;background:#12161c;padding:6px;flex:0 0 auto} .racetitle{font-size:26px;font-weight:750;line-height:1.15} .racestatus{margin-top:6px;font-size:14px;font-weight:650;color:var(--mut)} .racestatus.live{color:#ff8e94} .racegrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start;margin-top:14px} .racecol{display:flex;flex-direction:column;gap:14px;min-width:0} .racePlayerAnchor{width:100%} .racePlayerAnchor.on{min-height:180px} .racelivelinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px} .racelivelink{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:13px;text-decoration:none;background:var(--card2)} .racelivelink:hover{border-color:var(--acc);color:var(--acc)} .racelivearrow{opacity:.6;font-size:11px} @media(max-width:1250px){.racegrid{grid-template-columns:minmax(0,1fr)}.racecol.racecentre{order:-1}} .wrcreason{margin-top:6px;font-size:11.5px;color:var(--mut);opacity:.85;word-break:break-word} .wrcsummary{display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:10px} .wrcday{margin-bottom:12px} .wrcdayhead{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin:0 0 6px} .wrcstage{display:grid;grid-template-columns:46px 52px minmax(0,1fr) 68px auto;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:13px;border:1px solid transparent} .wrcstage+.wrcstage{margin-top:2px} .wrcstage.past{opacity:.45} .wrcstage.running{border-color:#7a2a31;background:rgba(122,42,49,.25)} .wrcstage.next{border-color:var(--line);background:var(--card2)} .wrcstagetime{color:var(--mut);font-variant-numeric:tabular-nums} .wrcstagecode{font-weight:700} .wrcstagename{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .wrcstagekm{color:var(--mut);text-align:right;font-variant-numeric:tabular-nums} .wrcpower{color:#ffd166;font-size:11px;font-weight:700;margin-left:4px} .wrcnow{color:#ff8e94;border-color:#7a2a31} .racedays{display:flex;flex-direction:column;gap:6px} .raceday{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px} .raceday.now{border-color:#3d6b46;background:rgba(38,88,52,.22)} .raceday.past{opacity:.5} .racedaylabel{text-transform:capitalize} .racefacts{display:flex;flex-direction:column;gap:6px} .racefact{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13.5px} .racelink{color:var(--acc);font-size:13px;word-break:break-all} .matchbcastwrap{position:relative} .matchbcastpanel{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:320px;max-width:460px;max-height:60vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 18px 40px rgba(0,0,0,.45)} .matchbcastpanel.hide{display:none} .matchbcastcaret{font-size:10px;opacity:.75} #matchBcastBtn[aria-expanded="true"] .matchbcastcaret{display:inline-block;transform:rotate(180deg)} .matchdetailtop{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
  .matchdetailpage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:18px;align-items:start}
  .matchdetailhero{grid-column:1/-1;text-align:center;padding:26px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,rgba(31,73,124,.28),var(--card) 58%,rgba(231,169,78,.08))}
  .matchdetailcompetition{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--mut);margin-bottom:16px}
@@ -7152,8 +7332,13 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </section>
 
   <section id="matchView" class="hide">
-    <div class="matchdetailtop"><button type="button" class="ghost" onclick="closeMatchPage()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><div class="row"><button type="button" class="ghost" aria-haspopup="dialog" aria-expanded="false" onclick="openLayoutEditor('match',this)">&#9998; <span data-i18n="Edit layout">Edit layout</span></button><button id="matchRefreshBtn" type="button" class="ghost" onclick="refreshMatchChannels(this,true)">&#8635; <span data-i18n="Refresh channel matches">Refresh channel matches</span></button></div></div>
+    <div class="matchdetailtop"><div class="row"><button type="button" class="ghost" onclick="closeMatchPage()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><div class="matchbcastwrap"><button id="matchBcastBtn" type="button" class="ghost" aria-expanded="false" onclick="toggleMatchBroadcasters(this)">&#128250; <span data-i18n="Confirmed broadcasters for this match">Confirmed broadcasters for this match</span> <span class="matchbcastcaret">&#9662;</span></button><div id="matchBcastPanel" class="matchbcastpanel hide"></div></div></div><div class="row"><button type="button" class="ghost" aria-haspopup="dialog" aria-expanded="false" onclick="openLayoutEditor('match',this)">&#9998; <span data-i18n="Edit layout">Edit layout</span></button><button id="matchRefreshBtn" type="button" class="ghost" onclick="refreshMatchChannels(this,true)">&#8635; <span data-i18n="Refresh channel matches">Refresh channel matches</span></button></div></div>
     <div id="matchPageContent" class="matchdetailpage"></div>
+  </section>
+
+  <section id="raceView" class="hide">
+    <div class="matchdetailtop"><div class="row"><button type="button" class="ghost" onclick="closeRacePage()">&#8592; <span data-i18n="Back to Racing">Back to Racing</span></button></div><div class="row"><button id="raceRefreshBtn" type="button" class="ghost" onclick="refreshRaceChannels(this)">&#8635; <span id="raceRefreshLabel">Refresh</span></button></div></div>
+    <div id="racePageContent" class="matchdetailpage"></div>
   </section>
 
   <section id="settingsView" class="hide">
@@ -7425,7 +7610,7 @@ const _I18N={
   "Ended matches":"Ferdige kamper","Ended":"Ferdig","Half-time":"Pause","Cancelled":"Avlyst",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Today's matches":"Dagens kamper","Upcoming Fixtures":"Kommende kamper","Favorite team highlights":"Høydepunkter for favorittlag","Fixtures":"Kamper","Edit leagues & cups":"Rediger ligaer og cuper","Leagues & cups":"Ligaer og cuper","Choose what appears in today's Sports timeline.":"Velg hva som vises i dagens sportstidslinje.","Recommended":"Anbefalt","Leagues saved.":"Ligaer lagret.","Could not load leagues.":"Kunne ikke laste ligaer.","Could not save leagues.":"Kunne ikke lagre ligaer.","Choose at least one league or cup.":"Velg minst én liga eller cup.","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
   "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Loading channel matches...":"Laster kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
-  "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører","Other broadcaster listings":"Andre TV-oppføringer",
+  "Back to Sports":"Tilbake til Sport","Back to Racing":"Tilbake til Racing","Confirmed broadcasters for this event":"Bekreftede TV-kanaler for dette løpet","Rally days":"Rallydager","Try again":"Prøv igjen","Live coverage":"Direktedekning","Live updates":"Direkteoppdateringer","Live maps":"Direktekart","Live stream":"Direktestrøm","Entry list":"Deltakerliste","Itinerary":"Etappeplan","Refresh":"Oppdater","Refreshing...":"Oppdaterer...","Stages":"Etapper","stages":"etapper","Loading stages...":"Laster etapper...","No stage list published yet.":"Ingen etappeliste publisert ennå.","Could not load the stage list.":"Kunne ikke laste etappelisten.","Power Stage":"Power Stage","Running":"Pågår","Next":"Neste","Today":"I dag","Event detail":"Løpsdetaljer","Circuit":"Bane","Session":"Økt","Official page":"Offisiell side","Running now":"Pågår nå","Race":"Løp","No channels in your list match this event yet.":"Ingen kanaler i listen din matcher dette løpet ennå.","Confirmed broadcasters for this match":"Bekreftede TV-kanaler for denne kampen","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører","Other broadcaster listings":"Andre TV-oppføringer",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
   "Choose up to four channels.":"Velg opptil fire kanaler.","Star channels first, then choose up to four here.":"Favorittmerk kanaler først, og velg deretter opptil fire her.",
   "Choose up to five channels.":"Velg opptil fem kanaler.","Star channels first, then choose up to five here.":"Favorittmerk kanaler først, og velg deretter opptil fem her.",
@@ -7547,7 +7732,7 @@ function hideAll(keepMytv){
   const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));
   const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
-  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();updateProfileName(_profileConfig.profile_name);
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();updateProfileName(_profileConfig.profile_name);
   if(!keepMytv&&hasPlayback){
     if(leavingLiveTv)tvSetMini(true);
     document.body.classList.add('tvsectionplay');
@@ -8005,7 +8190,20 @@ function matchTeamArt(id,name){const src=id?'/api/team_logo?id='+encodeURICompon
 function matchBroadcastersHtml(f){const rows=[];for(const [country,names] of Object.entries(f.by_country||{}))for(const name of (names||[])){const label=String(name||'').trim();if(label)rows.push('<span class="matchdetailbroadcaster">'+esc(label)+(country?' · '+esc(country):'')+'</span>');}return rows.length?rows.join(''):'<span class="muted">'+esc(tr('No TV'))+'</span>';}
 function releaseMatchPlayerAnchor(){const modal=document.getElementById('playerModal');document.body.classList.remove('matchplayerembedded');if(!modal)return;if(modal.parentNode!==document.body){if(playerFullscreenElement()===modal)exitPlayerFullscreen();modal.classList.remove('matchanchored');document.body.appendChild(modal);}if(!modal.classList.contains('hide'))document.body.classList.add('tvsectionplay');}
 function syncMatchPlayerAnchor(){
-  const modal=document.getElementById('playerModal'),anchor=document.getElementById('matchPlayerAnchor'),liveCentre=!!(anchor&&!matchView.classList.contains('hide')&&matchView.classList.contains('match-layout-live-centre'));if(!modal)return;
+  const modal=document.getElementById('playerModal');if(!modal)return;
+  // The Race Centre anchors the player too, always centred in its own column.
+  const raceAnchor=document.getElementById('racePlayerAnchor');
+  if(raceAnchor&&!raceView.classList.contains('hide')){
+    const playing=!modal.classList.contains('hide');
+    if(modal.parentNode!==raceAnchor)raceAnchor.appendChild(modal);
+    modal.classList.add('matchanchored');
+    raceAnchor.classList.toggle('on',playing);
+    document.body.classList.toggle('matchplayerembedded',playing);
+    if(playing)document.body.classList.remove('tvsectionplay');
+    setPopupPlayerMax(false);
+    return;
+  }
+  const anchor=document.getElementById('matchPlayerAnchor'),liveCentre=!!(anchor&&!matchView.classList.contains('hide')&&matchView.classList.contains('match-layout-live-centre'));
   if(liveCentre){const playing=!modal.classList.contains('hide');if(modal.parentNode!==anchor)anchor.appendChild(modal);modal.classList.add('matchanchored');anchor.classList.toggle('on',playing);document.body.classList.toggle('matchplayerembedded',playing);if(playing)document.body.classList.remove('tvsectionplay');setPopupPlayerMax(false);}else releaseMatchPlayerAnchor();
 }
 function matchStatusLabel(f){
@@ -8031,9 +8229,213 @@ function renderMatchPage(){
   const kick=f.start?new Date(f.start):null,valid=kick&&!Number.isNaN(kick.getTime()),date=valid?kick.toLocaleDateString(_lang==='no'?'nb-NO':undefined,{weekday:'long',day:'numeric',month:'long'}):'',live=fixtureIsLive(f),status=matchStatusLabel(f),badge=f.is_finished?'Ended':(f.is_halftime?'Half-time':(live?'LIVE':'')),channels=[...(f.matches||[]),...(f.ppv_hits||[])];
   const hero='<div class="matchdetailhero"><div class="matchdetailcompetition">'+esc(f.league_name||tr('Football'))+'</div><div class="matchdetailteams"><div class="matchdetailside">'+matchTeamArt(f.home_id,f.home)+'<span>'+esc(f.home||'')+'</span></div><div><div id="matchStatusText" class="matchdetailkickoff">'+esc(status)+'</div><div class="matchdetaildate">'+esc(date)+'</div><div id="matchLiveBadge" class="matchdetaillive'+(badge?'':' hide')+'">'+esc(tr(badge))+'</div></div><div class="matchdetailside">'+matchTeamArt(f.away_id,f.away)+'<span>'+esc(f.away||'')+'</span></div></div></div>';
   const channelPanel='<div class="matchdetailpanel matchdetailchannels"><h3>'+esc(tr(layout==='channel-first'?'Watch this match':'Channel matches'))+'</h3><div id="matchChannelResults">'+fixtureStoredChannelsHtml(Object.assign({logged_in:true},f))+'</div></div>';
-  const side='<div class="matchdetailsidepanels"><div class="matchdetailpanel"><h3>'+esc(tr('Official broadcasters'))+'</h3><div class="matchdetailbroadcasters">'+matchBroadcastersHtml(f)+'</div></div><div class="matchdetailpanel"><h3>'+esc(tr('Channel matching'))+'</h3><div class="matchdetailstatus"><span class="cc">'+channels.length+' '+esc(tr(channels.length===1?'channel':'channels'))+'</span><span id="matchUpdated" class="matchdetailupdated">'+esc(tr('Updates quietly every 15 minutes'))+'</span></div></div></div>';
+  const side='<div class="matchdetailsidepanels"><div class="matchdetailpanel"><h3>'+esc(tr('Channel matching'))+'</h3><div class="matchdetailstatus"><span class="cc">'+channels.length+' '+esc(tr(channels.length===1?'channel':'channels'))+'</span><span id="matchUpdated" class="matchdetailupdated">'+esc(tr('Updates quietly every 15 minutes'))+'</span></div></div></div>';
   el.innerHTML=layout==='live-centre'?'<div class="matchdetailsticky">'+hero+'<div id="matchPlayerAnchor" class="matchplayeranchor"></div>'+side+'</div>'+channelPanel:hero+channelPanel+side;
+  renderMatchBroadcasterPanel(f);
   syncMatchPlayerAnchor();
+}
+// The confirmed broadcaster list lives behind a disclosure next to "Back to
+// Sports" rather than taking a permanent side panel.
+function renderMatchBroadcasterPanel(f){
+  const panel=document.getElementById('matchBcastPanel');
+  if(panel)panel.innerHTML='<div class="matchdetailbroadcasters">'+matchBroadcastersHtml(f)+'</div>';
+}
+function toggleMatchBroadcasters(btn){
+  const panel=document.getElementById('matchBcastPanel');
+  if(!panel)return;
+  const open=panel.classList.toggle('hide')===false;
+  if(btn)btn.setAttribute('aria-expanded',open?'true':'false');
+}
+// ---------------------------------------------------------------------------
+// Race Centre: the racing counterpart of the match page. The shell is shared,
+// while each series contributes its own panels through raceCentreExtras().
+// ---------------------------------------------------------------------------
+let _raceEvent=null;
+function raceEventIsLive(ev,now){
+  if(!ev||!ev.start)return false;
+  const start=new Date(ev.start).getTime();
+  if(!Number.isFinite(start))return false;
+  const end=ev.end?new Date(ev.end).getTime():(start+(ev.all_day?3*864e5:3*36e5));
+  const t=now||Date.now();
+  return t>=start&&t<=end;
+}
+// A rally weekend spans several days, so show where we are inside it.
+function wrcRallyDays(ev){
+  if(!ev||!ev.start||!ev.end)return [];
+  const start=new Date(ev.start),end=new Date(ev.end);
+  if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime()))return [];
+  const locale=_lang==='no'?'nb-NO':undefined,days=[],now=Date.now();
+  const cursor=new Date(start.getFullYear(),start.getMonth(),start.getDate());
+  const last=new Date(end.getFullYear(),end.getMonth(),end.getDate());
+  let guard=0;
+  while(cursor<=last&&guard++<10){
+    const dayStart=cursor.getTime(),dayEnd=dayStart+864e5-1;
+    days.push({label:cursor.toLocaleDateString(locale,{weekday:'long',day:'numeric',month:'short'}),
+               today:now>=dayStart&&now<=dayEnd,past:now>dayEnd});
+    cursor.setDate(cursor.getDate()+1);
+  }
+  return days;
+}
+function raceCentreExtras(ev){
+  const series=String(ev.series||'');
+  if(series==='wrc'){
+    // Filled in asynchronously by loadWrcItinerary() once the stage list arrives.
+    return '<div class="matchdetailpanel" id="wrcItineraryPanel"><h3>'+esc(tr('Stages'))+'</h3>'
+      +'<div id="wrcItinerary" class="muted">'+esc(tr('Loading stages...'))+'</div></div>';
+  }
+  // Other series get their circuit/session detail until they grow their own panel.
+  const rows=[];
+  if(ev.circuit&&ev.circuit!==ev.race)rows.push([tr('Circuit'),ev.circuit]);
+  if(ev.session)rows.push([tr('Session'),racingSessionLabel(ev)]);
+  if(!rows.length)return '';
+  return '<div class="matchdetailpanel"><h3>'+esc(tr('Event detail'))+'</h3><div class="racefacts">'
+    +rows.map(r=>'<div class="racefact"><span class="muted">'+esc(r[0])+'</span><span>'+esc(r[1])+'</span></div>').join('')
+    +'</div></div>';
+}
+// WRC publishes its live coverage as sub-pages off the event URL. Surface them
+// around the player instead of making the user dig through wrc.com.
+const _WRC_LIVE_SECTIONS=[
+  ['live-updates','Live updates'],['wrc-live-maps','Live maps'],
+  ['wrc-live-stream','Live stream'],['entry-list','Entry list'],
+  ['itinerary','Itinerary']];
+function raceLiveLinksPanel(ev){
+  const base=String(ev.url||'').replace(/\/+$/,'');
+  if(!base)return '';
+  if(String(ev.series||'')!=='wrc')
+    return '<div class="matchdetailpanel"><h3>'+esc(tr('Official page'))+'</h3><a class="racelink" href="'+escAttr(base)+'" target="_blank" rel="noopener">'+esc(base)+'</a></div>';
+  const links=_WRC_LIVE_SECTIONS.map(function(row){
+    return '<a class="racelivelink" href="'+escAttr(base+'/'+row[0])+'" target="_blank" rel="noopener">'+esc(tr(row[1]))+' <span class="racelivearrow">&#8599;</span></a>';
+  }).join('');
+  return '<div class="matchdetailpanel"><h3>'+esc(tr('Live coverage'))+'</h3><div class="racelivelinks">'+links+'</div></div>';
+}
+function renderRacePage(){
+  const el=document.getElementById('racePageContent');
+  if(!el||!_raceEvent)return;
+  const ev=_raceEvent,live=raceEventIsLive(ev),channels=ev.channels||[];
+  const locale=_lang==='no'?'nb-NO':undefined;
+  let when=ev.date_text||'';
+  if(!when&&ev.start){const d=new Date(ev.start);if(!Number.isNaN(d.getTime()))when=d.toLocaleString(locale,{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'});}
+  const countdown=live?tr('Right now'):(racingCountdown(ev)||'');
+  const art=ev.art?'<img class="racehero_art" src="'+escAttr(ev.art)+'" alt="" onerror="this.remove()">':'';
+  const hero='<div class="matchdetailhero raceherobox"><div class="matchdetailcompetition">'+esc(ev.series_name||tr('Racing'))+'</div>'
+    +'<div class="racehero">'+art+'<div><div class="racetitle">'+esc(ev.race||ev.circuit||tr('Race'))+'</div>'
+    +'<div class="matchdetaildate">'+esc(when)+'</div>'
+    +'<div class="racestatus'+(live?' live':'')+'">'+esc(live?tr('Running now'):countdown)+'</div></div></div></div>';
+  const channelPanel='<div class="matchdetailpanel matchdetailchannels"><h3>'+esc(tr('Channel matches'))+'</h3><div id="raceChannelResults">'
+    +(channels.length?racingChannelSections(channels):'<span class="muted">'+esc(tr('No channels in your list match this event yet.'))+'</span>')+'</div></div>';
+  // Layout: channels on the left, the player centred with the event's own live
+  // sub-pages beneath it, and the series panel (stages for WRC) on the right.
+  el.innerHTML=hero
+    +'<div class="racegrid">'
+    +'<div class="racecol raceleft">'+channelPanel+'</div>'
+    +'<div class="racecol racecentre"><div id="racePlayerAnchor" class="matchplayeranchor racePlayerAnchor"></div>'+raceLiveLinksPanel(ev)+'</div>'
+    +'<div class="racecol raceright">'+raceCentreExtras(ev)+'</div>'
+    +'</div>';
+  syncMatchPlayerAnchor();
+  const label=document.getElementById('raceRefreshLabel');
+  if(label)label.textContent=raceRefreshLabel(ev);
+  loadWrcItinerary(ev);
+}
+// Rally stage times are local to the event, so anchor them to the offset that
+// came with the calendar entry rather than the viewer's timezone.
+function wrcStageMoment(ev,dateIso,hhmm){
+  if(!dateIso||!hhmm)return null;
+  const offset=String(ev.start||'').slice(19)||'Z';
+  const stamp=dateIso+'T'+hhmm+':00'+(offset==='Z'?'Z':offset);
+  const when=new Date(stamp);
+  return Number.isNaN(when.getTime())?null:when;
+}
+function renderWrcItinerary(ev,days,reason){
+  const box=document.getElementById('wrcItinerary');
+  if(!box)return;
+  if(!days||!days.length){
+    // Say why rather than implying the rally simply has no stages.
+    box.innerHTML='<span class="muted">'+esc(tr('No stage list published yet.'))+'</span>'
+      +(reason?'<div class="wrcreason">'+esc(reason)+'</div>':'')
+      +'<div class="row" style="margin-top:8px"><button class="ghost" onclick="loadWrcItinerary(_raceEvent,true)">'+esc(tr('Try again'))+'</button></div>';
+    return;
+  }
+  const now=Date.now();
+  // The stage in progress is the last one whose start time has passed today.
+  let runningKey='',nextKey='';
+  days.forEach(function(d){
+    d.stages.forEach(function(st){
+      const when=wrcStageMoment(ev,d.date,st.time);
+      if(!when)return;
+      const t=when.getTime();
+      if(t<=now&&now-t<=60*60000)runningKey=d.date+st.code;
+      if(!nextKey&&t>now)nextKey=d.date+st.code;
+    });
+  });
+  let total=0,done=0;
+  days.forEach(d=>d.stages.forEach(function(st){
+    total+=Number(st.km)||0;
+    const when=wrcStageMoment(ev,d.date,st.time);
+    if(when&&when.getTime()<now)done+=Number(st.km)||0;
+  }));
+  let h='<div class="wrcsummary"><span>'+days.reduce((n,d)=>n+d.stages.length,0)+' '+esc(tr('stages'))+'</span>'
+    +'<span>'+total.toFixed(2)+' km</span></div>';
+  days.forEach(function(d){
+    h+='<div class="wrcday"><div class="wrcdayhead">'+esc(d.day)+'</div>';
+    d.stages.forEach(function(st){
+      const key=d.date+st.code;
+      const when=wrcStageMoment(ev,d.date,st.time);
+      const past=when?when.getTime()<now:false;
+      const cls='wrcstage'+(key===runningKey?' running':'')+(key===nextKey?' next':'')+(past&&key!==runningKey?' past':'');
+      h+='<div class="'+cls+'"><span class="wrcstagetime">'+esc(st.time||'—')+'</span>'
+        +'<span class="wrcstagecode">'+esc(st.code||'')+'</span>'
+        +'<span class="wrcstagename">'+esc(st.name||'')+(st.power_stage?' <span class="wrcpower">'+esc(tr('Power Stage'))+'</span>':'')+'</span>'
+        +'<span class="wrcstagekm">'+(Number(st.km)||0).toFixed(2)+' km</span>'
+        +(key===runningKey?'<span class="cc wrcnow">'+esc(tr('Running'))+'</span>':(key===nextKey?'<span class="cc">'+esc(tr('Next'))+'</span>':''))
+        +'</div>';
+    });
+    h+='</div>';
+  });
+  box.innerHTML=h;
+}
+async function loadWrcItinerary(ev,force){
+  if(!ev||String(ev.series||'')!=='wrc'||!ev.url)return;
+  const box=document.getElementById('wrcItinerary');
+  if(force&&box)box.innerHTML='<span class="muted">'+esc(tr('Loading stages...'))+'</span>';
+  try{
+    const j=await api('/api/wrc_itinerary?url='+encodeURIComponent(ev.url)+(force?'&force=1':''));
+    if(_raceEvent===ev)renderWrcItinerary(ev,(j&&j.days)||[],(j&&j.reason)||'');
+  }catch(e){
+    const box=document.getElementById('wrcItinerary');
+    if(box)box.innerHTML='<span class="muted">'+esc(tr('Could not load the stage list.'))+'</span>';
+  }
+}
+function showRacePage(ev){
+  if(!ev)return;
+  _raceEvent=ev;
+  rememberLocation('race',{eventKey:racingAvailabilityKey(ev)});
+  hideAll();
+  document.getElementById('raceView').classList.remove('hide');
+  document.querySelector('main').classList.add('wide');
+  setNav('navRacing');setSlogan('mylist');
+  renderRacePage();window.scrollTo(0,0);
+}
+function closeRacePage(){if(history.state&&history.state.section==='race')history.back();else showRacing();}
+// The refresh is scoped to this event's series, so it stays quick and leaves
+// the other series' cached matches alone.
+function raceRefreshLabel(ev){
+  return tr('Refresh')+' '+String((ev&&(ev.series_name||ev.series))||'').trim();
+}
+async function refreshRaceChannels(btn){
+  if(!_raceEvent)return;
+  const series=String(_raceEvent.series||'');
+  const old=btn&&btn.innerHTML;
+  if(btn){btn.disabled=true;btn.textContent=tr('Refreshing...');}
+  try{
+    const j=await api('/api/racing_availability?force=1&series='+encodeURIComponent(series));
+    const map=(j&&j.availability)||{};
+    // Feed every event so the Racing list reflects the refresh too.
+    applyRacingAvailability(map,_racingEventRows);
+    const hit=map[racingAvailabilityKey(_raceEvent)];
+    _raceEvent.channels=Array.isArray(hit)?hit:((hit&&hit.channels)||[]);
+    renderRacePage();
+  }catch(e){toast(tr('Could not refresh channel matches.'));}
+  if(btn){btn.disabled=false;btn.innerHTML=old;}
 }
 function showMatchPage(fixture){if(!fixture)return;_matchFixture=fixture;if(!matchView||matchView.classList.contains('hide'))_sportsReturnScroll=window.scrollY||0;rememberLocation('match',{eventKey:sportsFixtureKey(fixture)});hideAll();matchView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');renderMatchPage();startMatchStatusTracking();window.scrollTo(0,0);if(fixture.availability_checked)_matchRefreshTimer=setTimeout(()=>refreshMatchChannels(null,true),15*60*1000);else refreshMatchChannels(null,false);}
 function openMatchFromCard(card){const key=card&&card.getAttribute('data-event-key')||'',source=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===key);if(source)showMatchPage(source);}
@@ -10458,7 +10860,16 @@ document.addEventListener('click',function(e){
     if(csid){playBrowser(csid,racingChan.getAttribute('data-name')||'');return;}
   }
   const racingEvent=e.target.closest('.racingevent');
-  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc,.bchead,.racingeventsource,.racingeventchannel')){if(racingEvent.classList.contains('loadingchannels'))return;if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');}return;}
+  if(racingEvent&&!e.target.closest('.btnplay,.btnvlc,.bchead,.racingeventsource,.racingeventchannel')){
+    if(racingEvent.classList.contains('loadingchannels'))return;
+    // Inside the Racing section a card opens the Race Centre; elsewhere (the
+    // timeline) it keeps the older expand-in-place behaviour.
+    const key=racingEvent.getAttribute('data-evkey')||'';
+    const ev=key?_racingEventRows.find(row=>racingAvailabilityKey(row)===key):null;
+    if(ev&&racingEvent.closest('#racingInfo')){showRacePage(ev);return;}
+    if(racingEvent.classList.contains('haschannels')){const box=racingEvent.querySelector('.racingeventchannels');if(box)box.classList.toggle('hide');}
+    return;
+  }
   const lev=e.target.closest('.latestepisodevlc');
   if(lev){playLatestEpisode(lev.getAttribute('data-id'),lev.getAttribute('data-ext'),lev);return;}
   const myListShow=e.target.closest('.mylistshowcard');
@@ -10530,7 +10941,22 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
   try{const c=await api('/api/config');startupConfig=c;start=c.start_section||'mylist';checkShows=!!c.check_shows_on_startup;refreshIptv=!!c.refresh_iptv_on_startup;refreshSports=!!c.refresh_sports_on_startup;setLang(c.preferred_language||'en');applyProfileConfig(c);if(start==='teams'&&!_footballEnabled)start='mylist';if(start==='games'&&!_gamesEnabled)start='mylist';if(start==='racing'&&!_f1Enabled)start='mylist';}catch(e){}
   if(start==='search')start='channels'; // migrate the removed Search section
   if(start==='mytimeline'&&_myListLayout==='timeline')start='mylist';
-  const map={channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline};
+  const map={channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings};
+  // Reloading (F5) should leave you where you were, not bounce you back to the
+  // configured start section. The hash is kept current by rememberLocation.
+  try{
+    const hash=String(location.hash||'').replace('#','').trim();
+    if(hash){
+      // A match page needs its fixture, which is gone after a reload, so the
+      // closest sensible landing spot is the Sports list it came from.
+      if(hash==='match')start='teams';
+      else if(hash==='race')start='racing';
+      else if(map[hash])start=hash;
+      if(start==='teams'&&!_footballEnabled)start='mylist';
+      if(start==='games'&&!_gamesEnabled)start='mylist';
+      if(start==='racing'&&!_f1Enabled)start='mylist';
+    }
+  }catch(e){}
   (map[start]||showMylist)();
   history.replaceState({tvmate:true,section:start},'','#'+start);
   _historyReady=true;
@@ -10545,7 +10971,7 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
 window.addEventListener('popstate',function(ev){
   const state=ev.state;
   if(!state||!state.tvmate)return;
-  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings,match:function(){const fixture=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===state.eventKey)||_matchFixture;if(fixture)showMatchPage(fixture);else showTeams();}};
+  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings,race:function(){const ev=_racingEventRows.find(r=>racingAvailabilityKey(r)===state.eventKey)||_raceEvent;if(ev)showRacePage(ev);else showRacing();},match:function(){const fixture=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===state.eventKey)||_matchFixture;if(fixture)showMatchPage(fixture);else showTeams();}};
   const fn=map[state.section]||showMylist;
   _historyRestoring=true;
   try{
@@ -11000,33 +11426,66 @@ class Handler(BaseHTTPRequestHandler):
             selected = [key for key in cfg.get("racing_series", ["f1"])
                         if key in _RACING_CHANNEL_TERMS]
             cache_key = _vod_cache_key(x) + "|" + ",".join(selected)
+            # "Refresh channel matches" has to be able to bypass both caches,
+            # otherwise it silently re-reads the very result it is trying to
+            # replace and looks like it does nothing.
+            force = (q.get("force", [""])[0]) in ("1", "true")
+            # A refresh can be scoped to one series ("Refresh WRC"), which only
+            # recomputes that series and merges it back into what is already
+            # cached for the others.
+            only = (q.get("series", [""])[0]).strip().lower()
+            if only and only not in selected:
+                only = ""
             cached = _RACING_AVAILABILITY_CACHE
-            if (cached.get("key") == cache_key and
+            if (not force and cached.get("key") == cache_key and
                     time.time() - float(cached.get("ts") or 0) < _RACING_AVAILABILITY_TTL):
                 return self._send(200, {"availability": cached.get("availability") or {},
                                         "logged_in": True})
-            disk_cached = _load_racing_disk_cache(cache_key, x)
+            disk_cached = None if force else _load_racing_disk_cache(cache_key, x)
             if disk_cached:
                 _RACING_AVAILABILITY_CACHE.update(disk_cached)
                 return self._send(200, {
                     "availability": disk_cached.get("availability") or {},
                     "logged_in": True, "cached": True})
-            events = get_racing_events(selected)
+            wanted = [only] if only else selected
+            events = get_racing_events(wanted, force=force)
+            # Keep the other series' results when only one is being refreshed.
+            base = {}
+            if only:
+                previous = _load_racing_disk_cache(cache_key, x) or {}
+                if cached.get("key") == cache_key:
+                    previous = cached
+                base = {k: v for k, v in (previous.get("availability") or {}).items()
+                        if not str(k).startswith(only + "|")}
             try:
-                channels, cats = get_xtream_channels(cfg)
+                # A per-series refresh keeps the cached channel list; a full
+                # refresh refetches it, since that is the slow part.
+                channels, cats = get_xtream_channels(cfg, force=(force and not only))
             except Exception:
                 return self._send(200, {"availability": {}, "logged_in": True})
             try:
                 followed_drivers = get_racing_drivers()
             except Exception:
                 followed_drivers = []
-            now = time.time(); availability = {}
+            now = time.time(); availability = dict(base)
             for event in events:
                 try:
                     ets = datetime.datetime.fromisoformat(str(event.get("start") or "").replace("Z", "+00:00")).timestamp()
                 except Exception:
                     continue
-                if ets < now - 12 * 3600 or ets > now + 45 * 24 * 3600:
+                # Rally and race weekends run for days, so judge "already over"
+                # by the end of the event. Using the start dropped an event that
+                # was still running from its second morning onwards.
+                ends = ets
+                raw_end = str(event.get("end") or "")
+                if raw_end:
+                    try:
+                        ends = datetime.datetime.fromisoformat(raw_end.replace("Z", "+00:00")).timestamp()
+                    except Exception:
+                        ends = ets
+                elif event.get("all_day"):
+                    ends = ets + 24 * 3600
+                if ends < now - 12 * 3600 or ets > now + 45 * 24 * 3600:
                     continue
                 hits = find_racing_channels(event, channels, cats, x, followed_drivers)
                 if hits:
@@ -11037,6 +11496,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"availability": availability, "logged_in": True})
         if path == "/api/racing_drivers":
             return self._send(200, {"drivers": get_racing_drivers()})
+        if path == "/api/wrc_itinerary":
+            event_url = (q.get("url", [""])[0]).strip()
+            if not event_url.startswith("https://www.wrc.com/"):
+                return self._send(400, {"error": "bad url"})
+            force = (q.get("force", [""])[0]) in ("1", "true")
+            days, reason = fetch_wrc_itinerary(event_url, force=force)
+            return self._send(200, {"days": days, "reason": reason})
         if path == "/api/racing_driver_image":
             key = (q.get("id", [""])[0]).strip()
             if not re.fullmatch(r"[0-9A-Za-z_-]+", key):
@@ -11088,6 +11554,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if u.path in {"/api/f1_schedule", "/api/racing", "/api/racing_availability",
                            "/api/racing_drivers", "/api/racing_driver_image",
+                           "/api/wrc_itinerary",
                            "/api/f1_teams", "/api/f1_team_logo"}:
                 return self._get_racing_api(u.path, q)
 
