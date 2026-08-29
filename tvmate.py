@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b472"
+VERSION = "0.777.b473"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -170,7 +170,7 @@ DEFAULT_CONFIG = {
     "profile_emblem": "tvstack",
     "mylist_layout": "timeline",
     "sports_layout": "current",
-    "match_layout": "balanced",
+    "match_layout": "live-centre",
     "football_enabled": True,
     "f1_enabled": True,
     "racing_series": ["f1"],
@@ -494,6 +494,8 @@ def _cache_channel_logo(stream_id, url, provider=""):
 def _latest_episodes_cache_path():
     return os.path.join(artwork_cache_dir(), "latest-episodes.json")
 
+_LATEST_EPISODES_TTL = 6 * 3600
+
 def _latest_episodes_cache_key(x):
     raw = (str(getattr(x, "base", "")) + "|" + str(getattr(x, "user", ""))).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:20]
@@ -506,6 +508,7 @@ def _load_latest_episodes_cache(x):
             return None
         if not isinstance(cached.get("episodes"), list) or not isinstance(cached.get("upcoming"), list):
             return None
+        cached["stale"] = time.time() - float(cached.get("saved_at") or 0) > _LATEST_EPISODES_TTL
         return cached
     except Exception:
         return None
@@ -532,6 +535,8 @@ def data_cache_dir():
 def _vod_catalog_cache_path():
     return os.path.join(data_cache_dir(), "vod-catalog.json")
 
+_VOD_CATALOG_TTL = 6 * 3600
+
 def _vod_cache_key(x):
     raw = (str(getattr(x, "base", "")) + "|" + str(getattr(x, "user", ""))).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()[:20]
@@ -553,6 +558,15 @@ def _load_vod_catalog_cache(x):
         return movies if isinstance(movies, list) else []
     except Exception:
         return []
+
+def _vod_catalog_cache_is_stale(x):
+    try:
+        with open(_vod_catalog_cache_path(), "r", encoding="utf-8") as f:
+            cached = json.load(f) or {}
+        return (cached.get("provider") != _vod_cache_key(x) or
+                time.time() - float(cached.get("saved_at") or 0) > _VOD_CATALOG_TTL)
+    except Exception:
+        return True
 
 def _save_vod_catalog_cache(x, movies):
     movies = _compact_vod_catalog(movies)
@@ -1619,7 +1633,7 @@ def get_xtream_series(cfg, force=False):
         _SERIES_CACHE.update({"provider": provider, "ts": now, "shows": shows})
         return shows
 
-def refresh_favorite_show_episodes(cfg):
+def refresh_favorite_show_episodes(cfg, refresh_catalog=False):
     """Refresh favorite-show episode counts and report newly added episodes."""
     x = Xtream(cfg)
     if not x.configured():
@@ -1627,7 +1641,7 @@ def refresh_favorite_show_episodes(cfg):
         return {"new_episodes": 0, "refreshed": 0, "errors": 0}
     fav = load_favorites()
     try:
-        series_catalog = get_xtream_series(cfg)
+        series_catalog = get_xtream_series(cfg, force=refresh_catalog)
     except Exception:
         series_catalog = []
     new_episodes = 0
@@ -7457,7 +7471,7 @@ function updateProfileName(name){
   // Profile identity lives inside My Profile now. The permanent top-right
   // action is Stop TVMate, so profile names no longer occupy header space.
 }
-let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',sports_layout:'current',match_layout:'balanced',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
+let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',sports_layout:'current',match_layout:'live-centre',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
 let _selectedEmblem='tvstack',_footballEnabled=true,_f1Enabled=true,_gamesEnabled=true,_myListLayout='timeline';
 let _devMode=false;
 function profileEmblemSvg(key){return _PROFILE_EMBLEMS[key]||_PROFILE_EMBLEMS.tvstack;}
@@ -7593,7 +7607,7 @@ function selectEditProfileEmblem(key){if(!_PROFILE_EMBLEMS[key])return;_editProf
 async function openEditProfile(){
   let c={};try{c=await api('/api/config');}catch(e){c=_profileConfig||{};}
   ep_name.value=c.profile_name||'';ep_lang.value=c.preferred_language||'en';_editProfileEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEditProfileEmblems();
-  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_sportslayout.value=['current','broadcast','agenda','hub','timeline'].includes(c.sports_layout)?c.sports_layout:'current';ep_matchlayout.value=['balanced','channel-first','live-centre'].includes(c.match_layout)?c.match_layout:'balanced';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshiptv.checked=!!c.refresh_iptv_on_startup;ep_refreshsports.checked=!!c.refresh_sports_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
+  ep_start.value=c.start_section||'mylist';ep_layout.value=['timeline','balanced','spotlight','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';ep_sportslayout.value=['current','broadcast','agenda','hub','timeline'].includes(c.sports_layout)?c.sports_layout:'current';ep_matchlayout.value=['balanced','channel-first','live-centre'].includes(c.match_layout)?c.match_layout:'live-centre';ep_checkshows.checked=!!c.check_shows_on_startup;ep_refreshiptv.checked=!!c.refresh_iptv_on_startup;ep_refreshsports.checked=!!c.refresh_sports_on_startup;ep_background.value=['float','ascii','off'].includes(c.background_style)?c.background_style:(c.decorations_enabled===false?'off':'float');
   editProfileOverlay.classList.remove('hide');setTimeout(()=>ep_name.focus(),30);
 }
 function closeEditProfile(){editProfileOverlay.classList.add('hide');}
@@ -7883,7 +7897,7 @@ function syncMatchPlayerAnchor(){
 function renderMatchPage(){
   const el=document.getElementById('matchPageContent'),f=_matchFixture;if(!el||!f)return;
   releaseMatchPlayerAnchor();
-  const allowed=['balanced','channel-first','live-centre'],layout=allowed.includes(_profileConfig.match_layout)?_profileConfig.match_layout:'balanced';
+  const allowed=['balanced','channel-first','live-centre'],layout=allowed.includes(_profileConfig.match_layout)?_profileConfig.match_layout:'live-centre';
   matchView.classList.remove('match-layout-balanced','match-layout-channel-first','match-layout-live-centre');matchView.classList.add('match-layout-'+layout);
   const kick=f.start?new Date(f.start):null,valid=kick&&!Number.isNaN(kick.getTime()),time=valid?kick.toLocaleTimeString(_lang==='no'?'nb-NO':undefined,{hour:'2-digit',minute:'2-digit'}):'—',date=valid?kick.toLocaleDateString(_lang==='no'?'nb-NO':undefined,{weekday:'long',day:'numeric',month:'long'}):'',live=fixtureIsLive(f),recent=fixtureIsRecent(f),status=live?(tr('Live now')+(f.live_minute!=null?' · '+String(f.live_minute)+"'":'')):(recent?tr('Recent match'):time),channels=[...(f.matches||[]),...(f.ppv_hits||[])];
   const hero='<div class="matchdetailhero"><div class="matchdetailcompetition">'+esc(f.league_name||tr('Football'))+'</div><div class="matchdetailteams"><div class="matchdetailside">'+matchTeamArt(f.home_id,f.home)+'<span>'+esc(f.home||'')+'</span></div><div><div class="matchdetailkickoff">'+esc(status)+'</div><div class="matchdetaildate">'+esc(date)+'</div>'+(live?'<div class="matchdetaillive">LIVE</div>':'')+'</div><div class="matchdetailside">'+matchTeamArt(f.away_id,f.away)+'<span>'+esc(f.away||'')+'</span></div></div></div>';
@@ -8137,7 +8151,7 @@ async function doChannelSearch(inputId, targetId){
   el.innerHTML=html;
 }
 const _apiInflight=new Map();
-const _coalescedPosts=new Set(['/api/refresh_xtream','/api/refresh_racing','/api/refresh_football','/api/check_show_updates','/api/import_steam_wishlist']);
+const _coalescedPosts=new Set(['/api/refresh_xtream','/api/refresh_racing','/api/refresh_football','/api/check_movie_updates','/api/check_show_updates','/api/import_steam_wishlist']);
 async function api(p,o){
   const method=String((o&&o.method)||'GET').toUpperCase(),path=String(p||'').split('?')[0];
   const canCoalesce=method==='GET'||(method==='POST'&&_coalescedPosts.has(path));
@@ -8206,7 +8220,7 @@ async function loadSettings(){
   _selectedEmblem=_PROFILE_EMBLEMS[c.profile_emblem]?c.profile_emblem:'tvstack';renderEmblemPicker();
   s_mylistlayout.value=['balanced','spotlight','timeline','hub'].includes(c.mylist_layout)?c.mylist_layout:'timeline';
   s_sportslayout.value=['current','broadcast','agenda','hub','timeline'].includes(c.sports_layout)?c.sports_layout:'current';
-  s_matchlayout.value=['balanced','channel-first','live-centre'].includes(c.match_layout)?c.match_layout:'balanced';
+  s_matchlayout.value=['balanced','channel-first','live-centre'].includes(c.match_layout)?c.match_layout:'live-centre';
   s_football.checked=c.football_enabled!==false;
   s_f1.checked=c.f1_enabled!==false;
   s_games.checked=c.games_enabled!==false;
@@ -8363,13 +8377,19 @@ async function withRefreshButton(btn,label,work){
   const old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent=label;}
   try{return await work();}catch(e){if(btn){const message='Refresh failed: '+String(e&&e.message||e);refreshMessage(message);toast(message,7000);}throw e;}finally{if(btn){btn.disabled=false;btn.textContent=old;applyLang();}}
 }
+async function refreshVisibleMediaPages(refreshMovieCatalog,refreshShows){
+  const jobs=[];
+  if(!moviesView.classList.contains('hide'))jobs.push(Promise.all([loadRecentMovies(9,true),loadCinemetaMovies(_movieCatalog,!!refreshMovieCatalog)]));
+  if(!showsView.classList.contains('hide'))jobs.push((async function(){await loadShowFavorites();if(_activeSeriesId)await loadShow(_activeSeriesId,true);else{const latest=document.getElementById('latestEpisodesSection');if(latest&&!latest.classList.contains('hide'))await loadLatestEpisodes(9,refreshShows!==false);}})());
+  await Promise.all(jobs);
+}
 async function refreshIptvContent(btn,quiet){
   return withRefreshButton(btn,'Refreshing IPTV...',async function(){
     refreshMessage('Refreshing Xtream channels, movies, shows and episodes...');
     const catalog=await api('/api/refresh_xtream',{method:'POST'});if(catalog.error||!catalog.ok)throw new Error(catalog.error||'IPTV refresh failed');
     refreshMessage('IPTV catalogues ready. Updating EPG...');
     const epg=await api('/api/epg?force=1&favorites=1');if(epg.error)throw new Error(epg.error||'EPG refresh failed');
-    _tvEpg=Object.assign({},_tvEpg,epg.epg||{});_latestEpisodesLoaded=false;refreshStatus();
+    _tvEpg=Object.assign({},_tvEpg,epg.epg||{});_latestEpisodesLoaded=false;_recentMovieCache={};_movieCatalogCache={};await refreshVisibleMediaPages(true,true);refreshStatus();
     if(!mytvView.classList.contains('hide'))renderTvGuide();
     const stats=epg.stats||{},summary='IPTV: '+catalog.channels+' channels, '+catalog.movies+' movies, '+catalog.shows+' shows · EPG: '+(stats.updated||0)+' channels';
     refreshMessage(summary);if(!quiet)toast(summary,7000);return {catalog:catalog,epg:epg,summary:summary};
@@ -8418,6 +8438,7 @@ async function refreshEverything(btn,quiet){
       if(movies)_movieCatalogCache[category]={movies:movies.movies||[],logged_in:!!movies.logged_in};
     }
     parts.push('Cinemeta cache checked');
+    _recentMovieCache={};await refreshVisibleMediaPages(false,false);
     refreshStatus();if(!mytvView.classList.contains('hide'))renderTvGuide();
     const summary=parts.join(' · ')+(failures.length?' · Failed: '+failures.join(', '):'');
     refreshMessage(summary);if(!quiet)toast(failures.length?'Refresh finished with some errors.':'Everything refreshed successfully.',7000);return {summary:summary,failures:failures};
@@ -8875,21 +8896,28 @@ function movieCard(m,showYear,recent,discover){
     +(browse?'':(m.stream_found?'<button class="btnvlc movievlc" data-sid="'+sid+'" data-ext="'+ext+'">&#9658; VLC</button>':'<button class="ghost" disabled>'+tr('Not available')+'</button>'))+'</div>'
     +availBadge+'</div></div>';
 }
-async function loadRecentMovies(limit){
-  limit=limit||9;
-  const el=document.getElementById('recentMovieList');
-  const more=document.getElementById('recentMovieMore');
-  el.innerHTML='<span class="muted">Loading...</span>';
-  more.classList.add('hide');
-  const r=await api('/api/recent_movies?limit='+limit);
-  if(typeof r.logged_in==='boolean')setMovieProviderLayout(r.logged_in);
+let _recentMovieCache={},_recentMovieRequest=0,_movieBackgroundRefresh=false;
+async function refreshMoviesInBackground(){
+  if(_movieBackgroundRefresh)return;_movieBackgroundRefresh=true;
+  try{const j=await api('/api/check_movie_updates',{method:'POST'});if(j.error)return;_recentMovieCache={};_movieCatalogCache={};if(!moviesView.classList.contains('hide'))await Promise.all([loadRecentMovies(9,true),loadCinemetaMovies(_movieCatalog,true)]);}catch(e){}finally{_movieBackgroundRefresh=false;}
+}
+function renderRecentMoviesResponse(r,limit){
+  const el=document.getElementById('recentMovieList'),more=document.getElementById('recentMovieMore');if(!el||!more)return false;
+  if(typeof r.logged_in==='boolean')setMovieProviderLayout(r.logged_in);more.classList.add('hide');
   if(r.error){el.innerHTML='<span class="muted">Could not load recently added movies.</span>';return false;}
   if(!r.logged_in){el.innerHTML='<span class="muted">Log in via Settings first.</span>';return false;}
   if(!r.movies.length){el.innerHTML='<span class="muted">No recent movies found.</span>';return false;}
+  el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,false,true)).join('')+'</div>';if(limit<36&&r.has_more)more.classList.remove('hide');return true;
+}
+async function loadRecentMovies(limit,refresh){
+  limit=limit||9;
+  const el=document.getElementById('recentMovieList');
+  const more=document.getElementById('recentMovieMore');
+  if(!refresh&&_recentMovieCache[limit])return renderRecentMoviesResponse(_recentMovieCache[limit],limit);
+  const req=++_recentMovieRequest;if(!el.querySelector('.moviegrid'))el.innerHTML='<span class="muted">Loading...</span>';more.classList.add('hide');
+  const r=await api('/api/recent_movies?limit='+limit);
   await loadMovieFavorites();
-  el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.movies.map(m=>movieCard(m,false,true)).join('')+'</div>';
-  if(limit<36&&r.has_more)more.classList.remove('hide');
-  return true;
+  if(!r.error)_recentMovieCache[limit]=r;if(req!==_recentMovieRequest)return !r.error;const rendered=renderRecentMoviesResponse(r,limit);if(r.stale&&!refresh)setTimeout(()=>refreshMoviesInBackground(),50);return rendered;
 }
 let _movieCatalog='popular',_movieCatalogCache={};
 function setMovieProviderLayout(loggedIn){
@@ -8898,13 +8926,13 @@ function setMovieProviderLayout(loggedIn){
   const refresh=document.getElementById('movieRefreshBtn');
   if(refresh)refresh.classList.toggle('hide',!loggedIn);
 }
-async function loadCinemetaMovies(catalog){
+async function loadCinemetaMovies(catalog,refresh){
   _movieCatalog=['popular','new','featured'].includes(catalog)?catalog:'popular';
   document.querySelectorAll('[data-movie-catalog]').forEach(function(btn){btn.classList.toggle('on',btn.dataset.movieCatalog===_movieCatalog);});
   const el=document.getElementById('cinemetaMovieList');
   if(!el)return;
   const cached=_movieCatalogCache[_movieCatalog];
-  if(cached){
+  if(cached&&!refresh){
     setMovieProviderLayout(cached.logged_in);
     el.innerHTML='<div class="moviegrid" style="margin-top:0">'+cached.movies.map(m=>movieCard(m,true,false,true)).join('')+'</div>';
     return;
@@ -8925,7 +8953,7 @@ async function checkMovies(btn){
   try{
     const j=await api('/api/check_movie_updates',{method:'POST'});
     if(j.error)throw new Error(j.error||'movie refresh failed');
-    await loadRecentMovies(9);
+    _recentMovieCache={};_movieCatalogCache={};await Promise.all([loadRecentMovies(9,true),loadCinemetaMovies(_movieCatalog,true)]);
     if(j.new_movies>0)toast('Found '+j.new_movies+' new movie'+(j.new_movies===1?'':'s'),7000);
     else toast('Movie library is up to date.',7000);
   }catch(e){toast('Could not refresh movie library.',7000);}
@@ -9339,7 +9367,7 @@ let _showSeasons={};
 let _activeSeriesId=null;
 let _favShowSet=new Set();
 let _favShowTitleSet=new Set();
-let _latestEpisodesLoaded=false;
+let _latestEpisodesLoaded=false,_latestEpisodesBackgroundRefresh=false;
 function latestEpisodeCard(ep){
   const cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.parentElement.textContent=String.fromCodePoint(128250)">':'&#128250;';
   let action='<button class="ghost" disabled>'+tr('Not available')+'</button>';
@@ -9385,10 +9413,10 @@ async function loadLatestEpisodes(limit,refresh){
   limit=limit||9;
   const el=document.getElementById('latestEpisodeList'), more=document.getElementById('latestEpisodeMore');
   const upcomingSection=document.getElementById('upcomingEpisodesSection'), upcomingList=document.getElementById('upcomingEpisodeList');
-  el.innerHTML='<span class="muted">Loading latest episodes...</span>';more.classList.add('hide');
-  upcomingSection.classList.add('hide');upcomingList.innerHTML='';
+  const hasContent=!!(el.querySelector('.moviegrid')||upcomingList.querySelector('.moviegrid'));if(!hasContent){el.innerHTML='<span class="muted">Loading latest episodes...</span>';more.classList.add('hide');upcomingSection.classList.add('hide');upcomingList.innerHTML='';}
   const r=await api('/api/latest_episodes?limit='+limit+(refresh?'&refresh=1':''));
-  if(r.error){el.innerHTML='<span class="muted">Could not load latest episodes.</span>';return false;}
+  if(r.error){if(!hasContent)el.innerHTML='<span class="muted">Could not load latest episodes.</span>';return false;}
+  more.classList.add('hide');upcomingSection.classList.add('hide');upcomingList.innerHTML='';
   if(r.episodes.length)el.innerHTML='<div class="moviegrid" style="margin-top:0">'+r.episodes.map(latestEpisodeCard).join('')+'</div>';
   else el.innerHTML='<span class="muted">No latest episodes found for your favorite shows.</span>';
   if(r.upcoming&&r.upcoming.length){
@@ -9397,6 +9425,7 @@ async function loadLatestEpisodes(limit,refresh){
   }
   if(limit<36&&r.has_more)more.classList.remove('hide');
   _latestEpisodesLoaded=true;
+  if(r.stale&&!refresh&&!_latestEpisodesBackgroundRefresh){_latestEpisodesBackgroundRefresh=true;setTimeout(async function(){try{await loadLatestEpisodes(limit,true);}catch(e){}finally{_latestEpisodesBackgroundRefresh=false;}},50);}
   return !!(r.episodes.length||(r.upcoming&&r.upcoming.length));
 }
 async function expandLatestEpisodes(btn){
@@ -11620,7 +11649,8 @@ class Handler(BaseHTTPRequestHandler):
                                 "cover": cover})
                 return self._send(200, {"movies": out, "logged_in": True,
                                         "catalog_year": target_year,
-                                        "has_more": len(unique_rows) > limit})
+                                        "has_more": len(unique_rows) > limit,
+                                        "stale": _vod_catalog_cache_is_stale(x)})
 
             if u.path == "/api/shows":
                 term = (q.get("q", [""])[0]).strip()
@@ -11672,7 +11702,7 @@ class Handler(BaseHTTPRequestHandler):
                             "has_more": len(cached_rows) > limit,
                             "upcoming": (cached.get("upcoming") or [])[:36],
                             "errors": int(cached.get("errors") or 0),
-                            "cached": True})
+                            "cached": True, "stale": bool(cached.get("stale"))})
                 rows = []
                 upcoming_rows = []
                 errors = 0
@@ -12623,7 +12653,7 @@ class Handler(BaseHTTPRequestHandler):
             if cfg.get("sports_layout") not in ("current", "broadcast", "agenda", "hub", "timeline"):
                 cfg["sports_layout"] = "current"
             if cfg.get("match_layout") not in ("balanced", "channel-first", "live-centre"):
-                cfg["match_layout"] = "balanced"
+                cfg["match_layout"] = "live-centre"
             allowed_starts = ("mylist", "mytimeline", "channels", "mytv", "movies", "shows", "games", "racing", "teams")
             if cfg.get("start_section") not in allowed_starts:
                 cfg["start_section"] = "mylist"
@@ -12717,7 +12747,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/check_show_updates":
             cfg = load_config()
             try:
-                result = refresh_favorite_show_episodes(cfg)
+                result = refresh_favorite_show_episodes(cfg, refresh_catalog=True)
                 return self._send(200, dict({"ok": True}, **result))
             except ValueError as e:
                 return self._send(400, {"error": str(e)})
@@ -13779,13 +13809,25 @@ def run_self_tests():
           all(("sports-layout-" + layout) in PAGE
               for layout in ("broadcast", "agenda", "hub", "timeline")))
     check("match page offers and persists all three layouts",
-          DEFAULT_CONFIG.get("match_layout") == "balanced" and
+          DEFAULT_CONFIG.get("match_layout") == "live-centre" and
           all(('value="%s"' % layout) in PAGE
               for layout in ("balanced", "channel-first", "live-centre")) and
           "match_layout:s_matchlayout.value" in PAGE and
           "match_layout:ep_matchlayout.value" in PAGE and
           "match-layout-channel-first" in PAGE and
           "match-layout-live-centre" in PAGE)
+    check("movies use cached-first rendering and quiet six-hour refreshes",
+          _VOD_CATALOG_TTL == 6 * 3600 and
+          '"stale": _vod_catalog_cache_is_stale(x)' in open(__file__, encoding="utf-8").read() and
+          "if(!refresh&&_recentMovieCache[limit])" in PAGE and
+          "setTimeout(()=>refreshMoviesInBackground(),50)" in PAGE and
+          "_recentMovieCache={};_movieCatalogCache={}" in PAGE)
+    check("shows use stale-while-refresh snapshots and forced manual catalog updates",
+          _LATEST_EPISODES_TTL == 6 * 3600 and
+          "cached[\"stale\"]" in open(__file__, encoding="utf-8").read() and
+          "r.stale&&!refresh&&!_latestEpisodesBackgroundRefresh" in PAGE and
+          "refresh_favorite_show_episodes(cfg, refresh_catalog=True)" in open(__file__, encoding="utf-8").read() and
+          "refreshVisibleMediaPages(true,true)" in PAGE)
     check("live centre anchors the player stack while channel hits scroll",
           'id="matchPlayerAnchor"' in PAGE and
           'class="matchdetailsticky"' in PAGE and
