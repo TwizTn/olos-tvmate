@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b476"
+VERSION = "0.777.b477"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3118,12 +3118,26 @@ def _selected_competition_keys(selected=None):
 
 def _daily_competition_selected(match, selected):
     league = normalise_event_name(match.get("_league_name") or "")
+    canonical_league = re.sub(r"^uefa ", "", league).strip()
     country = str(match.get("_league_ccode") or "").upper()
+    home = str((match.get("home") or {}).get("name") or "")
+    away = str((match.get("away") or {}).get("name") or "")
+    variant_text = normalise_event_name(" ".join((league, home, away)))
+    # The daily feed mixes senior, women's, academy and age-group tournaments.
+    # A substring such as "Premier League" must never pull in PL U18/U21 or
+    # Women's Champions League fixtures.
+    if re.search(r"(?:^| )(?:women|womens|ladies|female|kvinner|damer|femenin[oa]|femmes)(?: |$)", variant_text):
+        return False
+    if re.search(r"(?:^| )(?:u ?(?:17|18|19|20|21|23)|under ?(?:17|18|19|20|21|23)|academy|reserves?|youth)(?: |$)", variant_text):
+        return False
     for group in SPORTS_COMPETITIONS:
         for item in group["items"]:
             if item["key"] not in selected or (item["country"] and item["country"] != country):
                 continue
-            if any(alias in league for alias in item["aliases"]):
+            if any(canonical_league == alias or
+                   canonical_league.startswith(alias + " qualification") or
+                   canonical_league.startswith(alias + " qualifying")
+                   for alias in item["aliases"]):
                 return True
     return False
 
@@ -3170,7 +3184,7 @@ def compact_team_fixture_window(fixtures, now=None):
                 fixture.get("start") or "").replace("Z", "+00:00")).timestamp()
         except Exception:
             continue
-        if kickoff >= now - 6 * 3600:
+        if fixture.get("is_live") or kickoff >= now:
             candidates.append((kickoff, fixture))
     candidates.sort(key=lambda row: row[0])
     this_week = [fixture for kickoff, fixture in candidates
@@ -5190,7 +5204,7 @@ def _my_teams_snapshot_signature(favorites, cfg, x):
     raw = json.dumps(sorted(teams), ensure_ascii=False, separators=(",", ":"))
     competitions = ",".join(sorted(_selected_competition_keys(
         cfg.get("sports_competitions"))))
-    return "my-teams-v2|" + hashlib.sha256(raw.encode("utf-8")).hexdigest() + "|" + \
+    return "my-teams-v3|" + hashlib.sha256(raw.encode("utf-8")).hexdigest() + "|" + \
         competitions + "|" + _sports_cache_signature(cfg, x)
 
 def _sports_result_for_storage(result):
@@ -6406,6 +6420,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
  .teamfixture.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
  .teamfixture.favoritefixture{border-color:#3d7950;background:linear-gradient(90deg,rgba(43,112,67,.2),var(--card) 42%);box-shadow:inset 3px 0 0 #49a767}
+ .endedfixtures{margin:0 0 16px;border:1px solid var(--line);border-radius:9px;background:rgba(18,21,27,.55)}.endedfixtures summary{cursor:pointer;padding:10px 13px;color:var(--mut);font-size:12px;font-weight:650;list-style:none}.endedfixtures summary::-webkit-details-marker{display:none}.endedfixtures summary:before{content:'\25B8';display:inline-block;margin-right:7px;transition:transform .12s}.endedfixtures[open] summary:before{transform:rotate(90deg)}.endedfixtures .endedfixturelist{padding:0 10px 10px}.endedfixtures .teamfixture{opacity:.78}
  .sportsactions{display:flex;justify-content:space-between;align-items:center;gap:12px;position:relative;margin-bottom:12px}.sportsactions .colh{margin:0}
  .leaguepicker{position:absolute;z-index:35;right:0;top:40px;width:min(620px,calc(100vw - 32px));background:var(--card2);border:1px solid var(--line2);border-radius:11px;padding:15px;box-shadow:0 18px 48px #000b}
  .leaguepickerhead{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px}.leaguepickerhead b{font-size:14px}.leaguepickerhead .muted{font-size:11px;margin-top:3px}
@@ -7365,6 +7380,7 @@ const _I18N={
   "Choose your racing":"Velg racing","Select the series you want on My Racing and your timeline.":"Velg seriene du vil ha i Min racing og på tidslinjen.","Select the series you want in Racing and your timeline.":"Velg seriene du vil ha i Racing og på tidslinjen.","Favorite Formula 1 team":"Favorittlag i Formel 1","Choose a Formula 1 team":"Velg et Formel 1-lag","Add something to watch":"Legg til noe å se på","Search shows":"Søk etter serier","Search movies":"Søk etter filmer",
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
+  "Ended matches":"Ferdige kamper",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Today's matches":"Dagens kamper","Upcoming Fixtures":"Kommende kamper","Favorite team highlights":"Høydepunkter for favorittlag","Fixtures":"Kamper","Edit leagues & cups":"Rediger ligaer og cuper","Leagues & cups":"Ligaer og cuper","Choose what appears in today's Sports timeline.":"Velg hva som vises i dagens sportstidslinje.","Recommended":"Anbefalt","Leagues saved.":"Ligaer lagret.","Could not load leagues.":"Kunne ikke laste ligaer.","Could not save leagues.":"Kunne ikke lagre ligaer.","Choose at least one league or cup.":"Velg minst én liga eller cup.","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
   "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Loading channel matches...":"Laster kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører","Other broadcaster listings":"Andre TV-oppføringer",
@@ -7755,7 +7771,7 @@ function renderTeamFavoriteRail(){
 function fixtureBelongsToTeam(f,name){return (f.favorite_teams||[]).some(owner=>_teamNamesEquivalentForUi(owner,name))||_teamNamesEquivalentForUi(f.home,name)||_teamNamesEquivalentForUi(f.away,name);}
 function favoriteFixtureShortlist(fixtures,teams){
   const now=Date.now(),week=now+7*24*3600*1000,out=[],seen=new Set();
-  for(const team of teams){const name=String(typeof team==='string'?team:team.name||'');let mine=(fixtures||[]).filter(f=>fixtureBelongsToTeam(f,name)&&((f.start?new Date(f.start).getTime():0)>=now-6*3600*1000)).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));const inWeek=mine.filter(f=>(f.start?new Date(f.start).getTime():0)<=week);for(const f of (inWeek.length?inWeek.slice(0,3):mine.slice(0,1))){const key=sportsFixtureKey(f);if(!seen.has(key)){seen.add(key);out.push(f);}}}return out.sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));
+  for(const team of teams){const name=String(typeof team==='string'?team:team.name||'');let mine=(fixtures||[]).filter(f=>fixtureBelongsToTeam(f,name)&&(fixtureIsLive(f)||(f.start?new Date(f.start).getTime():0)>=now)).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));const inWeek=mine.filter(f=>(f.start?new Date(f.start).getTime():0)<=week);for(const f of (inWeek.length?inWeek.slice(0,3):mine.slice(0,1))){const key=sportsFixtureKey(f);if(!seen.has(key)){seen.add(key);out.push(f);}}}return out.sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));
 }
 function selectedTeamNextFixture(){
   const name=String(_selectedTeamName||'');if(!name)return null;const now=Date.now();
@@ -7836,9 +7852,10 @@ async function loadMyTeams(force){
 function renderSportsHome(){
   const teams=_favTeamRows,upcoming=document.getElementById('teamUpcomingList'),liveList=document.getElementById('teamLiveList'),liveSection=document.getElementById('teamLiveSection'),topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
   const highlights=favoriteFixtureShortlist(_myTeamFixtures,teams);liveList.innerHTML='';liveSection.classList.add('hide');
-  if(_sportsTopFixtures.length){topList.innerHTML='<div class="topfixturegrid">'+_sportsTopFixtures.map(f=>'<div class="topfixtureitem">'+teamFixtureCard(f,fixtureIsLive(f))+'</div>').join('')+'</div>';topSection.classList.remove('hide');}else{topList.innerHTML='';topSection.classList.add('hide');}
+  const ended=_sportsTopFixtures.filter(f=>f.is_finished||fixtureIsRecent(f)),active=_sportsTopFixtures.filter(f=>!f.is_finished&&!fixtureIsRecent(f));
+  if(_sportsTopFixtures.length){topList.innerHTML=(ended.length?'<details class="endedfixtures"><summary>'+esc(tr('Ended matches'))+' ('+ended.length+')</summary><div class="endedfixturelist teamfixturegrid">'+ended.map(f=>teamFixtureCard(f,false)).join('')+'</div></details>':'')+(active.length?'<div class="topfixturegrid">'+active.map(f=>'<div class="topfixtureitem">'+teamFixtureCard(f,fixtureIsLive(f))+'</div>').join('')+'</div>':'');topSection.classList.remove('hide');}else{topList.innerHTML='';topSection.classList.add('hide');}
   upcoming.innerHTML=highlights.length?'<div class="teamfixturegrid">'+highlights.map(f=>teamFixtureCard(f,fixtureIsLive(f))).join('')+'</div>':(teams.length?'<span class="muted">'+esc(tr('No upcoming fixtures found.'))+'</span>':'<span class="muted">'+esc(tr('Add a favorite team to see its fixtures.'))+'</span>');
-  _sportsVisibleFixtures=[..._sportsTopFixtures,...highlights];loadSportsAvailability(false);
+  _sportsVisibleFixtures=[...active,...highlights];loadSportsAvailability(false);
 }
 
 function applySportsAvailability(availability){
@@ -13926,10 +13943,20 @@ def run_self_tests():
     check("Sports home limits favorite fixtures and selects competitions",
           len(compact_team_fixture_window(compact_sample, 1000)) == 3 and
           len(DEFAULT_CONFIG.get("sports_competitions") or []) >= 5 and
+          _daily_competition_selected({"_league_name": "Premier League",
+              "_league_ccode": "ENG", "home": {"name": "Leeds"},
+              "away": {"name": "Arsenal"}}, {"eng-premier-league"}) and
+          not _daily_competition_selected({"_league_name": "Premier League U18",
+              "_league_ccode": "ENG", "home": {"name": "Leeds U18"},
+              "away": {"name": "Arsenal U18"}}, {"eng-premier-league"}) and
+          not _daily_competition_selected({"_league_name": "Women's Champions League",
+              "_league_ccode": "INT", "home": {"name": "Lyon Women"},
+              "away": {"name": "Arsenal Women"}}, {"uefa-champions-league"}) and
           'id="leaguePicker"' in PAGE and
           "favoriteFixtureShortlist" in PAGE and
-          "_sportsVisibleFixtures=[..._sportsTopFixtures,...highlights]" in PAGE and
-          'id="teamDetailPage"' in PAGE)
+          'id="teamDetailPage"' in PAGE and
+          'class="endedfixtures"' in PAGE and
+          "_sportsVisibleFixtures=[...active,...highlights]" in PAGE)
     check("match page offers and persists all three layouts",
           DEFAULT_CONFIG.get("match_layout") == "live-centre" and
           all(('value="%s"' % layout) in PAGE
