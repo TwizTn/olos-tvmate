@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b494"
+VERSION = "0.777.b495"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6304,7 +6304,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvplayerslot.pipactive{position:fixed!important;left:-10000px!important;right:auto!important;top:0!important;bottom:auto!important;width:320px!important;height:180px!important;min-width:0!important;min-height:0!important;opacity:.01!important;pointer-events:none!important;overflow:hidden!important;border:0!important;box-shadow:none!important}
  .tvplayerslot.pipactive .tvplayerbar,.tvplayerslot.pipactive .tvvideohit{display:none!important}
  #tvPlayerSlot.pipactive #tvVideo{width:320px!important;height:180px!important;display:block!important}
- .tvpipstatus{display:inline-flex;align-items:center;justify-content:center;min-width:min(460px,32vw);padding:7px 14px;border:1px solid #3975bf;border-radius:8px;background:#102746;color:#dcecff;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+ .tvpipstatus{display:inline-flex;align-items:center;justify-content:center;flex:1 1 360px;max-width:620px;min-width:min(460px,32vw);padding:7px 14px;border:1px solid #3975bf;border-radius:8px;background:#102746;color:#dcecff;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
  .tvpipstatus.hide{display:none}
  .tvpipstatus:hover{border-color:#65a0e7;background:#15335a;filter:none}
  .tvplayerslot.mini{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
@@ -7010,7 +7010,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
   <span id="status" class="muted"></span>
-  <button type="button" id="tvPipStatus" class="tvpipstatus hide" onclick="tvRestoreFromPip()">Popout Player is running · click to restore</button>
+  <button type="button" id="tvPipStatus" class="tvpipstatus hide" onclick="tvRestoreFromPip()" data-i18n="Popout Player is running · click to restore">Popout Player is running · click to restore</button>
   <button type="button" id="restartBtn" class="stopbtn headerstop headerrestart hide" onclick="restartTVMate()" data-i18n="Restart TVMate" title="Restart TVMate (reload edited tvmate.py)">Restart TVMate</button>
   <button type="button" class="stopbtn headerstop" onclick="stopTVMate()" data-i18n="Stop TVMate" title="Stop TVMate">Stop TVMate</button>
   <div class="langsel">
@@ -7745,7 +7745,7 @@ const _I18N={
   "Compatibility mode: loading one channel at a time...":"Kompatibilitetsmodus: laster én kanal om gangen...",
   "Retrying this batch one channel at a time...":"Prøver denne gruppen på nytt, én kanal om gangen...","channels could not be refreshed.":"kanaler kunne ikke oppdateres.",
   "Channels available":"Kanaler tilgjengelig",
-  "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...",
+  "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...","Popout Player is running · click to restore":"Popout-spilleren kjører · klikk for å gjenopprette",
   "Update downloaded. Restart now to finish updating?":"Oppdatering lastet ned. Start på nytt for å fullføre?",
   "Restart now":"Start på nytt","Update now":"Oppdater nå","Later":"Senere","Player":"Spiller","Restarting...":"Starter på nytt...",
   "Updating... this window will reload shortly.":"Oppdaterer... vinduet lastes inn på nytt snart.",
@@ -7796,9 +7796,13 @@ function hideAll(keepMytv){
   const popupPlayer=document.getElementById('playerModal');
   const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));
   const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
-  const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
+  // Picture-in-Picture is represented by the restore control in the header,
+  // not by an in-page player. Keep every section at its normal full width.
+  const pipPlayback=!!(_tvPipActive||tvPipVideo());
+  const layoutPlayback=hasPlayback&&!pipPlayback;
+  const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!pipPlayback&&!mytvView.classList.contains('hide'));
   settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();updateProfileName(_profileConfig.profile_name);
-  if(!keepMytv&&hasPlayback){
+  if(!keepMytv&&layoutPlayback){
     if(leavingLiveTv)tvSetMini(true);
     document.body.classList.add('tvsectionplay');
   }else{
@@ -10803,21 +10807,21 @@ function tvBindPictureInPicture(video){
     if(win){remember();win.addEventListener('resize',remember);}
   });
   video.addEventListener('leavepictureinpicture',function(){
-    tvSetPipStatus(false);
-    const slot=document.getElementById('tvPlayerSlot');
-    if(!slot||!slot.classList.contains('on'))return;
-    if(!mytvView.classList.contains('hide'))tvSetMini(false);else tvSetMini(true);
+    tvRestorePlayerLayout();
   });
+}
+function tvRestorePlayerLayout(){
+  const slot=document.getElementById('tvPlayerSlot');
+  const restoreMini=!!(_tvPipRestoreMini||mytvView.classList.contains('hide'));
+  tvSetPipStatus(false);
+  _tvPipRestoreMini=false;
+  if(slot&&slot.classList.contains('on'))tvSetMini(restoreMini);
 }
 async function tvRestoreFromPip(){
   if(document.pictureInPictureElement&&document.exitPictureInPicture){
     try{await document.exitPictureInPicture();return;}catch(e){}
   }
-  tvSetPipStatus(false);
-  const slot=document.getElementById('tvPlayerSlot');
-  if(slot&&slot.classList.contains('on')){
-    if(!mytvView.classList.contains('hide'))tvSetMini(false);else tvSetMini(true);
-  }
+  tvRestorePlayerLayout();
 }
 function tvSetMini(mini){
   const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
@@ -14648,6 +14652,12 @@ def run_self_tests():
           "classList.toggle('matchplayerembedded',playing)" in PAGE and
           "if(playing)document.body.classList.remove('tvsectionplay')" in PAGE and
           "classList.toggle('tvsectionplay',!modal.classList.contains('matchanchored'))" in PAGE)
+    check("PiP uses a header restore control without shrinking app pages",
+          'id="tvPipStatus" class="tvpipstatus hide"' in PAGE and
+          "const layoutPlayback=hasPlayback&&!pipPlayback" in PAGE and
+          "if(!keepMytv&&layoutPlayback)" in PAGE and
+          "function tvRestorePlayerLayout()" in PAGE and
+          "const restoreMini=!!(_tvPipRestoreMini||mytvView.classList.contains('hide'))" in PAGE)
     check("layout-aware pages expose an immediate on-page editor",
           "data-layout-kind=\"profile\"" in PAGE and
           "openLayoutEditor('sports',this)" in PAGE and
