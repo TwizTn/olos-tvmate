@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b493"
+VERSION = "0.777.b494"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6301,6 +6301,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvnowhead:before{content:"";position:absolute;top:4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#e1535c}
  .tvplayerslot{position:absolute;top:0;right:0;left:286px;bottom:0;background:#000;z-index:20;display:none}
  .tvplayerslot.on{display:block}
+ .tvplayerslot.pipactive{position:fixed!important;left:-10000px!important;right:auto!important;top:0!important;bottom:auto!important;width:320px!important;height:180px!important;min-width:0!important;min-height:0!important;opacity:.01!important;pointer-events:none!important;overflow:hidden!important;border:0!important;box-shadow:none!important}
+ .tvplayerslot.pipactive .tvplayerbar,.tvplayerslot.pipactive .tvvideohit{display:none!important}
+ #tvPlayerSlot.pipactive #tvVideo{width:320px!important;height:180px!important;display:block!important}
+ .tvpipstatus{display:inline-flex;align-items:center;justify-content:center;min-width:min(460px,32vw);padding:7px 14px;border:1px solid #3975bf;border-radius:8px;background:#102746;color:#dcecff;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+ .tvpipstatus.hide{display:none}
+ .tvpipstatus:hover{border-color:#65a0e7;background:#15335a;filter:none}
  .tvplayerslot.mini{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);z-index:120;border:1px solid #46505e;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6)}
  .tvplayerslot.mini .tvplayerbar{background:#111720}
  .tvplayerslot.sectionmax{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:500;border:0;border-radius:0;overflow:hidden;box-shadow:none}
@@ -7004,6 +7010,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
   <span id="status" class="muted"></span>
+  <button type="button" id="tvPipStatus" class="tvpipstatus hide" onclick="tvRestoreFromPip()">Popout Player is running · click to restore</button>
   <button type="button" id="restartBtn" class="stopbtn headerstop headerrestart hide" onclick="restartTVMate()" data-i18n="Restart TVMate" title="Restart TVMate (reload edited tvmate.py)">Restart TVMate</button>
   <button type="button" class="stopbtn headerstop" onclick="stopTVMate()" data-i18n="Stop TVMate" title="Stop TVMate">Stop TVMate</button>
   <div class="langsel">
@@ -10616,6 +10623,7 @@ let _tvSource='__fav__';   // '__fav__' or a category name
 let _tvChannels=[];
 let _tvPlaying=null;
 let _tvPlayRequest=0,_tvPendingSid='';
+let _tvPipActive=false,_tvPipRestoreMini=false;
 async function initMytv(){
   await buildTvRail();
   await loadTvSource('__fav__');
@@ -10772,9 +10780,49 @@ function epgCellHtml(sid,winStart,winEnd){
 function tvPlayerGuide(){
   return document.querySelector('#mytvView .tvguide');
 }
+function tvPipVideo(){
+  const video=document.getElementById('tvVideo');
+  return video&&document.pictureInPictureElement===video?video:null;
+}
+function tvSetPipStatus(active){
+  _tvPipActive=!!active;
+  const slot=document.getElementById('tvPlayerSlot'),banner=document.getElementById('tvPipStatus');
+  if(slot)slot.classList.toggle('pipactive',_tvPipActive);
+  if(banner)banner.classList.toggle('hide',!_tvPipActive);
+  if(_tvPipActive)document.body.classList.remove('tvsectionplay');
+}
+function tvBindPictureInPicture(video){
+  if(!video||video._tvmatePipBound)return;
+  video._tvmatePipBound=true;
+  video.addEventListener('enterpictureinpicture',function(e){
+    const slot=document.getElementById('tvPlayerSlot');
+    _tvPipRestoreMini=!!(slot&&slot.classList.contains('mini'));
+    tvSetPipStatus(true);
+    const win=e.pictureInPictureWindow;
+    const remember=function(){try{localStorage.setItem('tvmate_pip_size',JSON.stringify({width:win.width,height:win.height}));}catch(err){}};
+    if(win){remember();win.addEventListener('resize',remember);}
+  });
+  video.addEventListener('leavepictureinpicture',function(){
+    tvSetPipStatus(false);
+    const slot=document.getElementById('tvPlayerSlot');
+    if(!slot||!slot.classList.contains('on'))return;
+    if(!mytvView.classList.contains('hide'))tvSetMini(false);else tvSetMini(true);
+  });
+}
+async function tvRestoreFromPip(){
+  if(document.pictureInPictureElement&&document.exitPictureInPicture){
+    try{await document.exitPictureInPicture();return;}catch(e){}
+  }
+  tvSetPipStatus(false);
+  const slot=document.getElementById('tvPlayerSlot');
+  if(slot&&slot.classList.contains('on')){
+    if(!mytvView.classList.contains('hide'))tvSetMini(false);else tvSetMini(true);
+  }
+}
 function tvSetMini(mini){
   const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
   if(!slot||!slot.classList.contains('on'))return;
+  if(_tvPipActive)return;
   const inLiveTv=!mytvView.classList.contains('hide');
   if(mini){
     if(slot.parentElement!==document.body)document.body.appendChild(slot);
@@ -10799,18 +10847,28 @@ async function tvPlay(sid,name){
   if(_tvPendingSid===sidKey)return;
   _tvPendingSid=sidKey;
   const request=++_tvPlayRequest;
+  const existingVideo=document.getElementById('tvVideo');
+  const keepPip=!!(existingVideo&&document.pictureInPictureElement===existingVideo);
   const wasMini=slot.classList.contains('mini');
   // Single-playback rule: starting Live TV closes any open popup player.
   const pmodal=document.getElementById('playerModal');
   if(pmodal&&!pmodal.classList.contains('hide')){try{closePlayer();}catch(e){}}
   _tvPlaying=sid;
   slot.classList.add('on');
-  if(!wasMini&&guide&&slot.parentElement!==guide)guide.appendChild(slot);
-  slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline></video><button type="button" class="tvvideohit" aria-label="Minimize player" onclick="tvToggleMini()"></button>';
-  tvSetMini(wasMini);
+  if(!keepPip){
+    if(!wasMini&&guide&&slot.parentElement!==guide)guide.appendChild(slot);
+    slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline></video><button type="button" class="tvvideohit" aria-label="Minimize player" onclick="tvToggleMini()"></button>';
+    tvSetMini(wasMini);
+  }else{
+    tvSetPipStatus(true);
+    const bar=slot.querySelector('.tvplayerbar span');if(bar)bar.textContent=name||'';
+  }
   renderTvGuide();
-  const video=document.getElementById('tvVideo');
+  const video=keepPip?existingVideo:document.getElementById('tvVideo');
+  tvBindPictureInPicture(video);
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
+  if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
+  if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
   let urls;
   try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){return;}finally{if(request===_tvPlayRequest)_tvPendingSid='';}
   if(request!==_tvPlayRequest)return;
@@ -10834,6 +10892,8 @@ function tvToggleMini(){
 function tvStop(){
   _tvPlayRequest++;_tvPendingSid='';
   _tvPlaying=null;
+  if(document.pictureInPictureElement&&document.exitPictureInPicture){try{document.exitPictureInPicture().catch(function(){});}catch(e){}}
+  tvSetPipStatus(false);
   document.body.classList.remove('tvsectionplay');
   if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
   if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
