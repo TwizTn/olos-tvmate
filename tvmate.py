@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b474"
+VERSION = "0.777.b475"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6038,8 +6038,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .epgprog .epgtitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
  .epgprog.compact{padding-left:5px;padding-right:5px}.epgprog.compact .epgt{display:none}
  .epgfallback{position:absolute;inset:0;display:flex;align-items:center;gap:7px;padding:0 11px;overflow:hidden;color:#7d8593;white-space:nowrap}.epgfallback .epgtitle{overflow:hidden;text-overflow:ellipsis}
- .epgloadback{position:fixed;inset:0;z-index:130;background:rgba(5,7,10,.68);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px}
- .epgloadbox{width:min(440px,calc(100vw - 32px));background:#12171f;border:1px solid #3b4655;border-radius:13px;padding:22px 24px;box-shadow:0 24px 70px rgba(0,0,0,.48)}
+ .epgloadback{position:fixed;z-index:130;top:82px;right:18px;width:min(400px,calc(100vw - 32px));pointer-events:none}
+ .epgloadbox{width:100%;box-sizing:border-box;background:#12171f;border:1px solid #3b4655;border-radius:11px;padding:16px 18px;box-shadow:0 18px 48px rgba(0,0,0,.48);pointer-events:auto}
  .epgloadtitle{font-size:18px;font-weight:700;margin-bottom:7px}.epgloadstage{color:#aab4c1;font-size:12px;min-height:19px}
  .epgloadbar{height:8px;border-radius:99px;background:#252d38;overflow:hidden;margin:16px 0 9px}.epgloadbar>span{display:block;height:100%;width:0;background:linear-gradient(90deg,#0b55bc,#4b9cff);border-radius:inherit;transition:width .2s ease}
  .epgloadmeta{display:flex;justify-content:space-between;gap:12px;color:#7f8a99;font-size:11px;font-variant-numeric:tabular-nums}
@@ -11163,11 +11163,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "bad request"})
                 _load_epg_disk_cache(x)
                 ids = [s.strip() for s in ids_raw.split(",") if s.strip()]
+                fallback_priority = set(ids)
                 if all_favorites:
                     fav = load_favorites()
                     wanted_categories = set(str(name) for name in fav.get("categories", []))
                     ids.extend(str(ch.get("stream_id")) for ch in fav.get("channels", [])
                                if ch.get("stream_id") is not None)
+                    fallback_priority.update(str(ch.get("stream_id"))
+                                             for ch in fav.get("channels", [])
+                                             if ch.get("stream_id") is not None)
                     if wanted_categories:
                         try:
                             channels, cats = get_xtream_channels(cfg)
@@ -11223,28 +11227,54 @@ class Handler(BaseHTTPRequestHandler):
                                     result[sid] = progs
                                     stats["updated"] += 1
                                     filled.append(sid)
-                            # Only channels NOT covered by XMLTV need the slow path.
-                            to_fetch = [s for s in to_fetch if s not in filled]
+                            # A mapped XMLTV channel with no programme rows is a
+                            # real bulk-guide miss, not a reason to make another
+                            # HTTP request. Previously hundreds of these misses
+                            # fell into the serial short-EPG path.
+                            mapped_missing = [s for s in to_fetch
+                                              if s in sid_to_epg and s not in filled]
+                            for sid in mapped_missing:
+                                old = _EPG_CACHE.get(sid)
+                                progs = old.get("programmes", []) if old else []
+                                _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
+                                result[sid] = progs
+                                cache_changed = True
+                            stats["no_data"] += len(mapped_missing)
+                            stats["xmltv_missing"] = len(mapped_missing)
+                            # Only streams without any XMLTV mapping can benefit
+                            # from Xtream's per-channel fallback.
+                            to_fetch = [s for s in to_fetch if s not in filled and
+                                        s not in mapped_missing]
                             stats["xmltv_filled"] = len(filled)
                     except Exception as e:
                         # XMLTV unavailable (offline, blocked, parse error): fall
                         # back entirely to the per-channel API below.
                         _record_source("epg_xmltv", False, error=e)
                         stats["xmltv_error"] = str(e)[:120]
-                # FALLBACK: Xtream's short EPG endpoint is one request per channel.
-                # Only used for channels the bulk XMLTV did not cover.
-                # Strictly one at a time with a small pause every four channels;
-                # several providers reject or silently throttle overlapping requests.
+                # FALLBACK: only directly favorite/visible streams without an
+                # XMLTV id. Use four workers: fast enough for a TV-style update,
+                # but deliberately below the burst levels that providers reject.
                 if to_fetch:
                     stats["safe_mode"] = True
-                    for i, sid in enumerate(to_fetch):
+                    eligible = [sid for sid in to_fetch if sid in fallback_priority][:32]
+                    skipped = [sid for sid in to_fetch if sid not in eligible]
+                    stats["fallback_skipped"] = len(skipped)
+                    for sid in skipped:
+                        old = _EPG_CACHE.get(sid)
+                        progs = old.get("programmes", []) if old else []
+                        _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
+                        result[sid] = progs
+                        cache_changed = True
+                    stats["no_data"] += len(skipped)
+                    import concurrent.futures as _futures
+                    def _short_epg_one(sid):
                         try:
-                            # Request a multi-day listing window. Providers may cap this,
-                            # but retaining everything they return makes guide refreshes
-                            # useful for days rather than just the current evening.
-                            progs = x.short_epg(sid, _EPG_LISTING_LIMIT)
+                            return sid, x.short_epg(sid, _EPG_LISTING_LIMIT)
                         except Exception:
-                            progs = None
+                            return sid, None
+                    with _futures.ThreadPoolExecutor(max_workers=min(4, len(eligible) or 1)) as pool:
+                        fallback_rows = list(pool.map(_short_epg_one, eligible))
+                    for sid, progs in fallback_rows:
                         old = _EPG_CACHE.get(sid)
                         if progs is None:
                             stats["failed"] += 1
@@ -11264,8 +11294,6 @@ class Handler(BaseHTTPRequestHandler):
                             _EPG_CACHE[sid] = {"ts": now, "programmes": progs}
                             cache_changed = True
                             result[sid] = progs
-                        if (i + 1) % 4 == 0:
-                            time.sleep(0.35)
                 if cache_changed:
                     _save_epg_disk_cache(x)
                 return self._send(200, {"epg": result, "total": len(ids), "stats": stats})
@@ -14643,6 +14671,12 @@ def run_self_tests():
                   [{"home": "Leeds", "away": "Manchester United",
                     "start": "2026-08-13T18:45:00Z"}],
                   [], {}, _TestXtream()) == {})
+        source_text = open(__file__, encoding="utf-8").read()
+        check("EPG bulk misses avoid serial per-channel refreshes",
+              "mapped_missing = [s for s in to_fetch" in source_text and
+              "ThreadPoolExecutor(max_workers=min(4" in source_text and
+              "fallback_priority" in source_text and
+              ".epgloadback{position:fixed;z-index:130;top:82px" in PAGE)
     finally:
         _EPG_CACHE.clear()
         _EPG_CACHE.update(old_epg_test)
