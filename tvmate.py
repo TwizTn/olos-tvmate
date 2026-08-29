@@ -128,7 +128,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b477"
+VERSION = "0.777.b478"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3043,14 +3043,14 @@ def search_fotmob_teams(term, limit=12):
     walk(data)
     return out
 
-def fetch_fotmob_daily_matches():
+def fetch_fotmob_daily_matches(force=False):
     """Today's FotMob match feed, including untelevised live fixtures."""
     day = time.strftime("%Y%m%d", time.localtime())
     now = time.time()
-    if (_DAILY_MATCH_CACHE["date"] == day and _DAILY_MATCH_CACHE["matches"] and
+    if (not force and _DAILY_MATCH_CACHE["date"] == day and _DAILY_MATCH_CACHE["matches"] and
             now - _DAILY_MATCH_CACHE["ts"] < _DAILY_MATCH_TTL):
         return _DAILY_MATCH_CACHE["matches"]
-    disk = _load_timed_data_cache("fotmob-daily.json", _DAILY_MATCH_TTL)
+    disk = None if force else _load_timed_data_cache("fotmob-daily.json", _DAILY_MATCH_TTL)
     if isinstance(disk, dict) and disk.get("date") == day and isinstance(disk.get("matches"), list):
         _DAILY_MATCH_CACHE.update({"date": day, "ts": now, "matches": disk["matches"]})
         return disk["matches"]
@@ -3087,6 +3087,48 @@ def fetch_fotmob_daily_matches():
     _DAILY_MATCH_CACHE.update({"date": day, "ts": now, "matches": matches})
     _save_timed_data_cache("fotmob-daily.json", {"date": day, "matches": matches})
     return matches
+
+def current_match_status(home, away, start="", home_id="", away_id="", force=False):
+    """Return live state for one explicitly opened match page."""
+    wanted_day = str(start or "")[:10]
+    for match in fetch_fotmob_daily_matches(force=force):
+        mh = match.get("home") or {}
+        ma = match.get("away") or {}
+        ids_match = (str(home_id or "") and str(away_id or "") and
+                     str(mh.get("id") or "") == str(home_id) and
+                     str(ma.get("id") or "") == str(away_id))
+        names_match = (_team_names_equivalent(mh.get("name"), home) and
+                       _team_names_equivalent(ma.get("name"), away))
+        status = match.get("status") or {}
+        match_start = str(status.get("utcTime") or match.get("startDate") or "")
+        if not (ids_match or names_match) or (wanted_day and match_start[:10] != wanted_day):
+            continue
+        reason = status.get("reason") or {}
+        if not isinstance(reason, dict):
+            reason = {"short": str(reason)}
+        phase = normalise_event_name(" ".join(str(value or "") for value in
+            (reason.get("short"), reason.get("long"), status.get("statusStr"),
+             status.get("period"))))
+        halftime = bool(status.get("halftime") or
+            re.search(r"(?:^| )(?:ht|half time|halftime|interval|break)(?: |$)", phase))
+        finished = bool(status.get("finished") or
+            re.search(r"(?:^| )(?:ft|full time|finished|ended)(?: |$)", phase))
+        cancelled = bool(status.get("cancelled"))
+        live = bool((status.get("started") or status.get("ongoing") or
+                     status.get("live")) and not finished and not cancelled)
+        live_time = status.get("liveTime") or {}
+        minute = None
+        if isinstance(live_time, dict):
+            clock = str(live_time.get("long") or live_time.get("short") or "")
+            found = re.search(r"\d+", clock)
+            minute = int(found.group(0)) if found else None
+        state = "cancelled" if cancelled else ("ended" if finished else
+                ("halftime" if halftime else ("live" if live else "scheduled")))
+        return {"found": True, "state": state, "is_live": live,
+                "is_halftime": halftime, "is_finished": finished,
+                "is_cancelled": cancelled, "live_minute": minute,
+                "status_known": True, "checked_at": time.time()}
+    return {"found": False, "checked_at": time.time()}
 
 SPORTS_COMPETITIONS = [
     {"group": "England", "items": [
@@ -7380,7 +7422,7 @@ const _I18N={
   "Choose your racing":"Velg racing","Select the series you want on My Racing and your timeline.":"Velg seriene du vil ha i Min racing og på tidslinjen.","Select the series you want in Racing and your timeline.":"Velg seriene du vil ha i Racing og på tidslinjen.","Favorite Formula 1 team":"Favorittlag i Formel 1","Choose a Formula 1 team":"Velg et Formel 1-lag","Add something to watch":"Legg til noe å se på","Search shows":"Søk etter serier","Search movies":"Søk etter filmer",
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
-  "Ended matches":"Ferdige kamper",
+  "Ended matches":"Ferdige kamper","Ended":"Ferdig","Half-time":"Pause","Cancelled":"Avlyst",
   "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Today's matches":"Dagens kamper","Upcoming Fixtures":"Kommende kamper","Favorite team highlights":"Høydepunkter for favorittlag","Fixtures":"Kamper","Edit leagues & cups":"Rediger ligaer og cuper","Leagues & cups":"Ligaer og cuper","Choose what appears in today's Sports timeline.":"Velg hva som vises i dagens sportstidslinje.","Recommended":"Anbefalt","Leagues saved.":"Ligaer lagret.","Could not load leagues.":"Kunne ikke laste ligaer.","Could not save leagues.":"Kunne ikke lagre ligaer.","Choose at least one league or cup.":"Velg minst én liga eller cup.","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper",
   "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Loading channel matches...":"Laster kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører","Other broadcaster listings":"Andre TV-oppføringer",
@@ -7505,7 +7547,7 @@ function hideAll(keepMytv){
   const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));
   const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!mytvView.classList.contains('hide'));
-  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}updateProfileName(_profileConfig.profile_name);
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();updateProfileName(_profileConfig.profile_name);
   if(!keepMytv&&hasPlayback){
     if(leavingLiveTv)tvSetMini(true);
     document.body.classList.add('tvsectionplay');
@@ -7958,7 +8000,7 @@ function fixtureStoredChannelsHtml(f){
   return h||'<span class="muted">'+esc(tr('No matching channels'))+'</span>';
 }
 
-let _matchFixture=null,_matchRefreshTimer=null,_sportsReturnScroll=0;
+let _matchFixture=null,_matchRefreshTimer=null,_matchStatusTimer=null,_matchMinuteTimer=null,_matchMinuteAt=0,_sportsReturnScroll=0;
 function matchTeamArt(id,name){const src=id?'/api/team_logo?id='+encodeURIComponent(String(id)):'';return src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'<span class="matchdetailfallback">'+esc(String(name||'?').slice(0,2).toUpperCase())+'</span>';}
 function matchBroadcastersHtml(f){const rows=[];for(const [country,names] of Object.entries(f.by_country||{}))for(const name of (names||[])){const label=String(name||'').trim();if(label)rows.push('<span class="matchdetailbroadcaster">'+esc(label)+(country?' · '+esc(country):'')+'</span>');}return rows.length?rows.join(''):'<span class="muted">'+esc(tr('No TV'))+'</span>';}
 function releaseMatchPlayerAnchor(){const modal=document.getElementById('playerModal');document.body.classList.remove('matchplayerembedded');if(!modal)return;if(modal.parentNode!==document.body){if(playerFullscreenElement()===modal)exitPlayerFullscreen();modal.classList.remove('matchanchored');document.body.appendChild(modal);}if(!modal.classList.contains('hide'))document.body.classList.add('tvsectionplay');}
@@ -7966,19 +8008,34 @@ function syncMatchPlayerAnchor(){
   const modal=document.getElementById('playerModal'),anchor=document.getElementById('matchPlayerAnchor'),liveCentre=!!(anchor&&!matchView.classList.contains('hide')&&matchView.classList.contains('match-layout-live-centre'));if(!modal)return;
   if(liveCentre){const playing=!modal.classList.contains('hide');if(modal.parentNode!==anchor)anchor.appendChild(modal);modal.classList.add('matchanchored');anchor.classList.toggle('on',playing);document.body.classList.toggle('matchplayerembedded',playing);if(playing)document.body.classList.remove('tvsectionplay');setPopupPlayerMax(false);}else releaseMatchPlayerAnchor();
 }
+function matchStatusLabel(f){
+  if(f.is_cancelled)return tr('Cancelled');
+  if(f.is_finished||f.match_state==='ended')return tr('Ended');
+  if(f.is_halftime||f.match_state==='halftime')return tr('Half-time');
+  if(fixtureIsLive(f)){let minute=Number(f.live_minute);if(Number.isFinite(minute)&&_matchMinuteAt)minute+=Math.max(0,Math.floor((Date.now()-_matchMinuteAt)/60000));return tr('Live now')+(Number.isFinite(minute)?' · '+minute+"'":'');}
+  const kick=f.start?new Date(f.start):null;return kick&&!Number.isNaN(kick.getTime())?kick.toLocaleTimeString(_lang==='no'?'nb-NO':undefined,{hour:'2-digit',minute:'2-digit'}):'—';
+}
+function updateMatchStatusDisplay(){if(!_matchFixture||matchView.classList.contains('hide'))return;const text=document.getElementById('matchStatusText'),badge=document.getElementById('matchLiveBadge');if(text)text.textContent=matchStatusLabel(_matchFixture);if(badge){const state=_matchFixture.is_finished?'Ended':(_matchFixture.is_halftime?'Half-time':(fixtureIsLive(_matchFixture)?'LIVE':''));badge.textContent=tr(state);badge.classList.toggle('hide',!state);}}
+function stopMatchStatusTracking(){if(_matchStatusTimer){clearTimeout(_matchStatusTimer);_matchStatusTimer=null;}if(_matchMinuteTimer){clearInterval(_matchMinuteTimer);_matchMinuteTimer=null;}_matchMinuteAt=0;}
+async function pollOpenMatchStatus(){
+  if(!_matchFixture||matchView.classList.contains('hide'))return;const f=_matchFixture,query='?home='+encodeURIComponent(f.home||'')+'&away='+encodeURIComponent(f.away||'')+'&start='+encodeURIComponent(f.start||'')+'&home_id='+encodeURIComponent(f.home_id||'')+'&away_id='+encodeURIComponent(f.away_id||'');
+  try{const r=await api('/api/match_status'+query);if(r.found&&_matchFixture===f){f.match_state=r.state;f.is_live=!!r.is_live;f.is_halftime=!!r.is_halftime;f.is_finished=!!r.is_finished;f.is_cancelled=!!r.is_cancelled;if(r.live_minute!==null&&r.live_minute!==undefined)f.live_minute=Number(r.live_minute);_matchMinuteAt=Date.now();updateMatchStatusDisplay();if(f.is_finished||f.is_cancelled){stopMatchStatusTracking();return;}}}catch(e){}
+  if(!matchView.classList.contains('hide'))_matchStatusTimer=setTimeout(pollOpenMatchStatus,60*1000);
+}
+function startMatchStatusTracking(){stopMatchStatusTracking();_matchMinuteAt=Date.now();updateMatchStatusDisplay();_matchMinuteTimer=setInterval(updateMatchStatusDisplay,60*1000);pollOpenMatchStatus();}
 function renderMatchPage(){
   const el=document.getElementById('matchPageContent'),f=_matchFixture;if(!el||!f)return;
   releaseMatchPlayerAnchor();
   const allowed=['balanced','channel-first','live-centre'],layout=allowed.includes(_profileConfig.match_layout)?_profileConfig.match_layout:'live-centre';
   matchView.classList.remove('match-layout-balanced','match-layout-channel-first','match-layout-live-centre');matchView.classList.add('match-layout-'+layout);
-  const kick=f.start?new Date(f.start):null,valid=kick&&!Number.isNaN(kick.getTime()),time=valid?kick.toLocaleTimeString(_lang==='no'?'nb-NO':undefined,{hour:'2-digit',minute:'2-digit'}):'—',date=valid?kick.toLocaleDateString(_lang==='no'?'nb-NO':undefined,{weekday:'long',day:'numeric',month:'long'}):'',live=fixtureIsLive(f),recent=fixtureIsRecent(f),status=live?(tr('Live now')+(f.live_minute!=null?' · '+String(f.live_minute)+"'":'')):(recent?tr('Recent match'):time),channels=[...(f.matches||[]),...(f.ppv_hits||[])];
-  const hero='<div class="matchdetailhero"><div class="matchdetailcompetition">'+esc(f.league_name||tr('Football'))+'</div><div class="matchdetailteams"><div class="matchdetailside">'+matchTeamArt(f.home_id,f.home)+'<span>'+esc(f.home||'')+'</span></div><div><div class="matchdetailkickoff">'+esc(status)+'</div><div class="matchdetaildate">'+esc(date)+'</div>'+(live?'<div class="matchdetaillive">LIVE</div>':'')+'</div><div class="matchdetailside">'+matchTeamArt(f.away_id,f.away)+'<span>'+esc(f.away||'')+'</span></div></div></div>';
+  const kick=f.start?new Date(f.start):null,valid=kick&&!Number.isNaN(kick.getTime()),date=valid?kick.toLocaleDateString(_lang==='no'?'nb-NO':undefined,{weekday:'long',day:'numeric',month:'long'}):'',live=fixtureIsLive(f),status=matchStatusLabel(f),badge=f.is_finished?'Ended':(f.is_halftime?'Half-time':(live?'LIVE':'')),channels=[...(f.matches||[]),...(f.ppv_hits||[])];
+  const hero='<div class="matchdetailhero"><div class="matchdetailcompetition">'+esc(f.league_name||tr('Football'))+'</div><div class="matchdetailteams"><div class="matchdetailside">'+matchTeamArt(f.home_id,f.home)+'<span>'+esc(f.home||'')+'</span></div><div><div id="matchStatusText" class="matchdetailkickoff">'+esc(status)+'</div><div class="matchdetaildate">'+esc(date)+'</div><div id="matchLiveBadge" class="matchdetaillive'+(badge?'':' hide')+'">'+esc(tr(badge))+'</div></div><div class="matchdetailside">'+matchTeamArt(f.away_id,f.away)+'<span>'+esc(f.away||'')+'</span></div></div></div>';
   const channelPanel='<div class="matchdetailpanel matchdetailchannels"><h3>'+esc(tr(layout==='channel-first'?'Watch this match':'Channel matches'))+'</h3><div id="matchChannelResults">'+fixtureStoredChannelsHtml(Object.assign({logged_in:true},f))+'</div></div>';
   const side='<div class="matchdetailsidepanels"><div class="matchdetailpanel"><h3>'+esc(tr('Official broadcasters'))+'</h3><div class="matchdetailbroadcasters">'+matchBroadcastersHtml(f)+'</div></div><div class="matchdetailpanel"><h3>'+esc(tr('Channel matching'))+'</h3><div class="matchdetailstatus"><span class="cc">'+channels.length+' '+esc(tr(channels.length===1?'channel':'channels'))+'</span><span id="matchUpdated" class="matchdetailupdated">'+esc(tr('Updates quietly every 15 minutes'))+'</span></div></div></div>';
   el.innerHTML=layout==='live-centre'?'<div class="matchdetailsticky">'+hero+'<div id="matchPlayerAnchor" class="matchplayeranchor"></div>'+side+'</div>'+channelPanel:hero+channelPanel+side;
   syncMatchPlayerAnchor();
 }
-function showMatchPage(fixture){if(!fixture)return;_matchFixture=fixture;if(!matchView||matchView.classList.contains('hide'))_sportsReturnScroll=window.scrollY||0;rememberLocation('match',{eventKey:sportsFixtureKey(fixture)});hideAll();matchView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');renderMatchPage();window.scrollTo(0,0);if(fixture.availability_checked)_matchRefreshTimer=setTimeout(()=>refreshMatchChannels(null,true),15*60*1000);else refreshMatchChannels(null,false);}
+function showMatchPage(fixture){if(!fixture)return;_matchFixture=fixture;if(!matchView||matchView.classList.contains('hide'))_sportsReturnScroll=window.scrollY||0;rememberLocation('match',{eventKey:sportsFixtureKey(fixture)});hideAll();matchView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');renderMatchPage();startMatchStatusTracking();window.scrollTo(0,0);if(fixture.availability_checked)_matchRefreshTimer=setTimeout(()=>refreshMatchChannels(null,true),15*60*1000);else refreshMatchChannels(null,false);}
 function openMatchFromCard(card){const key=card&&card.getAttribute('data-event-key')||'',source=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===key);if(source)showMatchPage(source);}
 function closeMatchPage(){if(history.state&&history.state.section==='match')history.back();else showTeams();}
 async function refreshMatchChannels(btn,force){
@@ -12236,6 +12293,20 @@ class Handler(BaseHTTPRequestHandler):
                     "selected": _selected_competition_keys(cfg.get("sports_competitions")),
                     "defaults": list(DEFAULT_CONFIG["sports_competitions"])})
 
+            if u.path == "/api/match_status":
+                home = (q.get("home", [""])[0]).strip()[:160]
+                away = (q.get("away", [""])[0]).strip()[:160]
+                if not home or not away:
+                    return self._send(400, {"error": "Missing match teams"})
+                try:
+                    status = current_match_status(home, away,
+                        (q.get("start", [""])[0]).strip()[:64],
+                        (q.get("home_id", [""])[0]).strip()[:24],
+                        (q.get("away_id", [""])[0]).strip()[:24], force=True)
+                    return self._send(200, status)
+                except Exception as e:
+                    return self._send(200, {"found": False, "error": str(e)[:160]})
+
             if u.path == "/api/my_teams":
                 cfg = load_config()
                 countries = list(FOTMOB_FALLBACK_COUNTRIES)
@@ -14190,6 +14261,13 @@ def run_self_tests():
           "refreshMatchChannels(null,true),15*60*1000" in PAGE and
           "else refreshMatchChannels(null,false)" in PAGE and
           "if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer)" in PAGE)
+    check("match status tracks only the open page and advances each minute",
+          "/api/match_status" in PAGE and
+          "setTimeout(pollOpenMatchStatus,60*1000)" in PAGE and
+          "setInterval(updateMatchStatusDisplay,60*1000)" in PAGE and
+          "stopMatchStatusTracking();updateProfileName" in PAGE and
+          "f.is_halftime?'Half-time'" in PAGE and
+          "fetch_fotmob_daily_matches(force=force)" in open(__file__, encoding="utf-8").read())
     check("matched channel titles play without collapsing fixtures",
           "fixturechanneltitle[data-sid]" in PAGE and
           "playBrowser(fixtureChannelTitle.getAttribute('data-sid')" in PAGE)
