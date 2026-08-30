@@ -1,0 +1,304 @@
+diff --git a/tvmate.py b/tvmate.py
+index 87c432f..4604a35 100644
+--- a/tvmate.py
++++ b/tvmate.py
+@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
+     _atomic_write_bytes(path, raw)
+ 
+ # --- versioning & auto-update ---
+-VERSION = "0.777.b502"
++VERSION = "0.777.b503"
+ 
+ BANNER = r'''
+   ___  _        _     _______     ____  __      __
+@@ -6420,12 +6420,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
+    body.tvsectionplay .gamegrid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+    body.tvsectionplay .racinggrid{grid-template-columns:1fr}
+  }
+- body.tvsectionplay .mylisttimelinecontent{grid-template-columns:42px 54px minmax(0,1.5fr) minmax(80px,1fr) 88px 28px;column-gap:10px}
+- body.tvsectionplay .mylisttimelinetext.spread .tllead,body.tvsectionplay .teamfixturerow .teamfixturecompetition{display:none}
++ body.tvsectionplay .mylisttimelinecontent{grid-template-columns:42px 54px minmax(0,1fr) 100px 28px;column-gap:10px}
++ body.tvsectionplay .mylisttimelinetext.spread .tllead,body.tvsectionplay .mylisttimelinetext.spread .tlfacts,body.tvsectionplay .teamfixturerow .teamfixturecompetition,body.tvsectionplay .teamfixturerow .teamfixturewhen{display:none}
+  body.tvsectionplay .mylisttimelinetext.spread .tlheadline,body.tvsectionplay .teamfixturerow .teamfixtureteams{font-size:15px}
+  body.tvsectionplay .mylisttimelinekind{width:42px;flex-basis:42px;font-size:9px}
+  body.tvsectionplay .mylisttimelineart{width:54px;height:54px;flex-basis:54px}
+- body.tvsectionplay .mylisttimelineaside{max-width:88px}
++ body.tvsectionplay .mylisttimelineaside{max-width:100px}
+  @media(min-width:2200px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
+  input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px;cursor:pointer}
+  .row{display:flex;gap:8px}
+@@ -7259,7 +7259,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
+           <div class="tvtimeline" id="tvTimeHead"></div>
+         </div>
+         <div class="tvguidebody" id="tvGuideBody"></div>
+-        <div class="tvplayerslot" id="tvPlayerSlot"></div>
+       </div>
+     </div>
+   </section>
+@@ -7450,7 +7449,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
+         </div>
+       </div>
+     </div>
+-    <div id="teamDetailPage" class="teamdetailpage hide"><div class="teamdetailtop"><button type="button" class="ghost" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><h2 id="teamDetailTitle"></h2></div><div class="teamdetailgrid"><aside id="teamDetailProfile" class="teamdetailprofile"></aside><div><div class="teamdetailfixtures"><div class="colh" data-i18n="Fixtures">Fixtures</div><div id="teamDetailFixtures" class="teamfixturegrid"></div></div><div id="teamTableWrap" class="teamtablewrap"></div></div></div></div>
++  </section>
++
++  <section id="teamView" class="hide">
++    <div id="teamDetailPage" class="teamdetailpage"><div class="teamdetailtop"><button type="button" class="ghost" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><h2 id="teamDetailTitle"></h2></div><div class="teamdetailgrid"><aside id="teamDetailProfile" class="teamdetailprofile"></aside><div><div class="teamdetailfixtures"><div class="colh" data-i18n="Fixtures">Fixtures</div><div id="teamDetailFixtures" class="teamfixturegrid"></div></div><div id="teamTableWrap" class="teamtablewrap"></div></div></div></div>
+   </section>
+ 
+   <section id="matchView" class="hide">
+@@ -7848,16 +7850,16 @@ function setLang(l){
+ function hideAll(keepMytv){
+   // Live TV playback persists across sections. Capture the source state first,
+   // then move the player only after the Live TV view has been hidden.
+-  const hasTvPlayback=(_tvPlaying!==null||window._tvPlaybackController);
++  const hasTvPlayback=(_tvPlaying!==null);
+   const popupPlayer=document.getElementById('playerModal');
+   const hasPopupPlayback=!!(popupPlayer&&!popupPlayer.classList.contains('hide'));
+   const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
+   // Picture-in-Picture is represented by the restore control in the header,
+   // not by an in-page player. Keep every section at its normal full width.
+-  const pipPlayback=!!(_tvPipActive||_popupPipActive||tvPipVideo()||popupPipVideo());
++  const pipPlayback=!!(_popupPipActive||popupPipVideo());
+   const layoutPlayback=hasPlayback&&!pipPlayback;
+   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!pipPlayback&&!mytvView.classList.contains('hide'));
+-  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();updateProfileName(_profileConfig.profile_name);
++  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');teamView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();updateProfileName(_profileConfig.profile_name);
+   if(!keepMytv&&layoutPlayback){
+     if(leavingLiveTv)tvSetMini(true);
+     document.body.classList.add('tvsectionplay');
+@@ -7877,7 +7879,7 @@ function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.
+ function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
+ function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
+ function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
+-function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');document.getElementById('sportsHubPage').classList.remove('hide');document.getElementById('teamDetailPage').classList.add('hide');applySportsLayout();document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));else if(_sportsReturnScroll)Promise.resolve(loading).finally(()=>{const y=_sportsReturnScroll;_sportsReturnScroll=0;requestAnimationFrame(()=>window.scrollTo(0,y));});}
++function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');applySportsLayout();document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));else if(_sportsReturnScroll)Promise.resolve(loading).finally(()=>{const y=_sportsReturnScroll;_sportsReturnScroll=0;requestAnimationFrame(()=>window.scrollTo(0,y));});}
+ function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
+ function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
+ // Backward compatibility for old bookmarks/configs that still point at Search.
+@@ -8152,8 +8154,8 @@ function selectMyTeam(name,teamId,logo){
+   // does not unexpectedly replace the explicit search results below.
+   _selectedTeamName=String(name||'');const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===_selectedTeamName.toLowerCase())||{name:_selectedTeamName,team_id:String(teamId||''),logo:String(logo||'')};_selectedTeamRow=row;renderTeamFavoriteRail();loadSelectedTeamProfile(row);openTeamDetail();
+ }
+-function openTeamDetail(){const hub=document.getElementById('sportsHubPage'),page=document.getElementById('teamDetailPage'),list=document.getElementById('teamDetailFixtures'),title=document.getElementById('teamDetailTitle');if(!hub||!page||!list)return;hub.classList.add('hide');page.classList.remove('hide');if(title)title.textContent=_selectedTeamName;const rows=_myTeamFixtures.filter(f=>fixtureBelongsToTeam(f,_selectedTeamName)).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));list.innerHTML=rows.length?rows.map(f=>teamFixtureCard(f,fixtureIsLive(f))).join(''):'<span class="muted">'+esc(tr('No upcoming fixtures found.'))+'</span>';const now=Date.now();_sportsVisibleFixtures=rows.filter(f=>fixtureIsLive(f)||(f.start&&new Date(f.start).getTime()>=now)).slice(0,6);loadSportsAvailability(false);renderSelectedTeamProfile(_selectedTeamProfile);window.scrollTo(0,0);}
+-function closeTeamDetail(){document.getElementById('teamDetailPage').classList.add('hide');document.getElementById('sportsHubPage').classList.remove('hide');renderSportsHome();window.scrollTo(0,0);}
++function openTeamDetail(pushHistory=true){const page=document.getElementById('teamView'),list=document.getElementById('teamDetailFixtures'),title=document.getElementById('teamDetailTitle');if(!page||!list)return;teamsView.classList.add('hide');page.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(pushHistory)rememberLocation('team',{teamName:_selectedTeamName});if(title)title.textContent=_selectedTeamName;const rows=_myTeamFixtures.filter(f=>fixtureBelongsToTeam(f,_selectedTeamName)).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));list.innerHTML=rows.length?rows.map(f=>teamFixtureCard(f,fixtureIsLive(f))).join(''):'<span class="muted">'+esc(tr('No upcoming fixtures found.'))+'</span>';const now=Date.now();_sportsVisibleFixtures=rows.filter(f=>fixtureIsLive(f)||(f.start&&new Date(f.start).getTime()>=now)).slice(0,6);loadSportsAvailability(false);renderSelectedTeamProfile(_selectedTeamProfile);window.scrollTo(0,0);}
++function closeTeamDetail(){if(history.state&&history.state.section==='team'){history.back();return;}showTeams();}
+ async function toggleLeaguePicker(btn){const el=document.getElementById('leaguePicker');if(!el)return;if(!el.classList.contains('hide')){el.classList.add('hide');btn.setAttribute('aria-expanded','false');return;}el.innerHTML='<span class="muted">'+esc(tr('Loading...'))+'</span>';el.classList.remove('hide');btn.setAttribute('aria-expanded','true');try{const r=await api('/api/sports_competitions'),selected=new Set(r.selected||[]);el.innerHTML='<div class="leaguepickerhead"><div><b>'+esc(tr('Leagues & cups'))+'</b><div class="muted">'+esc(tr("Choose what appears in today's Sports timeline."))+'</div></div></div><div class="leaguepickergroups">'+(r.groups||[]).map(group=>'<div class="leaguepickergroup"><h4>'+esc(group.group)+'</h4>'+group.items.map(item=>'<label><input type="checkbox" value="'+escAttr(item.key)+'"'+(selected.has(item.key)?' checked':'')+'> '+esc(item.name)+'</label>').join('')+'</div>').join('')+'</div><div class="leaguepickerbuttons"><button class="ghost" onclick="resetLeaguePicker()">'+esc(tr('Recommended'))+'</button><button onclick="saveLeaguePicker()">'+esc(tr('Save'))+'</button></div>';el.dataset.defaults=JSON.stringify(r.defaults||[]);}catch(e){el.innerHTML='<span class="muted">'+esc(tr('Could not load leagues.'))+'</span>';}}
+ function resetLeaguePicker(){const el=document.getElementById('leaguePicker'),defaults=new Set(JSON.parse(el.dataset.defaults||'[]'));el.querySelectorAll('input[type=checkbox]').forEach(input=>input.checked=defaults.has(input.value));}
+ async function saveLeaguePicker(){const el=document.getElementById('leaguePicker'),selected=Array.from(el.querySelectorAll('input[type=checkbox]:checked')).map(input=>input.value);if(!selected.length){toast(tr('Choose at least one league or cup.'));return;}const r=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sports_competitions:selected})});if(!r.ok){toast(tr('Could not save leagues.'));return;}_profileConfig.sports_competitions=selected;el.classList.add('hide');document.getElementById('leagueEditBtn').setAttribute('aria-expanded','false');await loadMyTeams(true);toast(tr('Leagues saved.'));}
+@@ -8987,8 +8989,8 @@ document.addEventListener('keydown',markTVMateActivity,{passive:true});
+ document.addEventListener('touchstart',markTVMateActivity,{passive:true});
+ document.addEventListener('visibilitychange',function(){if(!document.hidden)markTVMateActivity();});
+ setInterval(function(){
+-  const popup=document.getElementById('pVideo'),live=document.getElementById('tvVideo');
+-  if((popup&&!popup.paused&&!popup.ended)||(live&&!live.paused&&!live.ended))markTVMateActivity();
++  const popup=document.getElementById('pVideo');
++  if(popup&&!popup.paused&&!popup.ended)markTVMateActivity();
+ },30000);
+ markTVMateActivity();
+ async function resetColdStart(btn){
+@@ -9419,18 +9421,19 @@ function startSmartStream(video,urls,setStatus,setEngine){
+   startHls(urls.hls,!!urls.relay);
+   return {stop:function(){stopped=true;clear();publish();try{video.pause();video.removeAttribute('src');video.load();}catch(e){}}};
+ }
+-async function playBrowser(sid,name){
++async function playBrowser(sid,name,source){
+   const modal=document.getElementById('playerModal');
+   const video=document.getElementById('pVideo');
+   const msg=document.getElementById('pMsg');
+   const sidKey=String(sid);
+   if(_browserPendingSid===sidKey)return;
+-  // Only one stream should ever be playing. Opening the popup player always
+-  // tears down any Live TV playback first, otherwise both keep running.
+-  if(_tvPlaying!==null||window._tvPlaybackController){try{tvStop();}catch(e){}}
++  const liveSource=source==='live';
++  // Every desktop section, including Live TV, owns this same player instance.
++  if(!liveSource&&_tvPlaying!==null){_tvPlaying=null;renderTvGuide();}
+   _browserPendingSid=sidKey;
+   const request=++_browserPlayRequest;
+   document.getElementById('pTitle').textContent=name||'Player';
++  modal.dataset.playerSource=liveSource?'live':'section';
+   msg.textContent='Loading...';
+   modal.classList.remove('hide');
+   syncMatchPlayerAnchor();
+@@ -9544,6 +9547,8 @@ function popupVideoSurfaceClick(event){
+   // Keep native playback controls easy to reach in Sport and Racing.
+   const rect=video.getBoundingClientRect(),controlZone=Math.min(92,Math.max(58,rect.height*.14));
+   if(event.clientY>=rect.bottom-controlZone)return;
++  event.preventDefault();
++  event.stopPropagation();
+   togglePopupPlayerSize();
+ }
+ function syncPlayerFullscreenExit(){
+@@ -9559,6 +9564,7 @@ function closePlayer(){
+   _browserPlayRequest++;_browserPendingSid='';
+   const modal=document.getElementById('playerModal');
+   const video=document.getElementById('pVideo');
++  const wasLive=modal.dataset.playerSource==='live';
+   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
+   if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
+   video.pause();video.removeAttribute('src');video.load();
+@@ -9566,8 +9572,10 @@ function closePlayer(){
+   popupSetPipStatus(false);
+   modal.classList.add('hide');
+   modal.classList.remove('sectionmax','pipactive');
++  delete modal.dataset.playerSource;
++  if(wasLive){_tvPlaying=null;renderTvGuide();}
+   syncMatchPlayerAnchor();
+-  const liveAway=(_tvPlaying!==null||window._tvPlaybackController)&&mytvView.classList.contains('hide');
++  const liveAway=_tvPlaying!==null&&mytvView.classList.contains('hide');
+   if(!liveAway)document.body.classList.remove('tvsectionplay');
+ }
+ async function playVLC(sid,btn){
+@@ -10995,75 +11003,20 @@ function tvSetMini(mini){
+   if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=mini?'\u2196':'\u2198';}
+ }
+ async function tvPlay(sid,name){
+-  const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
+   const sidKey=String(sid);
+   if(_tvPendingSid===sidKey)return;
+   _tvPendingSid=sidKey;
+-  const request=++_tvPlayRequest;
+-  const existingVideo=document.getElementById('tvVideo');
+-  const keepPip=!!(existingVideo&&document.pictureInPictureElement===existingVideo);
+-  const wasMini=slot.classList.contains('mini');
+-  // Single-playback rule: starting Live TV closes any open popup player.
+-  const pmodal=document.getElementById('playerModal');
+-  if(pmodal&&!pmodal.classList.contains('hide')){try{closePlayer();}catch(e){}}
++  ++_tvPlayRequest;
+   _tvPlaying=sid;
+-  slot.classList.add('on');
+-  if(!keepPip){
+-    if(!wasMini&&guide&&slot.parentElement!==guide)guide.appendChild(slot);
+-    slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out / PiP layout" aria-label="Pop out / PiP layout" onclick="tvEnterPictureInPicture()"><svg class="tvpipicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="12" y="11" width="7" height="5.5" rx="1" fill="currentColor"/></svg></button><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline onclick="tvVideoSurfaceClick(event)"></video>';
+-    tvSetMini(wasMini);
+-  }else{
+-    tvSetPipStatus(true);
+-    const bar=slot.querySelector('.tvplayerbar span');if(bar)bar.textContent=name||'';
+-  }
+   renderTvGuide();
+-  const video=keepPip?existingVideo:document.getElementById('tvVideo');
+-  tvBindPictureInPicture(video);
+-  if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
+-  if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
+-  if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
+-  let urls;
+-  try{urls=await api('/api/hls?id='+encodeURIComponent(sid));if(urls.error||!urls.hls)throw new Error('stream url');}catch(e){return;}finally{if(request===_tvPlayRequest)_tvPendingSid='';}
+-  if(request!==_tvPlayRequest)return;
+-  window._tvPlaybackController=startSmartStream(video,urls,function(s){
+-    const bar=slot.querySelector('.tvplayerbar span');if(bar)bar.title=s||'';
+-  },function(h,t){window._tvhls=h;window._tvmpegts=t;});
+-}
+-function tvToggleMini(){
+-  const slot=document.getElementById('tvPlayerSlot');
+-  if(!slot||!slot.classList.contains('on'))return;
+-  const inLiveTv=!mytvView.classList.contains('hide');
+-  if(slot.classList.contains('mini')){
+-    if(inLiveTv){tvSetMini(false);return;}
+-    tvSetMini(false);
+-    requestPlayerFullscreen(slot);
+-    return;
+-  }
+-  if(playerFullscreenElement()===slot)exitPlayerFullscreen();
+-  tvSetMini(true);
+-}
+-function tvVideoSurfaceClick(event){
+-  const video=event&&event.currentTarget;
+-  if(!video)return;
+-  // Native controls occupy the bottom of the video. Preserve a generous zone
+-  // for play/pause, timeline, volume and option clicks.
+-  const rect=video.getBoundingClientRect(),controlZone=Math.min(92,Math.max(58,rect.height*.14));
+-  if(event.clientY>=rect.bottom-controlZone)return;
+-  tvToggleMini();
++  try{await playBrowser(sid,name,'live');}
++  finally{_tvPendingSid='';}
+ }
+ function tvStop(){
+   _tvPlayRequest++;_tvPendingSid='';
+   _tvPlaying=null;
+-  if(document.pictureInPictureElement&&document.exitPictureInPicture){try{document.exitPictureInPicture().catch(function(){});}catch(e){}}
+-  tvSetPipStatus(false);
+-  document.body.classList.remove('tvsectionplay');
+-  if(window._tvPlaybackController){window._tvPlaybackController.stop();window._tvPlaybackController=null;}
+-  if(window._tvhls){try{window._tvhls.destroy();}catch(e){}window._tvhls=null;}
+-  if(window._tvmpegts){destroyMpegtsPlayer(window._tvmpegts);window._tvmpegts=null;}
+-  const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
+-  slot.classList.remove('on','mini','sectionmax');
+-  if(guide&&slot.parentElement!==guide)guide.appendChild(slot);
+-  slot.innerHTML='';
++  const modal=document.getElementById('playerModal');
++  if(modal&&modal.dataset.playerSource==='live')closePlayer();
+   renderTvGuide();
+ }
+ async function epgRefresh(){
+@@ -11253,7 +11206,7 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
+ window.addEventListener('popstate',function(ev){
+   const state=ev.state;
+   if(!state||!state.tvmate)return;
+-  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings,race:function(){const ev=_racingEventRows.find(r=>racingAvailabilityKey(r)===state.eventKey)||_raceEvent;if(ev)showRacePage(ev);else showRacing();},match:function(){const fixture=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===state.eventKey)||_matchFixture;if(fixture)showMatchPage(fixture);else showTeams();}};
++  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,team:function(){showTeams();Promise.resolve(loadMyTeams()).finally(function(){const name=String(state.teamName||_selectedTeamName||''),row=_favTeamRows.find(t=>String(t.name).toLowerCase()===name.toLowerCase())||{name:name,team_id:'',logo:''};_selectedTeamName=name;_selectedTeamRow=row;loadSelectedTeamProfile(row);openTeamDetail(false);});},mylist:showMylist,mytimeline:showMytimeline,settings:showSettings,race:function(){const ev=_racingEventRows.find(r=>racingAvailabilityKey(r)===state.eventKey)||_raceEvent;if(ev)showRacePage(ev);else showRacing();},match:function(){const fixture=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===state.eventKey)||_matchFixture;if(fixture)showMatchPage(fixture);else showTeams();}};
+   const fn=map[state.section]||showMylist;
+   _historyRestoring=true;
+   try{
+@@ -14843,37 +14796,43 @@ def run_self_tests():
+     check("profile timeline compacts cleanly beside an active player",
+           "body.tvsectionplay .mylisttimelinecontent{grid-template-columns:42px 54px" in PAGE and
+           "body.tvsectionplay .mylisttimelinetext.spread .tllead" in PAGE and
+-          "body.tvsectionplay .teamfixturerow .teamfixturecompetition{display:none}" in PAGE)
++          ".mylisttimelinetext.spread .tlfacts" in PAGE and
++          ".teamfixturerow .teamfixturecompetition" in PAGE and
++          ".teamfixturerow .teamfixturewhen{display:none}" in PAGE)
+     check("PiP uses a header restore control without shrinking app pages",
+           'id="tvPipStatus" class="tvpipstatus hide"' in PAGE and
+           'onclick="restoreActivePip()"' in PAGE and
+-          ":has(#tvVideo:picture-in-picture)" in PAGE and
+           ":has(#pVideo:picture-in-picture)" in PAGE and
+           "const layoutPlayback=hasPlayback&&!pipPlayback" in PAGE and
+           "if(!keepMytv&&layoutPlayback)" in PAGE and
+-          "function tvSyncPictureInPicture(video,pipWindow)" in PAGE and
+-          "function tvWatchPictureInPicture(video)" in PAGE and
+-          "function tvEnterPictureInPicture()" in PAGE and
+-          'onclick="tvEnterPictureInPicture()"' in PAGE and
+-          "function tvRestorePlayerLayout()" in PAGE and
+           "function popupEnterPictureInPicture()" in PAGE and
+           "function popupRestoreFromPip()" in PAGE and
+-          'onclick="popupEnterPictureInPicture()"' in PAGE and
+-          "const restoreMini=!!(_tvPipRestoreMini||mytvView.classList.contains('hide'))" in PAGE)
+-    check("Live TV native controls remain hoverable and clickable",
+-          'onclick="tvVideoSurfaceClick(event)"' in PAGE and
+-          "function tvVideoSurfaceClick(event)" in PAGE and
+-          "controlZone=Math.min(92,Math.max(58,rect.height*.14))" in PAGE and
+-          "if(event.clientY>=rect.bottom-controlZone)return" in PAGE)
+-    check("Sport and Racing native player controls remain hoverable and clickable",
++          'onclick="popupEnterPictureInPicture()"' in PAGE)
++    check("all desktop sections use the shared native player",
+           'id="pVideo" controls autoplay playsinline onclick="popupVideoSurfaceClick(event)"' in PAGE and
++          '<div class="tvplayerslot" id="tvPlayerSlot">' not in PAGE and
++          "async function playBrowser(sid,name,source)" in PAGE and
++          "await playBrowser(sid,name,'live')" in PAGE and
++          "modal.dataset.playerSource=liveSource?'live':'section'" in PAGE and
+           "function popupVideoSurfaceClick(event)" in PAGE and
+           'id="pVideoHit"' not in PAGE and
+           ".pmodal.sectionmax #pVideo{cursor:zoom-out}" in PAGE)
+-    check("all desktop players use the distinct picture-in-picture icon",
+-          PAGE.count('class="tvpipicon"') >= 2 and
++    check("video image click only changes fullscreen layout",
++          "function popupVideoSurfaceClick(event)" in PAGE and
++          "if(event.clientY>=rect.bottom-controlZone)return" in PAGE and
++          "event.preventDefault();" in PAGE and
++          "event.stopPropagation();" in PAGE and
++          "togglePopupPlayerSize();" in PAGE)
++    check("shared desktop player uses the distinct picture-in-picture icon",
++          PAGE.count('class="tvpipicon"') >= 1 and
+           '<rect x="12" y="11" width="7" height="5.5"' in PAGE and
+           "&#10697; PiP layout / Pop out" not in PAGE)
++    check("favorite team details are a separate navigable page",
++          '<section id="teamView" class="hide">' in PAGE and
++          "teamView.classList.add('hide')" in PAGE and
++          "teamsView.classList.add('hide');page.classList.remove('hide')" in PAGE and
++          "rememberLocation('team',{teamName:_selectedTeamName})" in PAGE and
++          "state.section==='team'" in PAGE)
+     check("layout-aware pages expose an immediate on-page editor",
+           "data-layout-kind=\"profile\"" in PAGE and
+           "openLayoutEditor('sports',this)" in PAGE and
