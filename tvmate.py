@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b498"
+VERSION = "0.777.b499"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6313,6 +6313,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvplayeractions{display:flex;align-items:center;gap:6px}
  .tvminbtn{background:#202733;border:1px solid #3a4554;color:#dce5f2;border-radius:6px;padding:3px 8px;font-size:12px;line-height:1.1;cursor:pointer}
  .tvminbtn:hover{border-color:#6d86a8;filter:none}
+ .tvpipicon{display:block;width:15px;height:15px}
  .tvvideohit{position:absolute;left:0;right:0;top:34px;bottom:46px;z-index:2;border:0;border-radius:0;padding:0;background:transparent;cursor:zoom-out}
  .tvvideohit:hover,.tvvideohit:active{background:transparent;filter:none;transform:none}
  .tvplayerslot.mini .tvvideohit{cursor:zoom-in}
@@ -10900,7 +10901,7 @@ async function tvPlay(sid,name){
   slot.classList.add('on');
   if(!keepPip){
     if(!wasMini&&guide&&slot.parentElement!==guide)guide.appendChild(slot);
-    slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out / PiP layout" aria-label="Pop out / PiP layout" onclick="tvEnterPictureInPicture()">&#10697; PiP layout / Pop out</button><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline onclick="tvVideoSurfaceClick(event)"></video>';
+    slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out / PiP layout" aria-label="Pop out / PiP layout" onclick="tvEnterPictureInPicture()"><svg class="tvpipicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="12" y="11" width="7" height="5.5" rx="1" fill="currentColor"/></svg></button><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline onclick="tvVideoSurfaceClick(event)"></video>';
     tvSetMini(wasMini);
   }else{
     tvSetPipStatus(true);
@@ -14716,6 +14717,10 @@ def run_self_tests():
           "function tvVideoSurfaceClick(event)" in PAGE and
           "controlZone=Math.min(92,Math.max(58,rect.height*.14))" in PAGE and
           "if(event.clientY>=rect.bottom-controlZone)return" in PAGE)
+    check("Live TV PiP control uses a distinct picture-in-picture icon",
+          'class="tvpipicon"' in PAGE and
+          '<rect x="12" y="11" width="7" height="5.5"' in PAGE and
+          "&#10697; PiP layout / Pop out" not in PAGE)
     check("layout-aware pages expose an immediate on-page editor",
           "data-layout-kind=\"profile\"" in PAGE and
           "openLayoutEditor('sports',this)" in PAGE and
