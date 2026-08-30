@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b500"
+VERSION = "0.777.b501"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1503,6 +1503,49 @@ def _launcher_is_current():
     launcher_exe = os.environ.get("TVMATE_EXE", "").strip()
     return bool(launcher_exe and os.path.isfile(launcher_exe) and
                 _file_sha256(launcher_exe) == UPDATE_LAUNCHER_SHA256)
+
+def _schedule_clean_launcher_redownload():
+    """Back up the script, clear update state, and let the Windows launcher redownload."""
+    if not sys.platform.startswith("win"):
+        return False
+    launcher_exe = os.path.abspath(os.environ.get("TVMATE_EXE", "").strip())
+    launcher_name = os.path.basename(launcher_exe)
+    if (not os.path.isfile(launcher_exe) or
+            not re.fullmatch(r"(?:OTVM|OlosTVMate)(?:\s*\(\d+\))?\.exe",
+                             launcher_name, flags=re.IGNORECASE)):
+        return False
+    folder = app_dir()
+    cur = os.path.join(folder, "tvmate.py")
+    helper = os.path.join(folder, "_force_clean_update.bat")
+    lines = [
+        "@echo off\r\n",
+        "title Repairing TVMate update\r\n",
+        'cd /d "' + folder + '"\r\n',
+        "timeout /t 3 /nobreak >nul\r\n",
+        'taskkill /f /im "' + launcher_name + '" >nul 2>&1\r\n',
+        "timeout /t 1 /nobreak >nul\r\n",
+        'if exist "' + cur + '" copy /y "' + cur + '" "' + cur + '.clean-backup" >nul\r\n',
+    ]
+    for name in ("tvmate_new.py", "update-rejected.txt",
+                 "update-rollback.txt", "update-in-progress.txt"):
+        lines.append('del /f /q "' + os.path.join(folder, name) + '" >nul 2>&1\r\n')
+    lines.extend([
+        'del /f /q "' + cur + '" >nul 2>&1\r\n',
+        'start "" "' + launcher_exe + '"\r\n',
+        "timeout /t 3 /nobreak >nul\r\n",
+        'del "%~f0"\r\n',
+    ])
+    try:
+        with open(helper, "w", encoding="utf-8", newline="") as handle:
+            handle.writelines(lines)
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        subprocess.Popen(["cmd.exe", "/d", "/c", helper], cwd=folder,
+                         creationflags=flags, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         close_fds=True)
+        return True
+    except Exception:
+        return False
 
 def _start_launcher_migration():
     """Prepare the one-time old-console -> GUI launcher migration."""
@@ -6377,6 +6420,12 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
    body.tvsectionplay .gamegrid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
    body.tvsectionplay .racinggrid{grid-template-columns:1fr}
  }
+ body.tvsectionplay .mylisttimelinecontent{grid-template-columns:42px 54px minmax(0,1.5fr) minmax(80px,1fr) 88px 28px;column-gap:10px}
+ body.tvsectionplay .mylisttimelinetext.spread .tllead,body.tvsectionplay .teamfixturerow .teamfixturecompetition{display:none}
+ body.tvsectionplay .mylisttimelinetext.spread .tlheadline,body.tvsectionplay .teamfixturerow .teamfixtureteams{font-size:15px}
+ body.tvsectionplay .mylisttimelinekind{width:42px;flex-basis:42px;font-size:9px}
+ body.tvsectionplay .mylisttimelineart{width:54px;height:54px;flex-basis:54px}
+ body.tvsectionplay .mylisttimelineaside{max-width:88px}
  @media(min-width:2200px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
  input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px;cursor:pointer}
  .row{display:flex;gap:8px}
@@ -11329,8 +11378,22 @@ async function doUpdateNow(){
     btn.textContent=tr('Restart now');btn.disabled=false;
     btn.onclick=doUpdateRestart;
   }catch(e){
-    document.getElementById('updateMsg').textContent=tr('Update failed. Try again later.');
-    btn.textContent=tr('Update now');btn.disabled=false;
+    document.getElementById('updateMsg').textContent=tr('Update failed. Try again later.')+' Use a clean launcher download if retrying does not help.';
+    btn.textContent='Clean download';btn.disabled=false;btn.onclick=forceCleanUpdate;
+  }
+}
+async function forceCleanUpdate(){
+  if(!confirm('Back up the current script, clear failed update state, and let the OTVM launcher download a clean copy? Your profile and favorites are not affected.'))return;
+  const btn=document.getElementById('updateNowBtn');
+  btn.textContent=tr('Restarting...');btn.disabled=true;
+  document.getElementById('updateMsg').textContent='Preparing a clean launcher download. OTVM will close and restart.';
+  try{
+    const j=await api('/api/update_force_clean',{method:'POST'});
+    if(!j.ok)throw new Error(j.error||'repair failed');
+    document.getElementById('updateMsg').textContent='OTVM is restarting. The launcher will download and verify a clean copy.';
+  }catch(e){
+    document.getElementById('updateMsg').textContent='Could not start the clean download. Restart OTVM and try again.';
+    btn.textContent='Clean download';btn.disabled=false;
   }
 }
 async function doUpdateRestart(){
@@ -13230,6 +13293,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"ok": True})
             _STOP_EVENT.set()
             return
+        if path == "/api/update_force_clean":
+            if not _schedule_clean_launcher_redownload():
+                return self._send(400, {"ok": False,
+                                        "error": "permanent Windows launcher unavailable"})
+            self._send(200, {"ok": True, "relaunch": True})
+            def _clean_update_bye():
+                import time as _t; _t.sleep(1); os._exit(0)
+            import threading as _th
+            _th.Thread(target=_clean_update_bye, daemon=True).start()
+            return
         if path == "/api/restart":
             # Relaunch TVMate without swapping any files, so a locally edited
             # tvmate.py is picked up on the next start. Reuses the same
@@ -14758,6 +14831,10 @@ def run_self_tests():
           "classList.toggle('matchplayerembedded',playing)" in PAGE and
           "if(playing)document.body.classList.remove('tvsectionplay')" in PAGE and
           "classList.toggle('tvsectionplay',!modal.classList.contains('matchanchored'))" in PAGE)
+    check("profile timeline compacts cleanly beside an active player",
+          "body.tvsectionplay .mylisttimelinecontent{grid-template-columns:42px 54px" in PAGE and
+          "body.tvsectionplay .mylisttimelinetext.spread .tllead" in PAGE and
+          "body.tvsectionplay .teamfixturerow .teamfixturecompetition{display:none}" in PAGE)
     check("PiP uses a header restore control without shrinking app pages",
           'id="tvPipStatus" class="tvpipstatus hide"' in PAGE and
           'onclick="restoreActivePip()"' in PAGE and
@@ -15748,6 +15825,12 @@ def run_self_tests():
           "downloaded and verified" in PAGE and
           "automatically restore the backup if startup fails" in PAGE and
           "restored v" in PAGE and "/api/update_status" in PAGE)
+    check("failed updates offer a safe clean launcher redownload",
+          "function forceCleanUpdate()" in PAGE and
+          "/api/update_force_clean" in PAGE and
+          "def _schedule_clean_launcher_redownload():" in open(__file__, encoding="utf-8").read() and
+          ".clean-backup" in open(__file__, encoding="utf-8").read() and
+          "update-rejected.txt" in open(__file__, encoding="utf-8").read())
     check("failed update version is quarantined until a newer release",
           "update-rejected.txt" in source_text and
           "remote == _rejected_update_version()" in source_text and
