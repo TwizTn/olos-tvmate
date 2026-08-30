@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b496"
+VERSION = "0.777.b497"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -7745,7 +7745,7 @@ const _I18N={
   "Compatibility mode: loading one channel at a time...":"Kompatibilitetsmodus: laster én kanal om gangen...",
   "Retrying this batch one channel at a time...":"Prøver denne gruppen på nytt, én kanal om gangen...","channels could not be refreshed.":"kanaler kunne ikke oppdateres.",
   "Channels available":"Kanaler tilgjengelig",
-  "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...","Popout Player is running · click to restore":"Popout-spilleren kjører · klikk for å gjenopprette",
+  "Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...","Popout Player is running · click to restore":"Popout-spilleren kjører · klikk for å gjenopprette","Firefox PiP layout enabled. Close the floating window separately.":"Firefox PiP-layout er aktivert. Lukk det flytende vinduet separat.","Could not open Picture-in-Picture.":"Kunne ikke åpne Picture-in-Picture.",
   "Update downloaded. Restart now to finish updating?":"Oppdatering lastet ned. Start på nytt for å fullføre?",
   "Restart now":"Start på nytt","Update now":"Oppdater nå","Later":"Senere","Player":"Spiller","Restarting...":"Starter på nytt...",
   "Updating... this window will reload shortly.":"Oppdaterer... vinduet lastes inn på nytt snart.",
@@ -10829,6 +10829,25 @@ function tvWatchPictureInPicture(video){
     tvSyncPictureInPicture(video);
   },200);
 }
+async function tvEnterPictureInPicture(){
+  const video=document.getElementById('tvVideo'),slot=document.getElementById('tvPlayerSlot');
+  if(!video)return;
+  _tvPipRestoreMini=!!(slot&&slot.classList.contains('mini'));
+  if(!video.requestPictureInPicture){
+    // Firefox/Zen native PiP is browser-chrome owned and invisible to page JS.
+    // The user starts native PiP first, then this action switches OTVM's layout.
+    tvSetPipStatus(true);
+    toast(tr('Firefox PiP layout enabled. Close the floating window separately.'));
+    return;
+  }
+  try{
+    const win=document.pictureInPictureElement===video?null:await video.requestPictureInPicture();
+    // Set OTVM state explicitly. Browser-native video pop-out controls may not
+    // expose their state to the page, but this app-owned action always does.
+    tvSetPipStatus(true);
+    tvRememberPipWindow(win);
+  }catch(e){toast(tr('Could not open Picture-in-Picture.'));}
+}
 function tvRestorePlayerLayout(){
   const slot=document.getElementById('tvPlayerSlot');
   const restoreMini=!!(_tvPipRestoreMini||mytvView.classList.contains('hide'));
@@ -10880,7 +10899,7 @@ async function tvPlay(sid,name){
   slot.classList.add('on');
   if(!keepPip){
     if(!wasMini&&guide&&slot.parentElement!==guide)guide.appendChild(slot);
-    slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline></video><button type="button" class="tvvideohit" aria-label="Minimize player" onclick="tvToggleMini()"></button>';
+    slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out / PiP layout" aria-label="Pop out / PiP layout" onclick="tvEnterPictureInPicture()">&#10697; PiP layout / Pop out</button><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline></video><button type="button" class="tvvideohit" aria-label="Minimize player" onclick="tvToggleMini()"></button>';
     tvSetMini(wasMini);
   }else{
     tvSetPipStatus(true);
@@ -14678,6 +14697,8 @@ def run_self_tests():
           "if(!keepMytv&&layoutPlayback)" in PAGE and
           "function tvSyncPictureInPicture(video,pipWindow)" in PAGE and
           "function tvWatchPictureInPicture(video)" in PAGE and
+          "function tvEnterPictureInPicture()" in PAGE and
+          'onclick="tvEnterPictureInPicture()"' in PAGE and
           "function tvRestorePlayerLayout()" in PAGE and
           "const restoreMini=!!(_tvPipRestoreMini||mytvView.classList.contains('hide'))" in PAGE)
     check("layout-aware pages expose an immediate on-page editor",
