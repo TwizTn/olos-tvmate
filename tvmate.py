@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b497"
+VERSION = "0.777.b498"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6316,6 +6316,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvvideohit{position:absolute;left:0;right:0;top:34px;bottom:46px;z-index:2;border:0;border-radius:0;padding:0;background:transparent;cursor:zoom-out}
  .tvvideohit:hover,.tvvideohit:active{background:transparent;filter:none;transform:none}
  .tvplayerslot.mini .tvvideohit{cursor:zoom-in}
+ #tvVideo{cursor:zoom-out}
+ .tvplayerslot.mini #tvVideo{cursor:zoom-in}
  .tvguidebody{flex:1;overflow-y:auto;position:relative;scrollbar-gutter:stable}
  .tvchan{width:286px;flex-shrink:0;border-right:1px solid #303642;display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;font-size:12px;transition:background .1s;background:#11151b}
  .tvchan:hover{background:var(--card2)}
@@ -10878,10 +10880,9 @@ function tvSetMini(mini){
     slot.classList.remove('mini');
     slot.classList.add('sectionmax');
   }
-  const btn=slot.querySelector('.tvminbtn'),hit=slot.querySelector('.tvvideohit');
+  const btn=slot.querySelector('.tvminbtn');
   const label=mini?'Fullscreen player':'Minimize player';
   if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=mini?'\u2196':'\u2198';}
-  if(hit)hit.setAttribute('aria-label',label);
 }
 async function tvPlay(sid,name){
   const slot=document.getElementById('tvPlayerSlot'),guide=tvPlayerGuide();
@@ -10899,7 +10900,7 @@ async function tvPlay(sid,name){
   slot.classList.add('on');
   if(!keepPip){
     if(!wasMini&&guide&&slot.parentElement!==guide)guide.appendChild(slot);
-    slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out / PiP layout" aria-label="Pop out / PiP layout" onclick="tvEnterPictureInPicture()">&#10697; PiP layout / Pop out</button><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline></video><button type="button" class="tvvideohit" aria-label="Minimize player" onclick="tvToggleMini()"></button>';
+    slot.innerHTML='<div class="tvplayerbar"><span>'+esc(name||'')+'</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out / PiP layout" aria-label="Pop out / PiP layout" onclick="tvEnterPictureInPicture()">&#10697; PiP layout / Pop out</button><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button><button class="pclose" onclick="tvStop()">&times;</button></div></div><video id="tvVideo" controls autoplay playsinline onclick="tvVideoSurfaceClick(event)"></video>';
     tvSetMini(wasMini);
   }else{
     tvSetPipStatus(true);
@@ -10930,6 +10931,15 @@ function tvToggleMini(){
   }
   if(playerFullscreenElement()===slot)exitPlayerFullscreen();
   tvSetMini(true);
+}
+function tvVideoSurfaceClick(event){
+  const video=event&&event.currentTarget;
+  if(!video)return;
+  // Native controls occupy the bottom of the video. Preserve a generous zone
+  // for play/pause, timeline, volume and option clicks.
+  const rect=video.getBoundingClientRect(),controlZone=Math.min(92,Math.max(58,rect.height*.14));
+  if(event.clientY>=rect.bottom-controlZone)return;
+  tvToggleMini();
 }
 function tvStop(){
   _tvPlayRequest++;_tvPendingSid='';
@@ -14701,6 +14711,11 @@ def run_self_tests():
           'onclick="tvEnterPictureInPicture()"' in PAGE and
           "function tvRestorePlayerLayout()" in PAGE and
           "const restoreMini=!!(_tvPipRestoreMini||mytvView.classList.contains('hide'))" in PAGE)
+    check("Live TV native controls remain hoverable and clickable",
+          'onclick="tvVideoSurfaceClick(event)"' in PAGE and
+          "function tvVideoSurfaceClick(event)" in PAGE and
+          "controlZone=Math.min(92,Math.max(58,rect.height*.14))" in PAGE and
+          "if(event.clientY>=rect.bottom-controlZone)return" in PAGE)
     check("layout-aware pages expose an immediate on-page editor",
           "data-layout-kind=\"profile\"" in PAGE and
           "openLayoutEditor('sports',this)" in PAGE and
