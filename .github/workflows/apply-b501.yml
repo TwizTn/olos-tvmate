@@ -1,0 +1,47 @@
+name: Apply b501 update recovery and timeline fix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/b501.patch
+      - scripts/prepare_b501.py
+      - .github/workflows/apply-b501.yml
+      - .github/b501-trigger
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'b501-update-recovery-timeline' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: b501-update-recovery-timeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: |
+          git apply --check scripts/b501.patch
+          git apply scripts/b501.patch
+          python scripts/prepare_b501.py
+      - name: Verify release
+        run: |
+          python -m py_compile tvmate.py
+          python scripts/verify_release.py
+          python tvmate.py --self-test
+          test "$(wc -c < tvmate.py)" -ge 500000
+          grep -Fx "0.777.b501" version.txt
+          grep -Fx "9f9622117ee22e5e51a3a9326594f0a848f0cddd3cd74ca5492ee7c2398756df" version.txt
+      - name: Publish code before manifest and clean helpers
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tvmate.py
+          git commit -m "Add clean update recovery and compact active-player timeline (b501)"
+          git add version.txt
+          git commit -m "Publish b501 release manifest"
+          git rm scripts/b501.patch scripts/prepare_b501.py .github/workflows/apply-b501.yml .github/b501-trigger
+          git commit -m "Clean b501 release helpers"
+          git push origin HEAD:b501-update-recovery-timeline
