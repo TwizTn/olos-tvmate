@@ -1,0 +1,50 @@
+name: Apply b506 guarded release
+on:
+  push:
+    branches: [release/b506-live-sports-team-home]
+    paths: [.github/workflows/apply-b506.yml]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/b506-live-sports-team-home
+          fetch-depth: 0
+      - name: Apply and validate complete application
+        run: |
+          set -euo pipefail
+          git apply release_b506.patch
+          test "$(wc -c < tvmate.py)" -ge 500000
+          test "$(python - <<'PY'
+          import hashlib, pathlib
+          raw=pathlib.Path('tvmate.py').read_bytes().replace(b'\r\n',b'\n').replace(b'\r',b'\n')
+          print(hashlib.sha256(raw).hexdigest())
+          PY
+          )" = "8ef7f4e39efe461a71b641deeef1f8e09fc92e2abacbfa2ff1f00027db8c65d5"
+          python -m py_compile tvmate.py
+          python tvmate.py --self-test
+      - name: Publish complete script first
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tvmate.py
+          git commit -m "Fix Live TV layout and complete team homepages for b506"
+          git push
+      - name: Publish verified manifest second
+        run: |
+          set -euo pipefail
+          printf '%s\n%s\n' '0.777.b506' '8ef7f4e39efe461a71b641deeef1f8e09fc92e2abacbfa2ff1f00027db8c65d5' > version.txt
+          python scripts/verify_release.py
+          git add version.txt
+          git commit -m "Publish b506 release manifest"
+          git push
+      - name: Remove release helpers
+        run: |
+          set -euo pipefail
+          git rm release_b506.patch .github/workflows/apply-b506.yml
+          git commit -m "Remove b506 release helpers"
+          git push
