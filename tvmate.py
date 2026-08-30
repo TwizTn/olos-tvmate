@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b501"
+VERSION = "0.777.b502"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6762,6 +6762,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamfixturebroadcasts{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
  .teamfixture.selectedfixture{border-color:#3d7950;box-shadow:0 0 0 1px rgba(67,140,87,.2)}
  .teamfixture.favoritefixture{border-color:#3d7950;background:linear-gradient(90deg,rgba(43,112,67,.2),var(--card) 42%);box-shadow:inset 3px 0 0 #49a767}
+ #teamTopList .teamfixture.favoritefixture{position:relative;border-color:#58c879;background:linear-gradient(120deg,rgba(39,130,72,.34),rgba(22,35,27,.92) 55%,var(--card));box-shadow:inset 4px 0 0 #62dc87,0 0 0 1px rgba(88,200,121,.2),0 8px 24px rgba(25,110,55,.16)}
+ #teamTopList .teamfixture.favoritefixture:after{content:'★';position:absolute;right:9px;top:8px;color:#77e59a;font-size:15px;text-shadow:0 0 10px rgba(98,220,135,.65)}
+ #teamTopList .teamfixture.favoritefixture .teamfixtureowner{color:#8aefaa;font-weight:750}
  .endedfixtures{margin:0 0 16px;border:1px solid var(--line);border-radius:9px;background:rgba(18,21,27,.55)}.endedfixtures summary{cursor:pointer;padding:10px 13px;color:var(--mut);font-size:12px;font-weight:650;list-style:none}.endedfixtures summary::-webkit-details-marker{display:none}.endedfixtures summary:before{content:'\25B8';display:inline-block;margin-right:7px;transition:transform .12s}.endedfixtures[open] summary:before{transform:rotate(90deg)}.endedfixtures .endedfixturelist{padding:0 10px 10px}.endedfixtures .teamfixture{opacity:.78}
  .sportsactions{display:flex;justify-content:space-between;align-items:center;gap:12px;position:relative;margin-bottom:12px}.sportsactions .colh{margin:0}
  .leaguepicker{position:absolute;z-index:35;right:0;top:40px;width:min(620px,calc(100vw - 32px));background:var(--card2);border:1px solid var(--line2);border-radius:11px;padding:15px;box-shadow:0 18px 48px #000b}
@@ -7445,8 +7448,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <div class="colh" style="margin-top:22px" data-i18n="Today's matches">Today's matches</div>
           <div id="teamTopList"></div>
         </div>
-        <div class="colh" style="margin-top:22px" data-i18n="Favorite team highlights">Favorite team highlights</div>
-        <div id="teamUpcomingList"><span class="muted">Loading...</span></div>
       </div>
     </div>
     <div id="teamDetailPage" class="teamdetailpage hide"><div class="teamdetailtop"><button type="button" class="ghost" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><h2 id="teamDetailTitle"></h2></div><div class="teamdetailgrid"><aside id="teamDetailProfile" class="teamdetailprofile"></aside><div><div class="teamdetailfixtures"><div class="colh" data-i18n="Fixtures">Fixtures</div><div id="teamDetailFixtures" class="teamfixturegrid"></div></div><div id="teamTableWrap" class="teamtablewrap"></div></div></div></div>
@@ -8120,9 +8121,12 @@ function renderTeamFavoriteRail(){
   rail.innerHTML=_favTeamRows.map(t=>{const src=t.logo||(t.team_id?'/api/team_logo?id='+encodeURIComponent(t.team_id):''),selected=String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase();return '<div class="teamfavitem'+(selected?' selected':'')+'" data-team-search="'+escAttr(t.name)+'" data-team-id="'+escAttr(t.team_id)+'" data-team-logo="'+escAttr(t.logo)+'">'+(src?'<img class="teamfavlogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'<span class="teamfavname">'+esc(t.name)+'</span><span class="favstar on teamremove" data-team-name="'+escAttr(t.name)+'" title="Remove from favorites">&#9733;</span></div>';}).join('');
 }
 function fixtureBelongsToTeam(f,name){return (f.favorite_teams||[]).some(owner=>_teamNamesEquivalentForUi(owner,name))||_teamNamesEquivalentForUi(f.home,name)||_teamNamesEquivalentForUi(f.away,name);}
-function favoriteFixtureShortlist(fixtures,teams){
-  const now=Date.now(),week=now+7*24*3600*1000,out=[],seen=new Set();
-  for(const team of teams){const name=String(typeof team==='string'?team:team.name||'');let mine=(fixtures||[]).filter(f=>fixtureBelongsToTeam(f,name)&&(fixtureIsLive(f)||(f.start?new Date(f.start).getTime():0)>=now)).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));const inWeek=mine.filter(f=>(f.start?new Date(f.start).getTime():0)<=week);for(const f of (inWeek.length?inWeek.slice(0,3):mine.slice(0,1))){const key=sportsFixtureKey(f);if(!seen.has(key)){seen.add(key);out.push(f);}}}return out.sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));
+function sportsTodayFixtures(){
+  const start=new Date();start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);
+  const rows=new Map();
+  for(const fixture of _sportsTopFixtures){const ts=fixture.start?new Date(fixture.start).getTime():NaN;if(Number.isFinite(ts)&&ts>=start.getTime()&&ts<end.getTime())rows.set(sportsFixtureKey(fixture),Object.assign({},fixture));}
+  for(const fixture of _myTeamFixtures){const ts=fixture.start?new Date(fixture.start).getTime():NaN;if(!Number.isFinite(ts)||ts<start.getTime()||ts>=end.getTime())continue;const key=sportsFixtureKey(fixture),existing=rows.get(key)||{};rows.set(key,Object.assign({},existing,fixture));}
+  return Array.from(rows.values()).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0));
 }
 function selectedTeamNextFixture(){
   const name=String(_selectedTeamName||'');if(!name)return null;const now=Date.now();
@@ -8188,12 +8192,12 @@ async function loadMyTeams(force){
   if(!_favTeamRows.length)_selectedTeamName='';
   renderTeamFavoriteRail();
   const selectedRow=_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase());_selectedTeamRow=selectedRow||null;if(selectedRow)loadSelectedTeamProfile(selectedRow);else renderSelectedTeamProfile(null);
-  const upcoming=document.getElementById('teamUpcomingList'), liveList=document.getElementById('teamLiveList'), liveSection=document.getElementById('teamLiveSection');
+  const liveList=document.getElementById('teamLiveList'), liveSection=document.getElementById('teamLiveSection');
   const topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
-  if(!teams.length){liveSection.classList.add('hide');upcoming.innerHTML='<span class="muted">Add a favorite team to see its fixtures.</span>';}
-  if(!_myTeamFixtures.length)upcoming.innerHTML='<span class="muted">Loading fixtures...</span>';
+  if(!teams.length)liveSection.classList.add('hide');
+  if(!_myTeamFixtures.length&&!_sportsTopFixtures.length)topList.innerHTML='<span class="muted">Loading fixtures...</span>';
   const r=await api('/api/my_teams'+(force?'?refresh=1':''));
-  if(r.error){upcoming.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
+  if(r.error){topList.innerHTML='<span class="err">'+esc(r.error)+'</span>';return;}
   _myTeamFixtures=r.fixtures||[];_sportsTopFixtures=r.top_fixtures||[];renderSelectedTeamProfile(_selectedTeamProfile);renderSportsHome();
   if(!r.cached)_myTeamsLastRefresh=Date.now();
   if(r.cached&&!_myTeamsBackgroundRefresh&&Date.now()-_myTeamsLastRefresh>2*60*1000){
@@ -8203,12 +8207,11 @@ async function loadMyTeams(force){
 }
 
 function renderSportsHome(){
-  const teams=_favTeamRows,upcoming=document.getElementById('teamUpcomingList'),liveList=document.getElementById('teamLiveList'),liveSection=document.getElementById('teamLiveSection'),topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
-  const highlights=favoriteFixtureShortlist(_myTeamFixtures,teams);liveList.innerHTML='';liveSection.classList.add('hide');
-  const ended=_sportsTopFixtures.filter(f=>f.is_finished||fixtureIsRecent(f)),active=_sportsTopFixtures.filter(f=>!f.is_finished&&!fixtureIsRecent(f));
-  if(_sportsTopFixtures.length){topList.innerHTML=(ended.length?'<details class="endedfixtures"><summary>'+esc(tr('Ended matches'))+' ('+ended.length+')</summary><div class="endedfixturelist teamfixturegrid">'+ended.map(f=>teamFixtureCard(f,false)).join('')+'</div></details>':'')+(active.length?'<div class="topfixturegrid">'+active.map(f=>'<div class="topfixtureitem">'+teamFixtureCard(f,fixtureIsLive(f))+'</div>').join('')+'</div>':'');topSection.classList.remove('hide');}else{topList.innerHTML='';topSection.classList.add('hide');}
-  upcoming.innerHTML=highlights.length?'<div class="teamfixturegrid">'+highlights.map(f=>teamFixtureCard(f,fixtureIsLive(f))).join('')+'</div>':(teams.length?'<span class="muted">'+esc(tr('No upcoming fixtures found.'))+'</span>':'<span class="muted">'+esc(tr('Add a favorite team to see its fixtures.'))+'</span>');
-  _sportsVisibleFixtures=[...active,...highlights];loadSportsAvailability(false);
+  const liveList=document.getElementById('teamLiveList'),liveSection=document.getElementById('teamLiveSection'),topSection=document.getElementById('teamTopSection'),topList=document.getElementById('teamTopList');
+  liveList.innerHTML='';liveSection.classList.add('hide');
+  const today=sportsTodayFixtures(),ended=today.filter(f=>f.is_finished||fixtureIsRecent(f)),active=today.filter(f=>!f.is_finished&&!fixtureIsRecent(f));
+  if(today.length){topList.innerHTML=(ended.length?'<details class="endedfixtures"><summary>'+esc(tr('Ended matches'))+' ('+ended.length+')</summary><div class="endedfixturelist teamfixturegrid">'+ended.map(f=>teamFixtureCard(f,false)).join('')+'</div></details>':'')+(active.length?'<div class="topfixturegrid">'+active.map(f=>'<div class="topfixtureitem">'+teamFixtureCard(f,fixtureIsLive(f))+'</div>').join('')+'</div>':'');topSection.classList.remove('hide');}else{topList.innerHTML='';topSection.classList.add('hide');}
+  _sportsVisibleFixtures=today;loadSportsAvailability(false);
 }
 
 function applySportsAvailability(availability){
@@ -14794,10 +14797,16 @@ def run_self_tests():
               "_league_ccode": "INT", "home": {"name": "Lyon Women"},
               "away": {"name": "Arsenal Women"}}, {"uefa-champions-league"}) and
           'id="leaguePicker"' in PAGE and
-          "favoriteFixtureShortlist" in PAGE and
+          "function sportsTodayFixtures()" in PAGE and
+          "Object.assign({},existing,fixture)" in PAGE and
           'id="teamDetailPage"' in PAGE and
           'class="endedfixtures"' in PAGE and
-          "_sportsVisibleFixtures=[...active,...highlights]" in PAGE)
+          "_sportsVisibleFixtures=today" in PAGE and
+          'data-i18n="Favorite team highlights"' not in PAGE)
+    check("favorite fixtures are strongly highlighted in today's matches",
+          "#teamTopList .teamfixture.favoritefixture" in PAGE and
+          "content:'★'" in PAGE and
+          "#teamTopList .teamfixture.favoritefixture .teamfixtureowner" in PAGE)
     check("match page offers and persists all three layouts",
           DEFAULT_CONFIG.get("match_layout") == "live-centre" and
           all(('value="%s"' % layout) in PAGE
@@ -15847,7 +15856,7 @@ def run_self_tests():
     check("live fallback is bounded and recent results remain visible",
           "if(f.is_live)return mins<=150" in PAGE and
           "mins<=360&&!fixtureIsLive(f)" in PAGE and
-          "if(!_myTeamFixtures.length)upcoming.innerHTML" in PAGE)
+          "if(!_myTeamFixtures.length&&!_sportsTopFixtures.length)topList.innerHTML" in PAGE)
     return checks
 
 if __name__ == "__main__":
