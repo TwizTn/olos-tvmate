@@ -23,16 +23,15 @@ replace_once(
 )
 replace_once(
     """  const btn=slot.querySelector('.tvminbtn'),hit=slot.querySelector('.tvvideohit');
+  const label=mini?'Fullscreen player':'Minimize player';
+  if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=mini?'\\u2196':'\\u2198';}
+  if(hit)hit.setAttribute('aria-label',label);
 """,
     """  const btn=slot.querySelector('.tvminbtn');
+  const label=mini?'Fullscreen player':'Minimize player';
+  if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=mini?'\\u2196':'\\u2198';}
 """,
-    "remove Live TV overlay lookup",
-)
-replace_once(
-    """  if(hit)hit.setAttribute('aria-label',label);
-""",
-    "",
-    "remove Live TV overlay label",
+    "remove Live TV overlay handling",
 )
 replace_once(
     """<video id="tvVideo" controls autoplay playsinline></video><button type="button" class="tvvideohit" aria-label="Minimize player" onclick="tvToggleMini()"></button>""",
