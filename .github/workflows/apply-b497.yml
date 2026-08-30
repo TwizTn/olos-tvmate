@@ -1,0 +1,42 @@
+name: Apply b497 app-owned PiP patch
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/apply_b497.py
+      - .github/b497-trigger
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/apply_b497.py
+      - name: Verify complete release
+        run: |
+          python -m py_compile tvmate.py
+          python scripts/verify_release.py
+          python tvmate.py --self-test
+      - name: Publish code before manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tvmate.py
+          git commit -m "Add app-owned Live TV PiP action (b497)"
+          git add version.txt
+          git commit -m "Publish verified b497 release manifest"
+      - name: Remove one-time helpers
+        run: |
+          git rm scripts/apply_b497.py .github/b497-trigger .github/workflows/apply-b497.yml
+          git commit -m "Remove b497 release helpers"
+          git push origin HEAD:${{ github.head_ref }}
