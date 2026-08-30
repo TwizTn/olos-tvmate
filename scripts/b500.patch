@@ -1,0 +1,208 @@
+diff --git a/tvmate.py b/tvmate.py
+index be51ab7..3f95954 100644
+--- a/tvmate.py
++++ b/tvmate.py
+@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
+     _atomic_write_bytes(path, raw)
+ 
+ # --- versioning & auto-update ---
+-VERSION = "0.777.b499"
++VERSION = "0.777.b500"
+ 
+ BANNER = r'''
+   ___  _        _     _______     ____  __      __
+@@ -6017,6 +6017,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
+  .pmodal{position:fixed;top:clamp(110px,18vh,210px);left:auto;right:4px;bottom:auto;width:min(1040px,calc(100vw - 8px));height:min(650px,68vh);background:transparent;display:block;z-index:400}
+  .pmodal.hide{display:none}
+  .pmodal.sectionmax{top:0;left:0;right:0;bottom:0;width:100vw;height:100vh} .pmodal.sectionmax .pbox{border:0;border-radius:0;box-shadow:none}
++ .pmodal.pipactive,.pmodal:has(#pVideo:picture-in-picture){position:fixed!important;left:-10000px!important;right:auto!important;top:0!important;bottom:auto!important;width:320px!important;height:180px!important;opacity:.01!important;pointer-events:none!important;overflow:hidden!important}
++ .pmodal.pipactive .pbar,.pmodal.pipactive #pMsg,.pmodal:has(#pVideo:picture-in-picture) .pbar,.pmodal:has(#pVideo:picture-in-picture) #pMsg{display:none!important}
++ .pmodal.pipactive #pVideo,.pmodal #pVideo:picture-in-picture{width:320px!important;height:180px!important;display:block!important}
+  @media(min-width:1800px) and (max-width:2199px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,38vw);height:min(650px,23.75vw,68vh)}}
+  @media(min-width:2200px){.tvplayerslot.mini,.pmodal:not(.sectionmax){width:min(1040px,40vw);height:min(650px,25vw,68vh)}}
+  .pbox{position:relative;background:#0c0e12;border:1px solid var(--line);border-radius:12px;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+@@ -6060,7 +6063,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
+  .pbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-weight:500}
+  .pclose{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
+  .pclose:hover{color:var(--fg);filter:none}
+- #pVideo{width:100%;height:auto;max-height:none;flex:1;min-height:0;background:#000;display:block;object-fit:cover}
++ #pVideo{width:100%;height:auto;max-height:none;flex:1;min-height:0;background:#000;display:block;object-fit:cover;cursor:zoom-in}
++ .pmodal.sectionmax #pVideo{cursor:zoom-out}
+  .btnplay{background:var(--acc);border:0;color:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;margin-right:5px}
+  .btnvlc{background:#e8701a;border:0;color:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;margin-right:5px}
+  .btnplay:hover,.btnvlc:hover{filter:brightness(1.1)}
+@@ -7013,7 +7017,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
+   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
+   <span id="slogan" class="slogan"></span>
+   <span id="status" class="muted"></span>
+-  <button type="button" id="tvPipStatus" class="tvpipstatus hide" onclick="tvRestoreFromPip()" data-i18n="Popout Player is running · click to restore">Popout Player is running · click to restore</button>
++  <button type="button" id="tvPipStatus" class="tvpipstatus hide" onclick="restoreActivePip()" data-i18n="Popout Player is running · click to restore">Popout Player is running · click to restore</button>
+   <button type="button" id="restartBtn" class="stopbtn headerstop headerrestart hide" onclick="restartTVMate()" data-i18n="Restart TVMate" title="Restart TVMate (reload edited tvmate.py)">Restart TVMate</button>
+   <button type="button" class="stopbtn headerstop" onclick="stopTVMate()" data-i18n="Stop TVMate" title="Stop TVMate">Stop TVMate</button>
+   <div class="langsel">
+@@ -7586,9 +7590,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
+ </div>
+ <div id="playerModal" class="pmodal hide" onclick="if(event.target===this)closePlayer()">
+   <div class="pbox">
+-    <div class="pbar"><span id="pTitle" data-i18n="Player">Player</span><div class="tvplayeractions"><button type="button" class="tvminbtn" id="pMinBtn" title="Maximize player" aria-label="Maximize player" onclick="togglePopupPlayerSize()">&#8598;</button><button class="pclose" onclick="closePlayer()">&times;</button></div></div>
+-    <video id="pVideo" controls autoplay playsinline></video>
+-    <button type="button" class="tvvideohit" id="pVideoHit" aria-label="Maximize player" onclick="togglePopupPlayerSize()"></button>
++    <div class="pbar"><span id="pTitle" data-i18n="Player">Player</span><div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out / PiP layout" aria-label="Pop out / PiP layout" onclick="popupEnterPictureInPicture()"><svg class="tvpipicon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="12" y="11" width="7" height="5.5" rx="1" fill="currentColor"/></svg></button><button type="button" class="tvminbtn" id="pMinBtn" title="Maximize player" aria-label="Maximize player" onclick="togglePopupPlayerSize()">&#8598;</button><button class="pclose" onclick="closePlayer()">&times;</button></div></div>
++    <video id="pVideo" controls autoplay playsinline onclick="popupVideoSurfaceClick(event)"></video>
+     <div id="pMsg" class="muted" style="padding:8px 12px"></div>
+   </div>
+ </div>
+@@ -7801,7 +7804,7 @@ function hideAll(keepMytv){
+   const hasPlayback=!!(hasTvPlayback||hasPopupPlayback);
+   // Picture-in-Picture is represented by the restore control in the header,
+   // not by an in-page player. Keep every section at its normal full width.
+-  const pipPlayback=!!(_tvPipActive||tvPipVideo());
++  const pipPlayback=!!(_tvPipActive||_popupPipActive||tvPipVideo()||popupPipVideo());
+   const layoutPlayback=hasPlayback&&!pipPlayback;
+   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!pipPlayback&&!mytvView.classList.contains('hide'));
+   settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();updateProfileName(_profileConfig.profile_name);
+@@ -9312,7 +9315,7 @@ function playbtns(sid,name,url,showCopy){
+     +'<button class="btnvlc" data-sid="'+s+'">&#9658; VLC</button>'
+     +(showCopy?'<button class="copy" data-url="'+u+'">'+tr('Copy URL')+'</button>':'');
+ }
+-let _hls=null,_mpegts=null,_browserPlayRequest=0,_browserPendingSid='';
++let _hls=null,_mpegts=null,_browserPlayRequest=0,_browserPendingSid='',_popupPipActive=false;
+ function destroyMpegtsPlayer(p){
+   if(!p)return;
+   try{p.pause();}catch(e){}try{p.unload();}catch(e){}try{p.detachMediaElement();}catch(e){}try{p.destroy();}catch(e){}
+@@ -9390,6 +9393,7 @@ async function playBrowser(sid,name){
+   if(request!==_browserPlayRequest)return;
+   const controller=startSmartStream(video,urls,s=>msg.textContent=s,function(h,t){_hls=h;_mpegts=t;});
+   modal._playbackController=controller;
++  popupBindPictureInPicture(video);
+ }
+ function playerFullscreenElement(){
+   return document.fullscreenElement||document.webkitFullscreenElement||null;
+@@ -9427,11 +9431,10 @@ function exitPlayerFullscreen(){
+   try{const p=fn.call(document);if(p&&p.catch)p.catch(()=>{});return true;}catch(e){return false;}
+ }
+ function setPopupPlayerMax(maximized){
+-  const modal=document.getElementById('playerModal'),btn=document.getElementById('pMinBtn'),hit=document.getElementById('pVideoHit');
++  const modal=document.getElementById('playerModal'),btn=document.getElementById('pMinBtn');
+   modal.classList.toggle('sectionmax',!!maximized);
+   const label=maximized?'Exit fullscreen':'Fullscreen player';
+   if(btn){btn.title=label;btn.setAttribute('aria-label',label);btn.textContent=maximized?'\u2198':'\u2196';}
+-  if(hit)hit.setAttribute('aria-label',label);
+ }
+ function togglePopupPlayerSize(){
+   const modal=document.getElementById('playerModal');
+@@ -9439,6 +9442,58 @@ function togglePopupPlayerSize(){
+   setPopupPlayerMax(true);
+   requestPlayerFullscreen(modal);
+ }
++function popupPipVideo(){
++  const video=document.getElementById('pVideo');
++  return video&&document.pictureInPictureElement===video?video:null;
++}
++function syncPipStatusBanner(){
++  const banner=document.getElementById('tvPipStatus');
++  if(banner)banner.classList.toggle('hide',!(_tvPipActive||_popupPipActive));
++}
++function popupSetPipStatus(active){
++  _popupPipActive=!!active;
++  const modal=document.getElementById('playerModal');
++  if(modal)modal.classList.toggle('pipactive',_popupPipActive);
++  syncPipStatusBanner();
++  if(_popupPipActive)document.body.classList.remove('tvsectionplay');
++}
++function popupBindPictureInPicture(video){
++  if(!video||video._tvmatePopupPipBound)return;
++  video._tvmatePopupPipBound=true;
++  video.addEventListener('enterpictureinpicture',()=>popupSetPipStatus(true));
++  video.addEventListener('leavepictureinpicture',()=>popupSetPipStatus(false));
++}
++async function popupEnterPictureInPicture(){
++  const video=document.getElementById('pVideo');
++  if(!video)return;
++  if(!video.requestPictureInPicture){
++    popupSetPipStatus(true);
++    toast(tr('Firefox PiP layout enabled. Close the floating window separately.'));
++    return;
++  }
++  try{
++    if(document.pictureInPictureElement!==video)await video.requestPictureInPicture();
++    popupSetPipStatus(true);
++  }catch(e){toast(tr('Could not open Picture-in-Picture.'));}
++}
++async function popupRestoreFromPip(){
++  if(document.pictureInPictureElement===document.getElementById('pVideo')&&document.exitPictureInPicture){
++    try{await document.exitPictureInPicture();return;}catch(e){}
++  }
++  popupSetPipStatus(false);
++}
++function restoreActivePip(){
++  if(_popupPipActive||popupPipVideo())return popupRestoreFromPip();
++  return tvRestoreFromPip();
++}
++function popupVideoSurfaceClick(event){
++  const video=event&&event.currentTarget;
++  if(!video)return;
++  // Keep native playback controls easy to reach in Sport and Racing.
++  const rect=video.getBoundingClientRect(),controlZone=Math.min(92,Math.max(58,rect.height*.14));
++  if(event.clientY>=rect.bottom-controlZone)return;
++  togglePopupPlayerSize();
++}
+ function syncPlayerFullscreenExit(){
+   if(playerFullscreenElement())return;
+   const modal=document.getElementById('playerModal');
+@@ -9455,8 +9510,10 @@ function closePlayer(){
+   if(modal._playbackController){modal._playbackController.stop();modal._playbackController=null;}
+   if(_hls){try{_hls.destroy();}catch(e){}_hls=null;}if(_mpegts){destroyMpegtsPlayer(_mpegts);_mpegts=null;}
+   video.pause();video.removeAttribute('src');video.load();
++  if(document.pictureInPictureElement===video&&document.exitPictureInPicture){try{document.exitPictureInPicture().catch(function(){});}catch(e){}}
++  popupSetPipStatus(false);
+   modal.classList.add('hide');
+-  modal.classList.remove('sectionmax');
++  modal.classList.remove('sectionmax','pipactive');
+   syncMatchPlayerAnchor();
+   const liveAway=(_tvPlaying!==null||window._tvPlaybackController)&&mytvView.classList.contains('hide');
+   if(!liveAway)document.body.classList.remove('tvsectionplay');
+@@ -10795,7 +10852,7 @@ function tvSetPipStatus(active){
+   _tvPipActive=!!active;
+   const slot=document.getElementById('tvPlayerSlot'),banner=document.getElementById('tvPipStatus');
+   if(slot)slot.classList.toggle('pipactive',_tvPipActive);
+-  if(banner)banner.classList.toggle('hide',!_tvPipActive);
++  syncPipStatusBanner();
+   if(_tvPipActive)document.body.classList.remove('tvsectionplay');
+ }
+ function tvBindPictureInPicture(video){
+@@ -14703,7 +14760,9 @@ def run_self_tests():
+           "classList.toggle('tvsectionplay',!modal.classList.contains('matchanchored'))" in PAGE)
+     check("PiP uses a header restore control without shrinking app pages",
+           'id="tvPipStatus" class="tvpipstatus hide"' in PAGE and
++          'onclick="restoreActivePip()"' in PAGE and
+           ":has(#tvVideo:picture-in-picture)" in PAGE and
++          ":has(#pVideo:picture-in-picture)" in PAGE and
+           "const layoutPlayback=hasPlayback&&!pipPlayback" in PAGE and
+           "if(!keepMytv&&layoutPlayback)" in PAGE and
+           "function tvSyncPictureInPicture(video,pipWindow)" in PAGE and
+@@ -14711,14 +14770,22 @@ def run_self_tests():
+           "function tvEnterPictureInPicture()" in PAGE and
+           'onclick="tvEnterPictureInPicture()"' in PAGE and
+           "function tvRestorePlayerLayout()" in PAGE and
++          "function popupEnterPictureInPicture()" in PAGE and
++          "function popupRestoreFromPip()" in PAGE and
++          'onclick="popupEnterPictureInPicture()"' in PAGE and
+           "const restoreMini=!!(_tvPipRestoreMini||mytvView.classList.contains('hide'))" in PAGE)
+     check("Live TV native controls remain hoverable and clickable",
+           'onclick="tvVideoSurfaceClick(event)"' in PAGE and
+           "function tvVideoSurfaceClick(event)" in PAGE and
+           "controlZone=Math.min(92,Math.max(58,rect.height*.14))" in PAGE and
+           "if(event.clientY>=rect.bottom-controlZone)return" in PAGE)
+-    check("Live TV PiP control uses a distinct picture-in-picture icon",
+-          'class="tvpipicon"' in PAGE and
++    check("Sport and Racing native player controls remain hoverable and clickable",
++          'id="pVideo" controls autoplay playsinline onclick="popupVideoSurfaceClick(event)"' in PAGE and
++          "function popupVideoSurfaceClick(event)" in PAGE and
++          'id="pVideoHit"' not in PAGE and
++          ".pmodal.sectionmax #pVideo{cursor:zoom-out}" in PAGE)
++    check("all desktop players use the distinct picture-in-picture icon",
++          PAGE.count('class="tvpipicon"') >= 2 and
+           '<rect x="12" y="11" width="7" height="5.5"' in PAGE and
+           "&#10697; PiP layout / Pop out" not in PAGE)
+     check("layout-aware pages expose an immediate on-page editor",
