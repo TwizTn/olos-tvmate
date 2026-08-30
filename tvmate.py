@@ -16,7 +16,7 @@ Flow:
      and shows the matching channels with a copyable stream URL for VLC.
 
 Source of match/broadcaster data: Fotmob's public tv-guide pages
-(https://www.faotmob.com/en-GB/tv-guide/{no,uk,us}), read from the embedded
+(https://www.fotmob.com/en-GB/tv-guide/{no,uk,us}), read from the embedded
 Schema.org ld+json. Pages are cached so the app only fetches occasionally,
 like a person browsing. Fotmob asks that their site not be used by automated
 services; this tool is intended for light, personal, single-user use only.
@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b513"
+VERSION = "0.777.b514"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -8646,6 +8646,7 @@ async function toggleTeamFavorite(name,star,teamId){
   const r=await favPost({action:'toggle_team',team:{name:name,team_id:teamId||''}});
   _favTeamSet=new Set((r.team_names||[]).map(name=>String(name).toLowerCase()));
   if(star)star.classList.toggle('on',_favTeamSet.has(String(name).toLowerCase()));
+  _myListLoaded=false;
   await loadMyTeams();
 }
 async function removeTeamFavorite(name){
@@ -9760,6 +9761,7 @@ async function toggleMovieFavorite(movie,starEl){
   if(_favMovieSet.has(String(movie.catalog_id||movie.stream_id)))_profileConfig.setup_demo_content=false;
   if(starEl)starEl.classList.toggle('on',_favMovieSet.has(String(movie.catalog_id||movie.stream_id)));
   if(starEl)starEl.title=tr(_favMovieSet.has(String(movie.catalog_id||movie.stream_id))?'Remove from Favorites':'Add to Favorites');
+  _myListLoaded=false;
   await loadMovieFavorites();
 }
 async function removeMovieFavorite(key){
@@ -10236,13 +10238,13 @@ async function toggleShowFavorite(show,starEl){
   _favShowSet=new Set((r.show_ids||[]).map(String));
   if(_favShowSet.has(String(show.catalog_id||show.show_key||show.series_id)))_profileConfig.setup_demo_content=false;
   if(starEl)starEl.classList.toggle('on',_favShowSet.has(String(show.catalog_id||show.show_key||show.series_id)));
-  _latestEpisodesLoaded=false;
+  _latestEpisodesLoaded=false;_myListLoaded=false;
   await loadShowFavorites();
 }
 async function removeShowFavorite(showKey){
   await favPost({action:'remove_show',show_key:showKey});
   document.querySelectorAll('.showstar').forEach(el=>{if(el.getAttribute('data-key')===String(showKey))el.classList.remove('on');});
-  _latestEpisodesLoaded=false;
+  _latestEpisodesLoaded=false;_myListLoaded=false;
   await loadShowFavorites();
 }
 async function searchShows(){
@@ -10774,6 +10776,7 @@ async function toggleFavChannel(sid,name,cat,starEl){
   const ids=new Set((r.channel_ids||[]).map(String));
   _favChanSet=ids;
   if(starEl)starEl.classList.toggle('on',ids.has(String(sid)));
+  _myListLoaded=false;
 }
 async function favSelectedCats(){
   const cats=Array.from(_selCats);
