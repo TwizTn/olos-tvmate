@@ -14,7 +14,7 @@ def replace_once(old,new,label):
 replace_once('VERSION = "0.777.b496"','VERSION = "0.777.b497"',"version")
 replace_once(
     '"Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...","Popout Player is running · click to restore":"Popout-spilleren kjører · klikk for å gjenopprette",',
-    '"Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...","Popout Player is running · click to restore":"Popout-spilleren kjører · klikk for å gjenopprette","Picture-in-Picture is not supported by this browser.":"Picture-in-Picture støttes ikke av denne nettleseren.","Could not open Picture-in-Picture.":"Kunne ikke åpne Picture-in-Picture.",',
+    '"Update available":"Oppdatering tilgjengelig","you have":"du har","Downloading...":"Laster ned...","Popout Player is running · click to restore":"Popout-spilleren kjører · klikk for å gjenopprette","Firefox PiP layout enabled. Close the floating window separately.":"Firefox PiP-layout er aktivert. Lukk det flytende vinduet separat.","Could not open Picture-in-Picture.":"Kunne ikke åpne Picture-in-Picture.",',
     "PiP messages",
 )
 replace_once(
@@ -22,8 +22,15 @@ replace_once(
 """,
     """async function tvEnterPictureInPicture(){
   const video=document.getElementById('tvVideo'),slot=document.getElementById('tvPlayerSlot');
-  if(!video||!video.requestPictureInPicture){toast(tr('Picture-in-Picture is not supported by this browser.'));return;}
+  if(!video)return;
   _tvPipRestoreMini=!!(slot&&slot.classList.contains('mini'));
+  if(!video.requestPictureInPicture){
+    // Firefox/Zen native PiP is browser-chrome owned and invisible to page JS.
+    // The user starts native PiP first, then this action switches OTVM's layout.
+    tvSetPipStatus(true);
+    toast(tr('Firefox PiP layout enabled. Close the floating window separately.'));
+    return;
+  }
   try{
     const win=document.pictureInPictureElement===video?null:await video.requestPictureInPicture();
     // Set OTVM state explicitly. Browser-native video pop-out controls may not
@@ -34,12 +41,12 @@ replace_once(
 }
 function tvRestorePlayerLayout(){
 """,
-    "app-owned PiP action",
+    "cross-browser PiP action",
 )
 replace_once(
     """<div class="tvplayeractions"><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button>""",
-    """<div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out player" aria-label="Pop out player" onclick="tvEnterPictureInPicture()">&#10697; Pop out</button><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button>""",
-    "player Pop out button",
+    """<div class="tvplayeractions"><button type="button" class="tvminbtn" title="Pop out / PiP layout" aria-label="Pop out / PiP layout" onclick="tvEnterPictureInPicture()">&#10697; PiP layout / Pop out</button><button type="button" class="tvminbtn" title="Minimize player" aria-label="Minimize player" onclick="tvToggleMini()">&#8600;</button>""",
+    "player PiP layout button",
 )
 replace_once(
     """          "function tvWatchPictureInPicture(video)" in PAGE and
@@ -50,7 +57,7 @@ replace_once(
           'onclick="tvEnterPictureInPicture()"' in PAGE and
           "function tvRestorePlayerLayout()" in PAGE and
 """,
-    "owned PiP self-test",
+    "cross-browser PiP self-test",
 )
 
 path.write_text(text,encoding="utf-8",newline="\n")
