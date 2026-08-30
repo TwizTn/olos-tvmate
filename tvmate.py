@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b515"
+VERSION = "0.777.b518"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6786,7 +6786,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .leaguepickerhead{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px}.leaguepickerhead b{font-size:14px}.leaguepickerhead .muted{font-size:11px;margin-top:3px}
  .leaguepickergroups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.leaguepickergroup{border:1px solid var(--line);border-radius:8px;padding:10px}.leaguepickergroup h4{margin:0 0 7px;font-size:11px;color:var(--acc);text-transform:uppercase;letter-spacing:.06em}.leaguepickergroup label{display:flex;gap:8px;align-items:center;padding:5px 2px;font-size:12px}.leaguepickerbuttons{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
  .favoriteteamstrip{display:flex;gap:8px;flex-wrap:wrap}.favoriteteamchip{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px;color:var(--fg);cursor:pointer}.favoriteteamchip:hover{border-color:#49a767;background:rgba(43,112,67,.16)}.favoriteteamchip img{width:28px;height:28px;object-fit:contain}.favoriteteamchip span{font-weight:650}
- .teamdetailpage{max-width:1720px;margin:0 auto;padding:0 18px 34px}.teamdetailtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.teamdetailtop h2{margin:0;font-size:20px}.teamdetailgrid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:22px;align-items:start}.teamdetailprofile{position:sticky;top:78px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:16px}.teamhomegrid{display:grid;grid-template-columns:minmax(250px,.8fr) minmax(250px,.8fr) minmax(390px,1.25fr);gap:16px;align-items:start}.teamhomepanel{min-width:0;border:1px solid var(--line);border-radius:10px;background:rgba(18,21,27,.58);padding:12px}.teamhomepanel .colh{margin-bottom:8px}.teamhomeschedule{display:flex;flex-direction:column}.teamhomematch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 9px;padding:9px 2px;border-bottom:1px solid var(--line);cursor:pointer}.teamhomematch:last-child{border-bottom:0}.teamhomematch:hover .teamhometeams{color:var(--acc)}.teamhometeams{font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.teamhomescore{font-size:13px;font-weight:800}.teamhomemeta{grid-column:1/-1;color:var(--mut);font-size:10px}.teamstandingbadge{margin:0 0 13px;padding:11px;border:1px solid #355b42;border-radius:8px;background:rgba(43,112,67,.14)}.teamstandingbadge b{font-size:20px;margin-right:5px}.teamtablewrap{margin:0}.teamtable{width:100%;border-collapse:collapse;font-size:12px}.teamtable th{color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.teamtable th,.teamtable td{padding:8px 7px;border-bottom:1px solid var(--line);text-align:right}.teamtable th:nth-child(2),.teamtable td:nth-child(2){text-align:left}.teamtable tr.selected{background:rgba(43,112,67,.2);color:#dff5e6}.teamtablelogo{width:21px;height:21px;object-fit:contain;vertical-align:middle;margin-right:7px}@media(max-width:1250px){.teamhomegrid{grid-template-columns:1fr 1fr}.teamhomepanel.table{grid-column:1/-1}}@media(max-width:800px){.teamdetailgrid,.teamhomegrid{grid-template-columns:1fr}.teamdetailprofile{position:static}.teamhomepanel.table{grid-column:1}}
+ .teamnextwrap{margin:0 0 18px} .teamnext{background:linear-gradient(140deg,rgba(31,73,124,.28),var(--card) 62%);border:1px solid var(--line);border-radius:13px;padding:18px 22px;cursor:pointer;transition:border-color .12s} .teamnext:hover{border-color:var(--acc)} .teamnext.live{background:linear-gradient(140deg,rgba(122,42,49,.34),var(--card) 62%);border-color:#7a2a31} .teamnextlabel{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--acc);font-weight:700;margin-bottom:8px} .teamnext.live .teamnextlabel{color:#ff8e94} .teamnextteams{display:flex;align-items:center;gap:12px;flex-wrap:wrap} .teamnextcrest{width:34px;height:34px;object-fit:contain} .teamnextname{font-size:21px;font-weight:750} .teamnextvs{color:var(--mut);font-size:14px} .teamnextmeta{margin-top:7px;font-size:13px;color:var(--mut)} .teamnextcount{margin-top:4px;font-size:13.5px;font-weight:650} .teamnextcount.live{color:#ff8e94} .teamformstrip{display:flex;flex-direction:column;gap:12px} .teamformpills{display:flex;gap:6px} .teamformpill{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:750;color:#fff} .teamformpill.w,.teamformres.w{background:#2f7d43} .teamformpill.d,.teamformres.d{background:#6b6b6b} .teamformpill.l,.teamformres.l{background:#a33a3a} .teamformlist{display:flex;flex-direction:column;gap:4px} .teamformrow{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;border-top:1px solid var(--line)} .teamformres{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:750;color:#fff;flex:0 0 20px} .teamformopp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .teamformscore{color:var(--mut);font-variant-numeric:tabular-nums} .teamdetailpage{max-width:1720px;margin:0 auto;padding:0 18px 34px}.teamdetailtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.teamdetailtop h2{margin:0;font-size:20px}.teamdetailgrid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:22px;align-items:start}.teamdetailprofile{position:sticky;top:78px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:16px}.teamhomegrid{display:grid;grid-template-columns:minmax(250px,.8fr) minmax(250px,.8fr) minmax(390px,1.25fr);gap:16px;align-items:start}.teamhomepanel{min-width:0;border:1px solid var(--line);border-radius:10px;background:rgba(18,21,27,.58);padding:12px}.teamhomepanel .colh{margin-bottom:8px}.teamhomeschedule{display:flex;flex-direction:column}.teamhomematch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 9px;padding:9px 2px;border-bottom:1px solid var(--line);cursor:pointer}.teamhomematch:last-child{border-bottom:0}.teamhomematch:hover .teamhometeams{color:var(--acc)}.teamhometeams{font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.teamhomescore{font-size:13px;font-weight:800}.teamhomemeta{grid-column:1/-1;color:var(--mut);font-size:10px}.teamstandingbadge{margin:0 0 13px;padding:11px;border:1px solid #355b42;border-radius:8px;background:rgba(43,112,67,.14)}.teamstandingbadge b{font-size:20px;margin-right:5px}.teamtablewrap{margin:0}.teamtable{width:100%;border-collapse:collapse;font-size:12px}.teamtable th{color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.teamtable th,.teamtable td{padding:8px 7px;border-bottom:1px solid var(--line);text-align:right}.teamtable th:nth-child(2),.teamtable td:nth-child(2){text-align:left}.teamtable tr.selected{background:rgba(43,112,67,.2);color:#dff5e6}.teamtablelogo{width:21px;height:21px;object-fit:contain;vertical-align:middle;margin-right:7px}@media(max-width:1250px){.teamhomegrid{grid-template-columns:1fr 1fr}.teamhomepanel.table{grid-column:1/-1}}@media(max-width:800px){.teamdetailgrid,.teamhomegrid{grid-template-columns:1fr}.teamdetailprofile{position:static}.teamhomepanel.table{grid-column:1}}
  @media(max-width:720px){.leaguepickergroups,.teamdetailgrid{grid-template-columns:1fr}.teamdetailprofile{position:static}}
  .teamfixturebroadcasts.hide{display:none}
  /* Per-profile Sports layouts. All variants reuse the same fixture cards,
@@ -7474,7 +7474,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </section>
 
   <section id="teamView" class="hide">
-    <div id="teamDetailPage" class="teamdetailpage"><div class="teamdetailtop"><button type="button" class="ghost" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><h2 id="teamDetailTitle"></h2></div><div class="teamdetailgrid"><aside id="teamDetailProfile" class="teamdetailprofile"></aside><div class="teamhomegrid"><section class="teamhomepanel"><div class="colh" data-i18n="Previous results">Previous results</div><div id="teamRecentFixtures" class="teamhomeschedule"></div></section><section class="teamhomepanel"><div class="colh" data-i18n="Upcoming fixtures">Upcoming fixtures</div><div id="teamDetailFixtures" class="teamhomeschedule"></div></section><section class="teamhomepanel table"><div id="teamTableWrap" class="teamtablewrap"></div></section></div></div></div>
+    <div id="teamDetailPage" class="teamdetailpage"><div class="teamdetailtop"><button type="button" class="ghost" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><h2 id="teamDetailTitle"></h2></div><div id="teamNextMatch" class="teamnextwrap"></div><div class="teamdetailgrid"><aside id="teamDetailProfile" class="teamdetailprofile"></aside><div class="teamhomegrid"><section class="teamhomepanel"><div class="colh" data-i18n="Form">Form</div><div id="teamFormStrip" class="teamformstrip"></div><div class="colh" style="margin-top:18px" data-i18n="Upcoming fixtures">Upcoming fixtures</div><div id="teamDetailFixtures" class="teamhomeschedule"></div></section><section class="teamhomepanel table"><div id="teamTableWrap" class="teamtablewrap"></div></section></div></div></div>
   </section>
 
   <section id="matchView" class="hide">
@@ -7753,7 +7753,7 @@ const _I18N={
   "Skip setup":"Hopp over oppsett","Back":"Tilbake","Next":"Neste","Run setup guide":"Kjør oppsettsveiviseren","Cancel":"Avbryt","Step":"Trinn","of":"av","Copied":"Kopiert","Copy this TVMate address:":"Kopier denne TVMate-adressen:",
   "Enter a profile name to continue.":"Skriv inn et profilnavn for å fortsette.","Enter a profile name.":"Skriv inn et profilnavn.","Profile saved.":"Profilen er lagret.","Could not save profile.":"Kunne ikke lagre profilen.","No favorite teams selected yet.":"Ingen favorittlag er valgt ennå.","Searching...":"Søker...","Add":"Legg til","No teams found.":"Fant ingen lag.","Could not search teams.":"Kunne ikke søke etter lag.","Favorite":"Favoritt","No results found.":"Fant ingen resultater.","Could not search.":"Kunne ikke søke.","Added":"Lagt til","Item":"Element","added to favorites.":"lagt til i favoritter.","Could not add favorite.":"Kunne ikke legge til favoritt.",
   "Ended matches":"Ferdige kamper","Ended":"Ferdig","Half-time":"Pause","Cancelled":"Avlyst","League table":"Ligatabell","Table information is not available.":"Tabellinformasjon er ikke tilgjengelig.","points":"poeng","Team":"Lag",
-  "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Today's matches":"Dagens kamper","Upcoming Fixtures":"Kommende kamper","Favorite team highlights":"Høydepunkter for favorittlag","Fixtures":"Kamper","Edit leagues & cups":"Rediger ligaer og cuper","Edit listings":"Rediger oppføringer","Leagues & cups":"Ligaer og cuper","Choose what appears in today's Sports timeline.":"Velg hva som vises i dagens sportstidslinje.","Recommended":"Anbefalt","Leagues saved.":"Ligaer lagret.","Could not load leagues.":"Kunne ikke laste ligaer.","Could not save leagues.":"Kunne ikke lagre ligaer.","Choose at least one league or cup.":"Velg minst én liga eller cup.","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper","No upcoming fixture":"Ingen kommende kamp","vs":"mot","at":"borte mot","LIVE":"DIREKTE",
+  "Live Matches":"Direktekamper","Today's Top Fixtures":"Dagens toppkamper","Today's matches":"Dagens kamper","Upcoming Fixtures":"Kommende kamper","Favorite team highlights":"Høydepunkter for favorittlag","Fixtures":"Kamper","Edit leagues & cups":"Rediger ligaer og cuper","Edit listings":"Rediger oppføringer","Leagues & cups":"Ligaer og cuper","Choose what appears in today's Sports timeline.":"Velg hva som vises i dagens sportstidslinje.","Recommended":"Anbefalt","Leagues saved.":"Ligaer lagret.","Could not load leagues.":"Kunne ikke laste ligaer.","Could not save leagues.":"Kunne ikke lagre ligaer.","Choose at least one league or cup.":"Velg minst én liga eller cup.","Show more matches":"Vis flere kamper","Show fewer matches":"Vis færre kamper","Search for a team...":"Søk etter et lag...","Find team or match":"Finn lag eller kamp","Refresh fixtures":"Oppdater kamper","Form":"Form","Next match":"Neste kamp","Playing now":"Spilles nå","Win":"Seier","Draw":"Uavgjort","Loss":"Tap","W":"S","D":"U","L":"T","No upcoming fixture":"Ingen kommende kamp","vs":"mot","at":"borte mot","LIVE":"DIREKTE",
   "Find a match":"Finn en kamp","Search a team to find its fixtures, TV coverage and matching channels.":"Søk etter et lag for å finne kamper, TV-dekning og matchende kanaler.","Search for a team, then choose Find fixtures when you want Matchfinder and TV results.":"Søk etter et lag, og velg deretter Finn kamper når du vil bruke Kampfinner og se TV-resultater.","Find team":"Finn lag","Search channels":"Søk kanaler","Find fixtures":"Finn kamper","Previous results":"Siste resultater","Upcoming fixtures":"Kommende kamper","No recent results found.":"Ingen nylige resultater funnet.","Refresh channel matches":"Oppdater kanaltreff","Refreshing channel matches...":"Oppdaterer kanaltreff...","Loading channel matches...":"Laster kanaltreff...","Channel matches refreshed.":"Kanaltreff er oppdatert.","Lower strictness only if a known channel is being missed.":"Senk treffnøyaktigheten bare hvis en kjent kanal ikke blir funnet.","Matches":"Kamper","Best team/event matches":"Beste lag-/arrangementstreff","Definite channel matches":"Sikre kanaltreff","Best match":"Beste treff","Show more channels":"Vis flere kanaler","Show fewer channels":"Vis færre kanaler","TV listed":"TV oppført","No TV":"Ingen TV","No matching channels":"Ingen matchende kanaler","channel":"kanal","channels":"kanaler",
   "Back to Sports":"Tilbake til Sport","Back to Racing":"Tilbake til Racing","Confirmed broadcasters for this event":"Bekreftede TV-kanaler for dette løpet","Rally days":"Rallydager","Try again":"Prøv igjen","Live coverage":"Direktedekning","Live updates":"Direkteoppdateringer","Live maps":"Direktekart","Live stream":"Direktestrøm","Entry list":"Deltakerliste","Itinerary":"Etappeplan","Refresh":"Oppdater","Refreshing...":"Oppdaterer...","Stages":"Etapper","stages":"etapper","Loading stages...":"Laster etapper...","No stage list published yet.":"Ingen etappeliste publisert ennå.","Could not load the stage list.":"Kunne ikke laste etappelisten.","Power Stage":"Power Stage","Running":"Pågår","Next":"Neste","Today":"I dag","Event detail":"Løpsdetaljer","Circuit":"Bane","Session":"Økt","Official page":"Offisiell side","Running now":"Pågår nå","Race":"Løp","No channels in your list match this event yet.":"Ingen kanaler i listen din matcher dette løpet ennå.","Confirmed broadcasters for this match":"Bekreftede TV-kanaler for denne kampen","No TV listings for this fixture.":"Ingen TV-oversikt for denne kampen.","Available channels":"Tilgjengelige kanaler","TV listings":"TV-oversikt","No channels in your list match this broadcaster.":"Ingen kanaler i listen din matcher denne TV-leverandøren.","Other TV providers":"Andre TV-leverandører","Other broadcaster listings":"Andre TV-oppføringer",
   "Teams":"Lag","My Sports":"Min sport","Shows":"Serier","Show":"Serie","Sports":"Sport","Movie":"Film","Formula 1":"Formel 1","Racing":"Racing","Choose F1 team":"Velg F1-lag","Live TV":"Live TV","Find Channels":"Finn kanaler","Find Categories":"Finn kategorier","Choose channels":"Velg kanaler","Empty channel slot":"Tom kanalplass","Choose a team to see details.":"Velg et lag for å se detaljer.","Home ground":"Hjemmebane","Head coach":"Hovedtrener","League":"Liga","Country":"Land",
@@ -8187,7 +8187,7 @@ function renderSelectedTeamProfile(profile){
   const facts=[['Home ground',profile.stadium||'—'],['Head coach',profile.coach||'—'],['League',profile.league||'—'],['Country',profile.country||'—']],standing=profile.standing||{};
   const next=selectedTeamNextFixture();let nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(tr('Next match'))+'</div><span class="muted">'+esc(tr('No upcoming fixture found.'))+'</span></div>';
   if(next){const kick=next.start?new Date(next.start):null,live=fixtureIsLive(next),recent=fixtureIsRecent(next),when=live?tr('Live now'):(kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'');nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(live?tr('Live now'):(recent?'Recent match':tr('Next match')))+'</div><b>'+esc(next.home||'')+' v '+esc(next.away||'')+'</b><span class="muted">'+esc(when)+(recent?' · ended':'')+(next.league_name?' · '+esc(next.league_name):'')+'</span></div>';}
-  el.innerHTML='<div class="teamprofilehero"><div class="teamprofilebadge">'+(src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</div><div class="teamprofileidentity"><h2>'+esc(profile.name||row.name)+'</h2><div class="muted">'+esc(meta||tr('Football'))+'</div></div></div>'+(standing.position?'<div class="teamstandingbadge"><b>'+esc(standing.position)+'.</b> '+esc(profile.league||tr('League'))+' · '+esc(standing.points)+' '+esc(tr('points'))+'</div>':'')+'<div class="teamprofilefacts">'+facts.map(f=>'<div class="teamprofilefact"><span>'+esc(tr(f[0]))+'</span><b title="'+escAttr(f[1])+'">'+esc(f[1])+'</b></div>').join('')+'</div>'+nextHtml;
+  el.innerHTML='<div class="teamprofilehero"><div class="teamprofilebadge">'+(src?'<img src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')+'</div><div class="teamprofileidentity"><h2>'+esc(profile.name||row.name)+'</h2><div class="muted">'+esc(meta||tr('Football'))+'</div></div></div>'+(standing.position?'<div class="teamstandingbadge"><b>'+esc(standing.position)+'.</b> '+esc(profile.league||tr('League'))+' · '+esc(standing.points)+' '+esc(tr('points'))+'</div>':'')+'<div class="teamprofilefacts">'+facts.map(f=>'<div class="teamprofilefact"><span>'+esc(tr(f[0]))+'</span><b title="'+escAttr(f[1])+'">'+esc(f[1])+'</b></div>').join('')+'</div>';
   renderSelectedTeamTable(profile);
 }
 function renderSelectedTeamTable(profile){const el=document.getElementById('teamTableWrap');if(!el)return;const rows=(profile&&profile.table)||[];if(!rows.length){el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><span class="muted">'+esc(tr('Table information is not available.'))+'</span>';return;}const selected=String((profile.standing||{}).team_id||profile.team_id||'');el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><div style="overflow-x:auto"><table class="teamtable"><thead><tr><th>#</th><th>'+esc(tr('Team'))+'</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>PTS</th></tr></thead><tbody>'+rows.map(row=>'<tr class="'+(String(row.team_id||'')===selected?'selected':'')+'"><td>'+esc(row.position)+'</td><td>'+(row.team_id?'<img class="teamtablelogo" src="/api/team_logo?id='+encodeURIComponent(row.team_id)+'" alt="" loading="lazy" onerror="this.remove()">':'')+esc(row.name)+'</td><td>'+esc(row.played)+'</td><td>'+esc(row.won)+'</td><td>'+esc(row.drawn)+'</td><td>'+esc(row.lost)+'</td><td>'+esc(row.goal_difference)+'</td><td><b>'+esc(row.points)+'</b></td></tr>').join('')+'</tbody></table></div>';}
@@ -8195,12 +8195,70 @@ function teamHomeFixtureHtml(f,finished){
   const kick=f.start?new Date(f.start):null,when=kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'',score=finished&&f.home_score!==''&&f.away_score!==''?esc(f.home_score)+'–'+esc(f.away_score):'';
   return '<div class="teamhomematch" data-fixture-card="1" data-event-key="'+escAttr(sportsFixtureKey(f))+'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(_selectedTeamName||f.home||'')+'"><span class="teamhometeams">'+esc(f.home||'')+' v '+esc(f.away||'')+'</span><span class="teamhomescore">'+score+'</span><span class="teamhomemeta">'+esc(when)+(f.league_name?' · '+esc(f.league_name):'')+'</span></div>';
 }
+// Was this finished fixture a win, draw or loss for the team on screen?
+function teamResultFor(f,name){
+  const hs=Number(f.home_score),as=Number(f.away_score);
+  if(!Number.isFinite(hs)||!Number.isFinite(as))return '';
+  const home=_teamNamesEquivalentForUi(f.home,name);
+  if(hs===as)return 'D';
+  return (hs>as)===home?'W':'L';
+}
+// FotMob-style form guide: the last five results as pills, newest last, with
+// the score and opponent on hover.
+function renderTeamForm(past){
+  const el=document.getElementById('teamFormStrip');
+  if(!el)return;
+  const rows=past.slice(0,5).reverse();
+  const pills=rows.map(function(f){
+    const res=teamResultFor(f,_selectedTeamName);
+    if(!res)return '';
+    const other=_teamNamesEquivalentForUi(f.home,_selectedTeamName)?f.away:f.home;
+    const score=String(f.home_score)+'-'+String(f.away_score);
+    const label=tr(res==='W'?'Win':(res==='D'?'Draw':'Loss'));
+    return '<span class="teamformpill '+res.toLowerCase()+'" title="'+escAttr(label+' '+score+' v '+(other||''))+'">'+esc(tr(res))+'</span>';
+  }).filter(Boolean).join('');
+  if(!pills){el.innerHTML='<span class="muted">'+esc(tr('No recent results found.'))+'</span>';return;}
+  const detail=rows.map(function(f){
+    const res=teamResultFor(f,_selectedTeamName);
+    if(!res)return '';
+    const other=_teamNamesEquivalentForUi(f.home,_selectedTeamName)?f.away:f.home;
+    return '<div class="teamformrow"><span class="teamformres '+res.toLowerCase()+'">'+esc(tr(res))+'</span>'
+      +'<span class="teamformopp">'+esc(other||'')+'</span>'
+      +'<span class="teamformscore">'+esc(String(f.home_score)+'\u2013'+String(f.away_score))+'</span></div>';
+  }).filter(Boolean).join('');
+  el.innerHTML='<div class="teamformpills">'+pills+'</div><div class="teamformlist">'+detail+'</div>';
+}
+// The single most useful thing on a team page: what is next, and when.
+function renderTeamNextMatch(f){
+  const el=document.getElementById('teamNextMatch');
+  if(!el)return;
+  if(!f){el.innerHTML='';return;}
+  const home=_teamNamesEquivalentForUi(f.home,_selectedTeamName);
+  const other=home?f.away:f.home,otherId=home?f.away_id:f.home_id;
+  const ownId=home?f.home_id:f.away_id;
+  const kick=f.start?new Date(f.start):null;
+  const when=kick&&!Number.isNaN(kick.getTime())
+    ? kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}):'';
+  const live=fixtureIsLive(f);
+  const countdown=live?tr('LIVE'):(racingCountdown({start:f.start})||'');
+  const crest=id=>id?'<img class="teamnextcrest" src="/api/team_logo?id='+encodeURIComponent(id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+  el.innerHTML='<div class="teamnext'+(live?' live':'')+'" data-fixture-card="1" data-event-key="'+escAttr(sportsFixtureKey(f))
+    +'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'">'
+    +'<div class="teamnextlabel">'+esc(live?tr('Playing now'):tr('Next match'))+'</div>'
+    +'<div class="teamnextteams">'+crest(ownId)+'<span class="teamnextname">'+esc(home?f.home:f.away)+'</span>'
+    +'<span class="teamnextvs">'+esc(home?tr('vs'):tr('at'))+'</span>'
+    +'<span class="teamnextname">'+esc(other||'')+'</span>'+crest(otherId)+'</div>'
+    +'<div class="teamnextmeta">'+esc([f.league_name,when].filter(Boolean).join(' \u00b7 '))+'</div>'
+    +(countdown?'<div class="teamnextcount'+(live?' live':'')+'">'+esc(countdown)+'</div>':'')
+    +'</div>';
+}
 function renderSelectedTeamHome(profile){
-  const recentEl=document.getElementById('teamRecentFixtures'),upcomingEl=document.getElementById('teamDetailFixtures');if(!recentEl||!upcomingEl)return;
+  const upcomingEl=document.getElementById('teamDetailFixtures');if(!upcomingEl)return;
   const supplied=(profile&&profile.fixtures)||[],fallback=_myTeamFixtures.filter(f=>fixtureBelongsToTeam(f,_selectedTeamName)),rows=(supplied.length?supplied:fallback).slice(),now=Date.now();
   const past=rows.filter(f=>{const ts=f.start?new Date(f.start).getTime():NaN;return f.is_finished===true||(!f.is_live&&Number.isFinite(ts)&&ts<now-2*60*60*1000);}).sort((a,b)=>new Date(b.start||0)-new Date(a.start||0)).slice(0,7);
   const upcoming=rows.filter(f=>{const ts=f.start?new Date(f.start).getTime():NaN;return f.is_live||(!f.is_finished&&Number.isFinite(ts)&&ts>=now-2*60*60*1000);}).sort((a,b)=>new Date(a.start||0)-new Date(b.start||0)).slice(0,7);
-  recentEl.innerHTML=past.length?past.map(f=>teamHomeFixtureHtml(f,true)).join(''):'<span class="muted">'+esc(tr('No recent results found.'))+'</span>';
+  renderTeamForm(past);
+  renderTeamNextMatch(upcoming[0]);
   upcomingEl.innerHTML=upcoming.length?upcoming.map(f=>teamHomeFixtureHtml(f,false)).join(''):'<span class="muted">'+esc(tr('No upcoming fixtures found.'))+'</span>';
   _sportsVisibleFixtures=upcoming;loadSportsAvailability(false);renderSelectedTeamTable(profile||{});
 }
@@ -11149,10 +11207,14 @@ document.addEventListener('click',function(e){
   if(teamFav){selectMyTeam(teamFav.getAttribute('data-team-search')||'',teamFav.getAttribute('data-team-id')||'',teamFav.getAttribute('data-team-logo')||'');return;}
   const teamStar=e.target.closest('.teamstar');
   if(teamStar){toggleTeamFavorite(teamStar.getAttribute('data-team-name'),teamStar,teamStar.getAttribute('data-team-id'));return;}
-  // Clicking anywhere outside the finder dismisses a stale result list.
+  // Clicking anywhere outside a search box dismisses its stale result list.
   if(!e.target.closest('.teammatchfinder')){
     const stale=document.getElementById('teamSearchResults');
     if(stale&&stale.innerHTML){const box=document.getElementById('q');if(!box||!box.value.trim())stale.innerHTML='';}
+  }
+  if(!e.target.closest('.sportschannelsearchbar')){
+    const chan=document.getElementById('sportsChannelResults');
+    if(chan&&chan.innerHTML)chan.innerHTML='';
   }
   const teamSearchHit=e.target.closest('.teamsearchhit[data-team-select]');
   if(teamSearchHit){const pickedName=teamSearchHit.getAttribute('data-team-select')||'',pickedId=teamSearchHit.getAttribute('data-team-id')||'';clearSportsSearch();selectMyTeam(pickedName,pickedId,'');return;}
@@ -15150,7 +15212,11 @@ def run_self_tests():
           standing.get("name") == "Crystal Palace" and standing.get("points") == 7 and
           len(league_table) == 2 and "teamTableWrap" in PAGE and
           "renderSelectedTeamTable(profile)" in PAGE and
-          'id="teamRecentFixtures"' in PAGE and 'id="teamDetailFixtures"' in PAGE and
+          # Recent results are now a form guide, with the next match as a hero.
+          'id="teamFormStrip"' in PAGE and 'id="teamDetailFixtures"' in PAGE and
+          'id="teamNextMatch"' in PAGE and
+          "function renderTeamForm(past)" in PAGE and
+          "function renderTeamNextMatch(f)" in PAGE and
           "function renderSelectedTeamHome(profile)" in PAGE and
           ".slice(0,7)" in PAGE and
           'profile["fixtures"] = fixtures' in open(__file__, encoding="utf-8").read() and
