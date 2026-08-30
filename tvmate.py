@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b514"
+VERSION = "0.777.b515"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -1836,11 +1836,16 @@ def _tvmaze_episode_schedule(show_name, year="", force=False):
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
                 cached = json.load(f) or {}
-            if now - float(cached.get("checked_at") or 0) < 24 * 3600:
+            # A good answer is cached for a day. A failed or empty lookup is kept
+            # for minutes only: caching those for 24 hours meant one flaky first
+            # request on a fresh install hid upcoming episodes for a whole day.
+            ttl = 24 * 3600 if cached.get("ok") else 15 * 60
+            if now - float(cached.get("checked_at") or 0) < ttl:
                 return cached.get("schedule") or {"latest": {}, "upcoming": {}}
         except Exception:
             pass
     schedule = {"latest": {}, "upcoming": {}}
+    lookup_ok = True
     try:
         results = http_get_json("https://api.tvmaze.com/search/shows?" +
                                 urllib.parse.urlencode({"q": clean}), timeout=12)
@@ -1900,14 +1905,22 @@ def _tvmaze_episode_schedule(show_name, year="", force=False):
                     "season": season, "episode_num": number,
                     "title": str(ep.get("name") or f"Episode {number}"),
                     "airdate": airdate, "airstamp": str(ep.get("airstamp") or "")}
-    except Exception:
+    except Exception as exc:
         schedule = {"latest": {}, "upcoming": {}}
-    try:
-        os.makedirs(cache_dir, exist_ok=True)
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump({"checked_at": now, "schedule": schedule}, f, indent=2)
-    except Exception:
-        pass
+        lookup_ok = False
+        # Surface it in Source health instead of failing silently.
+        _record_source("tvmaze", False, error=exc)
+    # A failed lookup is never cached, so the next request retries immediately
+    # once the network recovers. A successful but empty answer (a show TVMaze
+    # does not carry) is cached briefly so we do not re-ask on every page load.
+    if lookup_ok:
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump({"checked_at": now, "ok": bool(schedule.get("latest")),
+                           "schedule": schedule}, f, indent=2)
+        except Exception:
+            pass
     return schedule
 
 def _tvmaze_season_covers(show_name, year=""):
