@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b530"
+VERSION = "0.777.b531"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2055,6 +2055,54 @@ _F1_SCHEDULE_CACHE = {"ts": 0, "events": []}
 _F1_TEAMS_CACHE = {"ts": 0, "teams": []}
 _F1_LIVE_CACHE = {}
 _F1_TTL = 7 * 24 * 3600
+_GOLF_CACHE = {"ts": 0, "events": []}
+
+def get_golf_events(force=False):
+    if not force and _GOLF_CACHE["events"] and time.time()-_GOLF_CACHE["ts"] < 300:
+        return _GOLF_CACHE["events"]
+    tours = (("pga", "PGA Tour"), ("lpga", "LPGA"), ("eur", "DP World Tour"), ("liv", "LIV Golf"))
+    events = []
+    for slug, label in tours:
+        try:
+            data = http_get_json(f"https://site.api.espn.com/apis/site/v2/sports/golf/{slug}/scoreboard", timeout=12)
+        except Exception:
+            continue
+        for event in (data.get("events") or []):
+            comp = ((event.get("competitions") or [{}])[0] or {})
+            status = (comp.get("status") or event.get("status") or {})
+            competitors = []
+            for row in (comp.get("competitors") or []):
+                athlete = row.get("athlete") or row.get("team") or {}
+                competitors.append({"name": athlete.get("displayName") or athlete.get("shortName") or "",
+                                    "position": row.get("order") or row.get("position"),
+                                    "score": row.get("score") or row.get("displayScore") or "",
+                                    "status": row.get("status") or ""})
+            competitors.sort(key=lambda r: int(r.get("position") or 9999))
+            events.append({"id": str(event.get("id") or ""), "tour": slug, "tour_name": label,
+                           "name": event.get("name") or event.get("shortName") or "Golf tournament",
+                           "start": event.get("date") or comp.get("date") or "",
+                           "status": ((status.get("type") or {}).get("detail") or
+                                      (status.get("type") or {}).get("description") or ""),
+                           "live": bool((status.get("type") or {}).get("state") == "in"),
+                           "leaderboard": competitors[:30]})
+    events.sort(key=lambda row: (not row["live"], row.get("start") or ""))
+    _GOLF_CACHE.update({"ts": time.time(), "events": events})
+    return events
+
+def golf_channel_matches(event, cfg):
+    x = Xtream(cfg)
+    if not x.configured(): return []
+    channels, cats = get_xtream_channels(cfg)
+    words = {"golf", str(event.get("tour") or "").lower()}
+    title_words = set(normalise(event.get("name") or "").split())
+    out = []
+    for ch in channels:
+        text = normalise((ch.get("name") or "") + " " + cats.get(ch.get("category_id"), ""))
+        if "golf" not in text and not any(w in text for w in title_words if len(w)>4): continue
+        out.append({"stream_id": ch.get("stream_id"), "xtream_name": ch.get("name"),
+                    "url": x.stream_url(ch.get("stream_id")), "category": cats.get(ch.get("category_id"), ""),
+                    "match_kind": "series", "quality": quality_tag(ch.get("name") or "")})
+    return out[:40]
 _CINEMETA_CACHE = {}
 _CINEMETA_TTL = 6 * 3600
 _CINEMETA_CATALOG_TTL = 24 * 3600
@@ -7288,6 +7336,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <a id="navShows" onclick="showShows()" data-i18n="Shows">Shows</a>
   <a id="navGames" onclick="showGames()" data-i18n="Games">Games</a>
   <a id="navRacing" onclick="showRacing()" data-i18n="Racing">Racing</a>
+  <a id="navGolf" onclick="showGolf()">Golf</a>
   <a id="navTeams" onclick="showTeams()" data-i18n="Sports">Sports</a>
   <a id="navSettings" onclick="showSettings()" data-i18n="Settings">Settings</a>
   <span id="slogan" class="slogan"></span>
@@ -7319,6 +7368,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
    <button data-mobile-target="navShows" onclick="mobileGo(showShows)"><span>&#128250;</span><span data-i18n="Shows">Shows</span></button>
    <button data-mobile-target="navGames" onclick="mobileGo(showGames)"><span>&#127918;</span><span data-i18n="Games">Games</span></button>
    <button data-mobile-target="navRacing" onclick="mobileGo(showRacing)"><span>&#127950;</span><span data-i18n="Racing">Racing</span></button>
+   <button data-mobile-target="navGolf" onclick="mobileGo(showGolf)"><span>&#9971;</span><span>Golf</span></button>
    <button data-mobile-target="navSettings" onclick="mobileGo(showSettings)"><span>&#9881;</span><span data-i18n="Settings">Settings</span></button>
    <button data-mobile-target="navMytimeline" onclick="mobileGo(showMytimeline)"><span>&#128336;</span><span data-i18n="Timeline">Timeline</span></button>
   </div>
@@ -7400,7 +7450,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div><label data-i18n="Profile name">Profile name</label><input id="ep_name" type="text"></div>
       <div><label data-i18n="Preferred language">Preferred language</label><select id="ep_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
       <div class="full"><label data-i18n="Emblem">Emblem</label><div id="ep_emblems" class="setupemblems"></div></div>
-      <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="Profile">Profile</option><option value="mytimeline" data-i18n="Timeline">Timeline</option><option value="channels" data-i18n="Playlists">Playlists</option><option value="mytv" data-i18n="Live TV">Live TV</option><option value="movies" data-i18n="Movies">Movies</option><option value="shows" data-i18n="Shows">Shows</option><option value="games" data-i18n="Games">Games</option><option value="racing" data-i18n="Racing">Racing</option><option value="teams" data-i18n="Sports">Sports</option></select></div>
+      <div><label data-i18n="Default start section">Default start section</label><select id="ep_start"><option value="mylist" data-i18n="Profile">Profile</option><option value="mytimeline" data-i18n="Timeline">Timeline</option><option value="channels" data-i18n="Playlists">Playlists</option><option value="mytv" data-i18n="Live TV">Live TV</option><option value="movies" data-i18n="Movies">Movies</option><option value="shows" data-i18n="Shows">Shows</option><option value="games" data-i18n="Games">Games</option><option value="racing" data-i18n="Racing">Racing</option><option value="golf">Golf</option><option value="teams" data-i18n="Sports">Sports</option></select></div>
       <div><label data-i18n="Profile layout">Profile layout</label><select id="ep_layout"><option value="timeline">Now Timeline</option><option value="balanced">Balanced</option><option value="spotlight">Spotlight</option><option value="hub">Profile Hub</option></select></div>
       <div><label data-i18n="Sports layout">Sports layout</label><select id="ep_sportslayout"><option value="current" data-i18n="Current Sports">Current</option><option value="broadcast" data-i18n="Broadcast Deck">Broadcast Deck</option><option value="agenda" data-i18n="TV Agenda">TV Agenda</option><option value="hub" data-i18n="Sports Hub">Sports Hub</option><option value="timeline" data-i18n="Timeline Rail">Timeline Rail</option></select></div>
       <div><label data-i18n="Match page layout">Match page layout</label><select id="ep_matchlayout"><option value="balanced" data-i18n="Balanced">Balanced</option><option value="channel-first" data-i18n="Channel first">Channel first</option><option value="live-centre" data-i18n="Live centre">Live centre</option></select></div>
@@ -7636,6 +7686,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     </div>
   </section>
 
+  <section id="golfView" class="hide"><div class="racingwrap"><h2>Golf</h2><div class="muted">Live and upcoming tournaments</div><div id="golfTours" class="racingseries"></div><div id="golfEvents" class="racinggrid" style="margin-top:16px"><span class="muted">Loading...</span></div></div></section>
+
   <section id="teamsView" class="hide">
     <div id="sportsHubPage" class="teamswrap">
       <aside class="teamfavs">
@@ -7683,7 +7735,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </section>
 
   <section id="raceView" class="hide">
-    <div class="matchdetailtop"><div class="row"><button type="button" class="ghost" onclick="closeRacePage()">&#8592; <span data-i18n="Back to Racing">Back to Racing</span></button></div><div class="row"><button id="raceRefreshBtn" type="button" class="ghost" onclick="refreshRaceChannels(this)">&#8635; <span id="raceRefreshLabel">Refresh</span></button></div></div>
+    <div class="matchdetailtop"><div class="row"><button type="button" class="ghost" onclick="closeRacePage()">&#8592; <span id="raceBackLabel" data-i18n="Back to Racing">Back to Racing</span></button></div><div class="row"><button id="raceRefreshBtn" type="button" class="ghost" onclick="refreshRaceChannels(this)">&#8635; <span id="raceRefreshLabel">Refresh</span></button></div></div>
     <div id="racePageContent" class="matchdetailpage"></div>
   </section>
 
@@ -7723,7 +7775,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
           <div><label data-i18n="Preferred language">Preferred language</label>
             <select id="s_lang"><option value="en">English</option><option value="no">Norsk</option></select></div>
           <div><label data-i18n="Default start section">Default start section</label>
-            <select id="s_start"><option value="mylist">Profile</option><option id="startTimelineOption" value="mytimeline">Timeline</option><option value="channels">Playlists</option><option value="mytv">Live TV</option><option value="movies">Movies</option><option value="shows">Shows</option><option id="startGamesOption" value="games">Games</option><option id="startRacingOption" value="racing">Racing</option><option value="teams">Sports</option></select></div>
+            <select id="s_start"><option value="mylist">Profile</option><option id="startTimelineOption" value="mytimeline">Timeline</option><option value="channels">Playlists</option><option value="mytv">Live TV</option><option value="movies">Movies</option><option value="shows">Shows</option><option id="startGamesOption" value="games">Games</option><option id="startRacingOption" value="racing">Racing</option><option value="golf">Golf</option><option value="teams">Sports</option></select></div>
           <div><label data-i18n="Background style">Background style</label><select id="s_background"><option value="float" data-i18n="Floating pancakes & TVs">Floating pancakes &amp; TVs</option><option value="ascii">ASCII TVMate</option><option value="off" data-i18n="Off">Off</option></select></div>
         </div>
         <div style="margin-top:14px"><button type="button" class="ghost" onclick="openProfileSetup(false)" data-i18n="Run setup guide">Run setup guide</button></div>
@@ -7919,7 +7971,7 @@ function initPlPancakes(){applyBackgroundStyle(_backgroundStyle);}
 function openMobileMore(){const el=document.getElementById('mobileMore');if(el)el.classList.remove('hide');}
 function closeMobileMore(){const el=document.getElementById('mobileMore');if(el)el.classList.add('hide');}
 function mobileGo(fn){closeMobileMore();if(typeof fn==='function')fn();}
-function setNav(id){let active=null;const ids=['navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navTeams','navSettings'];ids.forEach(function(n){const el=document.getElementById(n);if(el){el.classList.toggle('on',n===id);if(n===id)active=el;}});const primary={navMylist:'mobileNavMylist',navChannels:'mobileNavChannels',navMytv:'mobileNavMytv',navTeams:'mobileNavTeams'},primaryId=primary[id]||'mobileNavMore';document.querySelectorAll('.mobilenav button').forEach(btn=>btn.classList.toggle('on',btn.id===primaryId));document.querySelectorAll('[data-mobile-target]').forEach(btn=>btn.classList.toggle('on',btn.dataset.mobileTarget===id));const title=document.getElementById('mobilePageTitle');if(title)title.textContent=active?active.textContent.trim():'Olo’s TVMate';closeMobileMore();}
+function setNav(id){let active=null;const ids=['navChannels','navMylist','navMytimeline','navMytv','navMovies','navShows','navGames','navRacing','navGolf','navTeams','navSettings'];ids.forEach(function(n){const el=document.getElementById(n);if(el){el.classList.toggle('on',n===id);if(n===id)active=el;}});const primary={navMylist:'mobileNavMylist',navChannels:'mobileNavChannels',navMytv:'mobileNavMytv',navTeams:'mobileNavTeams'},primaryId=primary[id]||'mobileNavMore';document.querySelectorAll('.mobilenav button').forEach(btn=>btn.classList.toggle('on',btn.id===primaryId));document.querySelectorAll('[data-mobile-target]').forEach(btn=>btn.classList.toggle('on',btn.dataset.mobileTarget===id));const title=document.getElementById('mobilePageTitle');if(title)title.textContent=active?active.textContent.trim():'Olo’s TVMate';closeMobileMore();}
 const _SLOGANS={
   search:["Find the match. Pick a channel. Pour the syrup."],
   mytv:["A little syrup makes channel surfing sweeter.","Fixtures, flicks & fluffy stacks.","Streaming with suspicious amounts of syrup."],
@@ -8081,7 +8133,7 @@ function hideAll(keepMytv){
   const pipPlayback=!!(_popupPipActive||popupPipVideo());
   const layoutPlayback=hasPlayback&&!pipPlayback;
   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!pipPlayback&&!mytvView.classList.contains('hide'));
-  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');teamView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();stopF1LiveTracking();stopWrcLiveTracking();updateProfileName(_profileConfig.profile_name);
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');golfView.classList.add('hide');teamsView.classList.add('hide');teamView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();stopF1LiveTracking();stopWrcLiveTracking();updateProfileName(_profileConfig.profile_name);
   if(!keepMytv&&layoutPlayback){
     if(leavingLiveTv)tvSetMini(true);
     document.body.classList.add('tvsectionplay');
@@ -8101,6 +8153,12 @@ function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
+let _golfEvents=[],_golfTours=new Set(['pga','eur','lpga','liv']);
+function showGolf(){rememberLocation('golf');hideAll();golfView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGolf');setSlogan('mylist');loadGolf();}
+function renderGolf(){const tours=[['pga','PGA Tour'],['eur','DP World Tour'],['lpga','LPGA'],['liv','LIV Golf']];golfTours.innerHTML=tours.map(t=>'<button class="racingtoggle'+(_golfTours.has(t[0])?' on':'')+'" data-golf-tour="'+escAttr(t[0])+'" onclick="toggleGolfTour(this.dataset.golfTour)">'+esc(t[1])+'</button>').join('');const rows=_golfEvents.filter(e=>_golfTours.has(e.tour));golfEvents.innerHTML=rows.length?rows.map((e,i)=>'<div class="racingcard" onclick="openGolfEvent('+_golfEvents.indexOf(e)+')" style="cursor:pointer"><h3>'+esc(e.tour_name)+'</h3><div class="racingevent"><div class="racingeventtop"><b>'+esc(e.name)+'</b>'+(e.live?'<span class="cc racingeventtv">LIVE</span>':'')+'</div><div class="moviemeta">'+esc(e.status||new Date(e.start).toLocaleDateString())+'</div>'+(e.leaderboard&&e.leaderboard.length?'<div class="moviemeta" style="margin-top:7px">Leader: '+esc(e.leaderboard[0].name||'')+' '+esc(e.leaderboard[0].score||'')+'</div>':'')+'</div></div>').join(''):'<span class="muted">No live or upcoming tournaments found.</span>';}
+function toggleGolfTour(key){if(_golfTours.has(key))_golfTours.delete(key);else _golfTours.add(key);renderGolf();}
+async function loadGolf(){golfEvents.innerHTML='<span class="muted">Loading golf tournaments...</span>';try{const r=await api('/api/golf');_golfEvents=r.events||[];renderGolf();}catch(e){golfEvents.innerHTML='<span class="err">Could not load golf tournaments.</span>';}}
+function openGolfEvent(index){const g=_golfEvents[index];if(!g)return;showRacePage({series:'golf',series_name:g.tour_name,race:g.name,session:g.status,start:g.start,channels:g.channels||[],leaderboard:g.leaderboard||[],golf_event:g});}
 function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');applySportsLayout();document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));else if(_sportsReturnScroll)Promise.resolve(loading).finally(()=>{const y=_sportsReturnScroll;_sportsReturnScroll=0;requestAnimationFrame(()=>window.scrollTo(0,y));});}
 function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
 function showMytimeline(){rememberLocation('mytimeline');hideAll();mytimelineView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMytimeline');setSlogan('mylist');loadFavorites();}
@@ -8729,6 +8787,7 @@ function toggleMatchBroadcasters(btn){
 // ---------------------------------------------------------------------------
 let _raceEvent=null;
 function raceEventIsLive(ev,now){
+  if(ev&&String(ev.series||'')==='golf'&&ev.golf_event)return !!ev.golf_event.live;
   if(!ev||!ev.start)return false;
   const start=new Date(ev.start).getTime();
   if(!Number.isFinite(start))return false;
@@ -8760,6 +8819,7 @@ function f1WeekendPanel(ev){
 }
 function raceCentreExtras(ev){
   const series=String(ev.series||'');
+  if(series==='golf'){const rows=ev.leaderboard||[];return '<div class="matchdetailpanel"><h3>Leaderboard</h3>'+(rows.length?'<table class="teamtable"><thead><tr><th>#</th><th>Player</th><th>Score</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.position||'')+'</td><td>'+esc(r.name||'')+'</td><td><b>'+esc(r.score||'')+'</b></td></tr>').join('')+'</tbody></table>':'<span class="muted">Leaderboard is not available yet.</span>')+'</div>';}
   if(series==='f1')return f1WeekendPanel(ev);
   if(series==='wrc'){
     // Filled in asynchronously by loadWrcItinerary() once the stage list arrives.
@@ -8935,10 +8995,11 @@ function showRacePage(ev){
   hideAll();
   document.getElementById('raceView').classList.remove('hide');
   document.querySelector('main').classList.add('wide');
-  setNav('navRacing');setSlogan('mylist');
+  setNav(String(ev.series||'')==='golf'?'navGolf':'navRacing');setSlogan('mylist');
+  const backLabel=document.getElementById('raceBackLabel');if(backLabel)backLabel.textContent=String(ev.series||'')==='golf'?'Back to Golf':tr('Back to Racing');
   _wrcLiveDays=[];renderRacePage();if(String(ev.series||'')==='f1')pollF1Live();else if(String(ev.series||'')==='wrc')startWrcLiveTracking();window.scrollTo(0,0);
 }
-function closeRacePage(){if(history.state&&history.state.section==='race')history.back();else showRacing();}
+function closeRacePage(){if(history.state&&history.state.section==='race')history.back();else if(_raceEvent&&_raceEvent.series==='golf')showGolf();else showRacing();}
 // The refresh is scoped to this event's series, so it stays quick and leaves
 // the other series' cached matches alone.
 function raceRefreshLabel(ev){
@@ -11588,7 +11649,7 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
   try{const c=await api('/api/config');startupConfig=c;start=c.start_section||'mylist';checkShows=!!c.check_shows_on_startup;refreshIptv=!!c.refresh_iptv_on_startup;refreshSports=!!c.refresh_sports_on_startup;setLang(c.preferred_language||'en');applyProfileConfig(c);if(start==='teams'&&!_footballEnabled)start='mylist';if(start==='games'&&!_gamesEnabled)start='mylist';if(start==='racing'&&!_f1Enabled)start='mylist';}catch(e){}
   if(start==='search')start='channels'; // migrate the removed Search section
   if(start==='mytimeline'&&_myListLayout==='timeline')start='mylist';
-  const map={channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings};
+  const map={channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,golf:showGolf,teams:showTeams,mylist:showMylist,mytimeline:showMytimeline,settings:showSettings};
   // Reloading (F5) should leave you where you were, not bounce you back to the
   // configured start section. The hash is kept current by rememberLocation.
   try{
@@ -11618,7 +11679,7 @@ try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else
 window.addEventListener('popstate',function(ev){
   const state=ev.state;
   if(!state||!state.tvmate)return;
-  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,teams:showTeams,team:function(){showTeams();Promise.resolve(loadMyTeams()).finally(function(){const name=String(state.teamName||_selectedTeamName||''),row=_favTeamRows.find(t=>String(t.name).toLowerCase()===name.toLowerCase())||{name:name,team_id:'',logo:''};_selectedTeamName=name;_selectedTeamRow=row;loadSelectedTeamProfile(row);openTeamDetail(false);});},mylist:showMylist,mytimeline:showMytimeline,settings:showSettings,race:function(){const ev=_racingEventRows.find(r=>racingAvailabilityKey(r)===state.eventKey)||_raceEvent;if(ev)showRacePage(ev);else showRacing();},match:function(){const fixture=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===state.eventKey)||_matchFixture;if(fixture)showMatchPage(fixture);else showTeams();}};
+  const map={search:showChannels,channels:showChannels,mytv:showMytv,movies:showMovies,shows:showShows,games:showGames,racing:showRacing,golf:showGolf,teams:showTeams,team:function(){showTeams();Promise.resolve(loadMyTeams()).finally(function(){const name=String(state.teamName||_selectedTeamName||''),row=_favTeamRows.find(t=>String(t.name).toLowerCase()===name.toLowerCase())||{name:name,team_id:'',logo:''};_selectedTeamName=name;_selectedTeamRow=row;loadSelectedTeamProfile(row);openTeamDetail(false);});},mylist:showMylist,mytimeline:showMytimeline,settings:showSettings,race:function(){const ev=(_golfEvents||[]).find(r=>racingAvailabilityKey(r)===state.eventKey)||_racingEventRows.find(r=>racingAvailabilityKey(r)===state.eventKey)||_raceEvent;if(ev)showRacePage(ev);else showRacing();},match:function(){const fixture=_sportsVisibleFixtures.find(f=>sportsFixtureKey(f)===state.eventKey)||_matchFixture;if(fixture)showMatchPage(fixture);else showTeams();}};
   const fn=map[state.section]||showMylist;
   _historyRestoring=true;
   try{
@@ -12073,6 +12134,12 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def _get_racing_api(self, path, q):
+        if path == "/api/golf":
+            events = get_golf_events(force=(q.get("force", [""])[0] == "1"))
+            cfg = load_config()
+            for event in events:
+                event["channels"] = golf_channel_matches(event, cfg)
+            return self._send(200, {"events": events})
         if path == "/api/f1_schedule":
             return self._send(200, {"events": get_f1_schedule()})
         if path == "/api/racing":
@@ -12222,7 +12289,7 @@ class Handler(BaseHTTPRequestHandler):
                     "Set-Cookie": "tvmate_view=desktop; Path=/; SameSite=Strict",
                 })
 
-            if u.path in {"/api/f1_schedule", "/api/f1_live", "/api/racing", "/api/racing_availability",
+            if u.path in {"/api/golf", "/api/f1_schedule", "/api/f1_live", "/api/racing", "/api/racing_availability",
                            "/api/racing_drivers", "/api/racing_driver_image",
                            "/api/wrc_itinerary",
                            "/api/f1_teams", "/api/f1_team_logo"}:
@@ -14002,7 +14069,7 @@ class Handler(BaseHTTPRequestHandler):
             cfg["sports_competitions"] = _selected_competition_keys(cfg.get("sports_competitions"))
             if cfg.get("match_layout") not in ("balanced", "channel-first", "live-centre"):
                 cfg["match_layout"] = "live-centre"
-            allowed_starts = ("mylist", "mytimeline", "channels", "mytv", "movies", "shows", "games", "racing", "teams")
+            allowed_starts = ("mylist", "mytimeline", "channels", "mytv", "movies", "shows", "games", "racing", "golf", "teams")
             if cfg.get("start_section") not in allowed_starts:
                 cfg["start_section"] = "mylist"
             if "background_style" not in payload and "decorations_enabled" in payload:
@@ -16311,6 +16378,14 @@ def run_self_tests():
           "return (weekend.length?weekend:rows).slice(0,6)" in PAGE and
           "racingVisibleSeriesEvents(groups.get(row[0])||[],row[0],4)" in PAGE and
           "racingVisibleSeriesEvents(rows.sort((a,b)=>a.ts-b.ts),series,3)" in PAGE)
+    check("Golf has tours, live events, channels, leaderboard and shared Race Centre",
+          'id="navGolf"' in PAGE and 'id="golfView"' in PAGE and
+          "function showGolf()" in PAGE and "function loadGolf()" in PAGE and
+          "'/api/golf'" in PAGE and 'path == "/api/golf"' in source_text and
+          "golf_channel_matches(event, cfg)" in source_text and
+          "if(series==='golf'){const rows=ev.leaderboard||[]" in PAGE and
+          "showRacePage({series:'golf'" in PAGE and
+          "golf:showGolf" in PAGE and 'value="golf"' in PAGE)
     check("restart requires dev mode and waits for a new process instance",
           'if not bool(load_config().get("dev_mode"))' in source_text and
           '"instance": _SERVER_INSTANCE_ID' in source_text and
