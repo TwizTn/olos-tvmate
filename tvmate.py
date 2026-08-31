@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b525"
+VERSION = "0.777.b526"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6853,6 +6853,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamupcomingpanel .teamhomematch{grid-template-columns:1fr;text-align:center}.teamupcomingpanel .teamhometeams{justify-content:center}.teamupcomingpanel .teamhomescore:empty{display:none}.teamupcomingpanel .teamhomemeta{text-align:center}
  .teamstatrow{display:block}.teamstatlabel{display:block;margin-bottom:5px}.teamstatplayers{display:flex;flex-direction:column;gap:4px}.teamstatplayer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.teamstatplayer+.teamstatplayer{padding-top:4px;border-top:1px solid rgba(255,255,255,.05)}
  @media(min-width:1101px){.teampagecolumns{grid-template-columns:minmax(280px,.76fr) minmax(430px,1.16fr) minmax(380px,1fr)}}.teamupcomingpanel{padding:18px}.teamupcomingpanel>.colh{font-size:13px;margin-bottom:12px}.teamupcomingpanel .teamhomematch{padding:15px 4px}.teamupcomingpanel .teamhometeams{gap:9px;font-size:14px}.teamupcomingpanel .teamhomelogo{width:32px;height:32px;flex-basis:32px}.teamupcomingpanel .teamhomeversus{font-size:11px}.teamupcomingpanel .teamhomemeta{margin-top:3px;font-size:11px}.teamtablepanel .teamtable th,.teamtablepanel .teamtable td{padding-left:5px;padding-right:5px}
+ .teamdetailpage{max-width:2100px;width:min(94vw,2100px);padding-left:0;padding-right:0}@media(min-width:1401px){.teampagecolumns{grid-template-columns:minmax(330px,1fr) minmax(540px,660px) minmax(330px,1fr)}.teamleftcolumn{width:min(100%,470px);justify-self:end}.teamtablepanel{width:min(100%,580px);justify-self:start}}
  @media(max-width:1100px){.teampagecolumns{grid-template-columns:minmax(250px,.8fr) minmax(320px,1fr)}.teamtablepanel{grid-column:1/-1}}
  @media(max-width:720px){.leaguepickergroups,.teampagecolumns{grid-template-columns:1fr}.teamtablepanel{grid-column:auto}.teamclubhero{min-height:125px;padding:58px 16px 18px}.teamclubback{left:12px;top:12px}.teamdetailheadlogo{width:62px;height:62px;flex-basis:62px}.teamdetailheadtext h1{font-size:25px}}
  .teamfixturebroadcasts.hide{display:none}
@@ -10047,11 +10048,18 @@ const _RACING_LOGOS={
 };
 let _racingSelected=new Set(['f1']);
 let _racingDriverRows=[],_racingEventRows=[],_racingDetailKey='',_racingAvailabilityLoading=false;
+function wrcPublishedEndDay(event){
+  if(String((event&&event.series)||'').toLowerCase()!=='wrc')return NaN;
+  const text=String(event.date_text||'').toUpperCase().replace(/[,\.]/g,' ').replace(/\s+/g,' ').trim();
+  const match=text.match(/(\d{1,2})\s+([A-Z]+)\s+(\d{4})$/);if(!match)return NaN;
+  const months={JAN:0,JANUARY:0,FEB:1,FEBRUARY:1,MAR:2,MARCH:2,APR:3,APRIL:3,MAY:4,JUN:5,JUNE:5,JUL:6,JULY:6,AUG:7,AUGUST:7,SEP:8,SEPT:8,SEPTEMBER:8,OCT:9,OCTOBER:9,NOV:10,NOVEMBER:10,DEC:11,DECEMBER:11};
+  const month=months[match[2]];return month===undefined?NaN:Date.UTC(Number(match[3]),month,Number(match[1]))/86400000;
+}
 function racingEventIsLive(event,now){
   now=now||Date.now();const start=new Date(event.start).getTime();if(!Number.isFinite(start))return false;
   const explicit=event.end?new Date(event.end).getTime():NaN;
   if(event.all_day){
-    const startDay=osloDayNumber(new Date(start)),endDay=Number.isFinite(explicit)?osloDayNumber(new Date(explicit)):startDay,nowDay=osloDayNumber(new Date(now));
+    const startDay=osloDayNumber(new Date(start)),explicitDay=Number.isFinite(explicit)?osloDayNumber(new Date(explicit)):startDay,publishedDay=wrcPublishedEndDay(event),endDay=Number.isFinite(publishedDay)?Math.min(explicitDay,publishedDay):explicitDay,nowDay=osloDayNumber(new Date(now));
     return nowDay>=startDay&&nowDay<=endDay;
   }
   if(Number.isFinite(explicit))return now>=start&&now<=explicit;
@@ -15991,7 +15999,9 @@ def run_self_tests():
           "racingSessionLabel(event)" in PAGE and
           "'rallyweekend':'Rally weekend'" in PAGE)
     check("all-day racing uses calendar-day live windows",
-          "nowDay>=startDay&&nowDay<=endDay" in PAGE)
+          "nowDay>=startDay&&nowDay<=endDay" in PAGE and
+          "function wrcPublishedEndDay(event)" in PAGE and
+          "Math.min(explicitDay,publishedDay)" in PAGE)
     check("multi-day racing remains visible throughout a live weekend",
           "(x.live||x.ts>=now)" in PAGE and
           "(!live&&ts<now-24*3600000)" in PAGE)
