@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b521"
+VERSION = "0.777.b522"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2044,7 +2044,7 @@ _LTV_MATCH_FAILURE_TTL = 15 * 60
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
 _TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
-_TEAM_PROFILE_CACHE_SCHEMA = 3  # b479: club facts plus league table context
+_TEAM_PROFILE_CACHE_SCHEMA = 4  # team facts, table context and FotMob leaders
 _TEAM_ID_CACHE = {}       # normalized favorite name -> FotMob team id
 _DAILY_MATCH_CACHE = {"date": "", "ts": 0, "matches": []}
 _DAILY_MATCH_TTL = 120    # current/live matches: refresh every 2 minutes
@@ -4072,7 +4072,7 @@ def _team_profile_from_data(data, team_id, team_name=""):
     """Extract stable team facts from FotMob without depending on one response layout."""
     profile = {"team_id": str(team_id or ""), "name": str(team_name or "").strip(),
                "country": "", "league": "", "stadium": "", "coach": "",
-               "standing": {}, "table": []}
+               "standing": {}, "table": [], "stats": []}
     if not isinstance(data, dict):
         return profile
     def display(value):
@@ -4144,6 +4144,36 @@ def _team_profile_from_data(data, team_id, team_name=""):
     walk(data)
     profile["standing"], profile["table"] = _team_table_from_data(
         data, team_id, profile.get("name") or team_name)
+    # FotMob exposes the club leaders under overview.topPlayers. Keep this
+    # intentionally narrow so unrelated fixture/player widgets cannot be
+    # mistaken for the current team's season leaders.
+    top_players = overview.get("topPlayers") if isinstance(overview.get("topPlayers"), dict) else {}
+    stat_specs = (
+        ("Top scorer", ("byGoals", "goals", "topScorers"), ("goals", "value", "statValue")),
+        ("Assists", ("byAssists", "assists", "topAssists"), ("assists", "value", "statValue")),
+        ("Goals + assists", ("byGoalsAndAssists", "goalsAndAssists", "goalContributions"), ("goalContributions", "goalsAndAssists", "value", "statValue")),
+        ("Clean sheets", ("byCleanSheet", "byCleanSheets", "cleanSheets"), ("cleanSheets", "value", "statValue")),
+    )
+    def first_player(value):
+        if isinstance(value, list):
+            return next((item for item in value if isinstance(item, dict)), {})
+        if isinstance(value, dict):
+            for key in ("players", "items", "list"):
+                if isinstance(value.get(key), list):
+                    return next((item for item in value[key] if isinstance(item, dict)), {})
+            return value
+        return {}
+    for label, aliases, value_keys in stat_specs:
+        raw = next((top_players[key] for key in aliases if key in top_players), None)
+        player = first_player(raw)
+        name = display(player.get("name") or player.get("player"))
+        value = next((player.get(key) for key in value_keys if player.get(key) is not None), "")
+        if not name and isinstance(raw, dict):
+            name = display(raw.get("name") or raw.get("player"))
+            value = next((raw.get(key) for key in value_keys if raw.get(key) is not None), value)
+        if name:
+            profile["stats"].append({"label": label, "name": name, "value": value,
+                                     "player_id": str(player.get("id") or player.get("playerId") or "")})
     return profile
 
 def _remember_team_profile(team_id, team_name, data):
@@ -4158,7 +4188,7 @@ def _remember_team_profile(team_id, team_name, data):
 def fetch_team_profile(team_id, team_name=""):
     team_id = str(team_id or "").strip()
     if not team_id:
-        return {"team_id": "", "name": str(team_name or "").strip(), "country": "", "league": "", "stadium": "", "coach": "", "standing": {}, "table": []}
+        return {"team_id": "", "name": str(team_name or "").strip(), "country": "", "league": "", "stadium": "", "coach": "", "standing": {}, "table": [], "stats": []}
     now = time.time()
     cached = _TEAM_PROFILE_CACHE.get(team_id)
     if cached and now - cached["ts"] < _TEAM_FIXTURE_TTL:
@@ -6789,6 +6819,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamnextwrap{margin:0 0 18px} .teamnext{background:linear-gradient(140deg,rgba(31,73,124,.28),var(--card) 62%);border:1px solid var(--line);border-radius:13px;padding:18px 22px;cursor:pointer;transition:border-color .12s} .teamnext:hover{border-color:var(--acc)} .teamnext.live{background:linear-gradient(140deg,rgba(122,42,49,.34),var(--card) 62%);border-color:#7a2a31} .teamnextlabel{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--acc);font-weight:700;margin-bottom:8px} .teamnext.live .teamnextlabel{color:#ff8e94} .teamnextteams{display:flex;align-items:center;gap:12px;flex-wrap:wrap} .teamnextcrest{width:34px;height:34px;object-fit:contain} .teamnextname{font-size:21px;font-weight:750} .teamnextvs{color:var(--mut);font-size:14px} .teamnextmeta{margin-top:7px;font-size:13px;color:var(--mut)} .teamnextcount{margin-top:4px;font-size:13.5px;font-weight:650} .teamnextcount.live{color:#ff8e94} .teamformstrip{display:flex;flex-direction:column;gap:12px} .teamformpills{display:flex;gap:6px} .teamformpill{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:750;color:#fff} .teamformpill.w,.teamformres.w{background:#2f7d43} .teamformpill.d,.teamformres.d{background:#6b6b6b} .teamformpill.l,.teamformres.l{background:#a33a3a} .teamformlist{display:flex;flex-direction:column;gap:4px} .teamformrow{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;border-top:1px solid var(--line)} .teamformres{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:750;color:#fff;flex:0 0 20px} .teamformopp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .teamformscore{color:var(--mut);font-variant-numeric:tabular-nums} .teamdetailpage{max-width:1720px;margin:0 auto;padding:0 18px 34px}.teamdetailtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.teamdetailtop h2{margin:0;font-size:20px}.teamdetailgrid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:22px;align-items:start}.teamdetailprofile{position:sticky;top:78px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:16px}.teamhomegrid{display:grid;grid-template-columns:minmax(250px,.8fr) minmax(250px,.8fr) minmax(390px,1.25fr);gap:16px;align-items:start}.teamhomepanel{min-width:0;border:1px solid var(--line);border-radius:10px;background:rgba(18,21,27,.58);padding:12px}.teamhomepanel .colh{margin-bottom:8px}.teamhomeschedule{display:flex;flex-direction:column}.teamhomematch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 9px;padding:9px 2px;border-bottom:1px solid var(--line);cursor:pointer}.teamhomematch:last-child{border-bottom:0}.teamhomematch:hover .teamhometeams{color:var(--acc)}.teamhometeams{font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.teamhomescore{font-size:13px;font-weight:800}.teamhomemeta{grid-column:1/-1;color:var(--mut);font-size:10px}.teamstandingbadge{margin:0 0 13px;padding:11px;border:1px solid #355b42;border-radius:8px;background:rgba(43,112,67,.14)}.teamstandingbadge b{font-size:20px;margin-right:5px}.teamtablewrap{margin:0}.teamtable{width:100%;border-collapse:collapse;font-size:12px}.teamtable th{color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.teamtable th,.teamtable td{padding:8px 7px;border-bottom:1px solid var(--line);text-align:right}.teamtable th:nth-child(2),.teamtable td:nth-child(2){text-align:left}.teamtable tr.selected{background:rgba(43,112,67,.2);color:#dff5e6}.teamtablelogo{width:21px;height:21px;object-fit:contain;vertical-align:middle;margin-right:7px}@media(max-width:1250px){.teamhomegrid{grid-template-columns:1fr 1fr}.teamhomepanel.table{grid-column:1/-1}}@media(max-width:800px){.teamdetailgrid,.teamhomegrid{grid-template-columns:1fr}.teamdetailprofile{position:static}.teamhomepanel.table{grid-column:1}}
  /* Team page hierarchy: club banner first, then match/future/table columns. */
  .teamclubhero{position:relative;display:flex;align-items:center;justify-content:center;min-height:150px;margin-bottom:20px;padding:22px 90px;border:1px solid var(--line);border-radius:15px;background:radial-gradient(circle at 50% 25%,rgba(31,73,124,.34),var(--card) 70%)}.teamclubback{position:absolute;left:18px;top:18px}.teamdetailhead{display:flex;align-items:center;justify-content:center;gap:18px;min-width:0;text-align:left}.teamdetailheadlogo{width:86px;height:86px;object-fit:contain;flex:0 0 86px}.teamdetailheadtext{min-width:0}.teamdetailheadtext h1{margin:0;font-size:34px;line-height:1.05}.teamdetailheadmeta{margin-top:7px;color:var(--mut);font-size:14px}.teampagecolumns{display:grid;grid-template-columns:minmax(260px,.72fr) minmax(330px,.95fr) minmax(410px,1.25fr);gap:18px;align-items:start}.teamleftcolumn,.teammiddlecolumn{display:flex;flex-direction:column;gap:18px}.teamdetailprofile{position:static}.teamnextwrap{margin:0}.teamnext{background:linear-gradient(145deg,rgba(31,73,124,.27),var(--card) 72%);border-radius:11px;padding:15px;text-align:center;transition:border-color .12s,transform .12s}.teamnext:hover{transform:translateY(-1px)}.teamnextlabel{margin-bottom:12px}.teamnextteams{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;margin:0 auto}.teamnextside{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}.teamnextcrest{width:58px;height:58px}.teamnextname{font-size:15px;font-weight:760;line-height:1.15}.teamnextvs{font-size:11px;font-weight:700;text-transform:uppercase}.teamnextmeta{margin-top:13px;font-size:11px}.teamnextcount{margin-top:5px;font-size:13px;font-weight:700}.teamhomepanel{padding:15px}.teamupcomingpanel .teamhomematch{padding:12px 2px}.teamformpanel .teamformstrip{gap:12px}.teamtablepanel{min-width:0}
+ .teamdetailheadtext{text-align:center}.teamdetailstadium{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:7px;font-size:12px;color:var(--fg)}.teamdetailstadiumicon{font-size:14px}.teamupcomingpanel>.colh{text-align:center;font-size:12px}.teamhometeams{display:flex;align-items:center;gap:7px}.teamhomelogo{width:25px;height:25px;object-fit:contain;flex:0 0 25px}.teamhomeversus{color:var(--mut);font-size:10px}.teamstatscard{display:flex;flex-direction:column;gap:0}.teamstatrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:11px 2px;border-bottom:1px solid var(--line)}.teamstatrow:last-child{border-bottom:0}.teamstatlabel{grid-column:1/-1;color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.teamstatname{font-size:12px;font-weight:650}.teamstatvalue{font-size:14px;font-weight:800;color:var(--acc)}
  @media(max-width:1100px){.teampagecolumns{grid-template-columns:minmax(250px,.8fr) minmax(320px,1fr)}.teamtablepanel{grid-column:1/-1}}
  @media(max-width:720px){.leaguepickergroups,.teampagecolumns{grid-template-columns:1fr}.teamtablepanel{grid-column:auto}.teamclubhero{min-height:125px;padding:58px 16px 18px}.teamclubback{left:12px;top:12px}.teamdetailheadlogo{width:62px;height:62px;flex-basis:62px}.teamdetailheadtext h1{font-size:25px}}
  .teamfixturebroadcasts.hide{display:none}
@@ -8192,22 +8223,22 @@ function renderSelectedTeamHeader(profile){
   const name=profile.name||row.name||_selectedTeamName;
   const meta=[profile.country,profile.league].filter(Boolean).join(' · ');
   el.innerHTML=(src?'<img class="teamdetailheadlogo" src="'+escAttr(src)+'" alt="" loading="lazy" onerror="this.remove()">':'')
-    +'<div class="teamdetailheadtext"><h1>'+esc(name)+'</h1><div class="teamdetailheadmeta">'+esc(meta||tr('Football'))+'</div></div>';
+    +'<div class="teamdetailheadtext"><h1>'+esc(name)+'</h1><div class="teamdetailheadmeta">'+esc(meta||tr('Football'))+'</div>'
+    +(profile.stadium?'<div class="teamdetailstadium"><span class="teamdetailstadiumicon" aria-hidden="true">&#127967;</span><span>'+esc(profile.stadium)+'</span></div>':'')+'</div>';
 }
 function renderSelectedTeamProfile(profile){
   const el=document.getElementById('teamDetailProfile');if(!el)return;const row=_favTeamRows.find(t=>String(t.name).toLowerCase()===String(_selectedTeamName).toLowerCase())||(_selectedTeamRow&&String(_selectedTeamRow.name).toLowerCase()===String(_selectedTeamName).toLowerCase()?_selectedTeamRow:null);if(!row){el.innerHTML='<span class="muted">'+esc(tr('Choose a team to see details.'))+'</span>';return;}
-  profile=profile||_selectedTeamProfile||{};const src=profile.logo||row.logo||(row.team_id?'/api/team_logo?id='+encodeURIComponent(row.team_id):''),meta=[profile.country,profile.league].filter(Boolean).join(' · ');
-  const facts=[['Home ground',profile.stadium||'—'],['Head coach',profile.coach||'—'],['League',profile.league||'—'],['Country',profile.country||'—']],standing=profile.standing||{};
-  const next=selectedTeamNextFixture();let nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(tr('Next match'))+'</div><span class="muted">'+esc(tr('No upcoming fixture found.'))+'</span></div>';
-  if(next){const kick=next.start?new Date(next.start):null,live=fixtureIsLive(next),recent=fixtureIsRecent(next),when=live?tr('Live now'):(kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'');nextHtml='<div class="teamprofilenext"><div class="teamprofilenextlabel">'+esc(live?tr('Live now'):(recent?'Recent match':tr('Next match')))+'</div><b>'+esc(next.home||'')+' v '+esc(next.away||'')+'</b><span class="muted">'+esc(when)+(recent?' · ended':'')+(next.league_name?' · '+esc(next.league_name):'')+'</span></div>';}
+  profile=profile||_selectedTeamProfile||{};
   renderSelectedTeamHeader(profile);
-  el.innerHTML=(standing.position?'<div class="teamstandingbadge"><b>'+esc(standing.position)+'.</b> '+esc(profile.league||tr('League'))+' · '+esc(standing.points)+' '+esc(tr('points'))+'</div>':'')+'<div class="teamprofilefacts">'+facts.map(f=>'<div class="teamprofilefact"><span>'+esc(tr(f[0]))+'</span><b title="'+escAttr(f[1])+'">'+esc(f[1])+'</b></div>').join('')+'</div>';
+  const stats=Array.isArray(profile.stats)?profile.stats:[];
+  el.innerHTML='<div class="colh">'+esc(tr('Team stats'))+'</div><div class="teamstatscard">'+(stats.length?stats.map(stat=>'<div class="teamstatrow"><span class="teamstatlabel">'+esc(tr(stat.label||''))+'</span><span class="teamstatname">'+esc(stat.name||'')+'</span><span class="teamstatvalue">'+esc(stat.value)+'</span></div>').join(''):'<span class="muted">'+esc(tr('Team statistics are not available.'))+'</span>')+'</div>';
   renderSelectedTeamTable(profile);
 }
 function renderSelectedTeamTable(profile){const el=document.getElementById('teamTableWrap');if(!el)return;const rows=(profile&&profile.table)||[];if(!rows.length){el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><span class="muted">'+esc(tr('Table information is not available.'))+'</span>';return;}const selected=String((profile.standing||{}).team_id||profile.team_id||'');el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><div style="overflow-x:auto"><table class="teamtable"><thead><tr><th>#</th><th>'+esc(tr('Team'))+'</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>PTS</th></tr></thead><tbody>'+rows.map(row=>'<tr class="'+(String(row.team_id||'')===selected?'selected':'')+'"><td>'+esc(row.position)+'</td><td>'+(row.team_id?'<img class="teamtablelogo" src="/api/team_logo?id='+encodeURIComponent(row.team_id)+'" alt="" loading="lazy" onerror="this.remove()">':'')+esc(row.name)+'</td><td>'+esc(row.played)+'</td><td>'+esc(row.won)+'</td><td>'+esc(row.drawn)+'</td><td>'+esc(row.lost)+'</td><td>'+esc(row.goal_difference)+'</td><td><b>'+esc(row.points)+'</b></td></tr>').join('')+'</tbody></table></div>';}
 function teamHomeFixtureHtml(f,finished){
   const kick=f.start?new Date(f.start):null,when=kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'',score=finished&&f.home_score!==''&&f.away_score!==''?esc(f.home_score)+'–'+esc(f.away_score):'';
-  return '<div class="teamhomematch" data-fixture-card="1" data-event-key="'+escAttr(sportsFixtureKey(f))+'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(_selectedTeamName||f.home||'')+'"><span class="teamhometeams">'+esc(f.home||'')+' v '+esc(f.away||'')+'</span><span class="teamhomescore">'+score+'</span><span class="teamhomemeta">'+esc(when)+(f.league_name?' · '+esc(f.league_name):'')+'</span></div>';
+  const logo=id=>id?'<img class="teamhomelogo" src="/api/team_logo?id='+encodeURIComponent(id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+  return '<div class="teamhomematch" data-fixture-card="1" data-event-key="'+escAttr(sportsFixtureKey(f))+'" data-home="'+escAttr(f.home||'')+'" data-away="'+escAttr(f.away||'')+'" data-start="'+escAttr(f.start||'')+'" data-search="'+escAttr(_selectedTeamName||f.home||'')+'"><span class="teamhometeams">'+logo(f.home_id)+'<span>'+esc(f.home||'')+'</span><span class="teamhomeversus">v</span>'+logo(f.away_id)+'<span>'+esc(f.away||'')+'</span></span><span class="teamhomescore">'+score+'</span><span class="teamhomemeta">'+esc(when)+(f.league_name?' · '+esc(f.league_name):'')+'</span></div>';
 }
 // Was this finished fixture a win, draw or loss for the team on screen?
 function teamResultFor(f,name){
@@ -15222,6 +15253,16 @@ def run_self_tests():
                                             "draws": 0, "losses": 1, "goalDifference": 3,
                                             "points": 6}]}}
     standing, league_table = _team_table_from_data(table_sample, "9826", "Crystal Palace")
+    stats_profile = _team_profile_from_data({"details": {"name": "Leeds United"},
+        "overview": {"topPlayers": {
+            "byGoals": {"players": [{"name": "Anton Stach", "goals": 1}]},
+            "byAssists": {"players": [{"name": "Lukas Nmecha", "assists": 1}]},
+            "byGoalsAndAssists": {"players": [{"name": "Dominic Calvert-Lewin", "goalContributions": 1}]},
+            "byCleanSheet": {"players": [{"name": "James Trafford", "cleanSheets": 1}]}}}},
+        "8463", "Leeds United")
+    check("team profile extracts FotMob season leaders",
+          [row.get("name") for row in stats_profile.get("stats", [])] ==
+          ["Anton Stach", "Lukas Nmecha", "Dominic Calvert-Lewin", "James Trafford"])
     check("favorite team page exposes a parsed league table and selected position",
           standing.get("name") == "Crystal Palace" and standing.get("points") == 7 and
           len(league_table) == 2 and "teamTableWrap" in PAGE and
@@ -15231,6 +15272,9 @@ def run_self_tests():
           'id="teamNextMatch"' in PAGE and
           "function renderTeamForm(past)" in PAGE and
           "function renderTeamNextMatch(f)" in PAGE and
+          'class="teamhomelogo"' in PAGE and
+          'class="teamdetailstadium"' in PAGE and
+          'class="teamstatscard"' in PAGE and
           "function renderSelectedTeamHome(profile)" in PAGE and
           ".slice(0,7)" in PAGE and
           'profile["fixtures"] = fixtures' in open(__file__, encoding="utf-8").read() and
