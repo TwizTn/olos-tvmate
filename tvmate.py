@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b527"
+VERSION = "0.777.b528"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -8279,7 +8279,20 @@ function renderSelectedTeamProfile(profile){
   el.innerHTML='<div class="colh">'+esc(tr('Team stats'))+'</div><div class="teamstatscard">'+(stats.length?stats.map(stat=>{const players=Array.isArray(stat.players)?stat.players.slice(0,3):[stat];return '<div class="teamstatrow"><span class="teamstatlabel">'+esc(tr(stat.label||''))+'</span><div class="teamstatplayers">'+players.map(player=>'<div class="teamstatplayer"><span class="teamstatname">'+esc(player.name||'')+'</span><span class="teamstatvalue">'+esc(player.value)+'</span></div>').join('')+'</div></div>';}).join(''):'<span class="muted">'+esc(tr('Team statistics are not available.'))+'</span>')+'</div>';
   renderSelectedTeamTable(profile);
 }
-function renderSelectedTeamTable(profile){const el=document.getElementById('teamTableWrap');if(!el)return;const rows=(profile&&profile.table)||[];if(!rows.length){el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><span class="muted">'+esc(tr('Table information is not available.'))+'</span>';return;}const selected=String((profile.standing||{}).team_id||profile.team_id||'');el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><div style="overflow-x:auto"><table class="teamtable"><thead><tr><th>#</th><th>'+esc(tr('Team'))+'</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>PTS</th></tr></thead><tbody>'+rows.map(row=>{const zone=/^#[0-9a-f]{6}$/i.test(row.qualification_color||'')?row.qualification_color:'';const classes=[String(row.team_id||'')===selected?'selected':'',zone?'qualzone':''].filter(Boolean).join(' ');return '<tr class="'+classes+'"'+(zone?' style="--qual-zone:'+zone+'"':'')+'><td>'+esc(row.position)+'</td><td>'+(row.team_id?'<img class="teamtablelogo" src="/api/team_logo?id='+encodeURIComponent(row.team_id)+'" alt="" loading="lazy" onerror="this.remove()">':'')+esc(row.name)+'</td><td>'+esc(row.played)+'</td><td>'+esc(row.won)+'</td><td>'+esc(row.drawn)+'</td><td>'+esc(row.lost)+'</td><td>'+esc(row.goal_difference)+'</td><td><b>'+esc(row.points)+'</b></td></tr>}).join('')+'</tbody></table></div>';}
+function renderSelectedTeamTable(profile){
+  const el=document.getElementById('teamTableWrap');if(!el)return;
+  const rows=(profile&&profile.table)||[];
+  if(!rows.length){el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><span class="muted">'+esc(tr('Table information is not available.'))+'</span>';return;}
+  const selected=String((profile.standing||{}).team_id||profile.team_id||'');
+  const body=rows.map(row=>{
+    const zone=/^#[0-9a-f]{6}$/i.test(row.qualification_color||'')?row.qualification_color:'';
+    const classes=[String(row.team_id||'')===selected?'selected':'',zone?'qualzone':''].filter(Boolean).join(' ');
+    const logo=row.team_id?'<img class="teamtablelogo" src="/api/team_logo?id='+encodeURIComponent(row.team_id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
+    return '<tr class="'+classes+'" data-qual-zone="'+escAttr(zone)+'"><td>'+esc(row.position)+'</td><td>'+logo+esc(row.name)+'</td><td>'+esc(row.played)+'</td><td>'+esc(row.won)+'</td><td>'+esc(row.drawn)+'</td><td>'+esc(row.lost)+'</td><td>'+esc(row.goal_difference)+'</td><td><b>'+esc(row.points)+'</b></td></tr>';
+  }).join('');
+  el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><div style="overflow-x:auto"><table class="teamtable"><thead><tr><th>#</th><th>'+esc(tr('Team'))+'</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>PTS</th></tr></thead><tbody>'+body+'</tbody></table></div>';
+  el.querySelectorAll('[data-qual-zone]').forEach(row=>{const zone=row.getAttribute('data-qual-zone');if(zone)row.style.setProperty('--qual-zone',zone);});
+}
 function teamHomeFixtureHtml(f,finished){
   const kick=f.start?new Date(f.start):null,when=kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'',score=finished&&f.home_score!==''&&f.away_score!==''?esc(f.home_score)+'–'+esc(f.away_score):'';
   const logo=id=>id?'<img class="teamhomelogo" src="/api/team_logo?id='+encodeURIComponent(id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
@@ -15318,7 +15331,7 @@ def run_self_tests():
     check("team table prefers home league and preserves FotMob zones",
           len(brann_table) == 2 and brann_standing.get("position") == 5 and
           brann_table[0].get("qualification_color") == "#FFD908" and
-          "--qual-zone:" in PAGE and "qualzone" in PAGE)
+          "setProperty('--qual-zone',zone)" in PAGE and "qualzone" in PAGE)
     stats_profile = _team_profile_from_data({"details": {"name": "Leeds United"},
         "overview": {"topPlayers": {
             "byGoals": {"players": [{"name": "Anton Stach", "goals": 1}]},
