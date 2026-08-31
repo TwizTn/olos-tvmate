@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b524"
+VERSION = "0.777.b525"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6852,6 +6852,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamdetailheadtext{text-align:center}.teamdetailstadium{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:7px;font-size:12px;color:var(--fg)}.teamdetailstadiumicon{font-size:14px}.teamupcomingpanel>.colh{text-align:center;font-size:12px}.teamhometeams{display:flex;align-items:center;gap:7px}.teamhomelogo{width:25px;height:25px;object-fit:contain;flex:0 0 25px}.teamhomeversus{color:var(--mut);font-size:10px}.teamstatscard{display:flex;flex-direction:column;gap:0}.teamstatrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:11px 2px;border-bottom:1px solid var(--line)}.teamstatrow:last-child{border-bottom:0}.teamstatlabel{grid-column:1/-1;color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.teamstatname{font-size:12px;font-weight:650}.teamstatvalue{font-size:14px;font-weight:800;color:var(--acc)}
  .teamupcomingpanel .teamhomematch{grid-template-columns:1fr;text-align:center}.teamupcomingpanel .teamhometeams{justify-content:center}.teamupcomingpanel .teamhomescore:empty{display:none}.teamupcomingpanel .teamhomemeta{text-align:center}
  .teamstatrow{display:block}.teamstatlabel{display:block;margin-bottom:5px}.teamstatplayers{display:flex;flex-direction:column;gap:4px}.teamstatplayer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.teamstatplayer+.teamstatplayer{padding-top:4px;border-top:1px solid rgba(255,255,255,.05)}
+ @media(min-width:1101px){.teampagecolumns{grid-template-columns:minmax(280px,.76fr) minmax(430px,1.16fr) minmax(380px,1fr)}}.teamupcomingpanel{padding:18px}.teamupcomingpanel>.colh{font-size:13px;margin-bottom:12px}.teamupcomingpanel .teamhomematch{padding:15px 4px}.teamupcomingpanel .teamhometeams{gap:9px;font-size:14px}.teamupcomingpanel .teamhomelogo{width:32px;height:32px;flex-basis:32px}.teamupcomingpanel .teamhomeversus{font-size:11px}.teamupcomingpanel .teamhomemeta{margin-top:3px;font-size:11px}.teamtablepanel .teamtable th,.teamtablepanel .teamtable td{padding-left:5px;padding-right:5px}
  @media(max-width:1100px){.teampagecolumns{grid-template-columns:minmax(250px,.8fr) minmax(320px,1fr)}.teamtablepanel{grid-column:1/-1}}
  @media(max-width:720px){.leaguepickergroups,.teampagecolumns{grid-template-columns:1fr}.teamtablepanel{grid-column:auto}.teamclubhero{min-height:125px;padding:58px 16px 18px}.teamclubback{left:12px;top:12px}.teamdetailheadlogo{width:62px;height:62px;flex-basis:62px}.teamdetailheadtext h1{font-size:25px}}
  .teamfixturebroadcasts.hide{display:none}
