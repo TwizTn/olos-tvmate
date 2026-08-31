@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b528"
+VERSION = "0.777.b529"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2053,6 +2053,7 @@ _DAILY_MATCH_TTL = 120    # current/live matches: refresh every 2 minutes
 # Keep them warm for a week; the manual content refresh bypasses this cache.
 _F1_SCHEDULE_CACHE = {"ts": 0, "events": []}
 _F1_TEAMS_CACHE = {"ts": 0, "teams": []}
+_F1_LIVE_CACHE = {}
 _F1_TTL = 7 * 24 * 3600
 _CINEMETA_CACHE = {}
 _CINEMETA_TTL = 6 * 3600
@@ -2401,6 +2402,124 @@ def steam_store_items(app_ids):
 
 def _f1_api(path):
     return http_get_json("https://api.jolpi.ca/ergast/f1/" + path.lstrip("/"), timeout=15)
+
+def _openf1_api(path, params=None):
+    query = urllib.parse.urlencode(params or {})
+    return http_get_json("https://api.openf1.org/v1/" + path.lstrip("/") +
+                         (("?" + query) if query else ""), timeout=12)
+
+def get_f1_live_centre(event):
+    """Return a compact, near-live OpenF1 snapshot for one calendar session."""
+    start_text = str((event or {}).get("start") or "")
+    try:
+        event_start = datetime.datetime.fromisoformat(start_text.replace("Z", "+00:00"))
+        if event_start.tzinfo is None:
+            event_start = event_start.replace(tzinfo=datetime.timezone.utc)
+    except (TypeError, ValueError):
+        event_start = datetime.datetime.now(datetime.timezone.utc)
+    cache_key = "|".join((str(event.get("round") or ""), str(event.get("session") or ""),
+                          start_text))
+    cached = _F1_LIVE_CACHE.get(cache_key)
+    if cached and time.time() - cached["ts"] < 3:
+        return cached["data"]
+    sessions = _openf1_api("sessions", {"year": event_start.year})
+    if not isinstance(sessions, list):
+        sessions = []
+    wanted_session = normalise(str(event.get("session") or "Race"))
+    wanted_race = normalise(str(event.get("race") or ""))
+    def session_score(row):
+        try:
+            stamp = datetime.datetime.fromisoformat(str(row.get("date_start") or "").replace("Z", "+00:00"))
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=datetime.timezone.utc)
+            distance = abs((stamp - event_start).total_seconds())
+        except (TypeError, ValueError):
+            distance = 10**10
+        session_name = normalise(str(row.get("session_name") or row.get("session_type") or ""))
+        meeting_name = normalise(str(row.get("meeting_name") or ""))
+        return (1 if session_name == wanted_session else 0,
+                1 if wanted_race and (wanted_race in meeting_name or meeting_name in wanted_race) else 0,
+                -distance)
+    session = max(sessions, key=session_score) if sessions else {}
+    session_key = session.get("session_key")
+    if session_key is None:
+        result = {"available": False, "delayed": True, "session": {}, "standings": [],
+                  "messages": [], "weather": {}}
+        _F1_LIVE_CACHE[cache_key] = {"ts": time.time(), "data": result}
+        return result
+    datasets = {}
+    dataset_lock = threading.Lock()
+    def fetch_dataset(endpoint):
+        try:
+            value = _openf1_api(endpoint, {"session_key": session_key})
+        except Exception:
+            value = []
+        with dataset_lock:
+            datasets[endpoint] = value if isinstance(value, list) else []
+    endpoints = ("drivers", "position", "intervals", "stints", "pit", "race_control", "weather")
+    workers = [threading.Thread(target=fetch_dataset, args=(endpoint,), daemon=True)
+               for endpoint in endpoints]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(14)
+    for endpoint in endpoints:
+        datasets.setdefault(endpoint, [])
+    def latest_by(rows, key):
+        out = {}
+        for row in rows:
+            ident = str(row.get(key) or "")
+            if ident:
+                out[ident] = row
+        return out
+    drivers = latest_by(datasets["drivers"], "driver_number")
+    positions = latest_by(datasets["position"], "driver_number")
+    intervals = latest_by(datasets["intervals"], "driver_number")
+    stints = {}
+    for row in datasets["stints"]:
+        ident = str(row.get("driver_number") or "")
+        if ident and int(row.get("stint_number") or 0) >= int((stints.get(ident) or {}).get("stint_number") or 0):
+            stints[ident] = row
+    pits = {}
+    for row in datasets["pit"]:
+        ident = str(row.get("driver_number") or "")
+        if ident:
+            pits.setdefault(ident, []).append(row)
+    standings = []
+    for ident, pos in positions.items():
+        driver, interval, stint = drivers.get(ident, {}), intervals.get(ident, {}), stints.get(ident, {})
+        team_color = str(driver.get("team_colour") or "").strip()
+        if not re.fullmatch(r"[0-9A-Fa-f]{6}", team_color):
+            team_color = ""
+        standings.append({
+            "position": pos.get("position"), "driver_number": ident,
+            "name": driver.get("broadcast_name") or driver.get("full_name") or ident,
+            "acronym": driver.get("name_acronym") or "", "team": driver.get("team_name") or "",
+            "team_color": ("#" + team_color) if team_color else "",
+            "gap": interval.get("gap_to_leader"), "interval": interval.get("interval"),
+            "compound": stint.get("compound") or "", "stint": stint.get("stint_number"),
+            "tyre_age": stint.get("tyre_age_at_start"), "pit_stops": len(pits.get(ident, [])),
+        })
+    standings.sort(key=lambda row: int(row.get("position") or 999))
+    messages = [{"lap": row.get("lap_number"), "category": row.get("category") or "",
+                 "flag": row.get("flag") or "", "message": row.get("message") or ""}
+                for row in datasets["race_control"][-12:]]
+    weather = datasets["weather"][-1] if datasets["weather"] else {}
+    now = datetime.datetime.now(datetime.timezone.utc)
+    try:
+        session_end = datetime.datetime.fromisoformat(str(session.get("date_end") or "").replace("Z", "+00:00"))
+        session_start = datetime.datetime.fromisoformat(str(session.get("date_start") or "").replace("Z", "+00:00"))
+        live = session_start <= now <= session_end
+    except (TypeError, ValueError):
+        live = False
+    result = {"available": bool(standings or messages or weather), "delayed": False,
+              "live": live, "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "session": {key: session.get(key) for key in ("session_key", "session_name", "session_type",
+                                                               "meeting_name", "circuit_short_name",
+                                                               "date_start", "date_end")},
+              "standings": standings, "messages": messages, "weather": weather}
+    _F1_LIVE_CACHE[cache_key] = {"ts": time.time(), "data": result}
+    return result
 
 def _f1_iso(date_text, time_text=""):
     date_text = str(date_text or "").strip()
@@ -6932,6 +7051,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:700px){#teamsView.sports-layout-agenda .teamfixture,#teamsView.sports-layout-timeline .teamfixture{grid-template-columns:1fr}#teamsView.sports-layout-agenda .teamfixturebroadcasts,#teamsView.sports-layout-timeline .teamfixturebroadcasts{grid-column:1}#teamsView.sports-layout-broadcast .topfixturegrid{grid-template-columns:1fr}}
  #matchView{max-width:1480px;margin:0 auto;padding:0 18px 34px}
  .raceherobox{display:block} .racehero{display:flex;align-items:center;gap:18px;margin-top:10px} .racehero_art{width:96px;height:96px;object-fit:contain;border-radius:10px;background:#12161c;padding:6px;flex:0 0 auto} .racetitle{font-size:26px;font-weight:750;line-height:1.15} .racestatus{margin-top:6px;font-size:14px;font-weight:650;color:var(--mut)} .racestatus.live{color:#ff8e94} .racegrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start;margin-top:14px} .racecol{display:flex;flex-direction:column;gap:14px;min-width:0} .racePlayerAnchor{width:100%} .racePlayerAnchor.on{min-height:180px} .racelivelinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px} .racelivelink{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:13px;text-decoration:none;background:var(--card2)} .racelivelink:hover{border-color:var(--acc);color:var(--acc)} .racelivearrow{opacity:.6;font-size:11px} @media(max-width:1250px){.racegrid{grid-template-columns:minmax(0,1fr)}.racecol.racecentre{order:-1}} .wrcreason{margin-top:6px;font-size:11.5px;color:var(--mut);opacity:.85;word-break:break-word} .wrcsummary{display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:10px} .wrcday{margin-bottom:12px} .wrcdayhead{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin:0 0 6px} .wrcstage{display:grid;grid-template-columns:46px 52px minmax(0,1fr) 68px auto;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:13px;border:1px solid transparent} .wrcstage+.wrcstage{margin-top:2px} .wrcstage.past{opacity:.45} .wrcstage.running{border-color:#7a2a31;background:rgba(122,42,49,.25)} .wrcstage.next{border-color:var(--line);background:var(--card2)} .wrcstagetime{color:var(--mut);font-variant-numeric:tabular-nums} .wrcstagecode{font-weight:700} .wrcstagename{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .wrcstagekm{color:var(--mut);text-align:right;font-variant-numeric:tabular-nums} .wrcpower{color:#ffd166;font-size:11px;font-weight:700;margin-left:4px} .wrcnow{color:#ff8e94;border-color:#7a2a31} .racedays{display:flex;flex-direction:column;gap:6px} .raceday{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px} .raceday.now{border-color:#3d6b46;background:rgba(38,88,52,.22)} .raceday.past{opacity:.5} .racedaylabel{text-transform:capitalize} .racefacts{display:flex;flex-direction:column;gap:6px} .racefact{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13.5px} .racelink{color:var(--acc);font-size:13px;word-break:break-all} .matchbcastwrap{position:relative} .matchbcastpanel{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:320px;max-width:460px;max-height:60vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 18px 40px rgba(0,0,0,.45)} .matchbcastpanel.hide{display:none} .matchbcastcaret{font-size:10px;opacity:.75} #matchBcastBtn[aria-expanded="true"] .matchbcastcaret{display:inline-block;transform:rotate(180deg)} .matchdetailtop{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
+ .f1livepanel{margin-top:14px}.f1livehead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.f1livebadge{color:#ff8e94;font-weight:800;font-size:11px}.f1livegrid{display:grid;grid-template-columns:minmax(480px,1.6fr) minmax(260px,.7fr);gap:14px}.f1timing{width:100%;border-collapse:collapse;font-size:12px}.f1timing th,.f1timing td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right}.f1timing th:nth-child(2),.f1timing td:nth-child(2){text-align:left}.f1drivercell{box-shadow:inset 3px 0 0 var(--team-color,transparent);padding-left:11px!important}.f1compound{display:inline-flex;min-width:20px;height:20px;align-items:center;justify-content:center;border-radius:50%;background:#ececec;color:#111;font-size:9px;font-weight:900}.f1compound.SOFT{background:#e23b3b;color:#fff}.f1compound.MEDIUM{background:#f0cf36}.f1compound.HARD{background:#eee}.f1compound.INTERMEDIATE{background:#3ca85b;color:#fff}.f1compound.WET{background:#397fd3;color:#fff}.f1sidecards{display:flex;flex-direction:column;gap:10px}.f1weather{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.f1weather span,.f1message{padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card2);font-size:11px}.f1messages{display:flex;flex-direction:column;gap:5px;max-height:300px;overflow:auto}.f1message.flag{border-left:3px solid #ffd23f}.f1weekend{display:flex;flex-direction:column;gap:6px}.f1sessionrow{display:flex;justify-content:space-between;gap:10px;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:12px}.f1sessionrow.current{border-color:#c73d43;background:rgba(122,42,49,.22)}@media(max-width:1000px){.f1livegrid{grid-template-columns:1fr}}@media(max-width:620px){.f1timing th:nth-child(4),.f1timing td:nth-child(4),.f1timing th:nth-child(6),.f1timing td:nth-child(6){display:none}}
  .matchdetailpage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:18px;align-items:start}
  .matchdetailhero{grid-column:1/-1;text-align:center;padding:26px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,rgba(31,73,124,.28),var(--card) 58%,rgba(231,169,78,.08))}
  .matchdetailcompetition{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--mut);margin-bottom:16px}
@@ -7960,7 +8080,7 @@ function hideAll(keepMytv){
   const pipPlayback=!!(_popupPipActive||popupPipVideo());
   const layoutPlayback=hasPlayback&&!pipPlayback;
   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!pipPlayback&&!mytvView.classList.contains('hide'));
-  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');teamView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();updateProfileName(_profileConfig.profile_name);
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');teamView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();stopF1LiveTracking();updateProfileName(_profileConfig.profile_name);
   if(!keepMytv&&layoutPlayback){
     if(leavingLiveTv)tvSetMini(true);
     document.body.classList.add('tvsectionplay');
@@ -8632,8 +8752,14 @@ function wrcRallyDays(ev){
   }
   return days;
 }
+function f1WeekendPanel(ev){
+  const sessions=_racingEventRows.filter(row=>String(row.series||'')==='f1'&&String(row.round||'')===String(ev.round||'')).sort((a,b)=>new Date(a.start)-new Date(b.start));
+  const locale=_lang==='no'?'nb-NO':undefined;
+  return '<div class="matchdetailpanel"><h3>'+esc(tr('Weekend schedule'))+'</h3><div class="f1weekend">'+sessions.map(row=>{const current=racingAvailabilityKey(row)===racingAvailabilityKey(ev),d=new Date(row.start),when=Number.isNaN(d.getTime())?'':d.toLocaleString(locale,{weekday:'short',hour:'2-digit',minute:'2-digit'});return '<div class="f1sessionrow'+(current?' current':'')+'"><b>'+esc(racingSessionLabel(row))+'</b><span>'+esc(when)+'</span></div>';}).join('')+'</div></div>';
+}
 function raceCentreExtras(ev){
   const series=String(ev.series||'');
+  if(series==='f1')return f1WeekendPanel(ev);
   if(series==='wrc'){
     // Filled in asynchronously by loadWrcItinerary() once the stage list arrives.
     return '<div class="matchdetailpanel" id="wrcItineraryPanel"><h3>'+esc(tr('Stages'))+'</h3>'
@@ -8681,7 +8807,8 @@ function renderRacePage(){
     +(channels.length?racingChannelSections(channels):'<span class="muted">'+esc(tr('No channels in your list match this event yet.'))+'</span>')+'</div></div>';
   // Layout: channels on the left, the player centred with the event's own live
   // sub-pages beneath it, and the series panel (stages for WRC) on the right.
-  el.innerHTML=hero
+  const livePanel=String(ev.series||'')==='f1'?'<div id="f1LiveCentre" class="matchdetailpanel f1livepanel"><span class="muted">'+esc(tr('Loading live timing...'))+'</span></div>':'';
+  el.innerHTML=hero+livePanel
     +'<div class="racegrid">'
     +'<div class="racecol raceleft">'+channelPanel+'</div>'
     +'<div class="racecol racecentre"><div id="racePlayerAnchor" class="matchplayeranchor racePlayerAnchor"></div>'+raceLiveLinksPanel(ev)+'</div>'
@@ -8691,6 +8818,26 @@ function renderRacePage(){
   const label=document.getElementById('raceRefreshLabel');
   if(label)label.textContent=raceRefreshLabel(ev);
   loadWrcItinerary(ev);
+}
+let _f1LiveTimer=null,_f1LastSnapshot=null;
+function stopF1LiveTracking(){if(_f1LiveTimer){clearTimeout(_f1LiveTimer);_f1LiveTimer=null;}}
+function f1Value(value,suffix){return value===null||value===undefined||value===''?'—':esc(value)+(suffix||'');}
+function renderF1Live(snapshot){
+  const box=document.getElementById('f1LiveCentre');if(!box)return;
+  if(snapshot&&snapshot.available)_f1LastSnapshot=snapshot;
+  const data=(snapshot&&snapshot.available)?snapshot:_f1LastSnapshot;
+  if(!data){box.innerHTML='<div class="f1livehead"><h3>'+esc(tr('Live timing'))+'</h3><span class="muted">'+esc(tr('Live timing is not available for this session yet.'))+'</span></div>';return;}
+  const standings=data.standings||[],weather=data.weather||{},messages=(data.messages||[]).slice().reverse();
+  const timing='<div style="overflow-x:auto"><table class="f1timing"><thead><tr><th>P</th><th>'+esc(tr('Driver'))+'</th><th>'+esc(tr('Gap'))+'</th><th>'+esc(tr('Interval'))+'</th><th>'+esc(tr('Tyre'))+'</th><th>'+esc(tr('Stint'))+'</th><th>'+esc(tr('Pits'))+'</th></tr></thead><tbody>'+standings.map(row=>{const compound=String(row.compound||'').toUpperCase(),letter=compound?compound[0]:'—';return '<tr><td><b>'+esc(row.position||'—')+'</b></td><td class="f1drivercell" style="--team-color:'+escAttr(row.team_color||'transparent')+'"><b>'+esc(row.acronym||row.name||row.driver_number)+'</b><div class="muted">'+esc(row.team||'')+'</div></td><td>'+f1Value(row.gap)+'</td><td>'+f1Value(row.interval)+'</td><td><span class="f1compound '+escAttr(compound)+'" title="'+escAttr(compound)+'">'+esc(letter)+'</span></td><td>'+f1Value(row.stint)+'</td><td>'+f1Value(row.pit_stops)+'</td></tr>';}).join('')+'</tbody></table></div>';
+  const weatherHtml='<div class="f1weather"><span>'+esc(tr('Track'))+' <b>'+f1Value(weather.track_temperature,'°C')+'</b></span><span>'+esc(tr('Air'))+' <b>'+f1Value(weather.air_temperature,'°C')+'</b></span><span>'+esc(tr('Rain'))+' <b>'+f1Value(weather.rainfall)+'</b></span><span>'+esc(tr('Wind'))+' <b>'+f1Value(weather.wind_speed,' m/s')+'</b></span></div>';
+  const messageHtml='<div class="f1messages">'+(messages.length?messages.map(row=>'<div class="f1message'+(row.flag?' flag':'')+'">'+(row.lap?'<b>L'+esc(row.lap)+'</b> ':'')+esc(row.flag||row.category||'')+(row.message?' · '+esc(row.message):'')+'</div>').join(''):'<span class="muted">'+esc(tr('No race-control messages yet.'))+'</span>')+'</div>';
+  box.innerHTML='<div class="f1livehead"><h3>'+esc((data.session||{}).session_name||tr('Live timing'))+'</h3><span class="'+(data.live?'f1livebadge':'muted')+'">'+esc(data.live?'● LIVE':(snapshot&&snapshot.delayed?tr('Live timing delayed'):tr('Latest timing')))+'</span></div><div class="f1livegrid">'+timing+'<div class="f1sidecards">'+weatherHtml+'<div><div class="colh">'+esc(tr('Race control'))+'</div>'+messageHtml+'</div></div></div>';
+}
+async function pollF1Live(){
+  stopF1LiveTracking();const ev=_raceEvent;if(!ev||String(ev.series||'')!=='f1'||raceView.classList.contains('hide'))return;
+  const query='?round='+encodeURIComponent(ev.round||'')+'&race='+encodeURIComponent(ev.race||'')+'&session='+encodeURIComponent(ev.session||'')+'&start='+encodeURIComponent(ev.start||'');
+  try{const data=await api('/api/f1_live'+query);if(_raceEvent===ev)renderF1Live(data);}catch(e){renderF1Live({available:false,delayed:true});}
+  if(_raceEvent===ev&&!raceView.classList.contains('hide'))_f1LiveTimer=setTimeout(pollF1Live,5000);
 }
 // Rally stage times are local to the event, so anchor them to the offset that
 // came with the calendar entry rather than the viewer's timezone.
@@ -8769,7 +8916,7 @@ function showRacePage(ev){
   document.getElementById('raceView').classList.remove('hide');
   document.querySelector('main').classList.add('wide');
   setNav('navRacing');setSlogan('mylist');
-  renderRacePage();window.scrollTo(0,0);
+  renderRacePage();if(String(ev.series||'')==='f1')pollF1Live();window.scrollTo(0,0);
 }
 function closeRacePage(){if(history.state&&history.state.section==='race')history.back();else showRacing();}
 // The refresh is scoped to this event's series, so it stays quick and leaves
@@ -11913,6 +12060,15 @@ class Handler(BaseHTTPRequestHandler):
             selected = [key for key in cfg.get("racing_series", ["f1"])
                         if key in ("f1", "f2", "f3", "indycar", "wec", "formulae", "motogp", "wrc")]
             return self._send(200, {"selected": selected, "events": get_racing_events(selected)})
+        if path == "/api/f1_live":
+            event = {key: (q.get(key, [""])[0]).strip()
+                     for key in ("round", "race", "session", "start")}
+            try:
+                return self._send(200, get_f1_live_centre(event))
+            except Exception as exc:
+                return self._send(200, {"available": False, "delayed": True,
+                                        "error": str(exc)[:180], "standings": [],
+                                        "messages": [], "weather": {}})
         if path == "/api/racing_availability":
             cfg = load_config(); x = Xtream(cfg)
             if not x.configured():
@@ -12046,7 +12202,7 @@ class Handler(BaseHTTPRequestHandler):
                     "Set-Cookie": "tvmate_view=desktop; Path=/; SameSite=Strict",
                 })
 
-            if u.path in {"/api/f1_schedule", "/api/racing", "/api/racing_availability",
+            if u.path in {"/api/f1_schedule", "/api/f1_live", "/api/racing", "/api/racing_availability",
                            "/api/racing_drivers", "/api/racing_driver_image",
                            "/api/wrc_itinerary",
                            "/api/f1_teams", "/api/f1_team_logo"}:
@@ -15366,7 +15522,7 @@ def run_self_tests():
           "/api/match_status" in PAGE and
           "setTimeout(pollOpenMatchStatus,60*1000)" in PAGE and
           "setInterval(updateMatchStatusDisplay,60*1000)" in PAGE and
-          "stopMatchStatusTracking();updateProfileName" in PAGE and
+          "stopMatchStatusTracking();stopF1LiveTracking();updateProfileName" in PAGE and
           "f.is_halftime?'Half-time'" in PAGE and
           "fetch_fotmob_daily_matches(force=force)" in open(__file__, encoding="utf-8").read())
     check("matched channel titles play without collapsing fixtures",
@@ -15939,6 +16095,40 @@ def run_self_tests():
         {"lawson": 6, "hadjar": 74, "max_verstappen": 112})
     check("temporary F1 substitute cannot displace regular team drivers",
           [row["id"] for row in regulars] == ["max_verstappen", "hadjar"])
+    old_openf1 = globals()["_openf1_api"]
+    _F1_LIVE_CACHE.clear()
+    def fake_openf1(endpoint, params=None):
+        rows = {
+            "sessions": [{"session_key": 99, "session_name": "Race", "session_type": "Race",
+                          "meeting_name": "Dutch Grand Prix", "circuit_short_name": "Zandvoort",
+                          "date_start": "2026-08-30T13:00:00+00:00",
+                          "date_end": "2026-08-30T15:00:00+00:00"}],
+            "drivers": [{"driver_number": 1, "broadcast_name": "M VERSTAPPEN",
+                         "name_acronym": "VER", "team_name": "Red Bull Racing",
+                         "team_colour": "3671C6"}],
+            "position": [{"driver_number": 1, "position": 1}],
+            "intervals": [{"driver_number": 1, "gap_to_leader": 0, "interval": 0}],
+            "stints": [{"driver_number": 1, "stint_number": 2, "compound": "MEDIUM"}],
+            "pit": [{"driver_number": 1, "lap_number": 24}],
+            "race_control": [{"lap_number": 25, "category": "Flag", "flag": "YELLOW",
+                              "message": "Yellow flag"}],
+            "weather": [{"track_temperature": 31.2, "air_temperature": 19.4}],
+        }
+        return rows.get(endpoint, [])
+    try:
+        globals()["_openf1_api"] = fake_openf1
+        live_sample = get_f1_live_centre({"round": "15", "race": "Dutch Grand Prix",
+                                          "session": "Race",
+                                          "start": "2026-08-30T13:00:00+00:00"})
+    finally:
+        globals()["_openf1_api"] = old_openf1
+        _F1_LIVE_CACHE.clear()
+    check("F1 Race Centre combines OpenF1 timing, tyres, pits, weather and control",
+          live_sample.get("standings", [{}])[0].get("acronym") == "VER" and
+          live_sample["standings"][0].get("compound") == "MEDIUM" and
+          live_sample["standings"][0].get("pit_stops") == 1 and
+          live_sample.get("messages", [{}])[0].get("flag") == "YELLOW" and
+          "function pollF1Live()" in PAGE and "f1WeekendPanel(ev)" in PAGE)
     check("racing event promoted", racing_kinds.get(20) == "event")
     check("racing series second", racing_kinds.get(21) == "series")
     check("racing category fallback", racing_kinds.get(22) == "possible")
