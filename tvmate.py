@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b529"
+VERSION = "0.777.b530"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -7052,6 +7052,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  #matchView{max-width:1480px;margin:0 auto;padding:0 18px 34px}
  .raceherobox{display:block} .racehero{display:flex;align-items:center;gap:18px;margin-top:10px} .racehero_art{width:96px;height:96px;object-fit:contain;border-radius:10px;background:#12161c;padding:6px;flex:0 0 auto} .racetitle{font-size:26px;font-weight:750;line-height:1.15} .racestatus{margin-top:6px;font-size:14px;font-weight:650;color:var(--mut)} .racestatus.live{color:#ff8e94} .racegrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start;margin-top:14px} .racecol{display:flex;flex-direction:column;gap:14px;min-width:0} .racePlayerAnchor{width:100%} .racePlayerAnchor.on{min-height:180px} .racelivelinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px} .racelivelink{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:13px;text-decoration:none;background:var(--card2)} .racelivelink:hover{border-color:var(--acc);color:var(--acc)} .racelivearrow{opacity:.6;font-size:11px} @media(max-width:1250px){.racegrid{grid-template-columns:minmax(0,1fr)}.racecol.racecentre{order:-1}} .wrcreason{margin-top:6px;font-size:11.5px;color:var(--mut);opacity:.85;word-break:break-word} .wrcsummary{display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:10px} .wrcday{margin-bottom:12px} .wrcdayhead{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin:0 0 6px} .wrcstage{display:grid;grid-template-columns:46px 52px minmax(0,1fr) 68px auto;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:13px;border:1px solid transparent} .wrcstage+.wrcstage{margin-top:2px} .wrcstage.past{opacity:.45} .wrcstage.running{border-color:#7a2a31;background:rgba(122,42,49,.25)} .wrcstage.next{border-color:var(--line);background:var(--card2)} .wrcstagetime{color:var(--mut);font-variant-numeric:tabular-nums} .wrcstagecode{font-weight:700} .wrcstagename{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .wrcstagekm{color:var(--mut);text-align:right;font-variant-numeric:tabular-nums} .wrcpower{color:#ffd166;font-size:11px;font-weight:700;margin-left:4px} .wrcnow{color:#ff8e94;border-color:#7a2a31} .racedays{display:flex;flex-direction:column;gap:6px} .raceday{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px} .raceday.now{border-color:#3d6b46;background:rgba(38,88,52,.22)} .raceday.past{opacity:.5} .racedaylabel{text-transform:capitalize} .racefacts{display:flex;flex-direction:column;gap:6px} .racefact{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13.5px} .racelink{color:var(--acc);font-size:13px;word-break:break-all} .matchbcastwrap{position:relative} .matchbcastpanel{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:320px;max-width:460px;max-height:60vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 18px 40px rgba(0,0,0,.45)} .matchbcastpanel.hide{display:none} .matchbcastcaret{font-size:10px;opacity:.75} #matchBcastBtn[aria-expanded="true"] .matchbcastcaret{display:inline-block;transform:rotate(180deg)} .matchdetailtop{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
  .f1livepanel{margin-top:14px}.f1livehead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.f1livebadge{color:#ff8e94;font-weight:800;font-size:11px}.f1livegrid{display:grid;grid-template-columns:minmax(480px,1.6fr) minmax(260px,.7fr);gap:14px}.f1timing{width:100%;border-collapse:collapse;font-size:12px}.f1timing th,.f1timing td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right}.f1timing th:nth-child(2),.f1timing td:nth-child(2){text-align:left}.f1drivercell{box-shadow:inset 3px 0 0 var(--team-color,transparent);padding-left:11px!important}.f1compound{display:inline-flex;min-width:20px;height:20px;align-items:center;justify-content:center;border-radius:50%;background:#ececec;color:#111;font-size:9px;font-weight:900}.f1compound.SOFT{background:#e23b3b;color:#fff}.f1compound.MEDIUM{background:#f0cf36}.f1compound.HARD{background:#eee}.f1compound.INTERMEDIATE{background:#3ca85b;color:#fff}.f1compound.WET{background:#397fd3;color:#fff}.f1sidecards{display:flex;flex-direction:column;gap:10px}.f1weather{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.f1weather span,.f1message{padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card2);font-size:11px}.f1messages{display:flex;flex-direction:column;gap:5px;max-height:300px;overflow:auto}.f1message.flag{border-left:3px solid #ffd23f}.f1weekend{display:flex;flex-direction:column;gap:6px}.f1sessionrow{display:flex;justify-content:space-between;gap:10px;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:12px}.f1sessionrow.current{border-color:#c73d43;background:rgba(122,42,49,.22)}@media(max-width:1000px){.f1livegrid{grid-template-columns:1fr}}@media(max-width:620px){.f1timing th:nth-child(4),.f1timing td:nth-child(4),.f1timing th:nth-child(6),.f1timing td:nth-child(6){display:none}}
+ .wrclivepanel{margin-top:14px}.wrclivestats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.wrclivestat{padding:11px;border:1px solid var(--line);border-radius:9px;background:var(--card2)}.wrclivestat span{display:block;color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.wrclivestat b{display:block;margin-top:5px;font-size:14px}.wrcprogressbar{height:7px;margin:12px 0;background:#252a32;border-radius:999px;overflow:hidden}.wrcprogressbar span{display:block;height:100%;background:linear-gradient(90deg,#d72d36,#ff7a55);border-radius:inherit}.wrclivetrack{display:flex;gap:7px;overflow-x:auto;padding-bottom:3px}.wrcliveitem{min-width:145px;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card2);font-size:11px}.wrcliveitem b{display:block;margin-bottom:4px}.wrcliveitem.done{opacity:.45}.wrcliveitem.current{border-color:#d34a51;background:rgba(122,42,49,.24)}.wrcliveitem.next{border-color:var(--acc)}.wrcliveofficial{color:var(--acc);text-decoration:none;font-size:12px}@media(max-width:800px){.wrclivestats{grid-template-columns:repeat(2,minmax(0,1fr))}}
  .matchdetailpage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:18px;align-items:start}
  .matchdetailhero{grid-column:1/-1;text-align:center;padding:26px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,rgba(31,73,124,.28),var(--card) 58%,rgba(231,169,78,.08))}
  .matchdetailcompetition{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--mut);margin-bottom:16px}
@@ -8080,7 +8081,7 @@ function hideAll(keepMytv){
   const pipPlayback=!!(_popupPipActive||popupPipVideo());
   const layoutPlayback=hasPlayback&&!pipPlayback;
   const leavingLiveTv=!!(!keepMytv&&hasTvPlayback&&!pipPlayback&&!mytvView.classList.contains('hide'));
-  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');teamView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();stopF1LiveTracking();updateProfileName(_profileConfig.profile_name);
+  settingsView.classList.add('hide');channelsView.classList.add('hide');mylistView.classList.add('hide');mytimelineView.classList.add('hide');mytvView.classList.add('hide');moviesView.classList.add('hide');showsView.classList.add('hide');gamesView.classList.add('hide');racingView.classList.add('hide');teamsView.classList.add('hide');teamView.classList.add('hide');matchView.classList.add('hide');raceView.classList.add('hide');releaseMatchPlayerAnchor();if(_matchRefreshTimer){clearTimeout(_matchRefreshTimer);_matchRefreshTimer=null;}stopMatchStatusTracking();stopF1LiveTracking();stopWrcLiveTracking();updateProfileName(_profileConfig.profile_name);
   if(!keepMytv&&layoutPlayback){
     if(leavingLiveTv)tvSetMini(true);
     document.body.classList.add('tvsectionplay');
@@ -8807,7 +8808,7 @@ function renderRacePage(){
     +(channels.length?racingChannelSections(channels):'<span class="muted">'+esc(tr('No channels in your list match this event yet.'))+'</span>')+'</div></div>';
   // Layout: channels on the left, the player centred with the event's own live
   // sub-pages beneath it, and the series panel (stages for WRC) on the right.
-  const livePanel=String(ev.series||'')==='f1'?'<div id="f1LiveCentre" class="matchdetailpanel f1livepanel"><span class="muted">'+esc(tr('Loading live timing...'))+'</span></div>':'';
+  const livePanel=String(ev.series||'')==='f1'?'<div id="f1LiveCentre" class="matchdetailpanel f1livepanel"><span class="muted">'+esc(tr('Loading live timing...'))+'</span></div>':(String(ev.series||'')==='wrc'?'<div id="wrcLiveCentre" class="matchdetailpanel wrclivepanel"><span class="muted">'+esc(tr('Loading rally status...'))+'</span></div>':'');
   el.innerHTML=hero+livePanel
     +'<div class="racegrid">'
     +'<div class="racecol raceleft">'+channelPanel+'</div>'
@@ -8819,8 +8820,9 @@ function renderRacePage(){
   if(label)label.textContent=raceRefreshLabel(ev);
   loadWrcItinerary(ev);
 }
-let _f1LiveTimer=null,_f1LastSnapshot=null;
+let _f1LiveTimer=null,_f1LastSnapshot=null,_wrcLiveTimer=null,_wrcLiveDays=[];
 function stopF1LiveTracking(){if(_f1LiveTimer){clearTimeout(_f1LiveTimer);_f1LiveTimer=null;}}
+function stopWrcLiveTracking(){if(_wrcLiveTimer){clearInterval(_wrcLiveTimer);_wrcLiveTimer=null;}}
 function f1Value(value,suffix){return value===null||value===undefined||value===''?'—':esc(value)+(suffix||'');}
 function renderF1Live(snapshot){
   const box=document.getElementById('f1LiveCentre');if(!box)return;
@@ -8839,6 +8841,24 @@ async function pollF1Live(){
   try{const data=await api('/api/f1_live'+query);if(_raceEvent===ev)renderF1Live(data);}catch(e){renderF1Live({available:false,delayed:true});}
   if(_raceEvent===ev&&!raceView.classList.contains('hide'))_f1LiveTimer=setTimeout(pollF1Live,5000);
 }
+function renderWrcLiveCentre(ev,days){
+  const box=document.getElementById('wrcLiveCentre');if(!box)return;
+  const stages=[];(days||[]).forEach(day=>(day.stages||[]).forEach(stage=>{const when=wrcStageMoment(ev,day.date,stage.time);stages.push(Object.assign({},stage,{day:day.day,when:when,ts:when?when.getTime():NaN}));}));
+  if(!stages.length){box.innerHTML='<div class="f1livehead"><h3>'+esc(tr('Rally status'))+'</h3><span class="muted">'+esc(tr('Waiting for the official itinerary.'))+'</span></div>';return;}
+  const now=Date.now(),timed=stages.filter(stage=>Number.isFinite(stage.ts)).sort((a,b)=>a.ts-b.ts);
+  const nextIndex=timed.findIndex(stage=>stage.ts>now),next=nextIndex>=0?timed[nextIndex]:null,current=nextIndex>0?timed[nextIndex-1]:(nextIndex<0?timed[timed.length-1]:null);
+  const running=!!(current&&next&&now-current.ts<Math.min(3*3600000,Math.max(45*60000,next.ts-current.ts)));
+  const completed=timed.filter(stage=>stage.ts<now&&(stage!==current||!running)),totalKm=stages.reduce((n,s)=>n+(Number(s.km)||0),0),doneKm=completed.reduce((n,s)=>n+(Number(s.km)||0),0),pct=totalKm?Math.min(100,Math.round(doneKm/totalKm*100)):0;
+  const status=running?tr('Running'):(next?tr('Next'):tr('Rally complete'));
+  const selected=new Set([...(completed.slice(-2)),...(current?[current]:[]),...(next?[next]:[]),...((nextIndex>=0?timed.slice(nextIndex+1,nextIndex+3):[]))]);
+  const cards=timed.filter(stage=>selected.has(stage)).map(stage=>{const cls=stage===current&&running?' current':(stage===next?' next':(completed.includes(stage)?' done':''));return '<div class="wrcliveitem'+cls+'"><b>'+esc(stage.code||'Stage')+' · '+esc(stage.name||'')+'</b><span>'+esc(stage.when?stage.when.toLocaleTimeString(_lang==='no'?'nb-NO':undefined,{weekday:'short',hour:'2-digit',minute:'2-digit'}):'')+' · '+(Number(stage.km)||0).toFixed(2)+' km</span></div>';}).join('');
+  const base=String(ev.url||'').replace(/\/+$/,'');
+  box.innerHTML='<div class="f1livehead"><h3>'+esc(tr('Rally status'))+'</h3><span class="'+(running?'f1livebadge':'muted')+'">'+esc(running?'● '+tr('Running'):status)+'</span></div>'
+    +'<div class="wrclivestats"><div class="wrclivestat"><span>'+esc(tr('Current stage'))+'</span><b>'+esc(current?(current.code+' · '+current.name):'—')+'</b></div><div class="wrclivestat"><span>'+esc(tr('Next stage'))+'</span><b>'+esc(next?(next.code+' · '+next.name):'—')+'</b></div><div class="wrclivestat"><span>'+esc(tr('Distance completed'))+'</span><b>'+doneKm.toFixed(1)+' / '+totalKm.toFixed(1)+' km</b></div><div class="wrclivestat"><span>'+esc(tr('Stages completed'))+'</span><b>'+completed.length+' / '+stages.length+'</b></div></div>'
+    +'<div class="wrcprogressbar" title="'+pct+'%"><span style="width:'+pct+'%"></span></div><div class="wrclivetrack">'+cards+'</div>'
+    +(base?'<div style="margin-top:10px"><a class="wrcliveofficial" href="'+escAttr(base+'/live-updates')+'" target="_blank" rel="noopener">'+esc(tr('Official live classification and updates'))+' &#8599;</a></div>':'');
+}
+function startWrcLiveTracking(){stopWrcLiveTracking();renderWrcLiveCentre(_raceEvent,_wrcLiveDays);_wrcLiveTimer=setInterval(()=>{if(_raceEvent&&String(_raceEvent.series||'')==='wrc'&&!raceView.classList.contains('hide'))renderWrcLiveCentre(_raceEvent,_wrcLiveDays);else stopWrcLiveTracking();},30000);}
 // Rally stage times are local to the event, so anchor them to the offset that
 // came with the calendar entry rather than the viewer's timezone.
 function wrcStageMoment(ev,dateIso,hhmm){
@@ -8902,7 +8922,7 @@ async function loadWrcItinerary(ev,force){
   if(force&&box)box.innerHTML='<span class="muted">'+esc(tr('Loading stages...'))+'</span>';
   try{
     const j=await api('/api/wrc_itinerary?url='+encodeURIComponent(ev.url)+(force?'&force=1':''));
-    if(_raceEvent===ev)renderWrcItinerary(ev,(j&&j.days)||[],(j&&j.reason)||'');
+    if(_raceEvent===ev){_wrcLiveDays=(j&&j.days)||[];renderWrcItinerary(ev,_wrcLiveDays,(j&&j.reason)||'');renderWrcLiveCentre(ev,_wrcLiveDays);}
   }catch(e){
     const box=document.getElementById('wrcItinerary');
     if(box)box.innerHTML='<span class="muted">'+esc(tr('Could not load the stage list.'))+'</span>';
@@ -8916,7 +8936,7 @@ function showRacePage(ev){
   document.getElementById('raceView').classList.remove('hide');
   document.querySelector('main').classList.add('wide');
   setNav('navRacing');setSlogan('mylist');
-  renderRacePage();if(String(ev.series||'')==='f1')pollF1Live();window.scrollTo(0,0);
+  _wrcLiveDays=[];renderRacePage();if(String(ev.series||'')==='f1')pollF1Live();else if(String(ev.series||'')==='wrc')startWrcLiveTracking();window.scrollTo(0,0);
 }
 function closeRacePage(){if(history.state&&history.state.section==='race')history.back();else showRacing();}
 // The refresh is scoped to this event's series, so it stays quick and leaves
@@ -15522,7 +15542,7 @@ def run_self_tests():
           "/api/match_status" in PAGE and
           "setTimeout(pollOpenMatchStatus,60*1000)" in PAGE and
           "setInterval(updateMatchStatusDisplay,60*1000)" in PAGE and
-          "stopMatchStatusTracking();stopF1LiveTracking();updateProfileName" in PAGE and
+          "stopMatchStatusTracking();stopF1LiveTracking();stopWrcLiveTracking();updateProfileName" in PAGE and
           "f.is_halftime?'Half-time'" in PAGE and
           "fetch_fotmob_daily_matches(force=force)" in open(__file__, encoding="utf-8").read())
     check("matched channel titles play without collapsing fixtures",
@@ -16170,6 +16190,12 @@ def run_self_tests():
     check("WRC recognizes Rally TV and standalone Rally channels",
           wrc_kinds.get(40) == "series" and wrc_kinds.get(41) == "series" and
           42 not in wrc_kinds and 43 not in wrc_kinds)
+    check("WRC Race Centre tracks stages, distance and official live updates",
+          "function renderWrcLiveCentre(ev,days)" in PAGE and
+          "function startWrcLiveTracking()" in PAGE and
+          "Distance completed" in PAGE and "Stages completed" in PAGE and
+          "Official live classification and updates" in PAGE and
+          "},30000)" in PAGE)
     wrc_callsign_rows = find_racing_channels(
         {"series": "wrc", "race": "Rally del Paraguay", "circuit": "",
          "session": "Rally weekend"},
