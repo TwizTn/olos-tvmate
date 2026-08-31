@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b537"
+VERSION = "0.777.b538"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2499,12 +2499,16 @@ def get_f1_live_centre(event):
     dataset_lock = threading.Lock()
     def fetch_dataset(endpoint):
         try:
-            value = _openf1_api(endpoint, {"session_key": session_key})
+            params = {"session_key": session_key}
+            if endpoint == "location":
+                params["date>"] = (datetime.datetime.now(datetime.timezone.utc) -
+                                    datetime.timedelta(seconds=45)).isoformat()
+            value = _openf1_api(endpoint, params)
         except Exception:
             value = []
         with dataset_lock:
             datasets[endpoint] = value if isinstance(value, list) else []
-    endpoints = ("drivers", "position", "intervals", "stints", "pit", "race_control", "weather")
+    endpoints = ("drivers", "position", "intervals", "stints", "pit", "race_control", "weather", "location")
     workers = [threading.Thread(target=fetch_dataset, args=(endpoint,), daemon=True)
                for endpoint in endpoints]
     for worker in workers:
@@ -2553,6 +2557,15 @@ def get_f1_live_centre(event):
                  "flag": row.get("flag") or "", "message": row.get("message") or ""}
                 for row in datasets["race_control"][-12:]]
     weather = datasets["weather"][-1] if datasets["weather"] else {}
+    locations = latest_by(datasets["location"], "driver_number")
+    live_map = []
+    for ident, point in locations.items():
+        driver = drivers.get(ident, {})
+        live_map.append({"driver_number": ident,
+                         "acronym": driver.get("name_acronym") or ident,
+                         "team_color": ("#" + str(driver.get("team_colour") or ""))
+                         if re.fullmatch(r"[0-9A-Fa-f]{6}", str(driver.get("team_colour") or "")) else "",
+                         "x": point.get("x"), "y": point.get("y"), "z": point.get("z")})
     now = datetime.datetime.now(datetime.timezone.utc)
     try:
         session_end = datetime.datetime.fromisoformat(str(session.get("date_end") or "").replace("Z", "+00:00"))
@@ -2565,7 +2578,8 @@ def get_f1_live_centre(event):
               "session": {key: session.get(key) for key in ("session_key", "session_name", "session_type",
                                                                "meeting_name", "circuit_short_name",
                                                                "date_start", "date_end")},
-              "standings": standings, "messages": messages, "weather": weather}
+              "standings": standings, "messages": messages, "weather": weather,
+              "live_map": live_map}
     _F1_LIVE_CACHE[cache_key] = {"ts": time.time(), "data": result}
     return result
 
@@ -7099,9 +7113,9 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:700px){#teamsView.sports-layout-agenda .teamfixture,#teamsView.sports-layout-timeline .teamfixture{grid-template-columns:1fr}#teamsView.sports-layout-agenda .teamfixturebroadcasts,#teamsView.sports-layout-timeline .teamfixturebroadcasts{grid-column:1}#teamsView.sports-layout-broadcast .topfixturegrid{grid-template-columns:1fr}}
  #matchView{max-width:1480px;margin:0 auto;padding:0 18px 34px}
  .raceherobox{display:block} .racehero{display:flex;align-items:center;gap:18px;margin-top:10px} .racehero_art{width:96px;height:96px;object-fit:contain;border-radius:10px;background:#12161c;padding:6px;flex:0 0 auto} .racetitle{font-size:26px;font-weight:750;line-height:1.15} .racestatus{margin-top:6px;font-size:14px;font-weight:650;color:var(--mut)} .racestatus.live{color:#ff8e94} .racegrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start;margin-top:14px} .racecol{display:flex;flex-direction:column;gap:14px;min-width:0} .racePlayerAnchor{width:100%} .racePlayerAnchor.on{min-height:180px} .racelivelinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px} .racelivelink{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:13px;text-decoration:none;background:var(--card2)} .racelivelink:hover{border-color:var(--acc);color:var(--acc)} .racelivearrow{opacity:.6;font-size:11px} @media(max-width:1250px){.racegrid{grid-template-columns:minmax(0,1fr)}.racecol.racecentre{order:-1}} .wrcreason{margin-top:6px;font-size:11.5px;color:var(--mut);opacity:.85;word-break:break-word} .wrcsummary{display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:10px} .wrcday{margin-bottom:12px} .wrcdayhead{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);font-weight:700;margin:0 0 6px} .wrcstage{display:grid;grid-template-columns:46px 52px minmax(0,1fr) 68px auto;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:13px;border:1px solid transparent} .wrcstage+.wrcstage{margin-top:2px} .wrcstage.past{opacity:.45} .wrcstage.running{border-color:#7a2a31;background:rgba(122,42,49,.25)} .wrcstage.next{border-color:var(--line);background:var(--card2)} .wrcstagetime{color:var(--mut);font-variant-numeric:tabular-nums} .wrcstagecode{font-weight:700} .wrcstagename{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .wrcstagekm{color:var(--mut);text-align:right;font-variant-numeric:tabular-nums} .wrcpower{color:#ffd166;font-size:11px;font-weight:700;margin-left:4px} .wrcnow{color:#ff8e94;border-color:#7a2a31} .racedays{display:flex;flex-direction:column;gap:6px} .raceday{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px} .raceday.now{border-color:#3d6b46;background:rgba(38,88,52,.22)} .raceday.past{opacity:.5} .racedaylabel{text-transform:capitalize} .racefacts{display:flex;flex-direction:column;gap:6px} .racefact{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13.5px} .racelink{color:var(--acc);font-size:13px;word-break:break-all} .matchbcastwrap{position:relative} .matchbcastpanel{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:320px;max-width:460px;max-height:60vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 18px 40px rgba(0,0,0,.45)} .matchbcastpanel.hide{display:none} .matchbcastcaret{font-size:10px;opacity:.75} #matchBcastBtn[aria-expanded="true"] .matchbcastcaret{display:inline-block;transform:rotate(180deg)} .matchdetailtop{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
- #racePageContent.matchdetailpage{display:block} #racePageContent .racegrid{grid-template-columns:minmax(420px,560px) minmax(560px,780px) minmax(300px,380px);justify-content:center;max-width:1740px;margin:14px auto 0} #racePageContent .racecentre{width:100%;max-width:780px;justify-self:center} #racePageContent .raceright{grid-column:3;grid-row:1} @media(max-width:1320px){#racePageContent .racegrid{grid-template-columns:minmax(0,1fr) minmax(280px,360px)}#racePageContent .racecentre{grid-column:1;grid-row:1}#racePageContent .raceright{grid-column:2;grid-row:1}#racePageContent .raceleft{grid-column:1;grid-row:2}} @media(max-width:760px){#racePageContent .racegrid{grid-template-columns:minmax(0,1fr)}#racePageContent .racecentre,#racePageContent .raceright,#racePageContent .raceleft{grid-column:1;grid-row:auto}#racePageContent .racecentre{order:-1}}
+ #racePageContent.matchdetailpage{display:block} #racePageContent .racegrid{grid-template-columns:minmax(520px,620px) minmax(680px,860px) minmax(300px,380px);justify-content:center;max-width:1900px;margin:14px auto 0} #racePageContent .racecentre{width:100%;max-width:860px;justify-self:center} #racePageContent .raceright{grid-column:3;grid-row:1} #racePageContent .f1cockpit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start} #racePageContent .f1cockpit>#f1LiveCentre{grid-column:1/-1} @media(max-width:1450px){#racePageContent .racegrid{grid-template-columns:minmax(0,1fr) minmax(300px,380px)}#racePageContent .racecentre{grid-column:1;grid-row:1}#racePageContent .raceright{grid-column:2;grid-row:1}#racePageContent .raceleft{grid-column:1;grid-row:2}} @media(max-width:760px){#racePageContent .racegrid{grid-template-columns:minmax(0,1fr)}#racePageContent .racecentre,#racePageContent .raceright,#racePageContent .raceleft{grid-column:1;grid-row:auto}#racePageContent .racecentre{order:-1}#racePageContent .f1cockpit{grid-template-columns:1fr}#racePageContent .f1cockpit>#f1LiveCentre{grid-column:1}}
  .f1livepanel{margin-top:14px}.f1livehead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.f1livebadge{color:#ff8e94;font-weight:800;font-size:11px}.f1livegrid{display:grid;grid-template-columns:minmax(480px,1.6fr) minmax(260px,.7fr);gap:14px}.f1timing{width:100%;border-collapse:collapse;font-size:12px}.f1timing th,.f1timing td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right}.f1timing th:nth-child(2),.f1timing td:nth-child(2){text-align:left}.f1drivercell{box-shadow:inset 3px 0 0 var(--team-color,transparent);padding-left:11px!important}.f1compound{display:inline-flex;min-width:20px;height:20px;align-items:center;justify-content:center;border-radius:50%;background:#ececec;color:#111;font-size:9px;font-weight:900}.f1compound.SOFT{background:#e23b3b;color:#fff}.f1compound.MEDIUM{background:#f0cf36}.f1compound.HARD{background:#eee}.f1compound.INTERMEDIATE{background:#3ca85b;color:#fff}.f1compound.WET{background:#397fd3;color:#fff}.f1sidecards{display:flex;flex-direction:column;gap:10px}.f1weather{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.f1weather span,.f1message{padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card2);font-size:11px}.f1messages{display:flex;flex-direction:column;gap:5px;max-height:300px;overflow:auto}.f1message.flag{border-left:3px solid #ffd23f}.f1weekend{display:flex;flex-direction:column;gap:6px}.f1sessionrow{display:flex;justify-content:space-between;gap:10px;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:12px}.f1sessionrow.current{border-color:#c73d43;background:rgba(122,42,49,.22)}@media(max-width:1000px){.f1livegrid{grid-template-columns:1fr}}@media(max-width:620px){.f1timing th:nth-child(4),.f1timing td:nth-child(4),.f1timing th:nth-child(6),.f1timing td:nth-child(6){display:none}}
- #racePageContent .racehero{justify-content:center} #racePageContent .racehero>div:last-child{text-align:left} .f1livepanel{display:flex;flex-direction:column;gap:14px}.f1panelhead{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:12px;text-align:center}.f1panelhead .f1livebadge,.f1panelhead>.muted{position:absolute;right:0}.f1summarygrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.f1summarycard{padding:12px 14px}.f1summarycard span{display:block;color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.f1summarycard b{display:block;margin-top:6px;font-size:16px}.f1lowergrid{display:grid;grid-template-columns:1fr;gap:14px}.f1weathercard .f1weather{grid-template-columns:repeat(2,minmax(0,1fr))}.f1weathercard .f1weather span{display:flex;justify-content:space-between;align-items:center;min-height:38px}.f1controlcard .f1messages{max-height:260px}.f1timingcard .f1timing th,.f1timingcard .f1timing td{padding:8px 7px}@media(max-width:760px){.f1summarygrid{grid-template-columns:repeat(2,minmax(0,1fr))}.f1panelhead{justify-content:flex-start;text-align:left}.f1panelhead .f1livebadge,.f1panelhead>.muted{position:static;margin-left:auto}}
+ #racePageContent .racehero{justify-content:center} #racePageContent .racehero>div:last-child{text-align:left} .f1livepanel{display:flex;flex-direction:column;gap:14px}.f1panelhead{display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:12px;text-align:center}.f1panelhead .f1livebadge,.f1panelhead>.muted{position:absolute;right:0}.f1summarygrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.f1summarycard{padding:12px 14px}.f1summarycard span{display:block;color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.f1summarycard b{display:block;margin-top:6px;font-size:16px}.f1lowergrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.f1controlcard{grid-column:1/-1}.f1weathercard .f1weather{grid-template-columns:repeat(2,minmax(0,1fr))}.f1weathercard .f1weather span{display:flex;justify-content:space-between;align-items:center;min-height:38px}.f1controlcard .f1messages{max-height:180px}.f1timingcard .f1timing th,.f1timingcard .f1timing td{padding:8px 7px}.f1mapcard{min-height:150px}.f1map{width:100%;height:150px;border:1px solid var(--line);border-radius:9px;background:radial-gradient(circle at center,#17202c,#0c1016 72%)}.f1mapgrid{stroke:#33404f;stroke-width:.6;opacity:.45}.f1mapdot{stroke:#fff;stroke-width:1.5}.f1maplabel{fill:#fff;font-size:8px;font-weight:800;text-anchor:middle}.f1mapempty{display:grid;place-items:center;min-height:150px;color:var(--mut);font-size:12px}@media(max-width:760px){.f1summarygrid{grid-template-columns:repeat(2,minmax(0,1fr))}.f1lowergrid{grid-template-columns:1fr}.f1controlcard{grid-column:1}.f1panelhead{justify-content:flex-start;text-align:left}.f1panelhead .f1livebadge,.f1panelhead>.muted{position:static;margin-left:auto}}
  .wrclivepanel{margin-top:14px}.wrclivestats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.wrclivestat{padding:11px;border:1px solid var(--line);border-radius:9px;background:var(--card2)}.wrclivestat span{display:block;color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.wrclivestat b{display:block;margin-top:5px;font-size:14px}.wrcprogressbar{height:7px;margin:12px 0;background:#252a32;border-radius:999px;overflow:hidden}.wrcprogressbar span{display:block;height:100%;background:linear-gradient(90deg,#d72d36,#ff7a55);border-radius:inherit}.wrclivetrack{display:flex;gap:7px;overflow-x:auto;padding-bottom:3px}.wrcliveitem{min-width:145px;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card2);font-size:11px}.wrcliveitem b{display:block;margin-bottom:4px}.wrcliveitem.done{opacity:.45}.wrcliveitem.current{border-color:#d34a51;background:rgba(122,42,49,.24)}.wrcliveitem.next{border-color:var(--acc)}.wrcliveofficial{color:var(--acc);text-decoration:none;font-size:12px}@media(max-width:800px){.wrclivestats{grid-template-columns:repeat(2,minmax(0,1fr))}}
  .matchdetailpage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:18px;align-items:start}
  .matchdetailhero{grid-column:1/-1;text-align:center;padding:26px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,rgba(31,73,124,.28),var(--card) 58%,rgba(231,169,78,.08))}
@@ -8815,7 +8829,10 @@ function wrcRallyDays(ev){
   return days;
 }
 function f1WeekendPanel(ev){
-  const sessions=_racingEventRows.filter(row=>String(row.series||'')==='f1'&&String(row.round||'')===String(ev.round||'')).sort((a,b)=>new Date(a.start)-new Date(b.start));
+  const profileRows=_myListF1Moments.map(row=>(row&&row.event)||null).filter(Boolean);
+  const raceKey=String(ev.race||ev.circuit||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+  const candidates=_racingEventRows.concat(profileRows).filter(row=>{const rowRace=String(row.race||row.circuit||'').toLowerCase().replace(/[^a-z0-9]+/g,'');return String(row.series||'')==='f1'&&((ev.round&&row.round&&String(row.round)===String(ev.round))||(raceKey&&rowRace===raceKey));});
+  const seen=new Set(),sessions=candidates.filter(row=>{const key=racingAvailabilityKey(row);if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>new Date(a.start)-new Date(b.start));
   const locale=_lang==='no'?'nb-NO':undefined;
   const start=new Date(ev.start),startText=Number.isNaN(start.getTime())?'':start.toLocaleString(locale,{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'});
   const details='<div class="matchdetailpanel"><h3>'+esc(tr('Event detail'))+'</h3><div class="racefacts">'
@@ -8881,7 +8898,7 @@ function renderRacePage(){
   const f1Summary=isF1?'<div id="f1LiveSummary" class="f1summarygrid"></div>':'';
   el.innerHTML=hero
     +'<div class="racegrid">'
-    +'<div class="racecol raceleft">'+raceCentreExtras(ev)+f1Left+'</div>'
+    +'<div class="racecol raceleft'+(isF1?' f1cockpit':'')+'">'+raceCentreExtras(ev)+f1Left+'</div>'
     +'<div class="racecol racecentre"><div id="racePlayerAnchor" class="matchplayeranchor racePlayerAnchor"></div>'+f1Summary+raceLiveLinksPanel(ev)+livePanel+'</div>'
     +'<div class="racecol raceright">'+channelPanel+'</div>'
     +'</div>';
@@ -8894,12 +8911,19 @@ let _f1LiveTimer=null,_f1LastSnapshot=null,_f1DemoMode=false,_wrcLiveTimer=null,
 function stopF1LiveTracking(){if(_f1LiveTimer){clearTimeout(_f1LiveTimer);_f1LiveTimer=null;}}
 function stopWrcLiveTracking(){if(_wrcLiveTimer){clearInterval(_wrcLiveTimer);_wrcLiveTimer=null;}}
 function f1Value(value,suffix){return value===null||value===undefined||value===''?'—':esc(value)+(suffix||'');}
+function f1LiveMapHtml(points){
+  const rows=(points||[]).filter(row=>Number.isFinite(Number(row.x))&&Number.isFinite(Number(row.y)));
+  if(!rows.length)return '<div class="f1mapempty">'+esc(tr('Live map starts with car telemetry'))+'</div>';
+  const xs=rows.map(row=>Number(row.x)),ys=rows.map(row=>Number(row.y)),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),dx=Math.max(1,maxX-minX),dy=Math.max(1,maxY-minY);
+  const dots=rows.map(row=>{const x=24+(Number(row.x)-minX)/dx*272,y=18+(Number(row.y)-minY)/dy*144,color=row.team_color||'#4aa3ff',label=row.acronym||row.driver_number||'';return '<g transform="translate('+x.toFixed(1)+' '+y.toFixed(1)+')"><circle class="f1mapdot" r="7" fill="'+escAttr(color)+'"></circle><text class="f1maplabel" y="3">'+esc(label)+'</text></g>';}).join('');
+  return '<svg class="f1map" viewBox="0 0 320 180" role="img" aria-label="'+escAttr(tr('Live map'))+'"><path class="f1mapgrid" d="M20 45H300M20 90H300M20 135H300M80 15V165M160 15V165M240 15V165"></path>'+dots+'</svg>';
+}
 function renderF1Live(snapshot){
   const box=document.getElementById('f1LiveCentre'),summaryBox=document.getElementById('f1LiveSummary');if(!box||!summaryBox)return;
   if(snapshot&&snapshot.available)_f1LastSnapshot=snapshot;
   const data=(snapshot&&snapshot.available)?snapshot:_f1LastSnapshot;
   if(!data){const preview=_devMode?'<button type="button" class="ghost" onclick="previewF1LiveData()">Preview live data</button>':'';box.innerHTML='<div class="matchdetailpanel f1timingcard"><div class="f1panelhead"><h3>'+esc(tr('Live timing'))+'</h3><span class="muted">'+esc(tr('Starts with the live session'))+'</span></div><div class="row" style="justify-content:center">'+preview+'</div></div>'
-    +'<div class="f1lowergrid"><div class="matchdetailpanel f1weathercard"><h3>'+esc(tr('Weather'))+'</h3><div class="f1weather"><span>'+esc(tr('Track'))+' <b>—</b></span><span>'+esc(tr('Air'))+' <b>—</b></span><span>'+esc(tr('Rain'))+' <b>—</b></span><span>'+esc(tr('Wind'))+' <b>—</b></span></div></div><div class="matchdetailpanel f1controlcard"><h3>'+esc(tr('Race control'))+'</h3><span class="muted">'+esc(tr('No race-control messages yet.'))+'</span></div></div>';
+    +'<div class="f1lowergrid"><div class="matchdetailpanel f1weathercard"><h3>'+esc(tr('Weather'))+'</h3><div class="f1weather"><span>'+esc(tr('Track'))+' <b>—</b></span><span>'+esc(tr('Air'))+' <b>—</b></span><span>'+esc(tr('Rain'))+' <b>—</b></span><span>'+esc(tr('Wind'))+' <b>—</b></span></div></div><div class="matchdetailpanel f1mapcard"><h3>'+esc(tr('Live map'))+'</h3>'+f1LiveMapHtml([])+'</div><div class="matchdetailpanel f1controlcard"><h3>'+esc(tr('Race control'))+'</h3><span class="muted">'+esc(tr('No race-control messages yet.'))+'</span></div></div>';
     summaryBox.innerHTML='<div class="matchdetailpanel f1summarycard"><span>'+esc(tr('Session status'))+'</span><b>'+esc(tr('Not started'))+'</b></div><div class="matchdetailpanel f1summarycard"><span>'+esc(tr('Leader'))+'</span><b>—</b></div><div class="matchdetailpanel f1summarycard"><span>'+esc(tr('Lap'))+'</span><b>—</b></div><div class="matchdetailpanel f1summarycard"><span>'+esc(tr('Session time'))+'</span><b>—</b></div>';return;}
   const standings=data.standings||[],weather=data.weather||{},messages=(data.messages||[]).slice().reverse();
   const timing='<div style="overflow-x:auto"><table class="f1timing"><thead><tr><th>P</th><th>'+esc(tr('Driver'))+'</th><th>'+esc(tr('Gap'))+'</th><th>'+esc(tr('Interval'))+'</th><th>'+esc(tr('Tyre'))+'</th><th>'+esc(tr('Stint'))+'</th><th>'+esc(tr('Pits'))+'</th></tr></thead><tbody>'+standings.map(row=>{const compound=String(row.compound||'').toUpperCase(),letter=compound?compound[0]:'—';return '<tr><td><b>'+esc(row.position||'—')+'</b></td><td class="f1drivercell" style="--team-color:'+escAttr(row.team_color||'transparent')+'"><b>'+esc(row.acronym||row.name||row.driver_number)+'</b><div class="muted">'+esc(row.team||'')+'</div></td><td>'+f1Value(row.gap)+'</td><td>'+f1Value(row.interval)+'</td><td><span class="f1compound '+escAttr(compound)+'" title="'+escAttr(compound)+'">'+esc(letter)+'</span></td><td>'+f1Value(row.stint)+'</td><td>'+f1Value(row.pit_stops)+'</td></tr>';}).join('')+'</tbody></table></div>';
@@ -8908,13 +8932,13 @@ function renderF1Live(snapshot){
   const statusText=data.demo?'● DEMO':(data.live?'● LIVE':(snapshot&&snapshot.delayed?tr('Live timing delayed'):tr('Latest timing')));
   const summary=data.summary||{},leader=standings.length?(standings[0].acronym||standings[0].name||'—'):'—';
   box.innerHTML='<div class="matchdetailpanel f1timingcard"><div class="f1panelhead"><h3>'+esc((data.session||{}).session_name||tr('Live timing'))+'</h3><span class="'+(data.live||data.demo?'f1livebadge':'muted')+'">'+esc(statusText)+'</span></div>'+timing+'</div>'
-    +'<div class="f1lowergrid"><div class="matchdetailpanel f1weathercard"><h3>'+esc(tr('Weather'))+'</h3>'+weatherHtml+'</div><div class="matchdetailpanel f1controlcard"><h3>'+esc(tr('Race control'))+'</h3>'+messageHtml+'</div></div>';
+    +'<div class="f1lowergrid"><div class="matchdetailpanel f1weathercard"><h3>'+esc(tr('Weather'))+'</h3>'+weatherHtml+'</div><div class="matchdetailpanel f1mapcard"><h3>'+esc(tr('Live map'))+'</h3>'+f1LiveMapHtml(data.live_map||[])+'</div><div class="matchdetailpanel f1controlcard"><h3>'+esc(tr('Race control'))+'</h3>'+messageHtml+'</div></div>';
   summaryBox.innerHTML='<div class="matchdetailpanel f1summarycard"><span>'+esc(tr('Session status'))+'</span><b>'+esc(summary.flag||statusText.replace('● ',''))+'</b></div><div class="matchdetailpanel f1summarycard"><span>'+esc(tr('Leader'))+'</span><b>'+esc(leader)+'</b></div><div class="matchdetailpanel f1summarycard"><span>'+esc(tr('Lap'))+'</span><b>'+esc(summary.lap||'—')+'</b></div><div class="matchdetailpanel f1summarycard"><span>'+esc(tr('Session time'))+'</span><b>'+esc(summary.elapsed||'—')+'</b></div>';
 }
 function previewF1LiveData(){
   if(!_devMode)return;
   _f1DemoMode=true;
-  renderF1Live({available:true,demo:true,live:false,session:{session_name:'Practice 1 · Demo'},summary:{flag:'Green flag',lap:'18 / 53',elapsed:'42:16'},weather:{track_temperature:38.4,air_temperature:25.8,rainfall:0,wind_speed:3.2},standings:[
+  renderF1Live({available:true,demo:true,live:false,session:{session_name:'Practice 1 · Demo'},summary:{flag:'Green flag',lap:'18 / 53',elapsed:'42:16'},weather:{track_temperature:38.4,air_temperature:25.8,rainfall:0,wind_speed:3.2},live_map:[{acronym:'VER',team_color:'#3671c6',x:92,y:34},{acronym:'NOR',team_color:'#ff8000',x:78,y:46},{acronym:'LEC',team_color:'#e8002d',x:52,y:78},{acronym:'PIA',team_color:'#ff8000',x:30,y:93},{acronym:'RUS',team_color:'#27f4d2',x:10,y:61},{acronym:'HAM',team_color:'#e8002d',x:42,y:18}],standings:[
     {position:1,acronym:'VER',team:'Red Bull Racing',team_color:'#3671c6',gap:'Leader',interval:'',compound:'MEDIUM',stint:14,pit_stops:0},
     {position:2,acronym:'NOR',team:'McLaren',team_color:'#ff8000',gap:'+1.842',interval:'+1.842',compound:'MEDIUM',stint:13,pit_stops:0},
     {position:3,acronym:'LEC',team:'Ferrari',team_color:'#e8002d',gap:'+3.104',interval:'+1.262',compound:'HARD',stint:18,pit_stops:1},
@@ -16425,10 +16449,10 @@ def run_self_tests():
           "golf:showGolf" in PAGE and 'value="golf"' in PAGE)
     check("active Race Centre keeps player central and channel matches on the right",
           "#racePageContent.matchdetailpage{display:block}" in PAGE and
-          "grid-template-columns:minmax(420px,560px) minmax(560px,780px) minmax(300px,380px)" in PAGE and
-          "#racePageContent .racecentre{width:100%;max-width:780px" in PAGE and
+          "grid-template-columns:minmax(520px,620px) minmax(680px,860px) minmax(300px,380px)" in PAGE and
+          "#racePageContent .racecentre{width:100%;max-width:860px" in PAGE and
           "f1Summary+raceLiveLinksPanel(ev)+livePanel" in PAGE and
-          "'<div class=\"racecol raceleft\">'+raceCentreExtras(ev)+f1Left" in PAGE and
+          "'<div class=\"racecol raceleft'+(isF1?' f1cockpit':'')+'\">'+raceCentreExtras(ev)+f1Left" in PAGE and
           "'<div class=\"racecol raceright\">'+channelPanel" in PAGE and
           "el.innerHTML=hero+livePanel" not in PAGE)
     check("F1 Race Centre removes generic official link and keeps pre-session stats",
@@ -16445,10 +16469,16 @@ def run_self_tests():
     check("F1 live centre separates timing, summaries, weather and race control",
           "f1timingcard" in PAGE and "f1summarygrid" in PAGE and
           "f1weathercard" in PAGE and "f1controlcard" in PAGE and
+          "function f1LiveMapHtml(points)" in PAGE and "f1mapcard" in PAGE and
+          '"live_map": live_map' in source_text and '"location"' in source_text and
           "document.getElementById('f1LiveSummary')" in PAGE and
           "summaryBox.innerHTML" in PAGE and
           "const summary=data.summary||{}" in PAGE and
           "#racePageContent .racehero{justify-content:center}" in PAGE)
+    check("F1 weekend schedule survives profile timeline navigation",
+          "const profileRows=_myListF1Moments.map" in PAGE and
+          "_racingEventRows.concat(profileRows)" in PAGE and
+          "const seen=new Set(),sessions=candidates.filter" in PAGE)
     check("profile racing timeline opens the selected Race Centre event",
           "data-event-key=\"'+escAttr(racingAvailabilityKey(event))+'\"" in PAGE and
           "_myListF1Moments.find(row=>racingAvailabilityKey(row.event||{})===key)" in PAGE and
