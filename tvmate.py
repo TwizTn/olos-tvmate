@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b534"
+VERSION = "0.777.b535"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -8886,7 +8886,7 @@ function renderRacePage(){
   if(label)label.textContent=raceRefreshLabel(ev);
   loadWrcItinerary(ev);
 }
-let _f1LiveTimer=null,_f1LastSnapshot=null,_wrcLiveTimer=null,_wrcLiveDays=[];
+let _f1LiveTimer=null,_f1LastSnapshot=null,_f1DemoMode=false,_wrcLiveTimer=null,_wrcLiveDays=[];
 function stopF1LiveTracking(){if(_f1LiveTimer){clearTimeout(_f1LiveTimer);_f1LiveTimer=null;}}
 function stopWrcLiveTracking(){if(_wrcLiveTimer){clearInterval(_wrcLiveTimer);_wrcLiveTimer=null;}}
 function f1Value(value,suffix){return value===null||value===undefined||value===''?'—':esc(value)+(suffix||'');}
@@ -8894,17 +8894,33 @@ function renderF1Live(snapshot){
   const box=document.getElementById('f1LiveCentre');if(!box)return;
   if(snapshot&&snapshot.available)_f1LastSnapshot=snapshot;
   const data=(snapshot&&snapshot.available)?snapshot:_f1LastSnapshot;
-  if(!data){box.innerHTML='<div class="f1livehead"><h3>'+esc(tr('Live timing'))+'</h3><span class="muted">'+esc(tr('Starts with the live session'))+'</span></div>'
+  if(!data){const preview=_devMode?'<button type="button" class="ghost" onclick="previewF1LiveData()">Preview live data</button>':'';box.innerHTML='<div class="f1livehead"><h3>'+esc(tr('Live timing'))+'</h3><div class="row"><span class="muted">'+esc(tr('Starts with the live session'))+'</span>'+preview+'</div></div>'
     +'<div class="f1livegrid"><div class="f1timingwaiting"><div class="racefact"><span class="muted">'+esc(tr('Session status'))+'</span><b>'+esc(tr('Not started'))+'</b></div><div class="racefact"><span class="muted">'+esc(tr('Timing and positions'))+'</span><span>—</span></div><div class="racefact"><span class="muted">'+esc(tr('Tyres and pit stops'))+'</span><span>—</span></div></div>'
     +'<div class="f1sidecards"><div class="f1weather"><span>'+esc(tr('Track'))+' <b>—</b></span><span>'+esc(tr('Air'))+' <b>—</b></span><span>'+esc(tr('Rain'))+' <b>—</b></span><span>'+esc(tr('Wind'))+' <b>—</b></span></div><div><div class="colh">'+esc(tr('Race control'))+'</div><span class="muted">'+esc(tr('No race-control messages yet.'))+'</span></div></div></div>';return;}
   const standings=data.standings||[],weather=data.weather||{},messages=(data.messages||[]).slice().reverse();
   const timing='<div style="overflow-x:auto"><table class="f1timing"><thead><tr><th>P</th><th>'+esc(tr('Driver'))+'</th><th>'+esc(tr('Gap'))+'</th><th>'+esc(tr('Interval'))+'</th><th>'+esc(tr('Tyre'))+'</th><th>'+esc(tr('Stint'))+'</th><th>'+esc(tr('Pits'))+'</th></tr></thead><tbody>'+standings.map(row=>{const compound=String(row.compound||'').toUpperCase(),letter=compound?compound[0]:'—';return '<tr><td><b>'+esc(row.position||'—')+'</b></td><td class="f1drivercell" style="--team-color:'+escAttr(row.team_color||'transparent')+'"><b>'+esc(row.acronym||row.name||row.driver_number)+'</b><div class="muted">'+esc(row.team||'')+'</div></td><td>'+f1Value(row.gap)+'</td><td>'+f1Value(row.interval)+'</td><td><span class="f1compound '+escAttr(compound)+'" title="'+escAttr(compound)+'">'+esc(letter)+'</span></td><td>'+f1Value(row.stint)+'</td><td>'+f1Value(row.pit_stops)+'</td></tr>';}).join('')+'</tbody></table></div>';
   const weatherHtml='<div class="f1weather"><span>'+esc(tr('Track'))+' <b>'+f1Value(weather.track_temperature,'°C')+'</b></span><span>'+esc(tr('Air'))+' <b>'+f1Value(weather.air_temperature,'°C')+'</b></span><span>'+esc(tr('Rain'))+' <b>'+f1Value(weather.rainfall)+'</b></span><span>'+esc(tr('Wind'))+' <b>'+f1Value(weather.wind_speed,' m/s')+'</b></span></div>';
   const messageHtml='<div class="f1messages">'+(messages.length?messages.map(row=>'<div class="f1message'+(row.flag?' flag':'')+'">'+(row.lap?'<b>L'+esc(row.lap)+'</b> ':'')+esc(row.flag||row.category||'')+(row.message?' · '+esc(row.message):'')+'</div>').join(''):'<span class="muted">'+esc(tr('No race-control messages yet.'))+'</span>')+'</div>';
-  box.innerHTML='<div class="f1livehead"><h3>'+esc((data.session||{}).session_name||tr('Live timing'))+'</h3><span class="'+(data.live?'f1livebadge':'muted')+'">'+esc(data.live?'● LIVE':(snapshot&&snapshot.delayed?tr('Live timing delayed'):tr('Latest timing')))+'</span></div><div class="f1livegrid">'+timing+'<div class="f1sidecards">'+weatherHtml+'<div><div class="colh">'+esc(tr('Race control'))+'</div>'+messageHtml+'</div></div></div>';
+  const statusText=data.demo?'● DEMO':(data.live?'● LIVE':(snapshot&&snapshot.delayed?tr('Live timing delayed'):tr('Latest timing')));
+  box.innerHTML='<div class="f1livehead"><h3>'+esc((data.session||{}).session_name||tr('Live timing'))+'</h3><span class="'+(data.live||data.demo?'f1livebadge':'muted')+'">'+esc(statusText)+'</span></div><div class="f1livegrid">'+timing+'<div class="f1sidecards">'+weatherHtml+'<div><div class="colh">'+esc(tr('Race control'))+'</div>'+messageHtml+'</div></div></div>';
+}
+function previewF1LiveData(){
+  if(!_devMode)return;
+  _f1DemoMode=true;
+  renderF1Live({available:true,demo:true,live:false,session:{session_name:'Practice 1 · Demo'},weather:{track_temperature:38.4,air_temperature:25.8,rainfall:0,wind_speed:3.2},standings:[
+    {position:1,acronym:'VER',team:'Red Bull Racing',team_color:'#3671c6',gap:'Leader',interval:'',compound:'MEDIUM',stint:14,pit_stops:0},
+    {position:2,acronym:'NOR',team:'McLaren',team_color:'#ff8000',gap:'+1.842',interval:'+1.842',compound:'MEDIUM',stint:13,pit_stops:0},
+    {position:3,acronym:'LEC',team:'Ferrari',team_color:'#e8002d',gap:'+3.104',interval:'+1.262',compound:'HARD',stint:18,pit_stops:1},
+    {position:4,acronym:'PIA',team:'McLaren',team_color:'#ff8000',gap:'+4.331',interval:'+1.227',compound:'SOFT',stint:7,pit_stops:1},
+    {position:5,acronym:'RUS',team:'Mercedes',team_color:'#27f4d2',gap:'+6.090',interval:'+1.759',compound:'HARD',stint:19,pit_stops:1},
+    {position:6,acronym:'HAM',team:'Ferrari',team_color:'#e8002d',gap:'+7.418',interval:'+1.328',compound:'MEDIUM',stint:12,pit_stops:1}],messages:[
+    {lap:18,flag:'GREEN',message:'DRS enabled'},
+    {lap:16,flag:'YELLOW',message:'Turn 4 — debris reported'},
+    {lap:15,category:'Race control',message:'Track clear'}]});
 }
 async function pollF1Live(){
   stopF1LiveTracking();const ev=_raceEvent;if(!ev||String(ev.series||'')!=='f1'||raceView.classList.contains('hide'))return;
+  if(_f1DemoMode)return;
   const query='?round='+encodeURIComponent(ev.round||'')+'&race='+encodeURIComponent(ev.race||'')+'&session='+encodeURIComponent(ev.session||'')+'&start='+encodeURIComponent(ev.start||'');
   try{const data=await api('/api/f1_live'+query);if(_raceEvent===ev)renderF1Live(data);}catch(e){renderF1Live({available:false,delayed:true});}
   if(_raceEvent===ev&&!raceView.classList.contains('hide'))_f1LiveTimer=setTimeout(pollF1Live,5000);
@@ -9005,7 +9021,7 @@ function showRacePage(ev){
   document.querySelector('main').classList.add('wide');
   setNav(String(ev.series||'')==='golf'?'navGolf':'navRacing');setSlogan('mylist');
   const backLabel=document.getElementById('raceBackLabel');if(backLabel)backLabel.textContent=String(ev.series||'')==='golf'?'Back to Golf':tr('Back to Racing');
-  _wrcLiveDays=[];renderRacePage();if(String(ev.series||'')==='f1')pollF1Live();else if(String(ev.series||'')==='wrc')startWrcLiveTracking();window.scrollTo(0,0);
+  _f1DemoMode=false;_wrcLiveDays=[];renderRacePage();if(String(ev.series||'')==='f1')pollF1Live();else if(String(ev.series||'')==='wrc')startWrcLiveTracking();window.scrollTo(0,0);
 }
 function closeRacePage(){if(history.state&&history.state.section==='race')history.back();else if(_raceEvent&&_raceEvent.series==='golf')showGolf();else showRacing();}
 // The refresh is scoped to this event's series, so it stays quick and leaves
@@ -16409,6 +16425,11 @@ def run_self_tests():
           "esc(tr('Timing and positions'))" in PAGE and
           "esc(tr('Tyres and pit stops'))" in PAGE and
           "Live timing is not available for this session yet." not in PAGE)
+    check("F1 live preview is clearly marked and developer-only",
+          "const preview=_devMode?'<button" in PAGE and
+          "function previewF1LiveData(){" in PAGE and
+          "if(!_devMode)return;" in PAGE and "● DEMO" in PAGE and
+          "_f1DemoMode=false;_wrcLiveDays=[]" in PAGE)
     check("restart requires dev mode and waits for a new process instance",
           'if not bool(load_config().get("dev_mode"))' in source_text and
           '"instance": _SERVER_INSTANCE_ID' in source_text and
