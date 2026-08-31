@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b522"
+VERSION = "0.777.b523"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -2044,7 +2044,7 @@ _LTV_MATCH_FAILURE_TTL = 15 * 60
 _TEAM_FIXTURE_CACHE = {}  # team id -> {"ts": float, "fixtures": [...]}
 _TEAM_FIXTURE_TTL = 7 * 24 * 3600  # future schedules persist for 7 days
 _TEAM_PROFILE_CACHE = {}  # team id -> {"ts": float, "profile": {...}}
-_TEAM_PROFILE_CACHE_SCHEMA = 4  # team facts, table context and FotMob leaders
+_TEAM_PROFILE_CACHE_SCHEMA = 5  # team facts, table context and full FotMob leaders
 _TEAM_ID_CACHE = {}       # normalized favorite name -> FotMob team id
 _DAILY_MATCH_CACHE = {"date": "", "ts": 0, "matches": []}
 _DAILY_MATCH_TTL = 120    # current/live matches: refresh every 2 minutes
@@ -4148,6 +4148,25 @@ def _team_profile_from_data(data, team_id, team_name=""):
     # intentionally narrow so unrelated fixture/player widgets cannot be
     # mistaken for the current team's season leaders.
     top_players = overview.get("topPlayers") if isinstance(overview.get("topPlayers"), dict) else {}
+    # The full stats widget contains categories omitted from overview.topPlayers
+    # (notably goal contributions and goalkeeper clean sheets).
+    stats_data = data.get("stats") if isinstance(data.get("stats"), dict) else {}
+    stat_labels = {"goals": "Top scorer", "goal_assist": "Assists",
+                   "_goals_and_goal_assist": "Goals + assists",
+                   "clean_sheet": "Clean sheets"}
+    found_stats = {}
+    for item in stats_data.get("players") or []:
+        if not isinstance(item, dict):
+            continue
+        player = item.get("participant") if isinstance(item.get("participant"), dict) else {}
+        stat = player.get("stat") if isinstance(player.get("stat"), dict) else {}
+        key = str(item.get("name") or stat.get("name") or "")
+        label = stat_labels.get(key)
+        name = display(player.get("name"))
+        if label and name and label not in found_stats:
+            found_stats[label] = {"label": label, "name": name,
+                                  "value": player.get("value", stat.get("value", "")),
+                                  "player_id": str(player.get("id") or "")}
     stat_specs = (
         ("Top scorer", ("byGoals", "goals", "topScorers"), ("goals", "value", "statValue")),
         ("Assists", ("byAssists", "assists", "topAssists"), ("assists", "value", "statValue")),
@@ -4164,6 +4183,8 @@ def _team_profile_from_data(data, team_id, team_name=""):
             return value
         return {}
     for label, aliases, value_keys in stat_specs:
+        if label in found_stats:
+            continue
         raw = next((top_players[key] for key in aliases if key in top_players), None)
         player = first_player(raw)
         name = display(player.get("name") or player.get("player"))
@@ -4172,8 +4193,11 @@ def _team_profile_from_data(data, team_id, team_name=""):
             name = display(raw.get("name") or raw.get("player"))
             value = next((raw.get(key) for key in value_keys if raw.get(key) is not None), value)
         if name:
-            profile["stats"].append({"label": label, "name": name, "value": value,
-                                     "player_id": str(player.get("id") or player.get("playerId") or "")})
+            found_stats[label] = {"label": label, "name": name, "value": value,
+                                  "player_id": str(player.get("id") or player.get("playerId") or "")}
+    profile["stats"] = [found_stats[label] for label in
+                        ("Top scorer", "Assists", "Goals + assists", "Clean sheets")
+                        if label in found_stats]
     return profile
 
 def _remember_team_profile(team_id, team_name, data):
@@ -6820,6 +6844,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  /* Team page hierarchy: club banner first, then match/future/table columns. */
  .teamclubhero{position:relative;display:flex;align-items:center;justify-content:center;min-height:150px;margin-bottom:20px;padding:22px 90px;border:1px solid var(--line);border-radius:15px;background:radial-gradient(circle at 50% 25%,rgba(31,73,124,.34),var(--card) 70%)}.teamclubback{position:absolute;left:18px;top:18px}.teamdetailhead{display:flex;align-items:center;justify-content:center;gap:18px;min-width:0;text-align:left}.teamdetailheadlogo{width:86px;height:86px;object-fit:contain;flex:0 0 86px}.teamdetailheadtext{min-width:0}.teamdetailheadtext h1{margin:0;font-size:34px;line-height:1.05}.teamdetailheadmeta{margin-top:7px;color:var(--mut);font-size:14px}.teampagecolumns{display:grid;grid-template-columns:minmax(260px,.72fr) minmax(330px,.95fr) minmax(410px,1.25fr);gap:18px;align-items:start}.teamleftcolumn,.teammiddlecolumn{display:flex;flex-direction:column;gap:18px}.teamdetailprofile{position:static}.teamnextwrap{margin:0}.teamnext{background:linear-gradient(145deg,rgba(31,73,124,.27),var(--card) 72%);border-radius:11px;padding:15px;text-align:center;transition:border-color .12s,transform .12s}.teamnext:hover{transform:translateY(-1px)}.teamnextlabel{margin-bottom:12px}.teamnextteams{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;margin:0 auto}.teamnextside{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}.teamnextcrest{width:58px;height:58px}.teamnextname{font-size:15px;font-weight:760;line-height:1.15}.teamnextvs{font-size:11px;font-weight:700;text-transform:uppercase}.teamnextmeta{margin-top:13px;font-size:11px}.teamnextcount{margin-top:5px;font-size:13px;font-weight:700}.teamhomepanel{padding:15px}.teamupcomingpanel .teamhomematch{padding:12px 2px}.teamformpanel .teamformstrip{gap:12px}.teamtablepanel{min-width:0}
  .teamdetailheadtext{text-align:center}.teamdetailstadium{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:7px;font-size:12px;color:var(--fg)}.teamdetailstadiumicon{font-size:14px}.teamupcomingpanel>.colh{text-align:center;font-size:12px}.teamhometeams{display:flex;align-items:center;gap:7px}.teamhomelogo{width:25px;height:25px;object-fit:contain;flex:0 0 25px}.teamhomeversus{color:var(--mut);font-size:10px}.teamstatscard{display:flex;flex-direction:column;gap:0}.teamstatrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:11px 2px;border-bottom:1px solid var(--line)}.teamstatrow:last-child{border-bottom:0}.teamstatlabel{grid-column:1/-1;color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.teamstatname{font-size:12px;font-weight:650}.teamstatvalue{font-size:14px;font-weight:800;color:var(--acc)}
+ .teamupcomingpanel .teamhomematch{grid-template-columns:1fr;text-align:center}.teamupcomingpanel .teamhometeams{justify-content:center}.teamupcomingpanel .teamhomescore:empty{display:none}.teamupcomingpanel .teamhomemeta{text-align:center}
  @media(max-width:1100px){.teampagecolumns{grid-template-columns:minmax(250px,.8fr) minmax(320px,1fr)}.teamtablepanel{grid-column:1/-1}}
  @media(max-width:720px){.leaguepickergroups,.teampagecolumns{grid-template-columns:1fr}.teamtablepanel{grid-column:auto}.teamclubhero{min-height:125px;padding:58px 16px 18px}.teamclubback{left:12px;top:12px}.teamdetailheadlogo{width:62px;height:62px;flex-basis:62px}.teamdetailheadtext h1{font-size:25px}}
  .teamfixturebroadcasts.hide{display:none}
@@ -7508,7 +7533,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   </section>
 
   <section id="teamView" class="hide">
-    <div id="teamDetailPage" class="teamdetailpage"><div class="teamclubhero"><button type="button" class="ghost teamclubback" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><div id="teamDetailTitle" class="teamdetailhead"></div></div><div class="teampagecolumns"><div class="teamleftcolumn"><div id="teamNextMatch" class="teamnextwrap"></div><aside id="teamDetailProfile" class="teamdetailprofile"></aside></div><div class="teammiddlecolumn"><section class="teamhomepanel teamupcomingpanel"><div class="colh" data-i18n="Upcoming fixtures">Upcoming fixtures</div><div id="teamDetailFixtures" class="teamhomeschedule"></div></section><section class="teamhomepanel teamformpanel"><div class="colh" data-i18n="Form">Form</div><div id="teamFormStrip" class="teamformstrip"></div></section></div><section class="teamhomepanel teamtablepanel"><div id="teamTableWrap" class="teamtablewrap"></div></section></div></div>
+    <div id="teamDetailPage" class="teamdetailpage"><div class="teamclubhero"><button type="button" class="ghost teamclubback" onclick="closeTeamDetail()">&#8592; <span data-i18n="Back to Sports">Back to Sports</span></button><div id="teamDetailTitle" class="teamdetailhead"></div></div><div class="teampagecolumns"><div class="teamleftcolumn"><aside id="teamDetailProfile" class="teamdetailprofile"></aside><section class="teamhomepanel teamformpanel"><div class="colh" data-i18n="Form">Form</div><div id="teamFormStrip" class="teamformstrip"></div></section></div><div class="teammiddlecolumn"><div id="teamNextMatch" class="teamnextwrap"></div><section class="teamhomepanel teamupcomingpanel"><div class="colh" data-i18n="Upcoming fixtures">Upcoming fixtures</div><div id="teamDetailFixtures" class="teamhomeschedule"></div></section></div><section class="teamhomepanel teamtablepanel"><div id="teamTableWrap" class="teamtablewrap"></div></section></div></div>
   </section>
 
   <section id="matchView" class="hide">
@@ -11244,7 +11269,7 @@ document.addEventListener('click',function(e){
   if(timelineTeamFixture){showTeams(timelineTeamFixture);return;}
   const profileTeam=e.target.closest('[data-profile-team]');
   if(profileTeam){selectMyTeam(profileTeam.getAttribute('data-profile-team')||'',profileTeam.getAttribute('data-team-id')||'',profileTeam.getAttribute('data-team-logo')||'');return;}
-  const teamFixture=e.target.closest('.teamfixture[data-fixture-card="1"],.teamhomematch[data-fixture-card="1"]');
+  const teamFixture=e.target.closest('.teamfixture[data-fixture-card="1"],.teamhomematch[data-fixture-card="1"],.teamnext[data-fixture-card="1"]');
   if(teamFixture&&!e.target.closest('.btnplay,.btnvlc,.bchead')){openMatchFromCard(teamFixture);return;}
   const teamRemove=e.target.closest('.teamremove');
   if(teamRemove){removeTeamFavorite(teamRemove.getAttribute('data-team-name'));return;}
