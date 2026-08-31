@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b526"
+VERSION = "0.777.b527"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -4016,6 +4016,10 @@ def fetch_ltv_daily(date):
 def _team_table_from_data(data, team_id, team_name=""):
     """Find the senior league table embedded in a FotMob team payload."""
     candidates = []
+    details = data.get("details") if isinstance(data, dict) and isinstance(data.get("details"), dict) else {}
+    sports_json = details.get("sportsTeamJSONLD") if isinstance(details.get("sportsTeamJSONLD"), dict) else {}
+    member_of = sports_json.get("memberOf") if isinstance(sports_json.get("memberOf"), dict) else {}
+    primary_league = str(details.get("primaryLeagueName") or member_of.get("name") or "").strip()
     def row_value(row, *keys):
         for key in keys:
             if row.get(key) is not None:
@@ -4041,27 +4045,33 @@ def _team_table_from_data(data, team_id, team_name=""):
                 "drawn": row_value(raw, "draws", "drawn", "d"),
                 "lost": row_value(raw, "losses", "lost", "l"),
                 "goal_difference": row_value(raw, "goalConDiff", "goalDifference", "gd"),
-                "points": row_value(raw, "pts", "points")}
-    def walk(obj, path=""):
+                "points": row_value(raw, "pts", "points"),
+                "qualification_color": (str(raw.get("qualColor") or "").strip()
+                                        if re.fullmatch(r"#[0-9a-fA-F]{6}", str(raw.get("qualColor") or "").strip())
+                                        else "")}
+    def walk(obj, path="", league_name=""):
         if isinstance(obj, dict):
+            next_league = str(obj.get("leagueName") or league_name or "").strip()
             for key, value in obj.items():
-                walk(value, path + "/" + str(key).lower())
+                walk(value, path + "/" + str(key).lower(), next_league)
         elif isinstance(obj, list):
             if any(token in path for token in ("table", "standing")):
                 rows = [normalized_row(value, index) for index, value in enumerate(obj[:40])]
                 rows = [row for row in rows if row]
                 if len(rows) >= 2 and any(row.get("points") != "" for row in rows):
-                    candidates.append(rows)
+                    candidates.append((rows, league_name))
             for value in obj[:80]:
                 if isinstance(value, (dict, list)):
-                    walk(value, path)
+                    walk(value, path, league_name)
     walk(data)
     if not candidates:
         return {}, []
     wanted_id = str(team_id or "")
-    table = max(candidates, key=lambda rows: (any(
-        row["team_id"] == wanted_id or _team_names_equivalent(row["name"], team_name)
-        for row in rows), len(rows)))
+    table, _league_name = max(candidates, key=lambda candidate: (
+        bool(primary_league and _team_names_equivalent(candidate[1], primary_league)),
+        any(row["team_id"] == wanted_id or _team_names_equivalent(row["name"], team_name)
+            for row in candidate[0]),
+        len(candidate[0])))
     standing = next((row for row in table if row["team_id"] == wanted_id), None)
     if standing is None:
         standing = next((row for row in table
@@ -6853,7 +6863,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamupcomingpanel .teamhomematch{grid-template-columns:1fr;text-align:center}.teamupcomingpanel .teamhometeams{justify-content:center}.teamupcomingpanel .teamhomescore:empty{display:none}.teamupcomingpanel .teamhomemeta{text-align:center}
  .teamstatrow{display:block}.teamstatlabel{display:block;margin-bottom:5px}.teamstatplayers{display:flex;flex-direction:column;gap:4px}.teamstatplayer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.teamstatplayer+.teamstatplayer{padding-top:4px;border-top:1px solid rgba(255,255,255,.05)}
  @media(min-width:1101px){.teampagecolumns{grid-template-columns:minmax(280px,.76fr) minmax(430px,1.16fr) minmax(380px,1fr)}}.teamupcomingpanel{padding:18px}.teamupcomingpanel>.colh{font-size:13px;margin-bottom:12px}.teamupcomingpanel .teamhomematch{padding:15px 4px}.teamupcomingpanel .teamhometeams{gap:9px;font-size:14px}.teamupcomingpanel .teamhomelogo{width:32px;height:32px;flex-basis:32px}.teamupcomingpanel .teamhomeversus{font-size:11px}.teamupcomingpanel .teamhomemeta{margin-top:3px;font-size:11px}.teamtablepanel .teamtable th,.teamtablepanel .teamtable td{padding-left:5px;padding-right:5px}
- .teamdetailpage{max-width:2100px;width:min(94vw,2100px);padding-left:0;padding-right:0}@media(min-width:1401px){.teampagecolumns{grid-template-columns:minmax(330px,1fr) minmax(540px,660px) minmax(330px,1fr)}.teamleftcolumn{width:min(100%,470px);justify-self:end}.teamtablepanel{width:min(100%,580px);justify-self:start}}
+ .teamdetailpage{max-width:2100px;width:min(94vw,2100px);padding-left:0;padding-right:0}@media(min-width:1401px){.teamclubhero{width:min(100%,1746px);margin-left:auto;margin-right:auto}.teampagecolumns{grid-template-columns:minmax(330px,1fr) minmax(540px,660px) minmax(330px,1fr)}.teamleftcolumn{width:min(100%,470px);justify-self:end}.teamtablepanel{width:min(100%,580px);justify-self:start}}
+ .teamtable tr{position:relative}.teamtable tr.qualzone td:first-child{box-shadow:inset 3px 0 0 var(--qual-zone)}
  @media(max-width:1100px){.teampagecolumns{grid-template-columns:minmax(250px,.8fr) minmax(320px,1fr)}.teamtablepanel{grid-column:1/-1}}
  @media(max-width:720px){.leaguepickergroups,.teampagecolumns{grid-template-columns:1fr}.teamtablepanel{grid-column:auto}.teamclubhero{min-height:125px;padding:58px 16px 18px}.teamclubback{left:12px;top:12px}.teamdetailheadlogo{width:62px;height:62px;flex-basis:62px}.teamdetailheadtext h1{font-size:25px}}
  .teamfixturebroadcasts.hide{display:none}
@@ -8268,7 +8279,7 @@ function renderSelectedTeamProfile(profile){
   el.innerHTML='<div class="colh">'+esc(tr('Team stats'))+'</div><div class="teamstatscard">'+(stats.length?stats.map(stat=>{const players=Array.isArray(stat.players)?stat.players.slice(0,3):[stat];return '<div class="teamstatrow"><span class="teamstatlabel">'+esc(tr(stat.label||''))+'</span><div class="teamstatplayers">'+players.map(player=>'<div class="teamstatplayer"><span class="teamstatname">'+esc(player.name||'')+'</span><span class="teamstatvalue">'+esc(player.value)+'</span></div>').join('')+'</div></div>';}).join(''):'<span class="muted">'+esc(tr('Team statistics are not available.'))+'</span>')+'</div>';
   renderSelectedTeamTable(profile);
 }
-function renderSelectedTeamTable(profile){const el=document.getElementById('teamTableWrap');if(!el)return;const rows=(profile&&profile.table)||[];if(!rows.length){el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><span class="muted">'+esc(tr('Table information is not available.'))+'</span>';return;}const selected=String((profile.standing||{}).team_id||profile.team_id||'');el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><div style="overflow-x:auto"><table class="teamtable"><thead><tr><th>#</th><th>'+esc(tr('Team'))+'</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>PTS</th></tr></thead><tbody>'+rows.map(row=>'<tr class="'+(String(row.team_id||'')===selected?'selected':'')+'"><td>'+esc(row.position)+'</td><td>'+(row.team_id?'<img class="teamtablelogo" src="/api/team_logo?id='+encodeURIComponent(row.team_id)+'" alt="" loading="lazy" onerror="this.remove()">':'')+esc(row.name)+'</td><td>'+esc(row.played)+'</td><td>'+esc(row.won)+'</td><td>'+esc(row.drawn)+'</td><td>'+esc(row.lost)+'</td><td>'+esc(row.goal_difference)+'</td><td><b>'+esc(row.points)+'</b></td></tr>').join('')+'</tbody></table></div>';}
+function renderSelectedTeamTable(profile){const el=document.getElementById('teamTableWrap');if(!el)return;const rows=(profile&&profile.table)||[];if(!rows.length){el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><span class="muted">'+esc(tr('Table information is not available.'))+'</span>';return;}const selected=String((profile.standing||{}).team_id||profile.team_id||'');el.innerHTML='<div class="colh">'+esc(tr('League table'))+'</div><div style="overflow-x:auto"><table class="teamtable"><thead><tr><th>#</th><th>'+esc(tr('Team'))+'</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>PTS</th></tr></thead><tbody>'+rows.map(row=>{const zone=/^#[0-9a-f]{6}$/i.test(row.qualification_color||'')?row.qualification_color:'';const classes=[String(row.team_id||'')===selected?'selected':'',zone?'qualzone':''].filter(Boolean).join(' ');return '<tr class="'+classes+'"'+(zone?' style="--qual-zone:'+zone+'"':'')+'><td>'+esc(row.position)+'</td><td>'+(row.team_id?'<img class="teamtablelogo" src="/api/team_logo?id='+encodeURIComponent(row.team_id)+'" alt="" loading="lazy" onerror="this.remove()">':'')+esc(row.name)+'</td><td>'+esc(row.played)+'</td><td>'+esc(row.won)+'</td><td>'+esc(row.drawn)+'</td><td>'+esc(row.lost)+'</td><td>'+esc(row.goal_difference)+'</td><td><b>'+esc(row.points)+'</b></td></tr>}).join('')+'</tbody></table></div>';}
 function teamHomeFixtureHtml(f,finished){
   const kick=f.start?new Date(f.start):null,when=kick&&!Number.isNaN(kick.getTime())?kick.toLocaleString(_lang==='no'?'nb-NO':undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'',score=finished&&f.home_score!==''&&f.away_score!==''?esc(f.home_score)+'–'+esc(f.away_score):'';
   const logo=id=>id?'<img class="teamhomelogo" src="/api/team_logo?id='+encodeURIComponent(id)+'" alt="" loading="lazy" onerror="this.remove()">':'';
@@ -15294,6 +15305,20 @@ def run_self_tests():
                                             "draws": 0, "losses": 1, "goalDifference": 3,
                                             "points": 6}]}}
     standing, league_table = _team_table_from_data(table_sample, "9826", "Crystal Palace")
+    primary_table_sample = {"details": {"sportsTeamJSONLD": {"memberOf": {"name": "Eliteserien"}}},
+        "table": [
+            {"data": {"leagueName": "NM Cup", "table": {"all": [
+                {"idx": 1, "name": "Brann", "id": 8468, "played": 1, "pts": 3},
+                {"idx": 2, "name": "Viking", "id": 8478, "played": 1, "pts": 0}]}}},
+            {"data": {"leagueName": "Eliteserien", "table": {"all": [
+                {"idx": 1, "name": "Bodø/Glimt", "id": 8402, "played": 18, "pts": 44,
+                 "qualColor": "#FFD908"},
+                {"idx": 5, "name": "Brann", "id": 8468, "played": 18, "pts": 26}]}}}]}
+    brann_standing, brann_table = _team_table_from_data(primary_table_sample, "8468", "Brann")
+    check("team table prefers home league and preserves FotMob zones",
+          len(brann_table) == 2 and brann_standing.get("position") == 5 and
+          brann_table[0].get("qualification_color") == "#FFD908" and
+          "--qual-zone:" in PAGE and "qualzone" in PAGE)
     stats_profile = _team_profile_from_data({"details": {"name": "Leeds United"},
         "overview": {"topPlayers": {
             "byGoals": {"players": [{"name": "Anton Stach", "goals": 1}]},
