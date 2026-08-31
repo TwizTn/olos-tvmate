@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b533"
+VERSION = "0.777.b534"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -8816,7 +8816,13 @@ function wrcRallyDays(ev){
 function f1WeekendPanel(ev){
   const sessions=_racingEventRows.filter(row=>String(row.series||'')==='f1'&&String(row.round||'')===String(ev.round||'')).sort((a,b)=>new Date(a.start)-new Date(b.start));
   const locale=_lang==='no'?'nb-NO':undefined;
-  return '<div class="matchdetailpanel"><h3>'+esc(tr('Weekend schedule'))+'</h3><div class="f1weekend">'+sessions.map(row=>{const current=racingAvailabilityKey(row)===racingAvailabilityKey(ev),d=new Date(row.start),when=Number.isNaN(d.getTime())?'':d.toLocaleString(locale,{weekday:'short',hour:'2-digit',minute:'2-digit'});return '<div class="f1sessionrow'+(current?' current':'')+'"><b>'+esc(racingSessionLabel(row))+'</b><span>'+esc(when)+'</span></div>';}).join('')+'</div></div>';
+  const start=new Date(ev.start),startText=Number.isNaN(start.getTime())?'':start.toLocaleString(locale,{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'});
+  const details='<div class="matchdetailpanel"><h3>'+esc(tr('Event detail'))+'</h3><div class="racefacts">'
+    +'<div class="racefact"><span class="muted">'+esc(tr('Circuit'))+'</span><span>'+esc(ev.circuit||'—')+'</span></div>'
+    +'<div class="racefact"><span class="muted">'+esc(tr('Round'))+'</span><span>'+esc(ev.round||'—')+'</span></div>'
+    +'<div class="racefact"><span class="muted">'+esc(tr('Session'))+'</span><span>'+esc(racingSessionLabel(ev))+'</span></div>'
+    +'<div class="racefact"><span class="muted">'+esc(tr('Start'))+'</span><span>'+esc(startText||'—')+'</span></div></div></div>';
+  return '<div class="matchdetailpanel"><h3>'+esc(tr('Weekend schedule'))+'</h3><div class="f1weekend">'+sessions.map(row=>{const current=racingAvailabilityKey(row)===racingAvailabilityKey(ev),d=new Date(row.start),when=Number.isNaN(d.getTime())?'':d.toLocaleString(locale,{weekday:'short',hour:'2-digit',minute:'2-digit'});return '<div class="f1sessionrow'+(current?' current':'')+'"><b>'+esc(racingSessionLabel(row))+'</b><span>'+esc(when)+'</span></div>';}).join('')+'</div></div>'+details;
 }
 function raceCentreExtras(ev){
   const series=String(ev.series||'');
@@ -8845,8 +8851,7 @@ const _WRC_LIVE_SECTIONS=[
 function raceLiveLinksPanel(ev){
   const base=String(ev.url||'').replace(/\/+$/,'');
   if(!base)return '';
-  if(String(ev.series||'')!=='wrc')
-    return '<div class="matchdetailpanel"><h3>'+esc(tr('Official page'))+'</h3><a class="racelink" href="'+escAttr(base)+'" target="_blank" rel="noopener">'+esc(base)+'</a></div>';
+  if(String(ev.series||'')!=='wrc')return '';
   const links=_WRC_LIVE_SECTIONS.map(function(row){
     return '<a class="racelivelink" href="'+escAttr(base+'/'+row[0])+'" target="_blank" rel="noopener">'+esc(tr(row[1]))+' <span class="racelivearrow">&#8599;</span></a>';
   }).join('');
@@ -8889,7 +8894,9 @@ function renderF1Live(snapshot){
   const box=document.getElementById('f1LiveCentre');if(!box)return;
   if(snapshot&&snapshot.available)_f1LastSnapshot=snapshot;
   const data=(snapshot&&snapshot.available)?snapshot:_f1LastSnapshot;
-  if(!data){box.innerHTML='<div class="f1livehead"><h3>'+esc(tr('Live timing'))+'</h3><span class="muted">'+esc(tr('Live timing is not available for this session yet.'))+'</span></div>';return;}
+  if(!data){box.innerHTML='<div class="f1livehead"><h3>'+esc(tr('Live timing'))+'</h3><span class="muted">'+esc(tr('Starts with the live session'))+'</span></div>'
+    +'<div class="f1livegrid"><div class="f1timingwaiting"><div class="racefact"><span class="muted">'+esc(tr('Session status'))+'</span><b>'+esc(tr('Not started'))+'</b></div><div class="racefact"><span class="muted">'+esc(tr('Timing and positions'))+'</span><span>—</span></div><div class="racefact"><span class="muted">'+esc(tr('Tyres and pit stops'))+'</span><span>—</span></div></div>'
+    +'<div class="f1sidecards"><div class="f1weather"><span>'+esc(tr('Track'))+' <b>—</b></span><span>'+esc(tr('Air'))+' <b>—</b></span><span>'+esc(tr('Rain'))+' <b>—</b></span><span>'+esc(tr('Wind'))+' <b>—</b></span></div><div><div class="colh">'+esc(tr('Race control'))+'</div><span class="muted">'+esc(tr('No race-control messages yet.'))+'</span></div></div></div>';return;}
   const standings=data.standings||[],weather=data.weather||{},messages=(data.messages||[]).slice().reverse();
   const timing='<div style="overflow-x:auto"><table class="f1timing"><thead><tr><th>P</th><th>'+esc(tr('Driver'))+'</th><th>'+esc(tr('Gap'))+'</th><th>'+esc(tr('Interval'))+'</th><th>'+esc(tr('Tyre'))+'</th><th>'+esc(tr('Stint'))+'</th><th>'+esc(tr('Pits'))+'</th></tr></thead><tbody>'+standings.map(row=>{const compound=String(row.compound||'').toUpperCase(),letter=compound?compound[0]:'—';return '<tr><td><b>'+esc(row.position||'—')+'</b></td><td class="f1drivercell" style="--team-color:'+escAttr(row.team_color||'transparent')+'"><b>'+esc(row.acronym||row.name||row.driver_number)+'</b><div class="muted">'+esc(row.team||'')+'</div></td><td>'+f1Value(row.gap)+'</td><td>'+f1Value(row.interval)+'</td><td><span class="f1compound '+escAttr(compound)+'" title="'+escAttr(compound)+'">'+esc(letter)+'</span></td><td>'+f1Value(row.stint)+'</td><td>'+f1Value(row.pit_stops)+'</td></tr>';}).join('')+'</tbody></table></div>';
   const weatherHtml='<div class="f1weather"><span>'+esc(tr('Track'))+' <b>'+f1Value(weather.track_temperature,'°C')+'</b></span><span>'+esc(tr('Air'))+' <b>'+f1Value(weather.air_temperature,'°C')+'</b></span><span>'+esc(tr('Rain'))+' <b>'+f1Value(weather.rainfall)+'</b></span><span>'+esc(tr('Wind'))+' <b>'+f1Value(weather.wind_speed,' m/s')+'</b></span></div>';
@@ -16395,6 +16402,13 @@ def run_self_tests():
           "'<div class=\"racecol raceleft\">'+raceCentreExtras(ev)" in PAGE and
           "'<div class=\"racecol raceright\">'+channelPanel" in PAGE and
           "el.innerHTML=hero+livePanel" not in PAGE)
+    check("F1 Race Centre removes generic official link and keeps pre-session stats",
+          "if(String(ev.series||'')!=='wrc')return '';" in PAGE and
+          "esc(tr('Round'))" in PAGE and "esc(tr('Start'))" in PAGE and
+          "esc(tr('Session status'))" in PAGE and
+          "esc(tr('Timing and positions'))" in PAGE and
+          "esc(tr('Tyres and pit stops'))" in PAGE and
+          "Live timing is not available for this session yet." not in PAGE)
     check("restart requires dev mode and waits for a new process instance",
           'if not bool(load_config().get("dev_mode"))' in source_text and
           '"instance": _SERVER_INSTANCE_ID' in source_text and
