@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b540"
+VERSION = "0.777.b541"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -8172,11 +8172,21 @@ function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
 function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing(false);}
-let _golfEvents=[],_golfTours=new Set(['pga','eur','lpga','liv']);
-function showGolf(){rememberLocation('golf');hideAll();golfView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGolf');setSlogan('mylist');loadGolf();}
+let _golfEvents=[],_golfTours=new Set(['pga','eur','lpga','liv']),_golfLoaded=false,_golfLoadedAt=0,_golfLoadPromise=null,_golfBackgroundRefresh=false;
+function showGolf(){rememberLocation('golf');hideAll();golfView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGolf');setSlogan('mylist');loadGolf(false);}
 function renderGolf(){const tours=[['pga','PGA Tour'],['eur','DP World Tour'],['lpga','LPGA'],['liv','LIV Golf']];golfTours.innerHTML=tours.map(t=>'<button class="racingtoggle'+(_golfTours.has(t[0])?' on':'')+'" data-golf-tour="'+escAttr(t[0])+'" onclick="toggleGolfTour(this.dataset.golfTour)">'+esc(t[1])+'</button>').join('');const rows=_golfEvents.filter(e=>_golfTours.has(e.tour));golfEvents.innerHTML=rows.length?rows.map((e,i)=>'<div class="racingcard" onclick="openGolfEvent('+_golfEvents.indexOf(e)+')" style="cursor:pointer"><h3>'+esc(e.tour_name)+'</h3><div class="racingevent"><div class="racingeventtop"><b>'+esc(e.name)+'</b>'+(e.live?'<span class="cc racingeventtv">LIVE</span>':'')+'</div><div class="moviemeta">'+esc(e.status||new Date(e.start).toLocaleDateString())+'</div>'+(e.leaderboard&&e.leaderboard.length?'<div class="moviemeta" style="margin-top:7px">Leader: '+esc(e.leaderboard[0].name||'')+' '+esc(e.leaderboard[0].score||'')+'</div>':'')+'</div></div>').join(''):'<span class="muted">No live or upcoming tournaments found.</span>';}
 function toggleGolfTour(key){if(_golfTours.has(key))_golfTours.delete(key);else _golfTours.add(key);renderGolf();}
-async function loadGolf(){golfEvents.innerHTML='<span class="muted">Loading golf tournaments...</span>';try{const r=await api('/api/golf');_golfEvents=r.events||[];renderGolf();}catch(e){golfEvents.innerHTML='<span class="err">Could not load golf tournaments.</span>';}}
+async function loadGolf(force,quiet){
+  if(_golfLoaded&&!force){
+    renderGolf();
+    if(Date.now()-_golfLoadedAt>10*60*1000&&!_golfBackgroundRefresh){_golfBackgroundRefresh=true;loadGolf(true,true).finally(()=>{_golfBackgroundRefresh=false;});}
+    return;
+  }
+  if(_golfLoadPromise)return _golfLoadPromise;
+  if(!quiet&&!_golfLoaded)golfEvents.innerHTML='<span class="muted">Loading golf tournaments...</span>';
+  _golfLoadPromise=(async()=>{try{const r=await api('/api/golf'+(force?'?force=1':''));_golfEvents=r.events||[];_golfLoaded=true;_golfLoadedAt=Date.now();renderGolf();}catch(e){if(!_golfLoaded)golfEvents.innerHTML='<span class="err">Could not load golf tournaments.</span>';}finally{_golfLoadPromise=null;}})();
+  return _golfLoadPromise;
+}
 function openGolfEvent(index){const g=_golfEvents[index];if(!g)return;showRacePage({series:'golf',series_name:g.tour_name,race:g.name,session:g.status,start:g.start,channels:g.channels||[],leaderboard:g.leaderboard||[],golf_event:g});}
 function showTeams(target){if(!_footballEnabled){showMylist();return;}rememberLocation('teams');hideAll();teamsView.classList.remove('hide');applySportsLayout();document.querySelector('main').classList.add('wide');setNav('navTeams');setSlogan('search');if(!target)clearSportsSearch();const loading=loadMyTeams();if(target)Promise.resolve(loading).finally(()=>openMyTeamsFixture(target));else if(_sportsReturnScroll)Promise.resolve(loading).finally(()=>{const y=_sportsReturnScroll;_sportsReturnScroll=0;requestAnimationFrame(()=>window.scrollTo(0,y));});}
 function showMylist(){rememberLocation('mylist');hideAll();mylistView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navMylist');setSlogan('mylist');if(_myListLoaded){renderMyListProfile();applyMyListLayout();renderMyListChannels();renderMyListTimeline();}else loadFavorites();}
@@ -9073,8 +9083,8 @@ async function refreshRaceChannels(btn){
     const map=(j&&j.availability)||{};
     // Feed every event so the Racing list reflects the refresh too.
     applyRacingAvailability(map,_racingEventRows);
-    const hit=map[racingAvailabilityKey(_raceEvent)];
-    _raceEvent.channels=Array.isArray(hit)?hit:((hit&&hit.channels)||[]);
+    const eventKey=racingAvailabilityKey(_raceEvent);
+    if(Object.prototype.hasOwnProperty.call(map,eventKey))_raceEvent.channels=racingAvailabilityChannels(map[eventKey]);
     renderRacePage();
   }catch(e){toast(tr('Could not refresh channel matches.'));}
   if(btn){btn.disabled=false;btn.innerHTML=old;}
@@ -10552,7 +10562,17 @@ function racingEventHtml(event){
   return '<div class="racingevent'+(channels.length?' haschannels':'')+(loading?' loadingchannels':'')+'" data-evkey="'+escAttr(racingAvailabilityKey(event))+'"><div class="racingeventtop"><b>'+esc(event.race||event.circuit||'Race')+'</b>'+indicator+'</div><div class="moviemeta">'+esc(when)+' · '+esc(racingSessionLabel(event))+(event.circuit&&event.circuit!==event.race?' · '+esc(event.circuit):'')+source+'</div>'+details+'</div>';
 }
 function racingAvailabilityKey(event){return [event.series||'',event.race||'',event.session||'',event.start||''].join('|');}
-function applyRacingAvailability(map,events){for(const event of (events||[]))event.channels=(map&&map[racingAvailabilityKey(event)])||[];}
+function racingAvailabilityChannels(hit){return Array.isArray(hit)?hit:(hit&&Array.isArray(hit.channels)?hit.channels:[]);}
+function applyRacingAvailability(map,events){
+  const source=map&&typeof map==='object'?map:{};
+  for(const event of (events||[])){
+    const key=racingAvailabilityKey(event);
+    // A series-scoped refresh intentionally returns an incomplete map. Keep
+    // every existing match whose key is absent instead of erasing it.
+    if(!Object.prototype.hasOwnProperty.call(source,key))continue;
+    event.channels=racingAvailabilityChannels(source[key]);
+  }
+}
 function racingVisibleSeriesEvents(events,series,defaultLimit){
   const data=row=>row.event||row,stamp=row=>row.ts||new Date(data(row).start).getTime();
   const rows=(events||[]).slice().sort((a,b)=>stamp(a)-stamp(b));
@@ -16446,6 +16466,10 @@ def run_self_tests():
           "if(_racingLoaded&&!force)" in PAGE and
           "if(_racingLoadPromise&&!force)return _racingLoadPromise" in PAGE and
           PAGE.count("await loadRacing(true);loadFavorites();") >= 2)
+    check("Racing merges partial channel refreshes without losing matches",
+          "function racingAvailabilityChannels(hit)" in PAGE and
+          "Object.prototype.hasOwnProperty.call(source,key)" in PAGE and
+          "Object.prototype.hasOwnProperty.call(map,eventKey)" in PAGE)
     check("sports uses durable stale-while-refresh snapshots",
           "api('/api/my_teams'+(force?'?refresh=1':''))" in PAGE and
           "if(r.cached&&!_myTeamsBackgroundRefresh" in PAGE and
@@ -16457,12 +16481,16 @@ def run_self_tests():
           "racingVisibleSeriesEvents(rows.sort((a,b)=>a.ts-b.ts),series,3)" in PAGE)
     check("Golf has tours, live events, channels, leaderboard and shared Race Centre",
           'id="navGolf"' in PAGE and 'id="golfView"' in PAGE and
-          "function showGolf()" in PAGE and "function loadGolf()" in PAGE and
-          "'/api/golf'" in PAGE and 'path == "/api/golf"' in source_text and
+          "function showGolf()" in PAGE and "function loadGolf(" in PAGE and
+          "api('/api/golf'+" in PAGE and 'path == "/api/golf"' in source_text and
           "golf_channel_matches(event, cfg)" in source_text and
           "if(series==='golf'){const rows=ev.leaderboard||[]" in PAGE and
           "showRacePage({series:'golf'" in PAGE and
           "golf:showGolf" in PAGE and 'value="golf"' in PAGE)
+    check("Golf reuses its loaded view and refreshes stale data quietly",
+          "loadGolf(false);" in PAGE and "if(_golfLoaded&&!force)" in PAGE and
+          "_golfLoadPromise" in PAGE and "_golfBackgroundRefresh" in PAGE and
+          "Date.now()-_golfLoadedAt>10*60*1000" in PAGE)
     check("active Race Centre keeps player central and channel matches on the right",
           "#racePageContent.matchdetailpage{display:block;width:100%;max-width:none}" in PAGE and
           "grid-template-columns:minmax(430px,1fr) minmax(720px,1.5fr) minmax(300px,360px)" in PAGE and
