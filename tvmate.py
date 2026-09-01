@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b544"
+VERSION = "0.777.b545"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6903,10 +6903,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .movieposter img{width:100%;height:100%;object-fit:cover;display:block}
  .movieinfo{display:flex;flex:1;min-width:0;flex-direction:column;gap:9px}
  .movietitle{font-weight:600;line-height:1.3}
- .mediafeature{position:relative;isolation:isolate;min-height:300px;margin:12px 0 16px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#11161e;display:flex;align-items:center;padding:38px 50px;box-sizing:border-box}
- .mediafeature:before{content:"";position:absolute;inset:-28px;z-index:-2;background-image:var(--feature-art);background-position:75% 38%;background-size:cover;filter:blur(9px) saturate(1.08);opacity:.58;transform:scale(1.04)}
- .mediafeature:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#0b1017 4%,rgba(11,16,23,.96) 28%,rgba(11,16,23,.52) 64%,rgba(11,16,23,.12))}
- .mediafeaturecopy{max-width:620px}.mediafeatureeyebrow{font-size:11px;font-weight:800;color:#d7a62d;text-transform:uppercase;letter-spacing:.1em;margin-bottom:13px}.mediafeature h2{font-size:clamp(30px,3vw,52px);line-height:1.04;margin:0 0 12px}.mediafeaturemeta{color:#c7cdd6;font-size:13px;margin-bottom:14px}.mediafeaturetext{color:#aeb6c1;max-width:540px;line-height:1.55}.mediafeatureactions{display:flex;gap:9px;margin-top:22px}.mediafeatureactions button{padding:10px 18px}
+ .mediafeature{position:relative;isolation:isolate;min-height:340px;margin:12px 0 16px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:linear-gradient(115deg,#101720,#090d12);display:flex;align-items:center;padding:42px 52px;box-sizing:border-box}
+ .mediafeatureart{position:absolute;inset:0 0 0 31%;z-index:-2;width:69%;height:100%;object-fit:cover;object-position:center 30%;opacity:.88}
+ .mediafeature:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#0b1017 2%,rgba(11,16,23,.98) 29%,rgba(11,16,23,.72) 50%,rgba(11,16,23,.18) 82%,rgba(11,16,23,.08))}
+ .mediafeaturecopy{position:relative;z-index:1;max-width:620px}.mediafeatureeyebrow{font-size:11px;font-weight:800;color:#d7a62d;text-transform:uppercase;letter-spacing:.1em;margin-bottom:13px}.mediafeature h2{font-size:clamp(34px,3vw,58px);line-height:1.02;margin:0 0 12px;text-shadow:0 2px 18px #000}.mediafeaturemeta{color:#d8dde4;font-size:13px;margin-bottom:14px}.mediafeaturetext{color:#b8c0ca;max-width:540px;line-height:1.55}.mediafeatureactions{display:flex;gap:9px;margin-top:22px}.mediafeatureactions button{padding:10px 18px}
  .gameswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
  .gamefavs{max-height:82vh;overflow-y:auto}
  .gamefav{position:relative;padding:8px 0 30px;border-bottom:1px solid var(--line)}
@@ -10203,10 +10203,9 @@ function setMovieProviderLayout(loggedIn){
 function renderMovieFeature(movie){
   const el=document.getElementById('movieFeature');if(!el)return;
   if(!movie){el.innerHTML='<span class="muted">'+esc(tr('No movies found.'))+'</span>';return;}
-  const title=cleanMovieSearchTitle(movie.name),art=movie.cover?"url('"+String(movie.cover).replace(/'/g,"%27")+"')":'none';
+  const title=cleanMovieSearchTitle(movie.name),art=movie.background||movie.cover||'';
   const meta=[movie.year,movie.rating?('★ '+movie.rating):''].filter(Boolean).join('  ·  ');
-  el.style.setProperty('--feature-art',art);
-  el.innerHTML='<div class="mediafeaturecopy"><div class="mediafeatureeyebrow">'+esc(tr('Featured'))+'</div><h2>'+esc(title)+'</h2><div class="mediafeaturemeta">'+esc(meta)+'</div><div class="mediafeaturetext">'+esc(tr('Search your movie library for this title and available versions.'))+'</div><div class="mediafeatureactions"><button data-movie-feature-query="'+escAttr(title)+'">&#9658; '+esc(tr('View Movie'))+'</button><button class="ghost moviestar'+(_favMovieSet.has(String(movie.catalog_id||movie.stream_id))?' on':'')+'" data-key="'+escAttr(String(movie.catalog_id||movie.stream_id||''))+'" data-catalog="'+escAttr(movie.catalog_id||'')+'" data-sid="'+escAttr(String(movie.stream_id||''))+'" data-name="'+escAttr(movie.name||'')+'" data-ext="'+escAttr(movie.extension||'mp4')+'" data-year="'+escAttr(movie.year||'')+'" data-rating="'+escAttr(movie.rating||'')+'" data-cover="'+escAttr(movie.cover||'')+'">&#9733; '+esc(tr('Favorite'))+'</button></div></div>';
+  el.innerHTML=(art?'<img class="mediafeatureart" src="'+escAttr(art)+'" alt="" onerror="this.remove()">':'')+'<div class="mediafeaturecopy"><div class="mediafeatureeyebrow">'+esc(tr('Featured'))+'</div><h2>'+esc(title)+'</h2><div class="mediafeaturemeta">'+esc(meta)+'</div><div class="mediafeaturetext">'+esc(tr('Search your movie library for this title and available versions.'))+'</div><div class="mediafeatureactions"><button data-movie-feature-query="'+escAttr(title)+'">&#9658; '+esc(tr('View Movie'))+'</button><button class="ghost moviestar'+(_favMovieSet.has(String(movie.catalog_id||movie.stream_id))?' on':'')+'" data-key="'+escAttr(String(movie.catalog_id||movie.stream_id||''))+'" data-catalog="'+escAttr(movie.catalog_id||'')+'" data-sid="'+escAttr(String(movie.stream_id||''))+'" data-name="'+escAttr(movie.name||'')+'" data-ext="'+escAttr(movie.extension||'mp4')+'" data-year="'+escAttr(movie.year||'')+'" data-rating="'+escAttr(movie.rating||'')+'" data-cover="'+escAttr(movie.cover||'')+'">&#9733; '+esc(tr('Favorite'))+'</button></div></div>';
 }
 async function loadCinemetaMovies(catalog,refresh){
   _movieCatalog=['popular','new','featured'].includes(catalog)?catalog:'popular';
@@ -10716,15 +10715,15 @@ function upcomingEpisodeCard(ep){
     +'<div class="moviemeta">S'+esc(ep.season)+'E'+esc(ep.episode_num)+' - '+esc(ep.title||'Episode')+'</div>'
     +'<div class="movieactions"><button class="ghost" disabled>'+tr('Airs')+' '+esc(when)+'</button></div></div></div>';
 }
-function renderShowFeature(ep,upcoming){
+async function renderShowFeature(ep,upcoming){
   const el=document.getElementById('showFeature');if(!el)return;
   if(!ep){el.innerHTML='<span class="muted">'+esc(tr('No latest episodes found for your favorite shows.'))+'</span>';return;}
-  const art=ep.cover?"url('"+String(ep.cover).replace(/'/g,"%27")+"')":'none',season='S'+String(ep.season||'')+'E'+String(ep.episode_num||'');
+  const art=ep.background||ep.cover||'',season='S'+String(ep.season||'')+'E'+String(ep.episode_num||'');
   const sid=String(ep.series_id||''),cid=String(ep.catalog_id||''),src=(ep.sources&&ep.sources.length)?ep.sources[0]:null;
-  el.style.setProperty('--feature-art',art);
   el.classList.add('latestshowcard');el.setAttribute('data-series',sid);el.setAttribute('data-catalog',cid);
   const primary=(!upcoming&&src&&src.id!=null)?'<button class="latestepisodevlc" data-id="'+escAttr(String(src.id))+'" data-ext="'+escAttr(src.extension||'mp4')+'">&#9658; '+esc(tr('Play Episode'))+'</button>':'<button class="ghost" disabled>'+esc(upcoming?friendlyAirdate(ep):tr('Not available'))+'</button>';
-  el.innerHTML='<div class="mediafeaturecopy"><div class="mediafeatureeyebrow">'+esc(tr(upcoming?'Upcoming Episode':'Your Next Episode'))+'</div><h2>'+esc(ep.show_name||tr('Shows'))+'</h2><div class="mediafeaturemeta">'+esc(season+(ep.title?' · '+ep.title:''))+'</div><div class="mediafeaturetext">'+esc(upcoming?friendlyAirdate(ep):tr('Open the series to browse seasons, episodes and available sources.'))+'</div><div class="mediafeatureactions">'+primary+'<button class="ghost" data-show-feature-guide="1">'+esc(tr('Episode Guide'))+'</button></div></div>';
+  el.innerHTML=(art?'<img class="mediafeatureart" src="'+escAttr(art)+'" alt="" onerror="this.remove()">':'')+'<div class="mediafeaturecopy"><div class="mediafeatureeyebrow">'+esc(tr(upcoming?'Upcoming Episode':'Your Next Episode'))+'</div><h2>'+esc(ep.show_name||tr('Shows'))+'</h2><div class="mediafeaturemeta">'+esc(season+(ep.title?' · '+ep.title:''))+'</div><div class="mediafeaturetext">'+esc(upcoming?friendlyAirdate(ep):tr('Open the series to browse seasons, episodes and available sources.'))+'</div><div class="mediafeatureactions">'+primary+'<button class="ghost" data-show-feature-guide="1">'+esc(tr('Episode Guide'))+'</button></div></div>';
+  if(cid){try{const media=await api('/api/media_art?kind=series&id='+encodeURIComponent(cid));if(media.background&&el.dataset.catalog===cid){const img=el.querySelector('.mediafeatureart');if(img)img.src=media.background;else el.insertAdjacentHTML('afterbegin','<img class="mediafeatureart" src="'+escAttr(media.background)+'" alt="" onerror="this.remove()">');}}catch(_e){}}
 }
 async function loadLatestEpisodes(limit,refresh){
   limit=limit||9;
@@ -13097,7 +13096,9 @@ class Handler(BaseHTTPRequestHandler):
                                 "stream_id": first.get("stream_id"), "name": name,
                                 "extension": first.get("extension") or "mp4", "year": year,
                                 "rating": meta.get("imdbRating") or "",
-                                "cover": meta.get("poster") or "", "sources": sources,
+                                "cover": meta.get("poster") or "",
+                                "background": meta.get("background") or "",
+                                "sources": sources,
                                 "stream_found": bool(sources)})
                 return self._send(200, {"movies": out, "logged_in": x.configured(),
                                         "catalog": catalog_name})
@@ -13139,6 +13140,20 @@ class Handler(BaseHTTPRequestHandler):
                         "stream_found": bool(sources),
                     })
                 return self._send(200, {"movies": out, "logged_in": x.configured()})
+
+            if u.path == "/api/media_art":
+                kind = (q.get("kind", ["movie"])[0]).strip().lower()
+                catalog_id = (q.get("id", [""])[0]).strip()
+                if kind not in ("movie", "series") or not re.fullmatch(r"tt\d+", catalog_id):
+                    return self._send(400, {"error": "bad request"})
+                try:
+                    meta = cinemeta_meta(kind, catalog_id)
+                except Exception as e:
+                    return self._send(200, {"background": "", "poster": "",
+                                            "error": "Media artwork: " + str(e)})
+                return self._send(200, {
+                    "background": meta.get("background") or "",
+                    "poster": meta.get("poster") or ""})
 
             if u.path == "/api/favorite_movie_status":
                 cfg = load_config()
@@ -15476,7 +15491,10 @@ def run_self_tests():
           'function renderShowFeature(ep,upcoming)' in PAGE and
           '.moviecatalogs{display:block' in PAGE and
           'grid-auto-flow:column;grid-auto-columns:minmax(270px,315px)' in PAGE and
-          '#latestEpisodeList>.moviegrid,#upcomingEpisodeList>.moviegrid' in PAGE)
+          '#latestEpisodeList>.moviegrid,#upcomingEpisodeList>.moviegrid' in PAGE and
+          'class="mediafeatureart"' in PAGE and
+          "const title=cleanMovieSearchTitle(movie.name),art=movie.background||movie.cover||''" in PAGE and
+          "api('/api/media_art?kind=series&id='" in PAGE)
     check("Live TV navigates categories channels and favorites beside the EPG",
           'id="tvSpotlight"' in PAGE and
           "let _tvCategories=[],_tvRailMode='categories'" in PAGE and
