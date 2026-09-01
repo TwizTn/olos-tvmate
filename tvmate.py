@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b541"
+VERSION = "0.777.b542"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -171,7 +171,12 @@ DEFAULT_CONFIG = {
     "profile_emblem": "tvstack",
     "mylist_layout": "timeline",
     "sports_layout": "current",
-    "sports_competitions": ["eng-premier-league", "eng-fa-cup", "uefa-champions-league", "uefa-europa-league", "uefa-conference-league", "nor-eliteserien", "nor-cup"],
+    "sports_competitions": ["eng-premier-league", "eng-fa-cup", "eng-league-cup",
+                             "nor-eliteserien", "nor-cup",
+                             "uefa-champions-league", "uefa-europa-league", "uefa-conference-league",
+                             "esp-la-liga", "esp-copa-del-rey",
+                             "ger-bundesliga", "ger-dfb-pokal",
+                             "ita-serie-a", "ita-coppa-italia"],
     "match_layout": "live-centre",
     "football_enabled": True,
     "f1_enabled": True,
@@ -7047,7 +7052,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .teamupcomingpanel .teamhomematch{grid-template-columns:1fr;text-align:center}.teamupcomingpanel .teamhometeams{justify-content:center}.teamupcomingpanel .teamhomescore:empty{display:none}.teamupcomingpanel .teamhomemeta{text-align:center}
  .teamstatrow{display:block}.teamstatlabel{display:block;margin-bottom:5px}.teamstatplayers{display:flex;flex-direction:column;gap:4px}.teamstatplayer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.teamstatplayer+.teamstatplayer{padding-top:4px;border-top:1px solid rgba(255,255,255,.05)}
  @media(min-width:1101px){.teampagecolumns{grid-template-columns:minmax(280px,.76fr) minmax(430px,1.16fr) minmax(380px,1fr)}}.teamupcomingpanel{padding:18px}.teamupcomingpanel>.colh{font-size:13px;margin-bottom:12px}.teamupcomingpanel .teamhomematch{padding:15px 4px}.teamupcomingpanel .teamhometeams{gap:9px;font-size:14px}.teamupcomingpanel .teamhomelogo{width:32px;height:32px;flex-basis:32px}.teamupcomingpanel .teamhomeversus{font-size:11px}.teamupcomingpanel .teamhomemeta{margin-top:3px;font-size:11px}.teamtablepanel .teamtable th,.teamtablepanel .teamtable td{padding-left:5px;padding-right:5px}
- .teamdetailpage{max-width:2100px;width:min(94vw,2100px);padding-left:0;padding-right:0}@media(min-width:1401px){.teamclubhero{width:min(100%,1746px);margin-left:auto;margin-right:auto}.teampagecolumns{grid-template-columns:minmax(330px,1fr) minmax(540px,660px) minmax(330px,1fr)}.teamleftcolumn{width:min(100%,470px);justify-self:end}.teamtablepanel{width:min(100%,580px);justify-self:start}}
+ .teamdetailpage{max-width:2100px;width:min(94vw,2100px);padding-left:0;padding-right:0}@media(min-width:1401px){.teamclubhero,.teampagecolumns{width:min(100%,1856px);margin-left:auto;margin-right:auto}.teampagecolumns{grid-template-columns:minmax(0,580px) minmax(540px,660px) minmax(0,580px);justify-content:center}.teamleftcolumn,.teamtablepanel{width:100%;justify-self:stretch}}
  .teamtable tr{position:relative}.teamtable tr.qualzone td:first-child{box-shadow:inset 3px 0 0 var(--qual-zone)}
  @media(max-width:1100px){.teampagecolumns{grid-template-columns:minmax(250px,.8fr) minmax(320px,1fr)}.teamtablepanel{grid-column:1/-1}}
  @media(max-width:720px){.leaguepickergroups,.teampagecolumns{grid-template-columns:1fr}.teamtablepanel{grid-column:auto}.teamclubhero{min-height:125px;padding:58px 16px 18px}.teamclubback{left:12px;top:12px}.teamdetailheadlogo{width:62px;height:62px;flex-basis:62px}.teamdetailheadtext h1{font-size:25px}}
@@ -7569,11 +7574,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="mydashblock hide" id="myListTimelineBlock">
         <div class="mydashhead"><div class="colh" data-i18n="Now & Next">Now &amp; Next</div></div>
         <div id="myListTimeline"></div>
-      </div>
-      <div class="mydashblock" id="myListChannelsBlock">
-        <div class="mydashhead"><div class="colh mydashliveheading" onclick="toggleMyListChannelPicker()" title="Choose channels" data-i18n="Live TV">Live TV</div></div>
-        <div id="myListChannels" class="mydashchannels"></div>
-        <div id="myListChannelPicker" class="mydashchooser hide"></div>
       </div>
     </div>
   </section>
@@ -8219,7 +8219,7 @@ function updateProfileName(name){
   // Profile identity lives inside My Profile now. The permanent top-right
   // action is Stop TVMate, so profile names no longer occupy header space.
 }
-let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',sports_layout:'current',sports_competitions:['eng-premier-league','eng-fa-cup','uefa-champions-league','uefa-europa-league','uefa-conference-league','nor-eliteserien','nor-cup'],match_layout:'live-centre',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
+let _profileConfig={profile_name:'',profile_emblem:'tvstack',mylist_layout:'timeline',sports_layout:'current',sports_competitions:['eng-premier-league','eng-fa-cup','eng-league-cup','nor-eliteserien','nor-cup','uefa-champions-league','uefa-europa-league','uefa-conference-league','esp-la-liga','esp-copa-del-rey','ger-bundesliga','ger-dfb-pokal','ita-serie-a','ita-coppa-italia'],match_layout:'live-centre',football_enabled:true,f1_enabled:true,racing_series:['f1'],games_enabled:true,decorations_enabled:true,background_style:'float'};
 let _selectedEmblem='tvstack',_footballEnabled=true,_f1Enabled=true,_gamesEnabled=true,_myListLayout='timeline';
 let _devMode=false;
 function profileEmblemSvg(key){return _PROFILE_EMBLEMS[key]||_PROFILE_EMBLEMS.tvstack;}
@@ -11239,9 +11239,8 @@ function renderMyListTimeline(){
       h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent mylisttimelineposter"><span class="mylisttimelinekind movie">'+esc(tr('Movie'))+'</span>'+cover+'<div class="mylisttimelinetext spread"><span class="tlfact tllead">'+esc(m.year||tr('Movie'))+'</span><b class="tlheadline">'+esc(m.name)+'</b><div class="tlfacts">'+movieState+'</div></div><div class="mylisttimelineaside">'+(movieAhead?'<span class="mylisttimelinecount">'+esc(movieAhead)+'</span>':'')+movieBtn+'</div></div></div>';
     }else if(moment.kind==='game'){
       const row=moment.data,g=row.game,cover=g.cover?'<img src="'+escAttr(g.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'',when=row.ts<Date.now()?timelineReleasedWhen(row.ts):timelineUpcomingWhen(row.ts,true);
-      const gameUrl=g.url||('https://store.steampowered.com/app/'+encodeURIComponent(String(g.app_id||''))+'/');
       const gameAhead=row.ts>Date.now()?racingCountdown({start:new Date(row.ts).toISOString()}):'';
-      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent mylisttimelinegame" data-url="'+escAttr(gameUrl)+'"><span class="mylisttimelinekind game">'+esc(tr('Game'))+'</span>'+cover+'<div class="mylisttimelinetext spread"><span class="tlfact tllead">Steam</span><b class="tlheadline">'+esc(g.name||'Game')+'</b><div class="tlfacts"><span>'+esc(g.release_text||'')+'</span></div></div>'+timelineAside(gameAhead,0,false)+'</div></div>';
+      h+='<div class="mylisttimelineentry"><div class="mylisttimelinewhen">'+esc(when)+'</div><div class="mylisttimelinebody mylisttimelinecontent mylisttimelinegame"><span class="mylisttimelinekind game">'+esc(tr('Game'))+'</span>'+cover+'<div class="mylisttimelinetext spread"><span class="tlfact tllead">Steam</span><b class="tlheadline">'+esc(g.name||'Game')+'</b><div class="tlfacts"><span>'+esc(g.release_text||'')+'</span></div></div>'+timelineAside(gameAhead,0,false)+'</div></div>';
     }else{
       const row=moment.data,ep=row.ep,cover=ep.cover?'<img src="'+escAttr(ep.cover)+'" alt="" loading="lazy" onerror="this.remove()">':'',available=(!row.upcoming&&ep.available)?'<span class="cc mylisttimelineavail" title="Available to play">&#9654;</span>':'';
       const when=row.ts<Date.now()?timelineReleasedWhen(row.ts):timelineUpcomingWhen(row.ts,false);
@@ -11640,7 +11639,7 @@ document.addEventListener('click',function(e){
   const sourceExpand=e.target.closest('.latestsourceexpand');
   if(sourceExpand){const box=sourceExpand.parentElement.querySelector('.latestsources');if(box)box.classList.toggle('hide');return;}
   const timelineGame=e.target.closest('.mylisttimelinegame');
-  if(timelineGame){const url=timelineGame.getAttribute('data-url');if(url)window.open(url,'_blank','noopener');return;}
+  if(timelineGame){showGames();return;}
   const timelineF1=e.target.closest('.mylisttimelinef1');
   if(timelineF1){
     const key=timelineF1.getAttribute('data-event-key')||'';
@@ -15333,6 +15332,22 @@ def run_self_tests():
           'class="endedfixtures"' in PAGE and
           "_sportsVisibleFixtures=today" in PAGE and
           'data-i18n="Favorite team highlights"' not in PAGE)
+    check("Recommended Sports competitions cover the requested leagues and cups",
+          DEFAULT_CONFIG.get("sports_competitions") == [
+              "eng-premier-league", "eng-fa-cup", "eng-league-cup",
+              "nor-eliteserien", "nor-cup",
+              "uefa-champions-league", "uefa-europa-league", "uefa-conference-league",
+              "esp-la-liga", "esp-copa-del-rey",
+              "ger-bundesliga", "ger-dfb-pokal",
+              "ita-serie-a", "ita-coppa-italia"])
+    check("wide team pages share one centered banner and three-column axis",
+          ".teamclubhero,.teampagecolumns{width:min(100%,1856px)" in PAGE and
+          "grid-template-columns:minmax(0,580px) minmax(540px,660px) minmax(0,580px)" in PAGE)
+    check("Profile omits favorite channels and game timeline opens Games",
+          'id="myListChannelsBlock"' not in PAGE and
+          "if(timelineGame){showGames();return;}" in PAGE and
+          'class="mylisttimelinebody mylisttimelinecontent mylisttimelinegame"' in PAGE and
+          'mylisttimelinegame" data-url=' not in PAGE)
     competition_keys = {item["key"] for group in SPORTS_COMPETITIONS
                         for item in group["items"]}
     check("Sports offers the Spanish Italian and German domestic cups",
