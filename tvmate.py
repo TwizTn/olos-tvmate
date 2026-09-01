@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b539"
+VERSION = "0.777.b540"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -3563,8 +3563,11 @@ SPORTS_COMPETITIONS = [
         {"key": "nor-cup", "name": "Norwegian Cup", "country": "NOR", "aliases": ["nm cup", "norwegian cup", "cup"]}]},
     {"group": "Europe", "items": [
         {"key": "esp-la-liga", "name": "LaLiga", "country": "ESP", "aliases": ["laliga", "la liga"]},
+        {"key": "esp-copa-del-rey", "name": "Copa del Rey", "country": "ESP", "aliases": ["copa del rey", "spanish cup"]},
         {"key": "ger-bundesliga", "name": "Bundesliga", "country": "GER", "aliases": ["bundesliga"]},
+        {"key": "ger-dfb-pokal", "name": "DFB-Pokal", "country": "GER", "aliases": ["dfb pokal", "german cup"]},
         {"key": "ita-serie-a", "name": "Serie A", "country": "ITA", "aliases": ["serie a"]},
+        {"key": "ita-coppa-italia", "name": "Coppa Italia", "country": "ITA", "aliases": ["coppa italia", "italian cup"]},
         {"key": "fra-ligue-1", "name": "Ligue 1", "country": "FRA", "aliases": ["ligue 1"]},
         {"key": "ned-eredivisie", "name": "Eredivisie", "country": "NED", "aliases": ["eredivisie"]}]},
 ]
@@ -8168,7 +8171,7 @@ function showMytv(){rememberLocation('mytv');hideAll(true);mytvView.classList.re
 function showMovies(){rememberLocation('movies');hideAll();moviesView.classList.remove('hide');document.getElementById('movieCatalogs').classList.remove('hide');document.getElementById('movieResults').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navMovies');setSlogan('movies');loadMovieFavorites();loadRecentMovies();loadCinemetaMovies(_movieCatalog);}
 function showShows(){rememberLocation('shows');_activeSeriesId=null;_showSeasons={};hideAll();showsView.classList.remove('hide');document.getElementById('latestEpisodesSection').classList.remove('hide');document.getElementById('showResults').innerHTML='';document.getElementById('showDetails').innerHTML='';document.querySelector('main').classList.add('wide');setNav('navShows');setSlogan('shows');loadShowFavorites();if(!_latestEpisodesLoaded)loadLatestEpisodes();}
 function showGames(){if(!_gamesEnabled){showMylist();return;}rememberLocation('games');hideAll();gamesView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGames');setSlogan('movies');loadGameFavorites();loadSteamWishlistSetting();}
-function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing();}
+function showRacing(driverKey){if(!_f1Enabled){showMylist();return;}if(driverKey)_racingDetailKey=String(driverKey);rememberLocation('racing');hideAll();racingView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navRacing');setSlogan('mylist');loadRacing(false);}
 let _golfEvents=[],_golfTours=new Set(['pga','eur','lpga','liv']);
 function showGolf(){rememberLocation('golf');hideAll();golfView.classList.remove('hide');document.querySelector('main').classList.add('wide');setNav('navGolf');setSlogan('mylist');loadGolf();}
 function renderGolf(){const tours=[['pga','PGA Tour'],['eur','DP World Tour'],['lpga','LPGA'],['liv','LIV Golf']];golfTours.innerHTML=tours.map(t=>'<button class="racingtoggle'+(_golfTours.has(t[0])?' on':'')+'" data-golf-tour="'+escAttr(t[0])+'" onclick="toggleGolfTour(this.dataset.golfTour)">'+esc(t[1])+'</button>').join('');const rows=_golfEvents.filter(e=>_golfTours.has(e.tour));golfEvents.innerHTML=rows.length?rows.map((e,i)=>'<div class="racingcard" onclick="openGolfEvent('+_golfEvents.indexOf(e)+')" style="cursor:pointer"><h3>'+esc(e.tour_name)+'</h3><div class="racingevent"><div class="racingeventtop"><b>'+esc(e.name)+'</b>'+(e.live?'<span class="cc racingeventtv">LIVE</span>':'')+'</div><div class="moviemeta">'+esc(e.status||new Date(e.start).toLocaleDateString())+'</div>'+(e.leaderboard&&e.leaderboard.length?'<div class="moviemeta" style="margin-top:7px">Leader: '+esc(e.leaderboard[0].name||'')+' '+esc(e.leaderboard[0].score||'')+'</div>':'')+'</div></div>').join(''):'<span class="muted">No live or upcoming tournaments found.</span>';}
@@ -10354,7 +10357,7 @@ const _RACING_LOGOS={
   wrc:'https://www.canevarally.com/wp-content/uploads/2025/01/311439623_179650897941587_4314845745939251693_n-3-e1714140994320-1302x558-1.jpg'
 };
 let _racingSelected=new Set(['f1']);
-let _racingDriverRows=[],_racingEventRows=[],_racingDetailKey='',_racingAvailabilityLoading=false;
+let _racingDriverRows=[],_racingEventRows=[],_racingDetailKey='',_racingAvailabilityLoading=false,_racingLoaded=false,_racingLoadPromise=null;
 function wrcPublishedEndDay(event){
   if(String((event&&event.series)||'').toLowerCase()!=='wrc')return NaN;
   const text=String(event.date_text||'').toUpperCase().replace(/[,\.]/g,' ').replace(/\s+/g,' ').trim();
@@ -10584,24 +10587,27 @@ async function loadRacingAvailability(){
   _racingAvailabilityLoading=true;renderRacingScheduleCards();
   try{const a=await api('/api/racing_availability');applyRacingAvailability(a.availability||{},_racingEventRows);}catch(e){}finally{_racingAvailabilityLoading=false;renderRacingScheduleCards();renderRacingDriverDetail();const drivers=document.getElementById('racingDrivers');if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);}
 }
-async function loadRacing(){
+async function loadRacing(force){
   const toggles=document.getElementById('racingSeries'),info=document.getElementById('racingInfo'),drivers=document.getElementById('racingDrivers');
+  if(_racingLoaded&&!force){renderRacingTeamControl();renderRacingDriverDetail();renderRacingScheduleCards();if(drivers)drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);return;}
+  if(_racingLoadPromise&&!force)return _racingLoadPromise;
   if(drivers)drivers.innerHTML='<span class="muted">'+esc(tr('Loading drivers and next race...'))+'</span>';
   if(info)info.innerHTML='<span class="muted">'+esc(tr('Loading racing schedules...'))+'</span>';
-  try{
+  _racingLoadPromise=(async()=>{try{
     const [r,d]=await Promise.all([api('/api/racing'),api('/api/racing_drivers')]);_racingSelected=new Set(r.selected||[]);_racingDriverRows=d.drivers||[];_racingEventRows=r.events||[];
     toggles.innerHTML=_RACING_SERIES.map(row=>'<button class="racingtoggle'+(_racingSelected.has(row[0])?' on':'')+'" data-key="'+row[0]+'" onclick="toggleRacingSeries(this.dataset.key)">'+esc(row[1])+'</button>').join('');
     const f1Rows=_racingDriverRows.filter(row=>row.series==='f1'),validKeys=new Set(_racingDriverRows.map(row=>String(row.key||'')));if(_racingSelected.has('f1'))validKeys.add('f1-team');
     if(!_racingDetailKey||!validKeys.has(_racingDetailKey))_racingDetailKey=_racingSelected.has('f1')?'f1-team':String((_racingDriverRows[0]||{}).key||'');
     _racingAvailabilityLoading=true;renderRacingTeamControl();renderRacingDriverDetail();drivers.innerHTML=racingDriversHtml(_racingDriverRows,_racingEventRows);
-    renderRacingScheduleCards();loadRacingAvailability();
-  }catch(e){drivers.innerHTML='';info.innerHTML='<span class="err">'+esc(tr('Could not load racing schedules.'))+'</span>';}
+    _racingLoaded=true;renderRacingScheduleCards();loadRacingAvailability();
+  }catch(e){drivers.innerHTML='';info.innerHTML='<span class="err">'+esc(tr('Could not load racing schedules.'))+'</span>';}finally{_racingLoadPromise=null;}})();
+  return _racingLoadPromise;
 }
 async function toggleRacingSeries(key){
   if(_racingSelected.has(key))_racingSelected.delete(key);else _racingSelected.add(key);
   const r=await api('/api/racing_series',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({series:Array.from(_racingSelected)})});
   if(r.error){toast(r.error);return;}
-  _profileConfig.racing_series=r.series||[];await loadRacing();loadFavorites();
+  _profileConfig.racing_series=r.series||[];await loadRacing(true);loadFavorites();
 }
 let _showSeasons={};
 let _activeSeriesId=null;
@@ -10918,7 +10924,7 @@ async function setRacingF1Team(id,name){
   const clear=current===String(id);
   await favPost({action:'set_f1_team',team:clear?{}:{id:id,name:name}});
   document.getElementById('racingF1Picker').classList.add('hide');
-  await loadRacing();loadFavorites();
+  await loadRacing(true);loadFavorites();
 }
 function mySportTeamMeta(fixtures){
   const counts=new Map(),rows=(fixtures||[]).filter(f=>f&&f.league_name&&!/friendl/i.test(String(f.league_name)));
@@ -15307,6 +15313,11 @@ def run_self_tests():
           'class="endedfixtures"' in PAGE and
           "_sportsVisibleFixtures=today" in PAGE and
           'data-i18n="Favorite team highlights"' not in PAGE)
+    competition_keys = {item["key"] for group in SPORTS_COMPETITIONS
+                        for item in group["items"]}
+    check("Sports offers the Spanish Italian and German domestic cups",
+          {"esp-copa-del-rey", "ita-coppa-italia", "ger-dfb-pokal"}
+          <= competition_keys)
     check("favorite teams use clean text emphasis in today's matches",
           "#teamTopList .teamfixture.favoritefixture" in PAGE and
           "#teamTopList .favoritefixtureteam" in PAGE and
@@ -16430,6 +16441,11 @@ def run_self_tests():
           "racingEvent.classList.contains('loadingchannels')" in PAGE and
           "const url=racingEvent.getAttribute('data-url')" not in PAGE and
           "racingeventsource" in PAGE)
+    check("Racing reuses its loaded view until an explicit configuration change",
+          "loadRacing(false);" in PAGE and
+          "if(_racingLoaded&&!force)" in PAGE and
+          "if(_racingLoadPromise&&!force)return _racingLoadPromise" in PAGE and
+          PAGE.count("await loadRacing(true);loadFavorites();") >= 2)
     check("sports uses durable stale-while-refresh snapshots",
           "api('/api/my_teams'+(force?'?refresh=1':''))" in PAGE and
           "if(r.cached&&!_myTeamsBackgroundRefresh" in PAGE and
