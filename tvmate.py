@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b542"
+VERSION = "0.777.b543"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6608,11 +6608,25 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:900px){.mydash.layout-spotlight,.mydash.layout-hub,.mydash.layout-timeline{display:block}.mydash.layout-hub #myListProfile,.mydash.layout-timeline #myListProfile{display:flex;flex-direction:row;align-items:center;border-right:0;border-bottom:1px solid var(--line);padding:0 0 16px;min-height:0}.mydash.layout-hub .mydashepisodes{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}.mydash.layout-timeline #myListTimelineBlock{margin-top:28px}}
  /* My TV */
  .tvwrap{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:11px;overflow:hidden;height:min(82vh,920px);min-height:520px;background:#0d1015;box-shadow:0 12px 34px rgba(0,0,0,.12)}
- .tvrail{width:136px;flex-shrink:0;border-right:1px solid var(--line);overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;background:#11151b;scrollbar-width:thin}
+ .tvrail{width:248px;flex-shrink:0;border-right:1px solid var(--line);overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;background:#11151b;scrollbar-width:thin}
+ .tvrailtabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;position:sticky;top:0;z-index:4;background:#11151b;padding-bottom:3px}
+ .tvrailtab{padding:8px 4px;font-size:10.5px;background:#151a22;color:var(--mut);border-color:var(--line2)}
+ .tvrailtab.on{color:#dcecff;border-color:#3975bf;background:#142743;box-shadow:inset 0 -2px 0 #4b9cff}
+ .tvrailsearch{width:100%;box-sizing:border-box;padding:8px 9px;font-size:11px}
+ .tvrailtitle{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.08em;padding:4px 3px 1px}
+ .tvrailback{padding:3px 7px;font-size:10px}
  .tvsrc{padding:8px 9px;font-size:11.5px;border:1px solid var(--line2);border-radius:7px;cursor:pointer;text-align:center;color:var(--mut);background:none;transition:all .1s;line-height:1.25}
  .tvsrc:hover{border-color:var(--acc);color:var(--fg)}
  .tvsrc.on{border-color:var(--acc);background:#16233d;color:#cfe0ff}
+ .tvcatsrc,.tvrailchannel{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:8px;text-align:left;padding:10px 8px}
+ .tvcatsrc .tvcatcount{font-size:9px;border:1px solid #66521f;color:#d9b34c;border-radius:5px;padding:2px 5px}
+ .tvrailchannel{width:100%;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;color:var(--fg);font-size:11px;cursor:pointer}
+ .tvrailchannel:hover{background:var(--card2)}.tvrailchannel.playing{background:#16233d}
+ .tvrailchannel img{width:24px;height:24px;object-fit:contain}.tvrailchannel span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  .tvguide{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
+ .tvspotlight{display:grid;grid-template-columns:minmax(280px,.9fr) minmax(0,1.1fr);gap:0;min-height:164px;border-bottom:1px solid #343a46;background:linear-gradient(135deg,#121821,#0d1117);flex-shrink:0}
+ .tvspotmedia{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#080b10;min-height:164px}.tvspotmedia img{width:100%;height:100%;object-fit:contain;max-height:190px}.tvspotmedia .tvspotfallback{font-size:42px;color:#657083}
+ .tvspotinfo{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.9fr) minmax(0,.7fr)}.tvspotblock{padding:20px;border-left:1px solid var(--line);min-width:0}.tvspotlabel{color:#d7a62d;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px}.tvspotname{font-size:20px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tvspotmeta{font-size:11px;color:var(--mut);margin-top:7px}.tvspotnext{font-size:13px;font-weight:650;line-height:1.35}.tvspotactions{display:flex;gap:7px;margin-top:14px;flex-wrap:wrap}.tvspotactions button{padding:6px 9px;font-size:10px}
  .tvguidehead{display:flex;flex-shrink:0;border-bottom:1px solid #343a46;background:#14181f;height:44px;padding-right:10px;box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:4}
  .tvchancol{width:286px;flex-shrink:0;border-right:1px solid #343a46;padding:6px 8px;display:flex;align-items:center}
  .tvchancol button{width:100%}
@@ -6670,8 +6684,8 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .tvrow{display:flex;border-bottom:1px solid #292f3a;height:50px;min-height:50px;align-items:stretch;transition:background .12s}.tvrow:hover{background:rgba(255,255,255,.016)}
  .tvrow.tvdragging{opacity:.4}
  .tvrow.tvdragover{box-shadow:inset 0 2px 0 var(--acc)}
- @media(max-width:1100px){.tvrail{width:110px}.tvchancol,.tvchan{width:230px}.tvplayerslot{left:230px}.tvchan{gap:6px;padding-left:7px;padding-right:7px}.tvchan .tvvlc{padding:3px 5px}.tvtimeslot{padding-left:7px}}
- @media(max-width:760px){.tvrail{width:92px;padding:6px}.tvsrc{padding:7px 5px;font-size:10.5px}.tvchancol,.tvchan{width:205px}.tvplayerslot{left:205px}.tvwrap{height:78vh;min-height:440px}.tvchan .tvname{font-size:11px}}
+ @media(max-width:1100px){.tvrail{width:210px}.tvspotlight{grid-template-columns:260px minmax(0,1fr)}.tvspotinfo{grid-template-columns:minmax(0,1fr) minmax(0,.8fr)}.tvspotblock:last-child{display:none}.tvchancol,.tvchan{width:230px}.tvplayerslot{left:230px}.tvchan{gap:6px;padding-left:7px;padding-right:7px}.tvchan .tvvlc{padding:3px 5px}.tvtimeslot{padding-left:7px}}
+ @media(max-width:760px){.tvrail{width:155px;padding:6px}.tvrailtabs{grid-template-columns:1fr}.tvspotlight{display:none}.tvsrc{padding:7px 5px;font-size:10.5px}.tvchancol,.tvchan{width:205px}.tvplayerslot{left:205px}.tvwrap{height:78vh;min-height:440px}.tvchan .tvname{font-size:11px}}
  /* player fills the timeline area when active */
  #tvPlayerSlot .tvplayerbar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#0c0e12;font-size:13px}
  #tvVideo{width:100%;height:calc(100% - 34px);background:#000;display:block;object-fit:cover;cursor:zoom-out}
@@ -6847,7 +6861,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  /* playlist builder logo */
  .pancakes-pl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
  .churl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mut);word-break:break-all}
- .movieswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .movieswrap{display:block;width:100%}
  .moviefavs{padding:0 16px 0 0;max-height:calc(100vh - 96px);overflow-y:auto;position:sticky;top:78px;border-right:1px solid var(--line)}
  .moviefavlist{display:flex;flex-direction:column;gap:8px}
  .moviefav{position:relative;display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);min-height:100px;cursor:pointer}
@@ -6857,7 +6871,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .moviefavinfo{min-width:0;flex:1;display:flex;justify-content:center;padding:8px 6px 31px 0}
  .moviefavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center;word-break:break-word}
  .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
- .moviesmain{width:100%;max-width:1500px;min-width:0;margin:0 auto}
+ .moviesmain{width:100%;max-width:1900px;min-width:0;margin:0 auto}
+ .moviefavoriteblock{margin:18px 0 22px}.moviefavoritegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+ .moviefavoritegrid .moviefav{min-height:116px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card)}
+ .moviefavoritegrid .moviefavposter{width:70px;height:105px}.moviefavoritegrid .moviefavinfo{align-items:center}.moviefavoritegrid .movieremove{right:9px;bottom:9px}
  .moviecatalogs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:20px;align-items:start}
  .moviecatalogs.hide{display:none}
  .moviecatalogs.noxtream{grid-template-columns:minmax(0,1200px);justify-content:center}
@@ -6930,7 +6947,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .movieresultstatus{margin-bottom:4px}
  .latestsourceexpand{min-width:108px;padding:9px 15px;font-size:inherit;margin-right:0}
  .latestsources{display:flex;gap:7px;flex-wrap:wrap;width:100%}
- .showswrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;width:100%}
+ .showswrap{display:block;width:100%}
  .showrefresh{position:fixed;top:68px;right:18px;z-index:30;font-size:12px;padding:7px 13px;box-shadow:0 5px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08)}
  .layouteditfixed{position:fixed;top:68px;right:164px;z-index:30;font-size:12px;padding:7px 13px;box-shadow:0 5px 18px rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08)}
  .layoutpopoverlayer{position:fixed;inset:0;z-index:3000;background:transparent}
@@ -6950,7 +6967,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .showfavinfo{min-width:0;flex:1;display:flex;justify-content:center;padding:8px 6px 27px 0}
  .showfavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center}
  .showremove{position:absolute;right:0;bottom:8px;padding:3px 7px}
- .showsmain{width:100%;max-width:1250px;min-width:0;margin:0 auto}
+ .showsmain{width:100%;max-width:1900px;min-width:0;margin:0 auto}
+ .showfavoriteblock{margin:20px 0 24px}.showfavoriteblock .showfavlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+ .showfavoriteblock .showfav{min-height:126px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+ .showfavoriteblock .showfavposter{width:78px;height:117px}.showfavoriteblock .showfavinfo{align-items:center}.showfavoriteblock .showremove{right:8px;bottom:8px}
  .showgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:16px}
  .showcard{display:flex;gap:10px;min-height:140px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;transition:border-color .13s,background .13s,transform .13s}
  .showcard:hover{border-color:#496b9f;background:var(--card2);transform:translateY(-1px)}
@@ -7551,6 +7571,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div class="tvwrap">
       <div class="tvrail" id="tvRail"></div>
       <div class="tvguide">
+        <div class="tvspotlight" id="tvSpotlight"></div>
         <div class="tvguidehead">
           <div class="tvchancol"><button class="ghost" id="epgRefresh" onclick="epgRefresh()" title="Reload EPG"><span data-i18n="EPG Refresh">&#128197; EPG</span></button></div>
           <div class="tvtimeline" id="tvTimeHead"></div>
@@ -7588,16 +7609,16 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <section id="moviesView" class="hide">
     <button id="movieRefreshBtn" class="showrefresh" onclick="checkMovies(this)">&#8635; <span data-i18n="Check for new movies">Check for new movies</span></button>
     <div class="movieswrap">
-      <aside class="moviefavs">
-        <div class="colh">&#9733; <span data-i18n="Favorite Movies">Favorite Movies</span></div>
-        <div id="movieFavList" class="moviefavlist"><span class="muted">No favorite movies yet.</span></div>
-      </aside>
       <div class="moviesmain">
         <h2 class="colh" data-i18n="Movies">Movies</h2>
         <div class="row sectionsearch">
           <input id="movieQ" type="text" placeholder="Search your movies..." data-i18n-ph="Search your movies..." onkeydown="if(event.key==='Enter')searchMovies()">
           <button onclick="searchMovies()" data-i18n="Search">Search</button>
         </div>
+        <section class="moviefavoriteblock">
+          <header class="moviecataloghead"><div class="colh">&#9733; <span data-i18n="Favorite Movies">Favorite Movies</span></div></header>
+          <div id="movieFavList" class="moviefavlist moviefavoritegrid"><span class="muted">No favorite movies yet.</span></div>
+        </section>
         <div id="movieCatalogs" class="moviecatalogs">
           <section id="recentMoviesSection" class="moviecatalogcolumn">
             <header class="moviecataloghead"><div class="colh" data-i18n="Recently Added">Recently Added</div></header>
@@ -7624,16 +7645,16 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   <section id="showsView" class="hide">
     <button id="showRefreshBtn" class="showrefresh" onclick="checkAllShows(this)">&#8635; <span data-i18n="Check for new episodes">Check for new episodes</span></button>
     <div class="showswrap">
-      <aside class="showfavs">
-        <div class="colh">&#9733; <span data-i18n="Favorite Shows">Favorite Shows</span></div>
-        <div id="showFavList" class="showfavlist"><span class="muted">No favorite shows yet.</span></div>
-      </aside>
       <div class="showsmain">
         <h2 class="colh" data-i18n="Shows">Shows</h2>
         <div class="row sectionsearch">
           <input id="showQ" type="text" placeholder="Search your shows..." data-i18n-ph="Search your shows..." onkeydown="if(event.key==='Enter')searchShows()">
           <button onclick="searchShows()" data-i18n="Search">Search</button>
         </div>
+        <section class="showfavoriteblock">
+          <div class="colh">&#9733; <span data-i18n="Favorite Shows">Favorite Shows</span></div>
+          <div id="showFavList" class="showfavlist"><span class="muted">No favorite shows yet.</span></div>
+        </section>
         <div id="latestEpisodesSection">
           <div class="colh" style="margin-top:20px" data-i18n="Your Latest Episodes">Your Latest Episodes</div>
           <div id="latestEpisodeList"><span class="muted">Loading...</span></div>
@@ -11289,24 +11310,52 @@ function toast(msg,duration){
 // ---- My TV ----
 let _tvSource='__fav__';   // '__fav__' or a category name
 let _tvChannels=[];
+let _tvCategories=[],_tvRailMode='categories',_tvRailQuery='';
 let _tvPlaying=null;
 let _tvPlayRequest=0,_tvPendingSid='';
 let _tvPipActive=false,_tvPipRestoreMini=false,_tvPipWatchTimer=null;
 async function initMytv(){
   await buildTvRail();
-  await loadTvSource('__fav__');
+  const initial=_tvCategories.length?_tvCategories[0].name:'__fav__';
+  await loadTvSource(initial);
 }
 async function buildTvRail(){
   const r=await api('/api/favorites');
-  const rail=document.getElementById('tvRail');
-  let h='<button class="tvsrc'+(_tvSource==='__fav__'?' on':'')+'" data-src="__fav__">\u2605 '+tr('Favorite Channels')+'</button>';
-  for(const c of (r.categories||[]))
-    h+='<button class="tvsrc'+(_tvSource===c?' on':'')+'" data-src="'+escAttr(c)+'">'+_flagFor(c)+' '+esc(c)+'</button>';
+  const counts={};
+  for(const ch of (r.channels||[])){const cat=String(ch.category||'');if(cat)counts[cat]=(counts[cat]||0)+1;}
+  _tvCategories=(r.categories||[]).map(function(c){return {name:String(c),count:counts[String(c)]||0};});
+  renderTvRail();
+}
+function tvRailTabsHtml(){
+  return '<div class="tvrailtabs">'
+    +'<button class="tvrailtab'+(_tvRailMode==='categories'?' on':'')+'" data-tvrail-mode="categories">'+esc(tr('Categories'))+'</button>'
+    +'<button class="tvrailtab'+(_tvRailMode==='channels'?' on':'')+'" data-tvrail-mode="channels">'+esc(tr('Channels'))+'</button>'
+    +'<button class="tvrailtab'+(_tvRailMode==='favorites'?' on':'')+'" data-tvrail-mode="favorites">'+esc(tr('Favorites'))+'</button></div>';
+}
+function renderTvRail(){
+  const rail=document.getElementById('tvRail');if(!rail)return;
+  const q=String(_tvRailQuery||'').trim().toLowerCase();let h=tvRailTabsHtml();
+  h+='<input class="tvrailsearch" id="tvRailSearch" type="search" value="'+escAttr(_tvRailQuery)+'" placeholder="'+escAttr(tr('Search'))+'..." data-tvrail-search>';
+  if(_tvRailMode==='categories'){
+    h+='<div class="tvrailtitle"><span>'+esc(tr('TV categories'))+'</span></div>';
+    for(const row of _tvCategories.filter(row=>!q||row.name.toLowerCase().includes(q)))h+='<button class="tvsrc tvcatsrc'+(_tvSource===row.name?' on':'')+'" data-src="'+escAttr(row.name)+'"><span>'+_flagFor(row.name)+'</span><span>'+esc(row.name)+'</span><span class="tvcatcount">'+esc(row.count||'')+'</span></button>';
+  }else{
+    const favorites=_tvRailMode==='favorites';
+    h+='<div class="tvrailtitle"><span>'+esc(favorites?tr('Favorite Channels'):(_tvSource==='__fav__'?tr('Channels'):_tvSource))+'</span>'+(favorites?'':'<button class="ghost tvrailback" data-tvrail-mode="categories">&#8592; '+esc(tr('Categories'))+'</button>')+'</div>';
+    const rows=_tvChannels.filter(ch=>(!favorites||_favChanSet.has(String(ch.stream_id)))&&(!q||String(ch.name||'').toLowerCase().includes(q)));
+    for(const ch of rows){const playing=_tvPlaying!==null&&String(_tvPlaying)===String(ch.stream_id);h+='<button class="tvrailchannel'+(playing?' playing':'')+'" data-tvrail-sid="'+escAttr(String(ch.stream_id))+'">'+(ch.logo?'<img src="'+escAttr(ch.logo)+'" alt="" loading="lazy" onerror="this.remove()">':'<span>'+_flagFor(ch.category||ch.name)+'</span>')+'<span>'+esc(ch.name)+'</span><span class="tvrailfavmark">'+(_favChanSet.has(String(ch.stream_id))?'&#9733;':'')+'</span></button>';}
+    if(!rows.length)h+='<span class="muted">'+esc(tr(favorites?'No favorite channels yet.':'No channels here.'))+'</span>';
+  }
   rail.innerHTML=h;
+}
+function setTvRailMode(mode){
+  _tvRailMode=['categories','channels','favorites'].includes(mode)?mode:'categories';_tvRailQuery='';
+  if(_tvRailMode==='favorites'&&_tvSource!=='__fav__'){loadTvSource('__fav__');return;}
+  renderTvRail();
 }
 async function loadTvSource(src){
   _tvSource=src;
-  document.querySelectorAll('.tvsrc').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-src')===src);});
+  if(src!=='__fav__')_tvRailMode='channels';
   const body=document.getElementById('tvGuideBody');
   body.innerHTML='<div class="muted" style="padding:16px">Loading...</div>';
   if(src==='__fav__'){
@@ -11324,6 +11373,7 @@ async function loadTvSource(src){
     try{const j=await api('/api/epg?cached=1&ids='+encodeURIComponent(epgIds.join(',')));if(!j.error)_tvEpg=Object.assign({},_tvEpg,j.epg||{});}catch(e){}
   }
   renderTvGuide();
+  renderTvRail();
   maybeAutoRefreshEpg();
 }
 let _tvEpg={};   // stream_id -> [{title,start_ts,stop_ts},...]
@@ -11369,6 +11419,21 @@ function renderTvGuide(){
       +'<div class="tvprog" style="--nowpct:'+nowPct.toFixed(3)+'%">'+epgCellHtml(c.stream_id,winStart,winEnd)+'</div></div>';
   }
   body.innerHTML=h;
+  renderTvSpotlight();
+}
+function tvProgrammeRows(channel){
+  const now=Date.now()/1000,rows=((channel&&_tvEpg[String(channel.stream_id)])||[]).filter(p=>p&&p.title).map(p=>({title:p.title,start:epgWallClockTs(p.start,p.start_ts),stop:epgWallClockTs(p.end,p.stop_ts)})).sort((a,b)=>a.start-b.start);
+  const current=rows.find(p=>p.start<=now&&(!p.stop||p.stop>now))||rows.find(p=>p.start>=now)||null;
+  const index=current?rows.indexOf(current):-1;return {current:current,next:index>=0?rows[index+1]||null:null,later:index>=0?rows.slice(index+2,index+4):[]};
+}
+function renderTvSpotlight(channel){
+  const el=document.getElementById('tvSpotlight');if(!el)return;
+  channel=channel||_tvChannels.find(c=>String(c.stream_id)===String(_tvPlaying))||_tvChannels[0];
+  if(!channel){el.innerHTML='';return;}
+  const p=tvProgrammeRows(channel),current=p.current||{title:tr('No program info')};
+  const time=function(row){if(!row||!row.start)return '';const d=new Date(row.start*1000);return d.toLocaleTimeString(_lang==='no'?'nb-NO':undefined,{hour:'2-digit',minute:'2-digit'});};
+  const media=channel.logo?'<img src="'+escAttr(channel.logo)+'" alt="" onerror="this.parentElement.innerHTML=String.fromCodePoint(128250)">':'<span class="tvspotfallback">&#128250;</span>';
+  el.innerHTML='<div class="tvspotmedia">'+media+'</div><div class="tvspotinfo"><div class="tvspotblock"><div class="tvspotlabel">'+esc(tr('Now'))+'</div><div class="tvspotname">'+esc(current.title)+'</div><div class="tvspotmeta">'+esc(channel.name)+(time(current)?' &middot; '+esc(time(current)):'')+'</div><div class="tvspotactions"><button data-tvspot-play="'+escAttr(String(channel.stream_id))+'">&#9658; '+esc(tr('Watch'))+'</button><button class="ghost tvvlc" data-sid="'+escAttr(String(channel.stream_id))+'">VLC</button></div></div><div class="tvspotblock"><div class="tvspotlabel">'+esc(tr('Next'))+'</div><div class="tvspotnext">'+esc(p.next?p.next.title:tr('No program info'))+'</div><div class="tvspotmeta">'+esc(time(p.next))+'</div></div><div class="tvspotblock"><div class="tvspotlabel">'+esc(tr('Later'))+'</div>'+p.later.map(row=>'<div class="tvspotmeta"><b>'+esc(time(row))+'</b> &nbsp; '+esc(row.title)+'</div>').join('')+'</div></div>';
 }
 let _tvDragSid=null;
 document.addEventListener('dragstart',function(e){
@@ -11703,6 +11768,12 @@ document.addEventListener('click',function(e){
   }
   const src=e.target.closest('.tvsrc');
   if(src){loadTvSource(src.getAttribute('data-src'));return;}
+  const railMode=e.target.closest('[data-tvrail-mode]');
+  if(railMode){setTvRailMode(railMode.getAttribute('data-tvrail-mode'));return;}
+  const railChannel=e.target.closest('[data-tvrail-sid]');
+  if(railChannel){const sid=railChannel.getAttribute('data-tvrail-sid'),ch=_tvChannels.find(row=>String(row.stream_id)===String(sid));if(ch){tvPlay(ch.stream_id,ch.name);renderTvSpotlight(ch);renderTvRail();}return;}
+  const spotPlay=e.target.closest('[data-tvspot-play]');
+  if(spotPlay){const sid=spotPlay.getAttribute('data-tvspot-play'),ch=_tvChannels.find(row=>String(row.stream_id)===String(sid));if(ch)tvPlay(ch.stream_id,ch.name);return;}
   const tvv=e.target.closest('.tvvlc');
   if(tvv){playVLC(tvv.getAttribute('data-sid'),tvv);return;}
   if(e.target.closest('.tvdrag'))return;
@@ -11726,6 +11797,11 @@ document.addEventListener('click',function(e){
   const u=b.getAttribute('data-url')||'';
   navigator.clipboard.writeText(u).then(()=>{b.textContent='Copied';setTimeout(()=>b.textContent=tr('Copy URL'),1200);})
     .catch(()=>{b.textContent='Copy failed';setTimeout(()=>b.textContent=tr('Copy URL'),1500);});
+});
+document.addEventListener('input',function(e){
+  if(!e.target.matches('[data-tvrail-search]'))return;
+  _tvRailQuery=e.target.value||'';renderTvRail();
+  const input=document.getElementById('tvRailSearch');if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length);}
 });
 // apply saved language
 try{const sl=localStorage.getItem('tvmate_lang');if(sl==='no')setLang('no');else applyLang();}catch(e){applyLang();}
@@ -15348,6 +15424,23 @@ def run_self_tests():
           "if(timelineGame){showGames();return;}" in PAGE and
           'class="mylisttimelinebody mylisttimelinecontent mylisttimelinegame"' in PAGE and
           'mylisttimelinegame" data-url=' not in PAGE)
+    check("Movies and Shows use one full-width favorites surface",
+          '.movieswrap{display:block' in PAGE and
+          '.showswrap{display:block' in PAGE and
+          '<aside class="moviefavs">' not in PAGE and
+          '<aside class="showfavs">' not in PAGE and
+          'class="moviefavoriteblock"' in PAGE and
+          'class="showfavoriteblock"' in PAGE and
+          PAGE.count('id="movieFavList"') == 1 and
+          PAGE.count('id="showFavList"') == 1)
+    check("Live TV navigates categories channels and favorites beside the EPG",
+          'id="tvSpotlight"' in PAGE and
+          "let _tvCategories=[],_tvRailMode='categories'" in PAGE and
+          'data-tvrail-mode="categories"' in PAGE and
+          'data-tvrail-mode="channels"' in PAGE and
+          'data-tvrail-mode="favorites"' in PAGE and
+          'function renderTvSpotlight(channel)' in PAGE and
+          '.tvrail{width:248px' in PAGE)
     competition_keys = {item["key"] for group in SPORTS_COMPETITIONS
                         for item in group["items"]}
     check("Sports offers the Spanish Italian and German domestic cups",
