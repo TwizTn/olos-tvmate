@@ -129,7 +129,7 @@ def _atomic_write_json(path, value, indent=None, compact=False):
     _atomic_write_bytes(path, raw)
 
 # --- versioning & auto-update ---
-VERSION = "0.777.b545"
+VERSION = "0.777.b546"
 
 BANNER = r'''
   ___  _        _     _______     ____  __      __
@@ -6608,24 +6608,25 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  @media(max-width:900px){.mydash.layout-spotlight,.mydash.layout-hub,.mydash.layout-timeline{display:block}.mydash.layout-hub #myListProfile,.mydash.layout-timeline #myListProfile{display:flex;flex-direction:row;align-items:center;border-right:0;border-bottom:1px solid var(--line);padding:0 0 16px;min-height:0}.mydash.layout-hub .mydashepisodes{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}.mydash.layout-timeline #myListTimelineBlock{margin-top:28px}}
  /* My TV */
  .tvwrap{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:11px;overflow:hidden;height:min(82vh,920px);min-height:520px;background:#0d1015;box-shadow:0 12px 34px rgba(0,0,0,.12)}
- .tvrail{width:248px;flex-shrink:0;border-right:1px solid var(--line);overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;background:#11151b;scrollbar-width:thin}
- .tvrailtabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;position:sticky;top:0;z-index:4;background:#11151b;padding-bottom:3px}
- .tvrailtab{padding:8px 4px;font-size:10.5px;background:#151a22;color:var(--mut);border-color:var(--line2)}
+ .tvrail{width:292px;flex-shrink:0;border-right:1px solid #394250;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg,#151b24,#10141a 72%);scrollbar-width:thin}
+ .tvrailbrand{padding:4px 3px 2px;color:#e8edf4;font-size:14px;font-weight:750;letter-spacing:.01em}.tvrailbrand span{display:block;margin-top:4px;color:var(--mut);font-size:10px;font-weight:400}
+ .tvrailtabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;position:sticky;top:0;z-index:4;background:#151b24;padding:3px 0 5px}
+ .tvrailtab{display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px 8px;font-size:10.5px;background:#171e28;color:var(--mut);border-color:#303b4a}.tvrailtabicon{font-size:15px;line-height:1}
  .tvrailtab.on{color:#dcecff;border-color:#3975bf;background:#142743;box-shadow:inset 0 -2px 0 #4b9cff}
- .tvrailsearch{width:100%;box-sizing:border-box;padding:8px 9px;font-size:11px}
+ .tvrailsearch{width:100%;box-sizing:border-box;padding:10px 11px;font-size:11px;background:#0e131a;border-color:#3a4452}
  .tvrailtitle{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.08em;padding:4px 3px 1px}
  .tvrailback{padding:3px 7px;font-size:10px}
- .tvsrc{padding:8px 9px;font-size:11.5px;border:1px solid var(--line2);border-radius:7px;cursor:pointer;text-align:center;color:var(--mut);background:none;transition:all .1s;line-height:1.25}
+ .tvsrc{padding:10px 11px;font-size:11.5px;border:1px solid transparent;border-radius:8px;cursor:pointer;text-align:center;color:#c2cad5;background:rgba(255,255,255,.025);transition:all .1s;line-height:1.25}
  .tvsrc:hover{border-color:var(--acc);color:var(--fg)}
  .tvsrc.on{border-color:var(--acc);background:#16233d;color:#cfe0ff}
- .tvcatsrc,.tvrailchannel{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:8px;text-align:left;padding:10px 8px}
+ .tvcatsrc,.tvrailchannel{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:9px;text-align:left;padding:11px 9px}
  .tvcatsrc .tvcatcount{font-size:9px;border:1px solid #66521f;color:#d9b34c;border-radius:5px;padding:2px 5px}
  .tvrailchannel{width:100%;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;color:var(--fg);font-size:11px;cursor:pointer}
  .tvrailchannel:hover{background:var(--card2)}.tvrailchannel.playing{background:#16233d}
- .tvrailchannel img{width:24px;height:24px;object-fit:contain}.tvrailchannel span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .tvrailchannel img{width:28px;height:28px;object-fit:contain}.tvrailchannel span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  .tvguide{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
- .tvspotlight{display:grid;grid-template-columns:320px minmax(0,1fr);gap:0;min-height:170px;border-bottom:1px solid #343a46;background:linear-gradient(135deg,#121821,#0d1117);flex-shrink:0}
- .tvspotmedia{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 50% 45%,#1b2532,#080b10 72%);min-height:170px}.tvspotmedia img{width:min(76%,230px);height:min(76%,132px);object-fit:contain;filter:drop-shadow(0 12px 28px rgba(0,0,0,.48))}.tvspotmedia .tvspotfallback{font-size:42px;color:#657083}
+ .tvspotlight{display:grid;grid-template-columns:280px minmax(0,1fr);gap:0;min-height:158px;border-bottom:1px solid #3a4350;background:linear-gradient(120deg,#151d28,#0c1118);flex-shrink:0}
+ .tvspotmedia{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 50% 45%,#213044,#090d12 72%);min-height:158px}.tvspotmedia img{width:min(72%,205px);height:min(72%,118px);object-fit:contain;filter:drop-shadow(0 12px 28px rgba(0,0,0,.48))}.tvspotmedia .tvspotfallback{font-size:42px;color:#657083}
  .tvspotinfo{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.9fr) minmax(0,.7fr)}.tvspotblock{padding:20px;border-left:1px solid var(--line);min-width:0}.tvspotlabel{color:#d7a62d;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px}.tvspotname{font-size:20px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tvspotmeta{font-size:11px;color:var(--mut);margin-top:7px}.tvspotnext{font-size:13px;font-weight:650;line-height:1.35}.tvspotactions{display:flex;gap:7px;margin-top:14px;flex-wrap:wrap}.tvspotactions button{padding:6px 9px;font-size:10px}
  .tvguidehead{display:flex;flex-shrink:0;border-bottom:1px solid #343a46;background:#14181f;height:44px;padding-right:10px;box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:4}
  .tvchancol{width:286px;flex-shrink:0;border-right:1px solid #343a46;padding:6px 8px;display:flex;align-items:center}
@@ -6872,7 +6873,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .moviefavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center;word-break:break-word}
  .movieremove{position:absolute;right:3px;bottom:10px;margin:0;font-size:20px}
  .moviesmain{width:100%;max-width:1900px;min-width:0;margin:0 auto}
- .moviefavoriteblock{margin:18px 0 22px}.moviefavoritegrid{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(235px,285px);grid-template-columns:none;gap:10px;overflow-x:auto;padding:2px 2px 12px}
+ .moviefavoriteblock{margin:22px 0 30px}.moviefavoritegrid{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(270px,320px);grid-template-columns:none;gap:14px;overflow-x:auto;padding:3px 3px 15px;scroll-snap-type:x proximity;scroll-padding-left:3px}
  .moviefavoritegrid .moviefav{min-height:116px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card)}
  .moviefavoritegrid .moviefavposter{width:70px;height:105px}.moviefavoritegrid .moviefavinfo{align-items:center}.moviefavoritegrid .movieremove{right:9px;bottom:9px}
  .moviecatalogs{display:block;margin-top:20px}
@@ -6882,20 +6883,20 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .moviecatalogs.noxtream .moviecatalogcolumn+.moviecatalogcolumn{padding-left:0;border-left:0}
  .moviecatalogs.noxtream .moviegrid{grid-template-columns:repeat(3,minmax(0,1fr))}
  .moviecatalogcolumn{min-width:0}
- .moviecatalogcolumn+.moviecatalogcolumn{padding:22px 0 0;margin-top:22px;border-left:0;border-top:1px solid var(--line)}
+ .moviecatalogcolumn+.moviecatalogcolumn{padding:30px 0 0;margin-top:30px;border-left:0;border-top:1px solid var(--line)}
  .moviecataloghead{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:42px;margin-bottom:12px}
  .moviecataloghead .colh{margin:0}
  .moviecatalogtabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
  .moviecatalogtab{background:transparent;color:var(--mut);border-color:var(--line2);box-shadow:none}
  .moviecatalogtab.on{background:var(--card2);color:var(--fg);border-color:var(--acc)}
- .moviecatalogcolumn .moviegrid{grid-auto-flow:column;grid-auto-columns:minmax(270px,315px);grid-template-columns:none;overflow-x:auto;padding:2px 2px 12px;scrollbar-color:#697487 #20242c}
+ .moviecatalogcolumn .moviegrid{grid-auto-flow:column;grid-auto-columns:minmax(325px,365px);grid-template-columns:none;gap:15px;overflow-x:auto;padding:3px 3px 15px;scrollbar-color:#697487 #20242c;scroll-snap-type:x proximity;scroll-padding-left:3px}
  .moviegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:16px}
- .moviecard{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px;transition:border-color .13s,background .13s,transform .13s}
+ .moviecard{display:flex;gap:14px;background:linear-gradient(135deg,#171c24,#12161d);border:1px solid #404957;border-radius:11px;padding:13px;min-height:174px;scroll-snap-align:start;transition:border-color .13s,background .13s,transform .13s}
  .recentmovie{cursor:pointer}
  .recentmovie:hover{border-color:#496b9f;background:var(--card2);transform:translateY(-1px)}
  .latestshowcard{cursor:pointer}
  .latestshowcard:hover{border-color:var(--acc)}
- .movieposter{position:relative;width:92px;height:138px;flex-shrink:0;border-radius:7px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;color:#737b89;font-size:30px}
+ .movieposter{position:relative;width:104px;height:156px;flex-shrink:0;border-radius:8px;overflow:hidden;background:#20242c;display:flex;align-items:center;justify-content:center;color:#737b89;font-size:30px;box-shadow:0 8px 20px rgba(0,0,0,.25)}
  .movieavail{display:block;margin:8px auto 0;width:fit-content;background:rgba(30,120,60,.94);color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;letter-spacing:.02em;line-height:1.3}
  .moviecard .movieinfo{display:flex;flex-direction:column;align-items:center;text-align:center}
  .moviecard .movieactions{justify-content:center}
@@ -6972,11 +6973,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
  .showfavname{width:100%;font-size:14px;font-weight:600;line-height:1.35;text-align:center}
  .showremove{position:absolute;right:0;bottom:8px;padding:3px 7px}
  .showsmain{width:100%;max-width:1900px;min-width:0;margin:0 auto}
- .showfavoriteblock{margin:20px 0 24px}.showfavoriteblock .showfavlist{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(235px,285px);grid-template-columns:none;gap:12px;overflow-x:auto;padding:2px 2px 12px}
+ .showfavoriteblock{margin:22px 0 30px}.showfavoriteblock .showfavlist{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(270px,320px);grid-template-columns:none;gap:14px;overflow-x:auto;padding:3px 3px 15px;scroll-snap-type:x proximity}
  .showfavoriteblock .showfav{min-height:126px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
  .showfavoriteblock .showfavposter{width:78px;height:117px}.showfavoriteblock .showfavinfo{align-items:center}.showfavoriteblock .showremove{right:8px;bottom:8px}
- #latestEpisodeList>.moviegrid,#upcomingEpisodeList>.moviegrid{grid-auto-flow:column;grid-auto-columns:minmax(280px,330px);grid-template-columns:none;overflow-x:auto;padding:2px 2px 12px}
- .showfeature{min-height:310px}.showfeature .mediafeaturecopy{max-width:680px}
+ #latestEpisodeList>.moviegrid,#upcomingEpisodeList>.moviegrid{grid-auto-flow:column;grid-auto-columns:minmax(325px,365px);grid-template-columns:none;gap:15px;overflow-x:auto;padding:3px 3px 15px;scroll-snap-type:x proximity}
+ .showfeature{min-height:330px}.showfeature .mediafeaturecopy{max-width:680px}.showfeature .mediafeatureart{object-position:center 58%}
  .showgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:16px}
  .showcard{display:flex;gap:10px;min-height:140px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;transition:border-color .13s,background .13s,transform .13s}
  .showcard:hover{border-color:#496b9f;background:var(--card2);transform:translateY(-1px)}
@@ -11360,10 +11361,10 @@ async function buildTvRail(){
   renderTvRail();
 }
 function tvRailTabsHtml(){
-  return '<div class="tvrailtabs">'
-    +'<button class="tvrailtab'+(_tvRailMode==='categories'?' on':'')+'" data-tvrail-mode="categories">'+esc(tr('Categories'))+'</button>'
-    +'<button class="tvrailtab'+(_tvRailMode==='channels'?' on':'')+'" data-tvrail-mode="channels">'+esc(tr('Channels'))+'</button>'
-    +'<button class="tvrailtab'+(_tvRailMode==='favorites'?' on':'')+'" data-tvrail-mode="favorites">'+esc(tr('Favorites'))+'</button></div>';
+  return '<div class="tvrailbrand">'+esc(tr('Browse Live TV'))+'<span>'+esc(tr('Choose a category or jump to a channel.'))+'</span></div><div class="tvrailtabs">'
+    +'<button class="tvrailtab'+(_tvRailMode==='categories'?' on':'')+'" data-tvrail-mode="categories"><span class="tvrailtabicon">&#9638;</span>'+esc(tr('Categories'))+'</button>'
+    +'<button class="tvrailtab'+(_tvRailMode==='channels'?' on':'')+'" data-tvrail-mode="channels"><span class="tvrailtabicon">&#128250;</span>'+esc(tr('Channels'))+'</button>'
+    +'<button class="tvrailtab'+(_tvRailMode==='favorites'?' on':'')+'" data-tvrail-mode="favorites"><span class="tvrailtabicon">&#9733;</span>'+esc(tr('Favorites'))+'</button></div>';
 }
 function renderTvRail(){
   const rail=document.getElementById('tvRail');if(!rail)return;
@@ -15490,7 +15491,8 @@ def run_self_tests():
           'function renderMovieFeature(movie)' in PAGE and
           'function renderShowFeature(ep,upcoming)' in PAGE and
           '.moviecatalogs{display:block' in PAGE and
-          'grid-auto-flow:column;grid-auto-columns:minmax(270px,315px)' in PAGE and
+          'grid-auto-flow:column;grid-auto-columns:minmax(325px,365px)' in PAGE and
+          'scroll-snap-type:x proximity' in PAGE and
           '#latestEpisodeList>.moviegrid,#upcomingEpisodeList>.moviegrid' in PAGE and
           'class="mediafeatureart"' in PAGE and
           "const title=cleanMovieSearchTitle(movie.name),art=movie.background||movie.cover||''" in PAGE and
@@ -15502,7 +15504,9 @@ def run_self_tests():
           'data-tvrail-mode="channels"' in PAGE and
           'data-tvrail-mode="favorites"' in PAGE and
           'function renderTvSpotlight(channel)' in PAGE and
-          '.tvrail{width:248px' in PAGE)
+          '.tvrail{width:292px' in PAGE and
+          'class="tvrailbrand"' in PAGE and
+          'class="tvrailtabicon"' in PAGE)
     competition_keys = {item["key"] for group in SPORTS_COMPETITIONS
                         for item in group["items"]}
     check("Sports offers the Spanish Italian and German domestic cups",
